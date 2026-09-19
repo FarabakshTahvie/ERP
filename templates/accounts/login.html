@@ -19,8 +19,8 @@
 
             <!-- سربرگ برند -->
             <div class="relative z-10">
-                <div class="inline-flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold mb-6">
-                    {% icon "shield-check" "w-4 h-4 text-accent-content" %}
+                <div class="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold mb-6">
+                    <img src="{% static 'icons/logo.svg' %}" alt="فرابخش" class="w-6 h-6 object-contain">
                     <span>پرتال امن کارفرمایان و تکنسین‌ها</span>
                 </div>
                 <h2 class="text-3xl font-black tracking-tight leading-tight">سامانه یکپارچه<br>فرابخش تهویه</h2>
@@ -73,9 +73,7 @@
 
                 <!-- لوگو برای صفحات موبایل -->
                 <div class="lg:hidden flex items-center justify-center gap-3 mb-8">
-                    <div class="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
-                        {% icon "snowflake" "w-7 h-7" %}
-                    </div>
+                    <img src="{% static 'icons/logo.svg' %}" alt="فرابخش تهویه" class="w-12 h-12 object-contain">
                     <div class="flex flex-col">
                         <span class="text-xl font-black text-primary">فرابخش تهویه</span>
                         <span class="text-xs text-base-content/60">پرتال مشتریان و همکاران</span>
