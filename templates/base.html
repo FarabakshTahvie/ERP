@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="{% static 'dist/output.css' %}">
 
     <!-- HTMX Library with CSRF Token Integration -->
-    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+    <script src="{% static 'js/htmx.min.js' %}" defer></script>
 
     {% block extra_head %}{% endblock %}
 </head>
