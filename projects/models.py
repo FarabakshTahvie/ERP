@@ -57,6 +57,12 @@ class Project(TimeStampedModel):
         seq = int(last.code.split("-")[-1]) + 1 if last else 1
         return f"P{year}-{seq:04d}"
 
+    @property
+    def current_files(self):
+        """همه‌ی فایل‌های جاری (آخرین نسخه) پروژه، صرف‌نظر از اینکه در کدام مرحله آپلود شده‌اند."""
+        from .models import ProjectFile
+        return ProjectFile.objects.filter(stage__project=self, is_current=True).select_related("stage").order_by("kind", "-version")
+
 
 class ProjectService(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="services", verbose_name="پروژه")
@@ -259,6 +265,7 @@ class ProjectFile(TimeStampedModel):
         OTHER = "other", "سایر"
 
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="files", verbose_name="مرحله")
+    title = models.CharField(max_length=150, blank=True, verbose_name="عنوان فایل")
     file = models.FileField(upload_to=project_file_upload_path, verbose_name="فایل")
     kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="نوع فایل")
     version = models.PositiveSmallIntegerField(verbose_name="شماره نسخه", blank=True)

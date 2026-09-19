@@ -36,12 +36,13 @@
             <p class="text-sm text-base-content/60 mt-1">شماره سند: {{ invoice.number }}</p>
         </div>
         <div class="flex gap-2">
-            <button onclick="window.print()" class="btn btn-primary btn-sm gap-2">
+            <a href="{% url 'finance:portal_invoice_pdf' invoice.uuid %}" target="_blank" class="btn btn-primary btn-sm gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                چاپ یا ذخیره PDF
-            </button>
+                دانلود / مشاهده PDF
+            </a>
+            <button onclick="window.print()" class="btn btn-outline btn-sm no-print">چاپ مرورگر</button>
             <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">بازگشت</a>
         </div>
     </div>

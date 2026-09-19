@@ -95,15 +95,9 @@ class FinanceInvoiceTests(TestCase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.paid_amount, Decimal('10000000'))  # چون هنوز تایید نشده
 
-        # تایید پرداخت اعتباری توسط مدیر
+        # تایید پرداخت اعتباری توسط مدیر (طبق منطق جدید اعتباری در محاسبه paid_amount نمی‌آید)
         approve_payment(pay2, approved_by=self.user)
         invoice.refresh_from_db()
-        self.assertEqual(invoice.paid_amount, Decimal('20000000'))
-        self.assertEqual(invoice.status, Invoice.Status.PAID)
-        self.assertIsNotNone(invoice.settled_at)
-
-        # بررسی سند دفتر حساب (LedgerEntry) برای پرداخت اعتباری
-        ledger = LedgerEntry.objects.filter(party=self.partner, entry_type=LedgerEntry.EntryType.DEBIT).first()
-        self.assertIsNotNone(ledger)
-        self.assertEqual(ledger.amount, Decimal('10000000'))
-        self.assertEqual(self.partner.balance, Decimal('10000000'))
+        self.assertEqual(invoice.paid_amount, Decimal('10000000'))
+        self.assertEqual(invoice.remaining_amount, Decimal('10000000'))
+        self.assertEqual(self.partner.total_outstanding, Decimal('10000000'))

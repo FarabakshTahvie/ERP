@@ -109,6 +109,14 @@ class Party(TimeStampedModel):
         credit = self.ledger_entries.filter(entry_type=LedgerEntry.EntryType.CREDIT).aggregate(s=Sum('amount'))['s'] or 0
         return debit - credit
 
+    @property
+    def total_outstanding(self):
+        """مجموع مبلغ باقی‌مانده‌ی همه‌ی فاکتورهای این طرف‌حساب که لغو نشده‌اند."""
+        from finance.models import Invoice
+        invoices = self.invoices.exclude(status=Invoice.Status.CANCELLED)
+        total = sum((inv.remaining_amount for inv in invoices), 0)
+        return total
+
 
 class PartyContact(TimeStampedModel):
     party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="contacts", verbose_name="طرف‌حساب")

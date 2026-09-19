@@ -39,7 +39,6 @@ class Invoice(TimeStampedModel):
     settled_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تسویه کامل")
 
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="شناسه یکتا")
-    pdf_file = models.FileField(upload_to="invoices/pdf/", null=True, blank=True, verbose_name="فایل PDF")
 
     history = HistoricalRecords()
 
@@ -51,16 +50,9 @@ class Invoice(TimeStampedModel):
     def __str__(self):
         return f"{self.number} - {self.project.name}"
 
-    def recalculate_paid_amount(self):
-        total_paid = self.payments.filter(status=Payment.Status.APPROVED).aggregate(total=models.Sum('amount'))['total'] or 0
-        self.paid_amount = total_paid
-        if self.total_amount > 0 and self.paid_amount >= self.total_amount:
-            self.status = self.Status.PAID
-            if not self.settled_at:
-                self.settled_at = timezone.now()
-        elif self.paid_amount > 0:
-            self.status = self.Status.PARTIALLY_PAID
-        self.save(update_fields=["paid_amount", "status", "settled_at"])
+    @property
+    def remaining_amount(self):
+        return self.total_amount - self.paid_amount
 
 
 class InvoiceLine(models.Model):
@@ -109,6 +101,7 @@ class Payment(TimeStampedModel):
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ پرداخت")
     reference_number = models.CharField(max_length=100, blank=True, verbose_name="شماره پیگیری/تراکنش")
     receipt_file = models.FileField(upload_to="payments/receipts/", null=True, blank=True, verbose_name="تصویر رسید/فیش")
+    note = models.TextField(blank=True, verbose_name="توضیحات (به‌خصوص برای روش اعتباری)")
 
     cheque_number = models.CharField(max_length=30, blank=True, verbose_name="شماره صیادی چک")
     cheque_bank = models.CharField(max_length=100, blank=True, verbose_name="بانک")
@@ -127,7 +120,8 @@ class Payment(TimeStampedModel):
             self.status = self.Status.APPROVED
             self.approved_at = self.approved_at or timezone.now()
         super().save(*args, **kwargs)
-        self.invoice.recalculate_paid_amount()
+        from .services import recalculate_invoice_paid_amount
+        recalculate_invoice_paid_amount(self.invoice)
 
 
 class LedgerEntry(TimeStampedModel):

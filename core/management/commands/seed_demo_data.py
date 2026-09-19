@@ -128,11 +128,17 @@ class Command(BaseCommand):
             invoice = generate_invoice_for_project(project)
             payment1 = Payment.objects.create(invoice=invoice, method=Payment.Method.CARD_TO_CARD, amount=20000000, reference_number="TRX-0001")
             approve_payment(payment1, approved_by=admin_user)
-            Payment.objects.create(invoice=invoice, method=Payment.Method.CREDIT, amount=invoice.total_amount - invoice.paid_amount)
+            Payment.objects.create(
+                invoice=invoice, method=Payment.Method.CREDIT,
+                amount=invoice.total_amount - invoice.paid_amount,
+                note="توافق شد باقی‌مانده تا پایان ماه به‌صورت اعتباری تسویه شود.",
+            )
 
         self.stdout.write(self.style.SUCCESS("داده‌های نمونه ساخته شدند.\n"))
         self.stdout.write(self.style.SUCCESS(f"پروژه: {project.code} - {project.name}"))
         self.stdout.write(self.style.SUCCESS(f"فاکتور: {invoice.number}"))
+        self.stdout.write(f"مانده فاکتور: {invoice.remaining_amount}")
+        self.stdout.write(f"بدهکاری کل طرف‌حساب: {partner_party.total_outstanding}")
         self.stdout.write("\n=== اطلاعات ورود کاربران ===")
         for role, username, password in credentials:
             self.stdout.write(f"نقش: {role:10s} | یوزرنیم: {username:15s} | پسورد: {password}")

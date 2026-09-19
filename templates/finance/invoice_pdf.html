@@ -1,0 +1,197 @@
+{% load static humanize %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ invoice.number }} - {% if invoice.document_type == 'proforma' %}پیش‌فاکتور{% else %}فاکتور رسمی{% endif %}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            direction: rtl;
+            color: #1f2937;
+            font-size: 11pt;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            border-bottom: 2px solid #0d9488;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .brand {
+            font-size: 20pt;
+            font-weight: 900;
+            color: #0d9488;
+        }
+        .doc-title {
+            font-size: 16pt;
+            font-weight: 800;
+            text-align: left;
+            color: #111827;
+        }
+        .meta-table, .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .meta-table td {
+            padding: 6px 8px;
+            font-size: 10pt;
+            vertical-align: top;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #4b5563;
+            width: 15%;
+        }
+        .meta-val {
+            color: #111827;
+            width: 35%;
+        }
+        .lines-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .lines-table th, .lines-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            font-size: 10pt;
+            text-align: center;
+        }
+        .lines-table th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #374151;
+        }
+        .lines-table td.title-col {
+            text-align: right;
+            font-weight: bold;
+        }
+        .lines-table td.num-col {
+            text-align: left;
+            font-family: monospace;
+        }
+        .summary-box {
+            width: 40%;
+            margin-right: auto;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .summary-box td {
+            padding: 6px 10px;
+            font-size: 10pt;
+        }
+        .summary-box td.label {
+            text-align: right;
+            font-weight: bold;
+            color: #4b5563;
+        }
+        .summary-box td.val {
+            text-align: left;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .summary-box tr.total-row td {
+            border-top: 2px solid #0d9488;
+            font-size: 11pt;
+            color: #0d9488;
+        }
+        .footer-note {
+            margin-top: 40px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+            font-size: 8.5pt;
+            color: #6b7280;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="brand">فرابخش</div>
+            <div style="font-size: 9pt; color: #4b5563; margin-top: 2px;">سامانه جامع خدمات و مهندسی تهویه مطبوع</div>
+        </div>
+        <div class="doc-title">
+            {% if invoice.document_type == 'proforma' %}پیش‌فاکتور فروش{% else %}فاکتور رسمی فروش{% endif %}
+            <div style="font-size: 10pt; font-weight: normal; color: #6b7280; margin-top: 4px;">شماره: {{ invoice.number }}</div>
+        </div>
+    </div>
+
+    <table class="meta-table">
+        <tr>
+            <td class="meta-label">طرف‌حساب:</td>
+            <td class="meta-val">{{ invoice.billed_party.name }}</td>
+            <td class="meta-label">تاریخ صدور:</td>
+            <td class="meta-val">{{ invoice.issue_date|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">پروژه:</td>
+            <td class="meta-val">{{ invoice.project.name }} ({{ invoice.project.code }})</td>
+            <td class="meta-label">شماره تماس:</td>
+            <td class="meta-val">{{ invoice.billed_party.phone_number|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">نشانی پروژه:</td>
+            <td class="meta-val" colspan="3">{{ invoice.address_snapshot|default:"ثبت نشده" }}</td>
+        </tr>
+    </table>
+
+    <table class="lines-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">ردیف</th>
+                <th style="width: 42%;">شرح خدمت / کالا</th>
+                <th style="width: 12%;">نوع</th>
+                <th style="width: 10%;">مقدار</th>
+                <th style="width: 14%;">مبلغ واحد (تومان)</th>
+                <th style="width: 14%;">جمع کل (تومان)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in invoice.lines.all %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td class="title-col">{{ line.title }}</td>
+                    <td>{{ line.get_line_type_display }}</td>
+                    <td class="num-col">{{ line.qty|floatformat:"-2" }}</td>
+                    <td class="num-col">{{ line.unit_price|intcomma }}</td>
+                    <td class="num-col">{{ line.total|intcomma }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" style="padding: 20px; color: #9ca3af;">هیچ ردیفی ثبت نشده است.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="summary-box">
+        <tr>
+            <td class="label">جمع کل فاکتور:</td>
+            <td class="val">{{ invoice.total_amount|intcomma }} تومان</td>
+        </tr>
+        <tr>
+            <td class="label">مبلغ پرداختی:</td>
+            <td class="val" style="color: #059669;">{{ invoice.paid_amount|intcomma }} تومان</td>
+        </tr>
+        <tr class="total-row">
+            <td class="label">مانده قابل پرداخت:</td>
+            <td class="val">{{ invoice.remaining_amount|intcomma }} تومان</td>
+        </tr>
+    </table>
+
+    <div class="footer-note">
+        این سند به‌صورت الکترونیکی صادر شده و نیاز به مهر یا امضای فیزیکی ندارد • فرابخش تهویه
+    </div>
+</body>
+</html>

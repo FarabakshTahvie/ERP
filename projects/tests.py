@@ -58,7 +58,7 @@ class ProjectWorkflowTests(TestCase):
         self.assertEqual(stage1.status, ProjectStage.Status.IN_PROGRESS)
 
         # پیشبرد مرحله ۱ به DONE
-        advance_stage(stage1, actor=self.user, new_status=ProjectStage.Status.DONE)
+        advance_stage(stage1, actor=self.user, new_status=ProjectStage.Status.DONE, comment="بازدید انجام شد")
         stage1.refresh_from_db()
         self.assertEqual(stage1.status, ProjectStage.Status.DONE)
 
@@ -67,7 +67,7 @@ class ProjectWorkflowTests(TestCase):
         self.assertEqual(stage2.status, ProjectStage.Status.IN_PROGRESS)
 
         # پیشبرد مرحله ۲ به DONE
-        advance_stage(stage2, actor=self.user, new_status=ProjectStage.Status.DONE)
+        advance_stage(stage2, actor=self.user, new_status=ProjectStage.Status.DONE, comment="طراحی انجام شد")
         stage3 = ProjectStage.objects.get(project=self.project, step_template=self.step3)
         self.assertEqual(stage3.status, ProjectStage.Status.IN_PROGRESS)
 

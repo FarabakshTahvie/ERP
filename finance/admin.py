@@ -28,6 +28,12 @@ class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
     inlines = [InvoiceLineInline, PaymentInline]
     actions = ['action_refresh_lines', 'action_issue_credentials']
 
+    def has_module_permission(self, request):
+        return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
     @display(
         description="وضعیت فاکتور",
         label={
@@ -68,6 +74,12 @@ class PaymentAdmin(ModelAdmin):
     search_fields = ('invoice__number', 'reference_number', 'cheque_number')
     actions = ['action_approve']
 
+    def has_module_permission(self, request):
+        return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
     @display(
         description="وضعیت پرداخت",
         label={
@@ -90,3 +102,9 @@ class LedgerEntryAdmin(ModelAdmin):
     list_display = ('id', 'party', 'entry_type', 'amount', 'description', 'created_at')
     list_filter = ('entry_type',)
     search_fields = ('party__name', 'description')
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)

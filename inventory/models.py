@@ -20,6 +20,7 @@ class Warehouse(models.Model):
 class Purchase(TimeStampedModel):
     supplier = models.ForeignKey('core.Party', on_delete=models.PROTECT, related_name="purchases", verbose_name="فروشنده/تأمین‌کننده")
     invoice_number = models.CharField(max_length=50, blank=True, verbose_name="شماره فاکتور خرید")
+    invoice_file = models.FileField(upload_to="purchases/invoices/", null=True, blank=True, verbose_name="فایل فاکتور خرید")
     purchased_at = models.DateTimeField(verbose_name="تاریخ خرید")
     notes = models.TextField(blank=True, verbose_name="یادداشت")
 

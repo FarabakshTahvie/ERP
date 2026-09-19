@@ -84,15 +84,24 @@ def approve_payment(payment, approved_by):
     payment.approved_by = approved_by
     payment.approved_at = timezone.now()
     payment.save()
+    # توجه: دیگر LedgerEntry خودکار برای روش اعتباری ساخته نمی‌شود چون
+    # Invoice.remaining_amount و Party.total_outstanding خودشان این بدهی را نشان می‌دهند.
+    # LedgerEntry فقط برای ثبت دستی موارد خارج از چارچوب فاکتور (مثل تسویه‌ی قدیمی) استفاده می‌شود.
 
-    if payment.method == Payment.Method.CREDIT:
-        LedgerEntry.objects.create(
-            party=payment.invoice.billed_party,
-            entry_type=LedgerEntry.EntryType.DEBIT,
-            amount=payment.amount,
-            description=f"اعتباری بابت فاکتور {payment.invoice.number}",
-            related_object=payment,
-        )
+
+def recalculate_invoice_paid_amount(invoice):
+    real_paid = invoice.payments.filter(
+        status=Payment.Status.APPROVED,
+    ).exclude(method=Payment.Method.CREDIT).aggregate(total=models.Sum('amount'))['total'] or 0
+
+    invoice.paid_amount = real_paid
+    if invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount:
+        invoice.status = Invoice.Status.PAID
+        if not invoice.settled_at:
+            invoice.settled_at = timezone.now()
+    elif invoice.paid_amount > 0:
+        invoice.status = Invoice.Status.PARTIALLY_PAID
+    invoice.save(update_fields=["paid_amount", "status", "settled_at"])
 
 
 @transaction.atomic

@@ -35,7 +35,10 @@ def create_project_stages_from_template(project):
 
 
 @transaction.atomic
-def advance_stage(stage, actor, new_status, comment=""):
+def advance_stage(stage, actor, new_status, comment):
+    if not comment or not comment.strip():
+        raise ValueError("ثبت توضیح برای این مرحله اجباری است.")
+
     old_status = stage.status
     stage.status = new_status
     if new_status == ProjectStage.Status.DONE:
@@ -149,4 +152,24 @@ def send_stage_for_approval(stage, party, sent_by):
     #         body=f"مرحله «{stage.client_label or stage.title}» نیاز به تایید شما دارد.",
     #         real_target_url=f"/portal/projects/{stage.project_id}/approve/{approval.id}/",
     #     )
+    return approval
+
+
+@transaction.atomic
+def decide_stage_approval(approval, actor, decision, comment=""):
+    from .models import StageApproval
+    if decision == StageApproval.Decision.REJECTED and (not comment or not comment.strip()):
+        raise ValueError("برای رد یک مرحله، ذکر دلیل اجباری است.")
+
+    approval.decision = decision
+    approval.decided_at = timezone.now()
+    approval.comment = comment
+    approval.save()
+
+    stage = approval.stage
+    if decision == StageApproval.Decision.APPROVED:
+        advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=comment or "تایید شد توسط کارفرما/شریک")
+    elif decision == StageApproval.Decision.REJECTED:
+        advance_stage(stage, actor=actor, new_status=ProjectStage.Status.REJECTED, comment=comment)
+
     return approval
