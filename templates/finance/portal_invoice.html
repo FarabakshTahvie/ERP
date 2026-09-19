@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}فاکتور {{ invoice.number }} - فرابخش{% endblock %}
+
+{% block extra_head %}
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+    }
+    .print-card {
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header / Actions -->
+    <div class="flex items-center justify-between no-print">
+        <div>
+            <h1 class="text-2xl font-bold text-base-content">
+                {% if invoice.document_type == 'proforma' %}پیش‌فاکتور{% else %}فاکتور فروش{% endif %}
+            </h1>
+            <p class="text-sm text-base-content/60 mt-1">شماره سند: {{ invoice.number }}</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="window.print()" class="btn btn-primary btn-sm gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                چاپ یا ذخیره PDF
+            </button>
+            <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">بازگشت</a>
+        </div>
+    </div>
+
+    <!-- Main Invoice Card -->
+    <div class="card bg-base-100 shadow-sm border border-base-200 p-6 md:p-8 print-card">
+        <!-- Brand & Basic Info -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-base-200 gap-4">
+            <div>
+                <h2 class="text-xl font-bold text-primary">فرابخش</h2>
+                <p class="text-xs text-base-content/70 mt-1">خدمات و مهندسی سیستم‌های تهویه مطبوع</p>
+            </div>
+            <div class="text-left rtl:text-right text-xs space-y-1">
+                <div><span class="text-base-content/60">تاریخ صدور:</span> <span class="font-medium">{{ invoice.issue_date|default:"-" }}</span></div>
+                <div><span class="text-base-content/60">پروژه:</span> <span class="font-medium">{{ invoice.project.name }}</span></div>
+                <div>
+                    <span class="text-base-content/60">وضعیت پرداخت:</span>
+                    <span class="badge badge-sm 
+                        {% if invoice.status == 'paid' %}badge-success
+                        {% elif invoice.status == 'sent' %}badge-warning
+                        {% else %}badge-ghost{% endif %}">
+                        {{ invoice.get_status_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parties Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 py-6 border-b border-base-200 text-sm">
+            <div class="space-y-1">
+                <span class="text-xs font-semibold text-base-content/50 uppercase">طرف‌حساب (خریدار):</span>
+                <p class="font-medium text-base-content">{{ invoice.billed_party.name }}</p>
+                {% if invoice.billed_party.phone_number %}
+                    <p class="text-xs text-base-content/70">شماره تماس: {{ invoice.billed_party.phone_number }}</p>
+                {% endif %}
+            </div>
+            <div class="space-y-1">
+                <span class="text-xs font-semibold text-base-content/50 uppercase">نشانی محل پروژه:</span>
+                <p class="text-xs text-base-content/80">{{ invoice.address_snapshot|default:"ثبت نشده" }}</p>
+            </div>
+        </div>
+
+        <!-- Lines Table -->
+        <div class="overflow-x-auto py-6">
+            <table class="table table-zebra w-full text-sm">
+                <thead>
+                    <tr class="bg-base-200/50 text-base-content/80 text-xs">
+                        <th class="w-12 text-center">ردیف</th>
+                        <th>شرح خدمت / کالا</th>
+                        <th class="text-center w-24">نوع</th>
+                        <th class="text-center w-24">مقدار</th>
+                        <th class="text-left rtl:text-right w-36">مبلغ واحد (تومان)</th>
+                        <th class="text-left rtl:text-right w-36">جمع کل (تومان)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in invoice.lines.all %}
+                        <tr>
+                            <td class="text-center">{{ forloop.counter }}</td>
+                            <td class="font-medium">{{ line.title }}</td>
+                            <td class="text-center text-xs text-base-content/70">{{ line.get_line_type_display }}</td>
+                            <td class="text-center font-mono">{{ line.qty|floatformat:"-2" }}</td>
+                            <td class="text-left rtl:text-right font-mono">{{ line.unit_price|intcomma }}</td>
+                            <td class="text-left rtl:text-right font-mono font-medium">{{ line.total|intcomma }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/50 py-4">ردیفی برای این فاکتور ثبت نشده است.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary & Balance -->
+        <div class="flex justify-end pt-4 border-t border-base-200">
+            <div class="w-full md:w-80 space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-base-content/70">مبلغ کل فاکتور:</span>
+                    <span class="font-bold font-mono">{{ invoice.total_amount|intcomma }} تومان</span>
+                </div>
+                <div class="flex justify-between text-success">
+                    <span>مبلغ پرداخت‌شده:</span>
+                    <span class="font-bold font-mono">{{ invoice.paid_amount|intcomma }} تومان</span>
+                </div>
+                <div class="divider my-1"></div>
+                <div class="flex justify-between text-base font-bold">
+                    <span>مانده قابل پرداخت:</span>
+                    <span class="font-mono {% if invoice.remaining_amount > 0 %}text-error{% else %}text-success{% endif %}">
+                        {{ invoice.remaining_amount|intcomma }} تومان
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% load static custom_tags %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="h-full scroll-smooth" data-theme="farabakhsh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>{% block title %}سامانه فرابخش | سیستم جامع مدیریت تهویه مطبوع{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}سامانه هوشمند و یکپارچه مدیریت پروژه‌ها، پیش‌فاکتورها و خدمات مهندسی تهویه مطبوع فرابخش{% endblock %}">
+
+    <!-- Anti-flicker Theme Initialization -->
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('fb_theme') || 'farabakhsh';
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Performance & Fonts Preload -->
+    <link rel="preload" href="{% static 'fonts/Vazirmatn[wght].woff2' %}" as="font" type="font/woff2" crossorigin>
+
+    <!-- Tailwind CSS v4 & daisyUI 5 Compiled Stylesheet -->
+    <link rel="stylesheet" href="{% static 'dist/output.css' %}">
+
+    <!-- HTMX Library with CSRF Token Integration -->
+    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-full flex flex-col bg-base-100 font-sans text-base-content antialiased selection:bg-primary selection:text-primary-content" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    {% if request.user.is_authenticated %}
+    <!-- Modern DaisyUI 5 Navbar -->
+    <header class="sticky top-0 z-40 w-full backdrop-blur-md bg-base-100/90 border-b border-base-200 shadow-sm transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="navbar min-h-16 px-0 gap-2">
+                <!-- Brand / Logo -->
+                <div class="flex-1 flex items-center gap-3">
+                    <a href="{% url 'home' %}" class="flex items-center gap-2.5 font-black text-xl tracking-tight text-primary transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+                            {% icon "snowflake" "w-6 h-6 animate-spin-slow" %}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-extrabold text-lg leading-tight">فرابخش</span>
+                            <span class="text-[10px] font-medium text-base-content/60 tracking-wider">مهندسی تهویه مطبوع</span>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Center Nav Links (Desktop) -->
+                <nav class="hidden md:flex items-center gap-1">
+                    <a href="{% url 'home' %}" class="btn btn-ghost btn-sm rounded-lg font-medium hover:bg-base-200">
+                        {% icon "layout-dashboard" "w-4 h-4 text-primary" %} داشبورد
+                    </a>
+                    {% if request.user.is_staff %}
+                    <a href="/admin/" class="btn btn-ghost btn-sm rounded-lg font-medium text-secondary hover:bg-base-200">
+                        {% icon "settings" "w-4 h-4" %} پنل مدیریت
+                    </a>
+                    {% endif %}
+                </nav>
+
+                <!-- Actions: Theme Switcher & User Profile -->
+                <div class="flex-none flex items-center gap-2">
+                    <!-- Theme Toggle Controller -->
+                    <label class="swap swap-rotate btn btn-ghost btn-circle btn-sm" title="تغییر تم (روشن / تاریک)">
+                        <input type="checkbox" id="theme-toggle" class="theme-controller" value="farabakhsh-dark" />
+                        {% icon "sun" "swap-off w-5 h-5 text-warning" %}
+                        {% icon "moon" "swap-on w-5 h-5 text-info" %}
+                    </label>
+
+                    <!-- User Dropdown Menu -->
+                    <div class="dropdown dropdown-end">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2 rounded-xl border border-base-300 hover:border-primary/50 transition-colors">
+                            <div class="w-7 h-7 rounded-lg bg-primary text-primary-content font-bold flex items-center justify-center text-xs shadow-sm">
+                                {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+                            </div>
+                            <span class="text-xs font-semibold hidden sm:inline max-w-[120px] truncate">
+                                {{ request.user.get_full_name|default:request.user.username }}
+                            </span>
+                            {% icon "arrow-up-down" "w-3 h-3 opacity-50" %}
+                        </div>
+                        <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-60 border border-base-200 mt-2 space-y-1">
+                            <li class="menu-title px-3 py-2 border-b border-base-200 mb-1">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="font-bold text-base-content text-sm">{{ request.user.get_full_name|default:request.user.username }}</span>
+                                    <span class="text-xs text-base-content/60 font-technical">{{ request.user.phone_number|default:request.user.email }}</span>
+                                    <span class="badge badge-primary badge-sm mt-1.5 self-start font-medium">{{ request.user.get_role_display }}</span>
+                                </div>
+                            </li>
+                            <li>
+                                <a href="{% url 'home' %}" class="gap-2.5 rounded-lg py-2">
+                                    {% icon "home" "w-4 h-4 text-primary" %} پرتال کاربری
+                                </a>
+                            </li>
+                            {% if request.user.is_staff %}
+                            <li>
+                                <a href="/admin/" class="gap-2.5 rounded-lg py-2 text-secondary font-medium">
+                                    {% icon "settings" "w-4 h-4" %} ورود به ادمین
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li class="border-t border-base-200 mt-1 pt-1">
+                                <form action="{% url 'accounts:logout' %}" method="post" class="p-0 m-0 w-full">
+                                    {% csrf_token %}
+                                    <button type="submit" class="w-full flex items-center gap-2.5 text-error rounded-lg py-2 px-3 hover:bg-error/10 text-right">
+                                        {% icon "log-out" "w-4 h-4" %} خروج از حساب
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
+    <!-- Messages & Notification Toasts -->
+    {% if messages %}
+    <div class="toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg rounded-2xl flex items-center gap-3 animate-shake">
+            {% if message.tags == 'error' %}
+                {% icon "alert-circle" "w-6 h-6 flex-shrink-0" %}
+            {% elif message.tags == 'success' %}
+                {% icon "check-circle" "w-6 h-6 flex-shrink-0" %}
+            {% else %}
+                {% icon "bell" "w-6 h-6 flex-shrink-0" %}
+            {% endif %}
+            <span class="text-sm font-medium flex-1">{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main Content Slot -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Global Minimal Footer -->
+    <footer class="footer footer-center p-6 bg-base-200/60 text-base-content/70 border-t border-base-300 text-xs mt-auto">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl w-full px-4">
+            <div class="flex items-center gap-2">
+                {% icon "snowflake" "w-4 h-4 text-primary" %}
+                <span class="font-semibold text-base-content">فرابخش</span>
+                <span class="text-base-content/60">| سامانه مدیریت خدمات مهندسی تهویه</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs font-technical">
+                <span>نسخه ۱.۰.۰</span>
+                <span>•</span>
+                <span>پشتیبانی: ۰۲۱-۸۸۸۸۸۸۸۸</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Theme Switch Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggle = document.getElementById('theme-toggle');
+            if (toggle) {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'farabakhsh';
+                toggle.checked = currentTheme === 'farabakhsh-dark';
+                toggle.addEventListener('change', function() {
+                    const nextTheme = this.checked ? 'farabakhsh-dark' : 'farabakhsh';
+                    document.documentElement.setAttribute('data-theme', nextTheme);
+                    try {
+                        localStorage.setItem('fb_theme', nextTheme);
+                    } catch(e) {}
+                });
+            }
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,62 @@
+{% load i18n %}
+<div class="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-xs">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">روند پیشرفت مراحل پروژه</h3>
+        <span class="text-xs text-gray-500">کد: {{ original.code }}</span>
+    </div>
+    
+    <div class="overflow-x-auto pb-2">
+        <div class="flex items-start gap-3 min-w-[700px]">
+            {% for stage in original.stages.all %}
+                <div class="flex-1 flex flex-col items-center text-center relative group">
+                    <!-- Stage status circle -->
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 shadow-xs transition-transform group-hover:scale-105
+                        {% if stage.status == 'done' %}
+                            bg-emerald-500 text-white
+                        {% elif stage.status == 'in_progress' %}
+                            bg-blue-500 text-white ring-4 ring-blue-100 dark:ring-blue-900/40
+                        {% elif stage.status == 'waiting_approval' %}
+                            bg-amber-500 text-white ring-4 ring-amber-100 dark:ring-amber-900/40
+                        {% elif stage.status == 'rejected' %}
+                            bg-rose-500 text-white
+                        {% else %}
+                            bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 border border-gray-200 dark:border-gray-600
+                        {% endif %}">
+                        {% if stage.status == 'done' %}✓
+                        {% elif stage.status == 'in_progress' %}▶
+                        {% elif stage.status == 'waiting_approval' %}⏳
+                        {% elif stage.status == 'rejected' %}✕
+                        {% else %}{{ stage.order }}{% endif %}
+                    </div>
+
+                    <!-- Title & Details -->
+                    <div class="text-xs font-medium text-gray-800 dark:text-gray-200 line-clamp-1 max-w-[120px]" title="{{ stage.title }}">
+                        {{ stage.title }}
+                    </div>
+                    
+                    <div class="text-[11px] mt-1">
+                        {% if stage.needs_manual_assignment %}
+                            <span class="text-rose-600 font-semibold">⚠ نیازمند مسئول</span>
+                        {% elif stage.assigned_to %}
+                            <span class="text-emerald-700 dark:text-emerald-400">{{ stage.assigned_to.get_full_name|default:stage.assigned_to.username }}</span>
+                        {% elif stage.candidate_users.exists %}
+                            <span class="text-amber-600">{{ stage.candidate_users.count }} کاندیدا</span>
+                        {% else %}
+                            <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="text-[10px] text-gray-400 mt-0.5">
+                        {{ stage.get_status_display }}
+                    </div>
+                </div>
+                
+                {% if not forloop.last %}
+                    <div class="w-8 h-0.5 bg-gray-200 dark:bg-gray-700 mt-5 shrink-0"></div>
+                {% endif %}
+            {% empty %}
+                <div class="text-sm text-gray-500 p-2">هنوز مراحلی برای این پروژه ثبت یا ایجاد نشده است.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>

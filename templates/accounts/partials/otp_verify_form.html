@@ -1,0 +1,77 @@
+{% load custom_tags %}
+<div class="border-t border-base-300 pt-4 mt-4 space-y-4">
+    <!-- Success Alert -->
+    <div class="alert alert-info text-sm shadow-sm rounded-xl py-2.5 px-3.5 flex items-center gap-2.5">
+        {% icon "check-circle" "w-5 h-5 flex-shrink-0 text-info-content" %}
+        <div class="flex flex-col text-xs text-info-content">
+            <span class="font-medium">کد تایید یکبارمصرف ارسال شد:</span>
+            <span class="font-technical font-bold text-sm tracking-wider mt-0.5">{{ phone_number }}</span>
+        </div>
+    </div>
+
+    <!-- OTP Verification Form -->
+    <form hx-post="{% url 'accounts:verify_otp_login' %}" hx-target="#otp-dynamic-area" class="space-y-4">
+        <input type="hidden" name="phone_number" value="{{ phone_number }}">
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div>
+            <label class="block text-xs font-semibold mb-1.5 text-base-content/80">کد تایید ۵ رقمی پیامک‌شده:</label>
+            <input type="text"
+                   name="code"
+                   placeholder="• • • • •"
+                   class="input input-bordered w-full text-center text-2xl tracking-[0.5em] font-technical font-bold h-13 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl"
+                   required
+                   dir="ltr"
+                   autofocus
+                   maxlength="6"
+                   inputmode="numeric">
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit"
+                class="btn btn-primary w-full rounded-xl gap-2 font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all h-12"
+                hx-disabled-elt="this"
+                hx-indicator="#verify-spinner">
+            {% icon "check" "w-5 h-5" %}
+            <span>تایید و ورود به سامانه</span>
+            <span id="verify-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
+        </button>
+    </form>
+
+    <!-- Resend Timer / Back Action -->
+    <div class="flex items-center justify-between text-xs pt-1 px-1 text-base-content/70">
+        <button type="button"
+                onclick="document.getElementById('otp-phone-section').classList.remove('hidden'); document.getElementById('otp-dynamic-area').innerHTML = '';"
+                class="link link-hover text-base-content/60 hover:text-primary transition-colors flex items-center gap-1">
+            {% icon "rotate-ccw" "w-3.5 h-3.5" %} ویرایش شماره
+        </button>
+
+        <div id="otp-timer-container" class="flex items-center gap-1 font-technical font-medium text-base-content/80">
+            {% icon "clock" "w-3.5 h-3.5 opacity-60" %}
+            <span>ارسال مجدد تا</span>
+            <span id="otp-seconds-left" class="font-bold text-primary">۱۲۰</span>
+            <span>ثانیه</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        let seconds = 120;
+        const timerSpan = document.getElementById('otp-seconds-left');
+        const container = document.getElementById('otp-timer-container');
+
+        const interval = setInterval(function() {
+            seconds--;
+            if (timerSpan) {
+                timerSpan.textContent = seconds;
+            }
+            if (seconds <= 0) {
+                clearInterval(interval);
+                if (container) {
+                    container.innerHTML = '<span class="text-primary font-bold cursor-pointer hover:underline" onclick="document.getElementById(\'btn-request-otp\').click()">ارسال مجدد کد</span>';
+                }
+            }
+        }, 1000);
+    })();
+</script>

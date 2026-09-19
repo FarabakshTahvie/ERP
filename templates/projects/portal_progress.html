@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}روند اجرای پروژه {{ project.code }} - فرابخش{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="card bg-base-100 shadow-sm border border-base-200 p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <span class="badge badge-primary badge-outline text-xs">کد پروژه: {{ project.code }}</span>
+                <h1 class="text-xl font-bold text-base-content mt-2">{{ project.name }}</h1>
+            </div>
+            <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">بازگشت به خانه</a>
+        </div>
+    </div>
+
+    <!-- Progress Steps Timeline -->
+    <div class="card bg-base-100 shadow-sm border border-base-200 p-6">
+        <h2 class="text-base font-semibold mb-6 text-base-content/80">مراحل اجرایی پروژه</h2>
+
+        <ul class="steps steps-vertical w-full">
+            {% for stage in stages %}
+                <li class="step 
+                    {% if stage.status == 'done' %}step-primary
+                    {% elif stage.status == 'in_progress' %}step-info
+                    {% elif stage.status == 'waiting_approval' %}step-warning
+                    {% endif %}">
+                    <div class="flex flex-col items-start text-right py-2 px-2 w-full">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium text-sm text-base-content">{{ stage.title }}</span>
+                            {% if stage.status == 'done' %}
+                                <span class="badge badge-success badge-sm">تکمیل شد</span>
+                            {% elif stage.status == 'in_progress' %}
+                                <span class="badge badge-info badge-sm">در حال انجام</span>
+                            {% elif stage.status == 'waiting_approval' %}
+                                <span class="badge badge-warning badge-sm">در انتظار تایید</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-sm">در انتظار</span>
+                            {% endif %}
+                        </div>
+
+                        {% if stage.status == 'in_progress' and stage.hint %}
+                            <p class="text-xs text-info mt-1">{{ stage.hint }}</p>
+                        {% endif %}
+                    </div>
+                </li>
+            {% empty %}
+                <p class="text-sm text-base-content/50 py-4">هنوز مرحله‌ای برای نمایش ایجاد نشده است.</p>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+{% load custom_tags %}
+<div class="alert alert-error text-sm mt-3 shadow-md rounded-xl animate-shake flex items-center gap-2.5">
+    {% icon "alert-circle" "w-5 h-5 flex-shrink-0 text-error-content" %}
+    <span class="font-medium text-error-content">{{ message }}</span>
+</div>

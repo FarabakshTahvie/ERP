@@ -1,0 +1,26 @@
+/* Custom Unfold Admin Styling Adjustments */
+body, table, input, button, select, textarea {
+    font-weight: 400 !important;
+}
+
+h1, h2, h3, h4, h5, h6, th, .font-semibold, .font-bold {
+    font-weight: 500 !important;
+}
+
+/* Center table headers and cells except RTL text alignment fallback */
+.unfold-table th,
+.unfold-table td,
+table.results th,
+table.results td,
+table th,
+table td {
+    text-align: center !important;
+}
+
+/* Clearer vertical column divider borders */
+.unfold-table th:not(:last-child),
+.unfold-table td:not(:last-child),
+table th:not(:last-child),
+table td:not(:last-child) {
+    border-inline-end: 1px solid rgba(156, 163, 175, 0.35) !important;
+}

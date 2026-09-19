@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}حساب کارمند ساخته شد | فرابخش{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="card w-full max-w-md bg-base-200 border border-base-300 shadow-xl">
+        <div class="card-body text-center">
+            <div class="flex justify-center mb-3 text-success">
+                {% icon "check-circle" "w-16 h-16" %}
+            </div>
+            <h1 class="card-title justify-center text-xl font-bold mb-2">حساب کارمند با موفقیت ساخته شد</h1>
+
+            <div class="alert alert-warning text-sm my-4 text-right">
+                {% icon "alert-triangle" "w-6 h-6 flex-shrink-0" %}
+                <div>
+                    <span class="font-bold block">توجه مهم:</span>
+                    <span>این رمز عبور فقط همین یک‌بار نمایش داده می‌شود. لطفاً آن را ذخیره و به کارمند تحویل دهید.</span>
+                </div>
+            </div>
+
+            <div class="bg-base-300 p-4 rounded-xl text-right mb-4">
+                <p class="text-sm mb-1"><span class="opacity-70">نام و نام خانوادگی:</span> {{ user.get_full_name }}</p>
+                <p class="text-sm mb-1"><span class="opacity-70">نام کاربری / شماره موبایل:</span> <code class="bg-base-100 px-2 py-0.5 rounded">{{ user.username }}</code></p>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-base-100">
+                    <span class="text-sm font-semibold">رمز عبور اولیه:</span>
+                    <div class="flex items-center gap-2">
+                        <code id="raw-pass" class="text-lg font-mono font-bold text-accent bg-base-100 px-3 py-1 rounded">{{ raw_password }}</code>
+                        <button class="btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText('{{ raw_password }}'); alert('رمز عبور کپی شد!');">
+                            {% icon "copy" "w-4 h-4" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <a href="{% url 'accounts:register_staff' %}" class="btn btn-outline btn-block">ثبت کاربر دیگر</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

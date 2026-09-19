@@ -1,0 +1,92 @@
+from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import display
+from simple_history.admin import SimpleHistoryAdmin
+from .models import Invoice, InvoiceLine, Payment, LedgerEntry
+from .services import refresh_invoice_lines, approve_payment
+
+
+class InvoiceLineInline(TabularInline):
+    model = InvoiceLine
+    extra = 0
+    readonly_fields = ('total',)
+
+
+class PaymentInline(TabularInline):
+    model = Payment
+    extra = 0
+    readonly_fields = ('approved_by', 'approved_at')
+
+
+@admin.register(Invoice)
+class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
+    list_display = ('number', 'project', 'billed_party', 'document_type', 'status_badge', 'total_amount', 'paid_amount', 'issue_date')
+    list_filter = ('document_type', 'status', 'issue_date')
+    search_fields = ('number', 'project__name', 'billed_party__name')
+    raw_id_fields = ('project', 'billed_party')
+    readonly_fields = ('number', 'total_amount', 'paid_amount', 'uuid', 'settled_at')
+    inlines = [InvoiceLineInline, PaymentInline]
+    actions = ['action_refresh_lines', 'action_issue_credentials']
+
+    @display(
+        description="وضعیت فاکتور",
+        label={
+            Invoice.Status.DRAFT: "info",
+            Invoice.Status.SENT: "warning",
+            Invoice.Status.AWAITING_APPROVAL: "warning",
+            Invoice.Status.PARTIALLY_PAID: "warning",
+            Invoice.Status.PAID: "success",
+            Invoice.Status.CANCELLED: "danger",
+        }
+    )
+    def status_badge(self, obj):
+        return obj.status
+
+    @admin.action(description="بازتولید ردیف‌ها از پروژه (فقط پیش‌نویس)")
+    def action_refresh_lines(self, request, queryset):
+        for invoice in queryset:
+            try:
+                refresh_invoice_lines(invoice)
+            except ValueError as e:
+                self.message_user(request, str(e), level='error')
+
+    @admin.action(description="ساخت حساب و آماده‌سازی اطلاع‌رسانی برای طرف‌حساب")
+    def action_issue_credentials(self, request, queryset):
+        from .services import ensure_billed_party_account_and_notify
+        for invoice in queryset:
+            user, raw_password = ensure_billed_party_account_and_notify(invoice)
+            msg = f"{invoice.number}: یوزرنیم {user.username}"
+            if raw_password:
+                msg += f" / پسورد {raw_password}"
+            self.message_user(request, msg)
+
+
+@admin.register(Payment)
+class PaymentAdmin(ModelAdmin):
+    list_display = ('id', 'invoice', 'method', 'amount', 'status_badge', 'paid_at')
+    list_filter = ('method', 'status')
+    search_fields = ('invoice__number', 'reference_number', 'cheque_number')
+    actions = ['action_approve']
+
+    @display(
+        description="وضعیت پرداخت",
+        label={
+            Payment.Status.PENDING: "warning",
+            Payment.Status.APPROVED: "success",
+            Payment.Status.REJECTED: "danger",
+        }
+    )
+    def status_badge(self, obj):
+        return obj.status
+
+    @admin.action(description="تایید پرداخت‌های انتخاب‌شده")
+    def action_approve(self, request, queryset):
+        for payment in queryset.exclude(status=Payment.Status.APPROVED):
+            approve_payment(payment, approved_by=request.user)
+
+
+@admin.register(LedgerEntry)
+class LedgerEntryAdmin(ModelAdmin):
+    list_display = ('id', 'party', 'entry_type', 'amount', 'description', 'created_at')
+    list_filter = ('entry_type',)
+    search_fields = ('party__name', 'description')

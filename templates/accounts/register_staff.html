@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}ثبت کاربر جدید | فرابخش{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="card w-full max-w-lg bg-base-200 border border-base-300 shadow-xl">
+        <div class="card-body">
+            <h1 class="card-title justify-center text-xl font-bold mb-4">ثبت کاربر / تکنسین جدید</h1>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">نام</span></label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}<span class="text-error text-xs mt-1">{{ form.first_name.errors.0 }}</span>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">نام خانوادگی</span></label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}<span class="text-error text-xs mt-1">{{ form.last_name.errors.0 }}</span>{% endif %}
+                    </div>
+                </div>
+
+                <div class="form-control mb-3">
+                    <label class="label"><span class="label-text">شماره موبایل</span></label>
+                    {{ form.phone_number }}
+                    {% if form.phone_number.errors %}<span class="text-error text-xs mt-1">{{ form.phone_number.errors.0 }}</span>{% endif %}
+                </div>
+
+                <div class="form-control mb-3">
+                    <label class="label"><span class="label-text">نقش</span></label>
+                    {{ form.role }}
+                </div>
+
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">تخصص‌ها (اختیاری)</span></label>
+                    {{ form.specialties }}
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full gap-2">
+                    {% icon "user-plus" "w-5 h-5" %} ثبت و صدور حساب
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
