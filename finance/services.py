@@ -72,10 +72,23 @@ def generate_invoice_for_project(project, issue_date=None, document_type=Invoice
 
 @transaction.atomic
 def refresh_invoice_lines(invoice):
-    if invoice.status != Invoice.Status.DRAFT:
-        raise ValueError("فقط فاکتورهای پیش‌نویس قابل بازتولید ردیف‌ها هستند.")
+    if invoice.document_type != Invoice.DocumentType.PROFORMA:
+        raise ValueError("فقط پیش‌فاکتور قابل بازتولید ردیف‌هاست؛ فاکتور نهایی قفل است.")
     invoice.lines.all().delete()
     _rebuild_lines(invoice, invoice.project)
+
+
+@transaction.atomic
+def add_manual_invoice_line(invoice, title, amount, actor, line_type=InvoiceLine.LineType.EXTRA):
+    """برای افزودن هزینه‌ی جدید بعد از قفل‌شدن فاکتور (تغییر طرح، کار اضافه و ...)
+    بدون دست‌زدن به ردیف‌های قبلی."""
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("امکان افزودن ردیف به فاکتور لغوشده وجود ندارد.")
+    line = InvoiceLine.objects.create(
+        invoice=invoice, line_type=line_type, title=title, qty=1, unit_price=amount, total=amount,
+    )
+    recalculate_invoice_total(invoice)
+    return line
 
 
 @transaction.atomic

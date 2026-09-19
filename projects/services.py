@@ -39,29 +39,42 @@ def advance_stage(stage, actor, new_status, comment):
     if not comment or not comment.strip():
         raise ValueError("ثبت توضیح برای این مرحله اجباری است.")
 
+    from accounts.models import User
+    if getattr(actor, "role", None) == User.Role.EMPLOYEE and stage.assigned_to_id and stage.assigned_to_id != actor.id:
+        raise ValueError("فقط مسئول این مرحله می‌تواند وضعیتش را تغییر دهد.")
+
     old_status = stage.status
-    stage.status = new_status
     if new_status == ProjectStage.Status.DONE:
+        stage.status = new_status
         stage.completed_at = timezone.now()
         stage.completed_by = actor
-    if new_status == ProjectStage.Status.REJECTED:
+        stage.save()
+    elif new_status == ProjectStage.Status.REJECTED:
         stage.rejection_count += 1
-    stage.save()
+        if stage.step_template.on_reject_go_to:
+            stage.status = ProjectStage.Status.REJECTED
+            stage.save(update_fields=["status", "rejection_count"])
+            target_stage = stage.project.stages.filter(step_template=stage.step_template.on_reject_go_to).first()
+            if target_stage:
+                target_stage.status = ProjectStage.Status.IN_PROGRESS
+                target_stage.save(update_fields=["status"])
+        else:
+            # هیچ مسیر اصلاح خودکاری تعریف نشده → معلق تا بررسی مدیر
+            stage.status = ProjectStage.Status.SUSPENDED
+            stage.save(update_fields=["status", "rejection_count"])
+    else:
+        stage.status = new_status
+        stage.save()
 
     StageEvent.objects.create(
         stage=stage,
         actor=actor,
         from_status=old_status,
-        to_status=new_status,
+        to_status=stage.status,
         comment=comment,
     )
 
-    if new_status == ProjectStage.Status.REJECTED and stage.step_template.on_reject_go_to:
-        target_stage = stage.project.stages.filter(step_template=stage.step_template.on_reject_go_to).first()
-        if target_stage:
-            target_stage.status = ProjectStage.Status.IN_PROGRESS
-            target_stage.save(update_fields=["status"])
-    elif new_status == ProjectStage.Status.DONE:
+    if new_status == ProjectStage.Status.DONE:
         _activate_next_stage(stage)
 
     return stage
@@ -129,9 +142,55 @@ def claim_stage(stage, user):
     return stage
 
 
+def default_approval_party(project):
+    if project.owner_id and not project.partner_id:
+        return project.owner
+    return project.partner  # پیش‌فرض همیشه شریک تجاری وقتی هر دو موجودند یا فقط شریک موجود است
+
+
 @transaction.atomic
-def send_stage_for_approval(stage, party, sent_by):
+def resume_suspended_stage(stage, actor, comment):
+    if not comment or not comment.strip():
+        raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
+    old = stage.status
+    stage.status = ProjectStage.Status.IN_PROGRESS
+    stage.save(update_fields=["status"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=comment)
+
+
+@transaction.atomic
+def cancel_project_from_stage(stage, actor, comment):
+    if not comment or not comment.strip():
+        raise ValueError("ثبت دلیل لغو پروژه اجباری است.")
+    project = stage.project
+    from .models import Project
+    project.status = Project.Status.CANCELLED
+    project.save(update_fields=["status"])
+    old = stage.status
+    stage.status = ProjectStage.Status.REJECTED
+    stage.save(update_fields=["status"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=f"پروژه لغو شد: {comment}")
+
+
+@transaction.atomic
+def assign_stage(stage, target_user, actor, comment):
+    from accounts.models import User
+    if not (actor.is_superuser or actor.role == User.Role.ADMIN):
+        raise ValueError("فقط مدیر می‌تواند مرحله را آزادانه به هرکسی ارجاع دهد.")
+    if not comment or not comment.strip():
+        raise ValueError("ثبت دلیل ارجاع دستی اجباری است.")
+    stage.assigned_to = target_user
+    stage.candidate_users.clear()
+    stage.save(update_fields=["assigned_to"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=stage.status, to_status=stage.status, comment=comment)
+    return stage
+
+
+@transaction.atomic
+def send_stage_for_approval(stage, party=None, sent_by=None):
     """ثبت درخواست تاییدیه؛ ارسال واقعی پوش/پیامک فعلاً کامنت."""
+    if not party:
+        party = default_approval_party(stage.project)
     from .models import StageApproval
     approval = StageApproval.objects.create(stage=stage, sent_to_party=party, sent_by=sent_by)
     stage.status = ProjectStage.Status.WAITING_APPROVAL

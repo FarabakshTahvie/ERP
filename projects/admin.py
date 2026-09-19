@@ -8,7 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from accounts.models import User
-from .forms import StageAdvanceForm
+from .forms import StageCommentForm, StageAssignForm
 from .models import (
     Project, ProjectService, ProjectMaterial, ProjectParticipant,
     WorkflowTemplate, WorkflowStepTemplate, ProjectStage, StageEvent, StageApproval, ProjectFile,
@@ -95,7 +95,14 @@ class ProjectStageAdmin(ModelAdmin):
     raw_id_fields = ('project', 'assigned_to', 'completed_by')
     filter_horizontal = ('candidate_users',)
     inlines = [StageEventInline, ProjectFileInline]
-    actions = ['action_claim_for_me', 'action_advance_done', 'action_advance_rejected']
+    actions = [
+        'action_claim_for_me',
+        'action_assign_manually',
+        'action_advance_done',
+        'action_advance_rejected',
+        'action_resume_suspended',
+        'action_cancel_project',
+    ]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -127,7 +134,7 @@ class ProjectStageAdmin(ModelAdmin):
         dialog={
             "title": "تکمیل مرحله",
             "description": "لطفاً توضیحات و گزارش کار این مرحله را وارد کنید.",
-            "form_class": StageAdvanceForm,
+            "form_class": StageCommentForm,
         },
     )
     def action_advance_done(self, request, form, object_id):
@@ -146,7 +153,7 @@ class ProjectStageAdmin(ModelAdmin):
         dialog={
             "title": "رد مرحله",
             "description": "لطفاً دلایل و ایرادات این مرحله را وارد کنید.",
-            "form_class": StageAdvanceForm,
+            "form_class": StageCommentForm,
         },
     )
     def action_advance_rejected(self, request, form, object_id):
@@ -155,7 +162,65 @@ class ProjectStageAdmin(ModelAdmin):
         stage = ProjectStage.objects.get(pk=object_id)
         try:
             advance_stage(stage, actor=request.user, new_status=ProjectStage.Status.REJECTED, comment=comment)
-            messages.warning(request, f"مرحله «{stage.title}» رد شد و بازگردانده شد.")
+            messages.warning(request, f"مرحله «{stage.title}» رد شد.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return HttpResponse(headers={"HX-Redirect": reverse_lazy("admin:projects_projectstage_changelist")})
+
+    @action(
+        description="ارجاع آزاد مدیر به کاربر",
+        dialog={
+            "title": "ارجاع دستی مرحله",
+            "description": "انتخاب مسئول جدید و درج دلیل ارجاع",
+            "form_class": StageAssignForm,
+        },
+    )
+    def action_assign_manually(self, request, form, object_id):
+        from .services import assign_stage
+        target_user = form.cleaned_data.get("target_user")
+        comment = form.cleaned_data.get("comment")
+        stage = ProjectStage.objects.get(pk=object_id)
+        try:
+            assign_stage(stage, target_user=target_user, actor=request.user, comment=comment)
+            messages.success(request, f"مرحله «{stage.title}» با موفقیت به {target_user} ارجاع داده شد.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return HttpResponse(headers={"HX-Redirect": reverse_lazy("admin:projects_projectstage_changelist")})
+
+    @action(
+        description="بازگشت به چرخه (برای مراحل معلق)",
+        dialog={
+            "title": "بازگشت مرحله معلق به چرخه",
+            "description": "ثبت دلیل خروج از حالت معلق",
+            "form_class": StageCommentForm,
+        },
+    )
+    def action_resume_suspended(self, request, form, object_id):
+        from .services import resume_suspended_stage
+        comment = form.cleaned_data.get("comment")
+        stage = ProjectStage.objects.get(pk=object_id)
+        try:
+            resume_suspended_stage(stage, actor=request.user, comment=comment)
+            messages.success(request, f"مرحله «{stage.title}» از حالت معلق خارج و به چرخه فعال بازگشت.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return HttpResponse(headers={"HX-Redirect": reverse_lazy("admin:projects_projectstage_changelist")})
+
+    @action(
+        description="لغو کامل پروژه از این مرحله",
+        dialog={
+            "title": "لغو پروژه",
+            "description": "ثبت دلیل لغو کلی پروژه",
+            "form_class": StageCommentForm,
+        },
+    )
+    def action_cancel_project(self, request, form, object_id):
+        from .services import cancel_project_from_stage
+        comment = form.cleaned_data.get("comment")
+        stage = ProjectStage.objects.get(pk=object_id)
+        try:
+            cancel_project_from_stage(stage, actor=request.user, comment=comment)
+            messages.error(request, f"پروژه «{stage.project.name}» کلاً لغو شد.")
         except ValueError as e:
             messages.error(request, str(e))
         return HttpResponse(headers={"HX-Redirect": reverse_lazy("admin:projects_projectstage_changelist")})

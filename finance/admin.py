@@ -1,9 +1,13 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
-from unfold.decorators import display
+from django.http import HttpResponse
+from django.urls import reverse_lazy
+from django.contrib import messages
+from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from .models import Invoice, InvoiceLine, Payment, LedgerEntry
-from .services import refresh_invoice_lines, approve_payment
+from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line
+from .forms import AddInvoiceLineForm
 
 
 class InvoiceLineInline(TabularInline):
@@ -17,6 +21,15 @@ class PaymentInline(TabularInline):
     extra = 0
     readonly_fields = ('approved_by', 'approved_at')
 
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for payment in instances:
+            if payment.status == Payment.Status.APPROVED and not payment.approved_by_id:
+                payment.approved_by = request.user
+                payment.approved_at = timezone.now()
+            payment.save()
+        formset.save_m2m()
+
 
 @admin.register(Invoice)
 class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
@@ -26,7 +39,7 @@ class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
     raw_id_fields = ('project', 'billed_party')
     readonly_fields = ('number', 'total_amount', 'paid_amount', 'uuid', 'settled_at')
     inlines = [InvoiceLineInline, PaymentInline]
-    actions = ['action_refresh_lines', 'action_issue_credentials']
+    actions = ['action_refresh_lines', 'action_mark_final', 'action_add_manual_line', 'action_issue_credentials']
 
     def has_module_permission(self, request):
         return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
@@ -47,6 +60,23 @@ class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
     )
     def status_badge(self, obj):
         return obj.status
+
+    @admin.action(description="تبدیل به فاکتور نهایی (قفل ردیف‌ها)")
+    def action_mark_final(self, request, queryset):
+        count = queryset.update(document_type=Invoice.DocumentType.FINAL)
+        self.message_user(request, f"{count} فاکتور به حالت نهایی در آمدند.")
+
+    @action(description="افزودن هزینه‌ی جدید (بعد از قفل‌شدن فاکتور)", dialog={"title": "افزودن هزینه جدید", "description": "عنوان و مبلغ هزینه را وارد کنید.", "form_class": AddInvoiceLineForm})
+    def action_add_manual_line(self, request, form, object_id):
+        invoice = Invoice.objects.get(pk=object_id)
+        title = form.cleaned_data["title"]
+        amount = form.cleaned_data["amount"]
+        try:
+            add_manual_invoice_line(invoice, title=title, amount=amount, actor=request.user)
+            messages.success(request, f"هزینه به فاکتور {invoice.number} اضافه شد.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return HttpResponse(headers={"HX-Redirect": reverse_lazy("admin:finance_invoice_changelist")})
 
     @admin.action(description="بازتولید ردیف‌ها از پروژه (فقط پیش‌نویس)")
     def action_refresh_lines(self, request, queryset):

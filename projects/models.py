@@ -185,6 +185,7 @@ class ProjectStage(TimeStampedModel):
         WAITING_APPROVAL = "waiting_approval", "در انتظار تایید"
         REJECTED = "rejected", "رد شده / نیازمند اصلاح"
         DONE = "done", "انجام‌شده"
+        SUSPENDED = "suspended", "معلق - در انتظار بررسی مدیر"
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="stages", verbose_name="پروژه")
     step_template = models.ForeignKey(WorkflowStepTemplate, on_delete=models.PROTECT, related_name="stage_instances", verbose_name="مرحله قالب مرجع")
