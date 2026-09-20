@@ -9,6 +9,32 @@
 - PostgreSQL
 - Redis (برای کش)
 - Node.js + pnpm (برای Tailwind)
+- کتابخانه‌های سیستم‌عاملی برای خروجی PDF (در Ubuntu: `sudo apt install libpango-1.0-0 libpangoft2-1.0-0`)
+
+## فعال‌سازی نجوا (Push Notification)
+1. مقادیر `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در فایل `.env` تنظیم کنید.
+2. آی‌پی سرور خود را در پنل نجوا وایت‌لیست کنید.
+3. دستور `python manage.py najva_check` را برای تست اتصال اجرا نمایید.
+4. متغیر `NAJVA_ENABLED=True` را در `.env` قرار داده و سرویس را ری‌استارت کنید.
+
+## استقرار روی سرور (Production Deployment)
+1. متغیر `DEBUG=False` را در `.env` قرار دهید.
+2. دستورات آماده‌سازی استاتیک و مایگریشن:
+   ```bash
+   pnpm install && pnpm run build
+   python manage.py collectstatic --noinput
+   python manage.py migrate
+   ```
+3. تنظیمات Nginx:
+   ```nginx
+   proxy_set_header Host $host;
+   proxy_set_header X-Forwarded-Proto $scheme;
+   proxy_set_header X-Forwarded-For $remote_addr;
+   ```
+4. کرون‌جاب ارسال پیامک‌های جایگزین (هر ۵ دقیقه):
+   ```cron
+   */5 * * * * /path/to/venv/bin/python /path/to/manage.py process_notification_fallbacks
+   ```
 
 ## راه‌اندازی اولیه
 

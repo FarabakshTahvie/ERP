@@ -31,7 +31,7 @@
                 <button onclick="document.getElementById('service-modal').showModal()" class="btn btn-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all gap-2 text-sm flex-1 md:flex-initial">
                     {% icon "plus" "w-4 h-4" %} ثبت درخواست
                 </button>
-                <a href="tel:02188888888" class="btn btn-outline btn-secondary rounded-xl font-bold text-sm gap-2 flex-1 md:flex-initial">
+                <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-outline btn-secondary rounded-xl font-bold text-sm gap-2 flex-1 md:flex-initial">
                     {% icon "phone" "w-4 h-4" %} پشتیبانی فنی
                 </a>
             </div>
@@ -104,7 +104,7 @@
                     {% icon "shield-check" "w-6 h-6" %}
                 </div>
             </div>
-            <span class="text-xs text-base-content/60 mt-3 block">پشتیبانی ۲۴ ساعته قطعات اصلی</span>
+            <span class="text-xs text-base-content/60 mt-3 block">پشتیبانی در ساعت کاری</span>
         </div>
     </div>
 
@@ -258,16 +258,15 @@
                     {% icon "phone" "w-40 h-40" %}
                 </div>
                 <div class="relative z-10 space-y-3">
-                    <span class="badge badge-neutral badge-sm px-3 py-1.5 h-auto leading-none font-semibold">پشتیبانی ۲۴ ساعته</span>
-                    <h3 class="text-xl font-black">نیاز به اعزام فوری کارشناس دارید؟</h3>
-                    <p class="text-xs opacity-85 leading-relaxed">
-                        تیم مهندسی فرابخش در صورت بروز خرابی اضطراری در کمترین زمان در محل حاضر خواهد شد.
-                    </p>
-                    <div class="pt-2">
-                        <a href="tel:02188888888" class="btn btn-neutral btn-sm rounded-xl font-bold gap-2 text-xs w-full">
-                            {% icon "phone" "w-4 h-4" %} تماس مستقیم: ۰۲۱-۸۸۸۸۸۸۸۸
-                        </a>
-                    </div>
+                    <span class="badge badge-neutral badge-sm px-3 py-1.5 h-auto leading-none font-semibold">ساعت کاری {{ CONTACT.hours }}</span>
+                    <h3 class="text-xl font-black">نیاز به هماهنگی فوری دارید؟</h3>
+                    <p class="text-xs opacity-85 leading-relaxed">در ساعت کاری با دفتر تماس بگیرید. خارج از ساعت کاری با شماره‌ی زیر در ارتباط باشید.</p>
+                    <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-neutral btn-sm rounded-xl font-bold gap-2 text-xs w-full">
+                        {% icon "phone" "w-4 h-4" %} دفتر: <span class="font-technical">{{ CONTACT.office_phone.display }}</span>
+                    </a>
+                    <a href="tel:{{ CONTACT.after_hours.tel }}" class="btn btn-outline btn-sm rounded-xl font-bold gap-2 text-xs w-full mt-2">
+                        {% icon "phone" "w-4 h-4" %} خارج از ساعت کاری: <span class="font-technical">{{ CONTACT.after_hours.display }}</span>
+                    </a>
                 </div>
             </div>
 

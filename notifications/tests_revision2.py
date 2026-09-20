@@ -129,8 +129,9 @@ class TrackingAndShortLinkTest(TestCase):
 
     def test_short_code_generated(self):
         self.assertIsNotNone(self.notification.short_code)
-        self.assertEqual(len(self.notification.short_code), 7)
+        self.assertEqual(len(self.notification.short_code), 5)
         self.assertTrue(self.notification.short_path.startswith("s/"))
+        self.assertFalse(self.notification.short_path.endswith("/"))
 
     def test_click_tracking_normal_user(self):
         client = Client()

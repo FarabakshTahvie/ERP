@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load custom_tags %}
+{% load static custom_tags %}
 
 {% block title %}ورود به سامانه هوشمند فرابخش{% endblock %}
 
@@ -62,7 +62,7 @@
 
             <!-- پانویس پنل برند -->
             <div class="relative z-10 flex items-center justify-between text-xs opacity-75 border-t border-white/15 pt-4 font-technical">
-                <span>پشتیبانی کارفرمایان: ۰۲۱-۸۸۸۸۸۸۸۸</span>
+                <span>پشتیبانی کارفرمایان: {{ CONTACT.office_phone.display }}</span>
                 <span>نسخه ۱.۰</span>
             </div>
         </div>
@@ -193,7 +193,10 @@
                 <div class="mt-8 pt-6 border-t border-base-200 text-center text-xs text-base-content/60 space-y-2">
                     <p>هنوز حساب کاربری ندارید یا اطلاعات ورود خود را دریافت نکرده‌اید؟</p>
                     <p class="font-medium text-base-content/80">
-                        با واحد پشتیبانی تماس بگیرید: <span class="font-technical text-primary font-bold">۰۲۱-۸۸۸۸۸۸۸۸</span>
+                        با واحد پشتیبانی تماس بگیرید: <span class="font-technical text-primary font-bold">{{ CONTACT.office_phone.display }}</span>
+                    </p>
+                    <p class="text-[11px] text-base-content/60">
+                        ساعت کاری {{ CONTACT.hours }} — خارج از ساعت کاری: {{ CONTACT.after_hours.display }}
                     </p>
                 </div>
 

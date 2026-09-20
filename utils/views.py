@@ -1,7 +1,7 @@
 import json
 import uuid
 from django.shortcuts import render, redirect
-from django.http import JsonResponse, FileResponse, Http404
+from django.http import JsonResponse, FileResponse, Http404, HttpResponse
 from django.templatetags.static import static
 from django.views.decorators.http import require_POST
 from django.db.models import Q
@@ -89,13 +89,13 @@ def manifest_view(request):
                 "src": static("icons/icon-192.png"),
                 "sizes": "192x192",
                 "type": "image/png",
-                "purpose": "any maskable",
+                "purpose": "any",
             },
             {
                 "src": static("icons/icon-512.png"),
                 "sizes": "512x512",
                 "type": "image/png",
-                "purpose": "any maskable",
+                "purpose": "any",
             },
         ],
     }
@@ -106,10 +106,7 @@ def najva_service_worker(request):
     """
     سرویس ورکر نجوا از ریشه دامنه
     """
-    sw_path = settings.BASE_DIR / "static" / "najva" / "najva-messaging-sw.js"
-    if not sw_path.exists():
-        # اگر فایل هنوز در static/najva قرار نگرفته
-        raise Http404("Service Worker not found")
-    response = FileResponse(open(sw_path, "rb"), content_type="application/javascript")
+    NAJVA_SW_JS = "importScripts('https://van.najva.com/static/js/service-worker.js');\n"
+    response = HttpResponse(NAJVA_SW_JS, content_type="application/javascript")
     response["Cache-Control"] = "no-cache"
     return response

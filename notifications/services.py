@@ -73,13 +73,14 @@ def send_sms_channel(notification) -> bool:
     sms = SMSService()
     if notification.notification_type == NotificationType.INVOICE_ISSUED:
         data = notification.extra_data or {}
+        name = notification.user.first_name or "کاربر گرامی"
         result = sms.send_invoice_issued(
             mobile=phone,
-            name=notification.user.get_full_name() or notification.user.username,
+            name=name,
             number=data.get("invoice_number", ""),
             username=data.get("username", ""),
             password=data.get("password", ""),
-            link=notification.short_path,          # فقط مسیر، مثل s/abc1234/
+            link=notification.short_path,          # فقط مسیر، مثل s/abcde
         )
     else:
         text = f"{notification.title}\n{notification.body}"

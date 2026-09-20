@@ -8,7 +8,7 @@ from django.db import models
 import secrets
 SHORT_CODE_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz"   # بدون کاراکترهای گیج‌کننده
 
-def _new_short_code(length=7):
+def _new_short_code(length=5):
     return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(length))
 
 
@@ -93,7 +93,7 @@ class Notification(models.Model):
     @property
     def short_path(self):
         """مسیر بدون دامنه و بدون اسلش ابتدایی — برای پارامتر LINK پترن پیامک."""
-        return f"s/{self.short_code}/" if (self.short_code and self.real_target_url) else ""
+        return f"s/{self.short_code}" if (self.short_code and self.real_target_url) else ""
 
     @property
     def tracking_url(self):

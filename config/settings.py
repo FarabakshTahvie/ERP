@@ -25,7 +25,7 @@ if env_file.exists():
     environ.Env.read_env(env_file)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG', default=True)
+DEBUG = env.bool('DEBUG', default=False)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if DEBUG:
@@ -94,6 +94,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'utils.context_processors.site_info',
             ],
         },
     },
@@ -116,6 +117,16 @@ DATABASES = {
     }
 }
 
+# Redis Cache configuration
+# https://docs.djangoproject.com/en/6.1/topics/cache/
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': env('REDIS_URL', default='redis://127.0.0.1:6379/0'),
+    }
+}
+
 if 'test' in sys.argv:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -128,24 +139,29 @@ if 'test' in sys.argv:
     }
 
 
-# Redis Cache configuration
-# https://docs.djangoproject.com/en/6.1/topics/cache/
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': env('REDIS_URL', default='redis://127.0.0.1:6379/0'),
-    }
-}
-
-
 # Signed Cookie Session Engine
 # https://docs.djangoproject.com/en/6.1/topics/http/sessions/#using-cookie-based-sessions
+
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS',
+    default=['https://farabakhshtahvie.com', 'https://www.farabakhshtahvie.com'])
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+NAJVA_ENABLED = env.bool('NAJVA_ENABLED', default=False)
+
+# اطلاعات تماس واقعی شرکت (طبق تابلوی دفتر) — همه‌ی قالب‌ها از همین‌جا می‌خوانند
+COMPANY_CONTACT = {
+    "hours": "۸ صبح تا ۱۷ عصر",
+    "office_phone": {"tel": "05133873734", "display": "۰۵۱-۳۳۸۷-۳۷۳۴"},
+    "mobile":       {"tel": "09157702475", "display": "۰۹۱۵-۷۷۰-۲۴۷۵"},
+    "after_hours":  {"tel": "09153589517", "display": "۰۹۱۵-۳۵۸-۹۵۱۷"},
+}
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_NAME = 'farabakhsh_sessionid'
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
 
 
 # Django REST Framework configuration

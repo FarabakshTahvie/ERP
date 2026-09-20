@@ -48,14 +48,14 @@ class Command(BaseCommand):
             self.stdout.write("در حال ارسال پترن OTP با کد 12345...")
             result = sms.send_otp(mobile=mobile, code="12345")
         elif pattern == "invoice":
-            self.stdout.write("در حال ارسال پترن فاکتور با لینک ساختگی s/testcode/...")
+            self.stdout.write("در حال ارسال پترن فاکتور با لینک ساختگی s/abcde...")
             result = sms.send_invoice_issued(
                 mobile=mobile,
                 name="تست",
                 number="INV-TEST",
                 username="test",
                 password="Test1234",
-                link="s/testcode/",
+                link="s/abcde",
             )
         elif pattern == "text":
             self.stdout.write("در حال ارسال پیامک متنی آزاد...")
