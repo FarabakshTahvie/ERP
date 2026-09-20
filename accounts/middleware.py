@@ -10,6 +10,10 @@ class ForcePasswordChangeMiddleware:
         user = request.user
         if user.is_authenticated and getattr(user, "must_change_password", False):
             exempt = {reverse("accounts:change_password"), reverse("accounts:logout")}
-            if request.path not in exempt:
+            if request.path not in exempt and not (
+                request.path.startswith("/s/") or
+                request.path.startswith("/manifest.json") or
+                request.path.startswith("/utils/api/")
+            ):
                 return redirect("accounts:change_password")
         return self.get_response(request)

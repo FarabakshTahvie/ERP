@@ -9,6 +9,11 @@ from django_htmx.http import HttpResponseClientRedirect
 from .forms import StaffRegistrationForm
 from .models import User, OTPCode
 from .services import create_staff_account
+from django.views.decorators.http import require_POST
+from django.core.cache import cache
+from utils.request_meta import get_client_ip
+
+
 from utils.sms import SMSService
 
 
@@ -21,6 +26,19 @@ class StyledLoginView(LoginView):
     redirect_authenticated_user = True
 
 
+def _otp_rate_limit_error(request, phone_number):
+    """برمی‌گرداند متن خطا، یا None اگر مجاز است. cache.add اتمیک است."""
+    if not cache.add(f"otp:cooldown:{phone_number}", 1, timeout=60):
+        return "لطفاً ۶۰ ثانیه صبر کنید و دوباره تلاش کنید."
+    ip_key = f"otp:ip:{get_client_ip(request) or 'unknown'}"
+    cache.add(ip_key, 0, timeout=3600)
+    if cache.incr(ip_key) > 10:
+        cache.delete(f"otp:cooldown:{phone_number}")
+        return "تعداد درخواست‌ها زیاد است. بعداً دوباره تلاش کنید."
+    return None
+
+
+@require_POST
 def request_otp_login(request):
     phone_number = request.POST.get("phone_number", "").strip()
     if not phone_number:
@@ -30,8 +48,17 @@ def request_otp_login(request):
     if not User.objects.filter(phone_number=phone_number).exists():
         return render(request, "accounts/partials/otp_error.html", {"message": "کاربری با این شماره موبایل در سامانه ثبت نشده است."})
 
+    error = _otp_rate_limit_error(request, phone_number)
+    if error:
+        return render(request, "accounts/partials/otp_error.html", {"message": error})
+
     otp, raw_code = OTPCode.generate(phone_number=phone_number, purpose=OTPCode.Purpose.LOGIN)
-    SMSService().send_otp(mobile=phone_number, code=raw_code)
+    result = SMSService().send_otp(mobile=phone_number, code=raw_code)
+    if not result.get("success"):
+        cache.delete(f"otp:cooldown:{phone_number}")   # تا کاربر بتواند فوراً دوباره تلاش کند
+        return render(request, "accounts/partials/otp_error.html",
+                      {"message": "ارسال پیامک ناموفق بود، دوباره تلاش کنید."})
+
     next_url = request.POST.get("next", "")
     return render(request, "accounts/partials/otp_verify_form.html", {"phone_number": phone_number, "next": next_url})
 
@@ -71,10 +98,21 @@ def register_staff(request):
 def request_password_reset(request):
     if request.method == "POST":
         phone_number = request.POST.get("phone_number", "").strip()
+        if not re.match(r"^09\d{9}$", phone_number):
+            return render(request, "accounts/password_reset_request.html", {"error": "فرمت شماره موبایل معتبر نیست."})
+
+        error = _otp_rate_limit_error(request, phone_number)
+        if error:
+            return render(request, "accounts/password_reset_request.html", {"error": error})
+
         user = User.objects.filter(phone_number=phone_number).first()
         if user:
             otp, raw_code = OTPCode.generate(phone_number=phone_number, purpose=OTPCode.Purpose.PASSWORD_RESET, user=user)
-            SMSService().send_otp(mobile=phone_number, code=raw_code)
+            result = SMSService().send_otp(mobile=phone_number, code=raw_code)
+            if not result.get("success"):
+                cache.delete(f"otp:cooldown:{phone_number}")
+                return render(request, "accounts/password_reset_request.html", {"error": "ارسال پیامک ناموفق بود، دوباره تلاش کنید."})
+
         return render(request, "accounts/password_reset_sent.html", {"phone_number": phone_number})
     return render(request, "accounts/password_reset_request.html")
 

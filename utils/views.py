@@ -1,23 +1,26 @@
 import json
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+import uuid
+from django.shortcuts import render, redirect
+from django.http import JsonResponse, FileResponse, Http404
+from django.templatetags.static import static
 from django.views.decorators.http import require_POST
+from django.db.models import Q
+from django.conf import settings
+
 from .models import PushDevice, DeviceType
+from .request_meta import parse_user_agent
+from projects.models import Project
+from notifications.models import Notification
 
 
 def home_view(request):
     """
     داشبورد اصلی پرتال کاربران فرابخش.
     """
-    from django.shortcuts import redirect
     if not request.user.is_authenticated:
         return redirect("accounts:login")
 
     user = request.user
-    from projects.models import Project
-    from notifications.models import Notification
-    from django.db.models import Q
 
     # بارگذاری پروژه‌های مرتبط با کاربر
     if user.party:
@@ -44,42 +47,69 @@ def home_view(request):
     return render(request, "client_home.html", context)
 
 
-@csrf_exempt
 @require_POST
 def register_push_device(request):
-    """
-    API endpoint to register or update user push device token (e.g., from Najva or web push).
-    Payload: { "token": "...", "browser": "Chrome", "os": "Windows", "device_type": "web" }
-    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"status": "error", "message": "ابتدا وارد شوید."}, status=401)
     try:
-        data = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        return JsonResponse({"status": "error", "message": "فرمت داده‌ها نامعتبر است."}, status=400)
+        data = json.loads(request.body.decode("utf-8"))
+        token = str(data.get("token", "")).strip()
+        uuid.UUID(token)                      # توکن نجوا UUID است
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse({"status": "error", "message": "توکن نامعتبر است."}, status=400)
 
-    token = data.get('token')
-    if not token:
-        return JsonResponse({"status": "error", "message": "شناسه توکن (token) الزامی است."}, status=400)
-
-    user = request.user if request.user.is_authenticated else None
-    browser = data.get('browser')
-    os_name = data.get('os')
-    device_type = data.get('device_type', DeviceType.WEB)
-
+    ua = parse_user_agent(request)            # مرورگر/سیستم‌عامل از سرور، نه از کلاینت
     device, created = PushDevice.objects.update_or_create(
         registration_id=token,
         defaults={
-            "user": user,
-            "browser": browser,
-            "os": os_name,
-            "type": device_type,
+            "user": request.user,
+            "browser": ua["browser"],
+            "os": ua["os"],
+            "type": DeviceType.WEB,
             "is_active": True,
-        }
+        },
     )
+    return JsonResponse({"status": "success", "created": created, "device_id": device.id})
 
-    return JsonResponse({
-        "status": "success",
-        "message": "دستگاه با موفقیت در دیتابیس ثبت شد.",
-        "created": created,
-        "device_id": device.id,
-        "token": device.registration_id,
-    })
+
+def manifest_view(request):
+    manifest_data = {
+        "name": "فرابخش تهویه",
+        "short_name": "فرابخش",
+        "id": "/",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "dir": "rtl",
+        "lang": "fa",
+        "background_color": "#F3F6F6",
+        "theme_color": "#0E7C86",
+        "icons": [
+            {
+                "src": static("icons/icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable",
+            },
+            {
+                "src": static("icons/icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable",
+            },
+        ],
+    }
+    return JsonResponse(manifest_data, content_type="application/manifest+json")
+
+
+def najva_service_worker(request):
+    """
+    سرویس ورکر نجوا از ریشه دامنه
+    """
+    sw_path = settings.BASE_DIR / "static" / "najva" / "najva-messaging-sw.js"
+    if not sw_path.exists():
+        # اگر فایل هنوز در static/najva قرار نگرفته
+        raise Http404("Service Worker not found")
+    response = FileResponse(open(sw_path, "rb"), content_type="application/javascript")
+    response["Cache-Control"] = "no-cache"
+    return response

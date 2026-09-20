@@ -5,6 +5,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
+import secrets
+SHORT_CODE_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz"   # بدون کاراکترهای گیج‌کننده
+
+def _new_short_code(length=7):
+    return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(length))
+
+
 class NotificationType(models.TextChoices):
     INVOICE_ISSUED = "invoice_issued", "صدور پیش‌فاکتور"
     PROGRESS_UPDATE = "progress_update", "پیشرفت مراحل کار"
@@ -47,7 +54,8 @@ class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications", verbose_name="گیرنده")
     title = models.CharField(max_length=255, verbose_name="عنوان")
     body = models.TextField(verbose_name="متن پیام")
-    real_target_url = models.URLField(blank=True, verbose_name="لینک مقصد واقعی")
+    real_target_url = models.CharField(max_length=500, blank=True, verbose_name="لینک مقصد واقعی")
+    short_code = models.CharField(max_length=12, unique=True, null=True, blank=True, editable=False, verbose_name="کد کوتاه لینک")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="وضعیت")
     push_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان ارسال پوش")
     sms_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان ارسال پیامک")
@@ -73,12 +81,23 @@ class Notification(models.Model):
     def __str__(self):
         return f"{self.get_notification_type_display()} → {self.user}"
 
+    def save(self, *args, **kwargs):
+        if not self.short_code:
+            for _ in range(10):
+                candidate = _new_short_code()
+                if not Notification.objects.filter(short_code=candidate).exists():
+                    self.short_code = candidate
+                    break
+        super().save(*args, **kwargs)
+
+    @property
+    def short_path(self):
+        """مسیر بدون دامنه و بدون اسلش ابتدایی — برای پارامتر LINK پترن پیامک."""
+        return f"s/{self.short_code}/" if (self.short_code and self.real_target_url) else ""
+
     @property
     def tracking_url(self):
-        if not self.real_target_url:
-            return ""
-        from django.urls import reverse
-        return f"{settings.SITE_BASE_URL}{reverse('notifications:track_click', args=[self.uuid])}"
+        return f"{settings.SITE_BASE_URL.rstrip('/')}/{self.short_path}" if self.short_path else ""
 
 
 class NotificationClickEvent(models.Model):

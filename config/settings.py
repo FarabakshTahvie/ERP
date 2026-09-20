@@ -33,7 +33,7 @@ if DEBUG:
 else:
     SECRET_KEY = env('SECRET_KEY')  # Raises ImproperlyConfigured in production if SECRET_KEY is missing
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost', 'farabakhshtahvie.com', 'www.farabakhshtahvie.com'])
 
 
 # Application definition
@@ -120,6 +120,11 @@ if 'test' in sys.argv:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': ':memory:',
+    }
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
     }
 
 
@@ -289,12 +294,13 @@ SMS_OTP_TEMPLATE_ID = env.int('SMS_OTP_TEMPLATE_ID', default=0)
 SMS_INVOICE_TEMPLATE_ID = env.int('SMS_INVOICE_TEMPLATE_ID', default=0)
 
 # Najva Push Notification Configuration
-NAJVA_TOKEN = env('NAJVA_TOKEN', default='')
 NAJVA_API_KEY = env('NAJVA_API_KEY', default='')
-NAJVA_API_URL = env('NAJVA_API_URL', default='https://app.najva.com/api/v1/notifications/')
+NAJVA_WEBSITE_ID = env('NAJVA_WEBSITE_ID', default='')
+NAJVA_SEND_URL = env('NAJVA_SEND_URL', default='https://push.najva.com/v1/send/token/')
 
 # Site URL for tracking links
-SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhsh.ir')
+SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhshtahvie.com')
+SMS_IR_SANDBOX_API_KEY = env('SMS_IR_SANDBOX_API_KEY', default='')  # فقط برای تست‌ها
 
 # OTP Configuration
 OTP_LENGTH = env.int('OTP_LENGTH', default=5)
@@ -302,10 +308,6 @@ OTP_EXPIRY_MINUTES = env.int('OTP_EXPIRY_MINUTES', default=2)
 
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'
-
-# Push Notification Configuration (Legacy / General)
-PUSH_NOTIFICATION_API_KEY = env('PUSH_NOTIFICATION_API_KEY', default='')
-PUSH_NOTIFICATION_API_URL = env('PUSH_NOTIFICATION_API_URL', default='https://api.pushservice.com/v1/send')
 
 
 # Django Unfold Admin Configuration

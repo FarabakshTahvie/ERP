@@ -27,7 +27,6 @@ redis
 requests
 s3transfer
 six
-smsir
 sqlparse
 ua-parser
 ua-parser-builtins

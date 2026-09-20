@@ -9,6 +9,14 @@
     <title>{% block title %}سامانه فرابخش | سیستم جامع مدیریت تهویه مطبوع{% endblock %}</title>
     <meta name="description" content="{% block meta_description %}سامانه هوشمند و یکپارچه مدیریت پروژه‌ها، پیش‌فاکتورها و خدمات مهندسی تهویه مطبوع فرابخش{% endblock %}">
 
+    <!-- PWA & Apple Meta Tags -->
+    <link rel="manifest" href="{% url 'manifest' %}">
+    <meta name="theme-color" content="#0E7C86">
+    <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon-180.png' %}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="فرابخش">
+
     <!-- Anti-flicker Theme Initialization -->
     <script>
         (function() {
@@ -173,5 +181,39 @@
         });
     </script>
     {% block extra_js %}{% endblock %}
+
+    {% if request.user.is_authenticated %}
+    <script>window.NAJVA={};var s=document.createElement("script");s.src="https://van.najva.com/static/js/main-script.js";s.defer=!0;s.id="najva-mini-script";s.setAttribute("data-najva-id","bee37675-c624-4422-a27f-6e25ec2472f5");document.head.appendChild(s);</script>
+    <script>
+    (function () {
+      var url = "{% url 'utils:register_push_device' %}";
+      var csrf = "{{ csrf_token }}";
+      function sendToken(token) {
+        if (!token) return;
+        var key = "najva_sent:{{ request.user.id }}:" + token;
+        try { if (sessionStorage.getItem(key)) return; } catch (e) {}
+        fetch(url, {
+          method: "POST", credentials: "same-origin",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
+          body: JSON.stringify({token: token})
+        }).then(function (r) {
+          if (r.ok) { try { sessionStorage.setItem(key, "1"); } catch (e) {} }
+        }).catch(function () {});
+      }
+      // منتظر می‌مانیم window.NAJVA ساخته شود (بدون بازنویسی آن)
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries++;
+        if (window.NAJVA) {
+          clearInterval(timer);
+          window.NAJVA.najvaUserSubscribed = sendToken;        // لحظه‌ی اشتراک جدید
+          if (typeof window.NAJVA.getUserToken === "function") {  // کاربری که قبلاً مشترک شده
+            Promise.resolve(window.NAJVA.getUserToken()).then(sendToken).catch(function () {});
+          }
+        } else if (tries > 20) { clearInterval(timer); }
+      }, 500);
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

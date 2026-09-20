@@ -1,6 +1,13 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 from .models import NotificationPolicy, Notification, NotificationClickEvent
+
+
+class NotificationClickEventInline(TabularInline):
+    model = NotificationClickEvent
+    extra = 0
+    readonly_fields = ('channel', 'clicked_at', 'ip_address', 'user_agent')
+    can_delete = False
 
 
 @admin.register(NotificationPolicy)
@@ -11,10 +18,11 @@ class NotificationPolicyAdmin(ModelAdmin):
 
 @admin.register(Notification)
 class NotificationAdmin(ModelAdmin):
-    list_display = ('id', 'notification_type', 'user', 'status', 'created_at', 'seen_at')
+    list_display = ('id', 'notification_type', 'user', 'short_code', 'status', 'created_at', 'seen_at')
     list_filter = ('notification_type', 'status', 'created_at')
-    search_fields = ('user__username', 'user__phone_number', 'title')
-    readonly_fields = ('uuid', 'created_at', 'push_sent_at', 'sms_sent_at', 'seen_at')
+    search_fields = ('user__username', 'user__phone_number', 'title', 'short_code')
+    readonly_fields = ('uuid', 'short_code', 'created_at', 'push_sent_at', 'sms_sent_at', 'seen_at')
+    inlines = [NotificationClickEventInline]
 
 
 @admin.register(NotificationClickEvent)

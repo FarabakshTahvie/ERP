@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -5,6 +6,8 @@ from django.utils import timezone
 
 from notifications.models import Notification, NotificationPolicy, ChannelPolicy
 from notifications.services import send_sms_channel
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -31,5 +34,9 @@ class Command(BaseCommand):
                 if n.push_sent_at and timezone.now() >= n.push_sent_at + timedelta(minutes=policies[n.notification_type].fallback_after_minutes)
             ]
             for notification in due:
-                send_sms_channel(notification)
-        self.stdout.write(self.style.SUCCESS(f"{len(due)} پیامک جایگزین ارسال شد."))
+                try:
+                    send_sms_channel(notification)
+                except Exception as e:
+                    logger.exception("Error sending fallback SMS for notification %s: %s", notification.pk, e)
+                    Notification.objects.filter(pk=notification.pk).update(status=Notification.Status.FAILED)
+        self.stdout.write(self.style.SUCCESS(f"{len(due)} پیامک جایگزین پردازش شد."))

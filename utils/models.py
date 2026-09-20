@@ -34,19 +34,15 @@ class PushDeviceQuerySet(models.QuerySet):
         return self.filter(is_active=True)
 
     def send_message(self, title, body, url=None, icon=None, data=None):
-        from utils.push_notification import PushNotificationService
-        service = PushNotificationService()
+        from utils.push_notification import NajvaService
         tokens = list(self.active().values_list('registration_id', flat=True))
         if not tokens:
             return {"success": False, "error": "No active device tokens found"}
-        return service.send_notification(
-            title=title,
-            body=body,
-            subscriber_tokens=tokens,
-            url=url,
-            icon=icon,
-            data=data
-        )
+        result = NajvaService().send(title=title, body=body, subscriber_tokens=tokens, url=url)
+        invalid = result.get("invalid_tokens") or []
+        if invalid:
+            self.model.objects.filter(registration_id__in=invalid).update(is_active=False)
+        return result
 
 
 class PushDevice(TimeStampedModel):
@@ -123,13 +119,6 @@ class PushDevice(TimeStampedModel):
         """
         Send push notification directly to this device.
         """
-        from utils.push_notification import PushNotificationService
-        service = PushNotificationService()
-        return service.send_notification(
-            title=title,
-            body=body,
-            subscriber_tokens=[self.registration_id],
-            url=url,
-            icon=icon,
-            data=data
+        return PushDevice.objects.filter(pk=self.pk).send_message(
+            title=title, body=body, url=url, icon=icon, data=data
         )

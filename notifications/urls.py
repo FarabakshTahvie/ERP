@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import track_and_redirect
+from . import views
 
 app_name = "notifications"
+
 urlpatterns = [
-    path("n/<uuid:notification_uuid>/", track_and_redirect, name="track_click"),
+    path("s/<str:code>/", views.track_and_redirect, name="track_click"),
 ]
