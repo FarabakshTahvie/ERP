@@ -1,10 +1,16 @@
-{% load static humanize %}
+{% load static humanize custom_tags %}
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>{{ invoice.number }} - {% if invoice.document_type == 'proforma' %}پیش‌فاکتور{% else %}فاکتور رسمی{% endif %}</title>
+    <title>{{ invoice.number|fa_digits }} - {% if invoice.document_type == 'proforma' %}پیش‌فاکتور{% else %}فاکتور رسمی{% endif %}</title>
     <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url("{% static 'fonts/Vazirmatn[wght].woff2' %}") format('woff2');
+            font-weight: 100 900;
+            font-style: normal;
+        }
         @page {
             size: A4;
             margin: 15mm;
@@ -78,7 +84,8 @@
         }
         .lines-table td.num-col {
             text-align: left;
-            font-family: monospace;
+            font-family: 'Vazirmatn', sans-serif;
+            direction: ltr;
         }
         .summary-box {
             width: 40%;
@@ -97,8 +104,9 @@
         }
         .summary-box td.val {
             text-align: left;
-            font-family: monospace;
+            font-family: 'Vazirmatn', sans-serif;
             font-weight: bold;
+            direction: ltr;
         }
         .summary-box tr.total-row td {
             border-top: 2px solid #0d9488;
@@ -118,12 +126,11 @@
 <body>
     <div class="header">
         <div>
-            <div class="brand">فرابخش</div>
-            <div style="font-size: 9pt; color: #4b5563; margin-top: 2px;">سامانه جامع خدمات و مهندسی تهویه مطبوع</div>
+            <div class="brand">فرابخش تهویه</div>
         </div>
         <div class="doc-title">
             {% if invoice.document_type == 'proforma' %}پیش‌فاکتور فروش{% else %}فاکتور رسمی فروش{% endif %}
-            <div style="font-size: 10pt; font-weight: normal; color: #6b7280; margin-top: 4px;">شماره: {{ invoice.number }}</div>
+            <div style="font-size: 10pt; font-weight: normal; color: #6b7280; margin-top: 4px;">شماره: <span dir="ltr">{{ invoice.number|fa_digits }}</span></div>
         </div>
     </div>
 
@@ -132,13 +139,13 @@
             <td class="meta-label">طرف‌حساب:</td>
             <td class="meta-val">{{ invoice.billed_party.name }}</td>
             <td class="meta-label">تاریخ صدور:</td>
-            <td class="meta-val">{{ invoice.issue_date|default:"-" }}</td>
+            <td class="meta-val">{{ invoice.issue_date|to_jalali|default:"-" }}</td>
         </tr>
         <tr>
             <td class="meta-label">پروژه:</td>
-            <td class="meta-val">{{ invoice.project.name }} ({{ invoice.project.code }})</td>
+            <td class="meta-val">{{ invoice.project.name }} (<span dir="ltr">{{ invoice.project.code|fa_digits }}</span>)</td>
             <td class="meta-label">شماره تماس:</td>
-            <td class="meta-val">{{ invoice.billed_party.phone_number|default:"-" }}</td>
+            <td class="meta-val"><span dir="ltr">{{ invoice.billed_party.phone_number|fa_digits|default:"-" }}</span></td>
         </tr>
         <tr>
             <td class="meta-label">نشانی پروژه:</td>
@@ -160,12 +167,12 @@
         <tbody>
             {% for line in invoice.lines.all %}
                 <tr>
-                    <td>{{ forloop.counter }}</td>
+                    <td>{{ forloop.counter|fa_digits }}</td>
                     <td class="title-col">{{ line.title }}</td>
                     <td>{{ line.get_line_type_display }}</td>
-                    <td class="num-col">{{ line.qty|floatformat:"-2" }}</td>
-                    <td class="num-col">{{ line.unit_price|intcomma }}</td>
-                    <td class="num-col">{{ line.total|intcomma }}</td>
+                    <td class="num-col">{{ line.qty|floatformat:"-2"|fa_digits }}</td>
+                    <td class="num-col">{{ line.unit_price|intcomma_fa }}</td>
+                    <td class="num-col">{{ line.total|intcomma_fa }}</td>
                 </tr>
             {% empty %}
                 <tr>
@@ -178,20 +185,20 @@
     <table class="summary-box">
         <tr>
             <td class="label">جمع کل فاکتور:</td>
-            <td class="val">{{ invoice.total_amount|intcomma }} تومان</td>
+            <td class="val">{{ invoice.total_amount|intcomma_fa }} تومان</td>
         </tr>
         <tr>
             <td class="label">مبلغ پرداختی:</td>
-            <td class="val" style="color: #059669;">{{ invoice.paid_amount|intcomma }} تومان</td>
+            <td class="val" style="color: #059669;">{{ invoice.paid_amount|intcomma_fa }} تومان</td>
         </tr>
         <tr class="total-row">
             <td class="label">مانده قابل پرداخت:</td>
-            <td class="val">{{ invoice.remaining_amount|intcomma }} تومان</td>
+            <td class="val">{{ invoice.remaining_amount|intcomma_fa }} تومان</td>
         </tr>
     </table>
 
     <div class="footer-note">
-        این سند به‌صورت الکترونیکی صادر شده و نیاز به مهر یا امضای فیزیکی ندارد • تلفن دفتر: {{ CONTACT.office_phone.display }} | موبایل: {{ CONTACT.mobile.display }} | ساعت کاری: {{ CONTACT.hours }}
+        این سند به‌صورت الکترونیکی صادر شده و نیاز به مهر یا امضای فیزیکی ندارد • تلفن دفتر: <span dir="ltr">{{ CONTACT.office_phone.display|fa_digits }}</span> | موبایل: <span dir="ltr">{{ CONTACT.mobile.display|fa_digits }}</span> | ساعت کاری: {{ CONTACT.hours|fa_digits }}
     </div>
 </body>
 </html>

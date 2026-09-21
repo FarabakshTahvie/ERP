@@ -6,12 +6,13 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display
 from unfold.contrib.filters.admin import ChoicesDropdownFilter, RelatedDropdownFilter, RangeDateFilter
 from simple_history.admin import SimpleHistoryAdmin
+from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from .models import User, OTPCode, LoginHistory
 from .forms import CustomAdminUserCreationForm
 
 
 @admin.register(User)
-class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
+class CustomUserAdmin(JalaliAdminMixin, BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
     add_form = CustomAdminUserCreationForm
     list_display = (
         'display_user',
@@ -20,7 +21,7 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
         'display_national_code',
         'display_email',
         'display_active',
-        'date_joined',
+        'jalali_date_joined',
     )
     list_filter = (
         ('role', ChoicesDropdownFilter),
@@ -28,7 +29,7 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
         'is_staff',
         'is_active',
         'is_superuser',
-        ('date_joined', RangeDateFilter),
+        'date_joined',
     )
     search_fields = (
         'username',
@@ -52,7 +53,7 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
         (_('Permissions'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
         }),
-        (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
+        (_('Important dates'), {'fields': ('jalali_last_login', 'jalali_date_joined')}),
     )
 
     add_fieldsets = (
@@ -75,7 +76,10 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
         }),
     )
 
-    readonly_fields = ('avatar_preview', 'date_joined', 'last_login')
+    readonly_fields = ('avatar_preview', 'jalali_date_joined', 'jalali_last_login')
+
+    jalali_date_joined = jalali_column('date_joined', 'تاریخ عضویت')
+    jalali_last_login = jalali_column('last_login', 'آخرین ورود')
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -148,16 +152,23 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin, SimpleHistoryAdmin):
 
 
 @admin.register(OTPCode)
-class OTPCodeAdmin(ModelAdmin):
-    list_display = ('id', 'phone_number', 'purpose', 'user', 'is_used', 'attempt_count', 'expires_at', 'created_at')
+class OTPCodeAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'phone_number', 'purpose', 'user', 'is_used', 'attempt_count', 'jalali_expires_at', 'jalali_created_at')
     list_filter = ('purpose', 'is_used', 'created_at')
     search_fields = ('phone_number', 'user__username')
-    readonly_fields = ('code_hash', 'created_at', 'used_at')
+    exclude = ('used_at',)
+    readonly_fields = ('code_hash', 'jalali_created_at', 'jalali_used_at')
+
+    jalali_created_at = jalali_column('created_at', 'تاریخ ایجاد')
+    jalali_expires_at = jalali_column('expires_at', 'تاریخ انقضا')
+    jalali_used_at = jalali_column('used_at', 'تاریخ استفاده')
 
 
 @admin.register(LoginHistory)
-class LoginHistoryAdmin(ModelAdmin):
-    list_display = ('id', 'user', 'username_attempted', 'result', 'ip_address', 'device_type', 'browser', 'os', 'created_at')
+class LoginHistoryAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'user', 'username_attempted', 'result', 'ip_address', 'device_type', 'browser', 'os', 'jalali_created_at')
     list_filter = ('result', 'device_type', 'created_at')
     search_fields = ('username_attempted', 'user__username', 'ip_address', 'user_agent')
-    readonly_fields = ('user', 'username_attempted', 'result', 'ip_address', 'user_agent', 'browser', 'os', 'device_type', 'created_at')
+    readonly_fields = ('user', 'username_attempted', 'result', 'ip_address', 'user_agent', 'browser', 'os', 'device_type', 'jalali_created_at')
+
+    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')

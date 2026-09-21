@@ -28,7 +28,7 @@ if env_file.exists():
 DEBUG = env.bool('DEBUG', default=False)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-if DEBUG:
+if DEBUG or 'test' in sys.argv:
     SECRET_KEY = env('SECRET_KEY', default='django-insecure-dev-fallback-key-only-for-debugging')
 else:
     SECRET_KEY = env('SECRET_KEY')  # Raises ImproperlyConfigured in production if SECRET_KEY is missing

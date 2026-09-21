@@ -8,6 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from accounts.models import User
+from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from .forms import StageCommentForm, StageAssignForm
 from .models import (
     Project, ProjectService, ProjectMaterial, ProjectParticipant,
@@ -15,31 +16,34 @@ from .models import (
 )
 
 
-class ProjectServiceInline(TabularInline):
+class ProjectServiceInline(JalaliAdminMixin, TabularInline):
     model = ProjectService
     extra = 0
 
 
-class ProjectMaterialInline(TabularInline):
+class ProjectMaterialInline(JalaliAdminMixin, TabularInline):
     model = ProjectMaterial
     extra = 0
 
 
-class ProjectParticipantInline(TabularInline):
+class ProjectParticipantInline(JalaliAdminMixin, TabularInline):
     model = ProjectParticipant
     extra = 0
 
 
 @admin.register(Project)
-class ProjectAdmin(SimpleHistoryAdmin, ModelAdmin):
+class ProjectAdmin(JalaliAdminMixin, SimpleHistoryAdmin, ModelAdmin):
     change_form_before_template = "admin/projects/project/change_form_timeline.html"
-    list_display = ('id', 'code', 'name', 'partner', 'owner', 'current_stage_display', 'status', 'contract_date', 'created_at')
+    list_display = ('id', 'code', 'name', 'partner', 'owner', 'current_stage_display', 'status', 'jalali_contract_date', 'jalali_created_at')
     list_filter = ('status', 'contract_date', 'created_at')
     search_fields = ('code', 'name', 'partner__name', 'owner__name')
     filter_horizontal = ('assigned_technicians',)
     raw_id_fields = ('partner', 'owner', 'location', 'created_by')
-    readonly_fields = ('code',)
+    readonly_fields = ('code', 'jalali_created_at')
     inlines = [ProjectServiceInline, ProjectMaterialInline, ProjectParticipantInline]
+
+    jalali_contract_date = jalali_column('contract_date', 'تاریخ قرارداد')
+    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -63,37 +67,41 @@ class ProjectAdmin(SimpleHistoryAdmin, ModelAdmin):
         return "در انتظار شروع"
 
 
-class WorkflowStepTemplateInline(TabularInline):
+class WorkflowStepTemplateInline(JalaliAdminMixin, TabularInline):
     model = WorkflowStepTemplate
-    extra = 0
-    fk_name = 'template'
+    extra = 1
 
 
 @admin.register(WorkflowTemplate)
-class WorkflowTemplateAdmin(ModelAdmin):
+class WorkflowTemplateAdmin(JalaliAdminMixin, ModelAdmin):
     list_display = ('id', 'name', 'is_default')
     inlines = [WorkflowStepTemplateInline]
 
 
-class StageEventInline(TabularInline):
+class StageEventInline(JalaliAdminMixin, TabularInline):
     model = StageEvent
     extra = 0
-    readonly_fields = ('actor', 'from_status', 'to_status', 'comment', 'created_at')
+    readonly_fields = ('actor', 'from_status', 'to_status', 'comment', 'jalali_created_at')
+
+    jalali_created_at = jalali_column('created_at', 'زمان رویداد')
 
 
-class ProjectFileInline(TabularInline):
+class ProjectFileInline(JalaliAdminMixin, TabularInline):
     model = ProjectFile
     extra = 0
-    readonly_fields = ('version',)
+    readonly_fields = ('version', 'jalali_created_at')
+
+    jalali_created_at = jalali_column('created_at', 'زمان بارگذاری')
 
 
 @admin.register(ProjectStage)
-class ProjectStageAdmin(ModelAdmin):
-    list_display = ('id', 'project', 'title', 'status', 'assigned_to', 'assignment_flag', 'started_at', 'completed_at')
+class ProjectStageAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'project', 'title', 'status', 'assigned_to', 'assignment_flag', 'jalali_started_at', 'jalali_completed_at')
     list_filter = ('status',)
     search_fields = ('project__name', 'title')
     raw_id_fields = ('project', 'assigned_to', 'completed_by')
     filter_horizontal = ('candidate_users',)
+    readonly_fields = ('jalali_started_at', 'jalali_completed_at')
     inlines = [StageEventInline, ProjectFileInline]
     actions = [
         'action_claim_for_me',
@@ -103,6 +111,9 @@ class ProjectStageAdmin(ModelAdmin):
         'action_resume_suspended',
         'action_cancel_project',
     ]
+
+    jalali_started_at = jalali_column('started_at', 'زمان شروع')
+    jalali_completed_at = jalali_column('completed_at', 'زمان تکمیل')
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -227,6 +238,10 @@ class ProjectStageAdmin(ModelAdmin):
 
 
 @admin.register(StageApproval)
-class StageApprovalAdmin(ModelAdmin):
-    list_display = ('id', 'stage', 'sent_to_party', 'decision', 'sent_at', 'decided_at')
+class StageApprovalAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'stage', 'sent_to_party', 'decision', 'jalali_sent_at', 'jalali_decided_at')
     list_filter = ('decision',)
+    readonly_fields = ('jalali_sent_at', 'jalali_decided_at')
+
+    jalali_sent_at = jalali_column('sent_at', 'زمان ارسال')
+    jalali_decided_at = jalali_column('decided_at', 'زمان تصمیم‌گیری')

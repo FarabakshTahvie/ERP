@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize custom_tags %}
 
-{% block title %}فاکتور {{ invoice.number }} - فرابخش{% endblock %}
+{% block title %}فاکتور {{ invoice.number|fa_digits }} - فرابخش تهویه{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -33,7 +33,7 @@
             <h1 class="text-2xl font-bold text-base-content">
                 {% if invoice.document_type == 'proforma' %}پیش‌فاکتور{% else %}فاکتور فروش{% endif %}
             </h1>
-            <p class="text-sm text-base-content/60 mt-1">شماره سند: {{ invoice.number }}</p>
+            <p class="text-sm text-base-content/60 mt-1">شماره سند: <span dir="ltr" class="font-technical">{{ invoice.number|fa_digits }}</span></p>
         </div>
         <div class="flex gap-2">
             <a href="{% url 'finance:portal_invoice_pdf' invoice.uuid %}" target="_blank" class="btn btn-primary btn-sm gap-2">
@@ -52,11 +52,10 @@
         <!-- Brand & Basic Info -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-base-200 gap-4">
             <div>
-                <h2 class="text-xl font-bold text-primary">فرابخش</h2>
-                <p class="text-xs text-base-content/70 mt-1">خدمات و مهندسی سیستم‌های تهویه مطبوع</p>
+                <h2 class="text-xl font-bold text-primary">فرابخش تهویه</h2>
             </div>
             <div class="text-left rtl:text-right text-xs space-y-1">
-                <div><span class="text-base-content/60">تاریخ صدور:</span> <span class="font-medium">{{ invoice.issue_date|default:"-" }}</span></div>
+                <div><span class="text-base-content/60">تاریخ صدور:</span> <span class="font-medium font-technical">{{ invoice.issue_date|to_jalali|default:"-" }}</span></div>
                 <div><span class="text-base-content/60">پروژه:</span> <span class="font-medium">{{ invoice.project.name }}</span></div>
                 <div>
                     <span class="text-base-content/60">وضعیت پرداخت:</span>
@@ -76,7 +75,7 @@
                 <span class="text-xs font-semibold text-base-content/50 uppercase">طرف‌حساب (خریدار):</span>
                 <p class="font-medium text-base-content">{{ invoice.billed_party.name }}</p>
                 {% if invoice.billed_party.phone_number %}
-                    <p class="text-xs text-base-content/70">شماره تماس: {{ invoice.billed_party.phone_number }}</p>
+                    <p class="text-xs text-base-content/70">شماره تماس: <span dir="ltr" class="font-technical">{{ invoice.billed_party.phone_number|fa_digits }}</span></p>
                 {% endif %}
             </div>
             <div class="space-y-1">
@@ -101,12 +100,12 @@
                 <tbody>
                     {% for line in invoice.lines.all %}
                         <tr>
-                            <td class="text-center">{{ forloop.counter }}</td>
+                            <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
                             <td class="font-medium">{{ line.title }}</td>
                             <td class="text-center text-xs text-base-content/70">{{ line.get_line_type_display }}</td>
-                            <td class="text-center font-mono">{{ line.qty|floatformat:"-2" }}</td>
-                            <td class="text-left rtl:text-right font-mono">{{ line.unit_price|intcomma }}</td>
-                            <td class="text-left rtl:text-right font-mono font-medium">{{ line.total|intcomma }}</td>
+                            <td class="text-center font-technical">{{ line.qty|floatformat:"-2"|fa_digits }}</td>
+                            <td class="text-left rtl:text-right font-technical">{{ line.unit_price|intcomma_fa }}</td>
+                            <td class="text-left rtl:text-right font-technical font-medium">{{ line.total|intcomma_fa }}</td>
                         </tr>
                     {% empty %}
                         <tr>
@@ -122,17 +121,17 @@
             <div class="w-full md:w-80 space-y-2 text-sm">
                 <div class="flex justify-between">
                     <span class="text-base-content/70">مبلغ کل فاکتور:</span>
-                    <span class="font-bold font-mono">{{ invoice.total_amount|intcomma }} تومان</span>
+                    <span class="font-bold font-technical">{{ invoice.total_amount|intcomma_fa }} تومان</span>
                 </div>
                 <div class="flex justify-between text-success">
                     <span>مبلغ پرداخت‌شده:</span>
-                    <span class="font-bold font-mono">{{ invoice.paid_amount|intcomma }} تومان</span>
+                    <span class="font-bold font-technical">{{ invoice.paid_amount|intcomma_fa }} تومان</span>
                 </div>
                 <div class="divider my-1"></div>
                 <div class="flex justify-between text-base font-bold">
                     <span>مانده قابل پرداخت:</span>
-                    <span class="font-mono {% if invoice.remaining_amount > 0 %}text-error{% else %}text-success{% endif %}">
-                        {{ invoice.remaining_amount|intcomma }} تومان
+                    <span class="font-technical {% if invoice.remaining_amount > 0 %}text-error{% else %}text-success{% endif %}">
+                        {{ invoice.remaining_amount|intcomma_fa }} تومان
                     </span>
                 </div>
             </div>

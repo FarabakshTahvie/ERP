@@ -162,3 +162,17 @@ class Revision3RegressionTests(TestCase):
 
     def test_locmem_cache_in_test_environment(self):
         self.assertEqual(settings.CACHES["default"]["BACKEND"], "django.core.cache.backends.locmem.LocMemCache")
+
+    def test_service_worker_reachable_with_must_change_password(self):
+        self.user.must_change_password = True
+        self.user.save(update_fields=["must_change_password"])
+        client = Client()
+        client.force_login(self.user)
+        resp = client.get("/najva-messaging-sw.js")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_verify_otp_external_next_becomes_root(self):
+        otp, raw_code = OTPCode.generate(phone_number="09151112233", purpose=OTPCode.Purpose.LOGIN)
+        resp = Client().post(reverse("accounts:verify_otp_login"),
+                             {"phone_number": "09151112233", "code": raw_code, "next": "https://evil.com/"})
+        self.assertEqual(resp.headers.get("HX-Redirect"), "/")

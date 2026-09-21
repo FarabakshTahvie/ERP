@@ -4,12 +4,13 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse, FileResponse, Http404, HttpResponse
 from django.templatetags.static import static
 from django.views.decorators.http import require_POST
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.conf import settings
 
 from .models import PushDevice, DeviceType
 from .request_meta import parse_user_agent
-from projects.models import Project
+from projects.models import Project, ProjectStage
+from finance.models import Invoice
 from notifications.models import Notification
 
 
@@ -21,28 +22,59 @@ def home_view(request):
         return redirect("accounts:login")
 
     user = request.user
+    party = getattr(user, "party", None)
 
-    # بارگذاری پروژه‌های مرتبط با کاربر
-    if user.party:
-        q_filter = Q(partner=user.party) | Q(owner=user.party) | Q(participants__party=user.party)
+    # فیلتر پروژه‌ها برای کاربر دارای party فقط partner یا owner باشد (هم‌خوان با project_progress)
+    if party:
+        q_filter = Q(partner=party) | Q(owner=party)
     else:
         q_filter = Q(created_by=user) | Q(assigned_technicians=user) | Q(participants__user=user)
 
-    projects = Project.objects.filter(q_filter).select_related('partner', 'owner', 'location').distinct().order_by('-created_at')
+    # مراحل را با Prefetch بخوان (فقط client_visible، مرتب بر اساس order)
+    stages_qs = ProjectStage.objects.filter(client_visible=True).order_by('order')
+    prefetch_stages = Prefetch('stages', queryset=stages_qs, to_attr='client_stages')
 
-    active_count = projects.filter(status=Project.Status.IN_PROGRESS).count()
-    completed_count = projects.filter(status=Project.Status.COMPLETED).count()
-    draft_count = projects.filter(status=Project.Status.DRAFT).count()
+    projects_qs = Project.objects.filter(q_filter).select_related('partner', 'owner', 'location').prefetch_related(prefetch_stages).distinct().order_by('-created_at')
+    projects_list = list(projects_qs[:6])
+
+    # محاسبه done، total، percent و current برای هر پروژه
+    for p in projects_list:
+        c_stages = getattr(p, 'client_stages', [])
+        total_stages = len(c_stages)
+        done_stages = sum(1 for s in c_stages if s.status == ProjectStage.Status.DONE)
+        percent = int((done_stages / total_stages * 100)) if total_stages > 0 else 0
+        current_stage = next((s for s in c_stages if s.status == ProjectStage.Status.IN_PROGRESS), None)
+        if not current_stage and c_stages:
+            current_stage = next((s for s in c_stages if s.status != ProjectStage.Status.DONE), c_stages[-1])
+
+        p.progress_total = total_stages
+        p.progress_done = done_stages
+        p.progress_percent = percent
+        p.current_client_stage = current_stage
+
+    # فاکتورها را با یک کوئری Invoice.objects.filter(project__in=..., billed_party=party) بگیر و به شکل دیکشنری بده
+    invoices_map = {}
+    if party and projects_list:
+        invs = Invoice.objects.filter(project__in=projects_list, billed_party=party).select_related('project')
+        for inv in invs:
+            invoices_map[inv.project_id] = inv
+
+    active_count = projects_qs.filter(status=Project.Status.IN_PROGRESS).count()
+    completed_count = projects_qs.filter(status=Project.Status.COMPLETED).count()
+    draft_count = projects_qs.filter(status=Project.Status.DRAFT).count()
+    total_count = projects_qs.count()
 
     recent_notifications = Notification.objects.filter(user=user).order_by('-created_at')[:5]
 
     context = {
-        'projects': projects[:6],
-        'total_projects_count': projects.count(),
+        'projects': projects_list,
+        'invoices_map': invoices_map,
+        'total_projects_count': total_count,
         'active_projects_count': active_count,
         'completed_projects_count': completed_count,
         'draft_projects_count': draft_count,
         'recent_notifications': recent_notifications,
+        'party': party,
     }
     return render(request, "client_home.html", context)
 

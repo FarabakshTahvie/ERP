@@ -3,23 +3,27 @@ from unfold.admin import ModelAdmin, TabularInline
 from django.http import HttpResponse
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.utils import timezone
 from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
+from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from .models import Invoice, InvoiceLine, Payment, LedgerEntry
 from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line
 from .forms import AddInvoiceLineForm
 
 
-class InvoiceLineInline(TabularInline):
+class InvoiceLineInline(JalaliAdminMixin, TabularInline):
     model = InvoiceLine
     extra = 0
     readonly_fields = ('total',)
 
 
-class PaymentInline(TabularInline):
+class PaymentInline(JalaliAdminMixin, TabularInline):
     model = Payment
     extra = 0
-    readonly_fields = ('approved_by', 'approved_at')
+    readonly_fields = ('approved_by', 'jalali_approved_at', 'jalali_paid_at')
+    jalali_approved_at = jalali_column('approved_at', 'تاریخ تأیید')
+    jalali_paid_at = jalali_column('paid_at', 'تاریخ پرداخت')
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
@@ -32,14 +36,18 @@ class PaymentInline(TabularInline):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
-    list_display = ('number', 'project', 'billed_party', 'document_type', 'status_badge', 'total_amount', 'paid_amount', 'issue_date')
+class InvoiceAdmin(JalaliAdminMixin, SimpleHistoryAdmin, ModelAdmin):
+    list_display = ('number', 'project', 'billed_party', 'document_type', 'status_badge', 'total_amount', 'paid_amount', 'jalali_issue_date')
     list_filter = ('document_type', 'status', 'issue_date')
     search_fields = ('number', 'project__name', 'billed_party__name')
     raw_id_fields = ('project', 'billed_party')
-    readonly_fields = ('number', 'total_amount', 'paid_amount', 'uuid', 'settled_at')
+    exclude = ('settled_at',)
+    readonly_fields = ('number', 'total_amount', 'paid_amount', 'uuid', 'jalali_settled_at')
     inlines = [InvoiceLineInline, PaymentInline]
     actions = ['action_refresh_lines', 'action_mark_final', 'action_add_manual_line', 'action_issue_credentials']
+
+    jalali_issue_date = jalali_column('issue_date', 'تاریخ صدور')
+    jalali_settled_at = jalali_column('settled_at', 'تاریخ تسویه')
 
     def has_module_permission(self, request):
         return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
@@ -98,11 +106,15 @@ class InvoiceAdmin(SimpleHistoryAdmin, ModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(ModelAdmin):
-    list_display = ('id', 'invoice', 'method', 'amount', 'status_badge', 'paid_at')
+class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'invoice', 'method', 'amount', 'status_badge', 'jalali_paid_at')
     list_filter = ('method', 'status')
     search_fields = ('invoice__number', 'reference_number', 'cheque_number')
+    readonly_fields = ('jalali_paid_at', 'jalali_approved_at')
     actions = ['action_approve']
+
+    jalali_paid_at = jalali_column('paid_at', 'تاریخ پرداخت')
+    jalali_approved_at = jalali_column('approved_at', 'تاریخ تأیید')
 
     def has_module_permission(self, request):
         return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
@@ -128,10 +140,13 @@ class PaymentAdmin(ModelAdmin):
 
 
 @admin.register(LedgerEntry)
-class LedgerEntryAdmin(ModelAdmin):
-    list_display = ('id', 'party', 'entry_type', 'amount', 'description', 'created_at')
+class LedgerEntryAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'party', 'entry_type', 'amount', 'description', 'jalali_created_at')
     list_filter = ('entry_type',)
     search_fields = ('party__name', 'description')
+    readonly_fields = ('jalali_created_at',)
+
+    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
 
     def has_module_permission(self, request):
         return request.user.is_superuser or getattr(request.user, "role", None) == "manager"

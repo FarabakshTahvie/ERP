@@ -52,7 +52,8 @@ class Project(TimeStampedModel):
         super().save(*args, **kwargs)
 
     def _generate_code(self):
-        year = timezone.now().strftime("%y")
+        import jdatetime
+        year = jdatetime.date.fromgregorian(date=timezone.localdate()).year
         last = Project.objects.filter(code__startswith=f"P{year}-").order_by("-id").first()
         seq = int(last.code.split("-")[-1]) + 1 if last else 1
         return f"P{year}-{seq:04d}"

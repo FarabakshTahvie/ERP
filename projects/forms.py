@@ -1,12 +1,16 @@
 from django import forms
 from unfold.forms import BaseDialogForm
+from unfold.widgets import (
+    UnfoldAdminTextareaWidget,
+    UnfoldAdminSelectWidget,
+)
 from accounts.models import User
 
 
 class StageCommentForm(BaseDialogForm):
     comment = forms.CharField(
         label="توضیحات / علت (اجباری)",
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "دلیل کامل را وارد کنید..."}),
+        widget=UnfoldAdminTextareaWidget(attrs={"rows": 3, "placeholder": "دلیل کامل را وارد کنید..."}),
         required=True,
     )
 
@@ -21,11 +25,12 @@ class StageAssignForm(BaseDialogForm):
     target_user = forms.ModelChoiceField(
         queryset=User.objects.filter(is_active=True),
         label="انتخاب مسئول جدید",
+        widget=UnfoldAdminSelectWidget(),
         required=True,
     )
     comment = forms.CharField(
         label="دلیل ارجاع دستی (اجباری)",
-        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "دلیل ارجاع به این شخص..."}),
+        widget=UnfoldAdminTextareaWidget(attrs={"rows": 2, "placeholder": "دلیل ارجاع به این شخص..."}),
         required=True,
     )
 

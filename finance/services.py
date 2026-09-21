@@ -1,10 +1,11 @@
+import jdatetime
 from django.db import models, transaction
 from django.utils import timezone
 from .models import Invoice, InvoiceLine, Payment, LedgerEntry
 
 
 def _generate_invoice_number():
-    year = timezone.now().strftime("%y")
+    year = jdatetime.date.fromgregorian(date=timezone.localdate()).year
     last = Invoice.objects.filter(number__startswith=f"INV-{year}-").order_by("-id").first()
     seq = int(last.number.split("-")[-1]) + 1 if last else 1
     return f"INV-{year}-{seq:04d}"
@@ -64,7 +65,7 @@ def generate_invoice_for_project(project, issue_date=None, document_type=Invoice
         billed_party=project.partner,
         address_snapshot=project.location.address_text if project.location else "",
         contract_date=project.contract_date,
-        issue_date=issue_date or timezone.now().date(),
+        issue_date=issue_date or timezone.localdate(),
     )
     _rebuild_lines(invoice, project)
     return invoice

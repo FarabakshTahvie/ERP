@@ -79,7 +79,7 @@
 
 /* برای اعداد: تلفن، قیمت، کد یکبارمصرف، شماره فاکتور */
 .font-technical {
-  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Segoe UI Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-feature-settings: "tnum" 1;
   direction: ltr;
   unicode-bidi: isolate;

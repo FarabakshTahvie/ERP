@@ -29,7 +29,8 @@ class Purchase(TimeStampedModel):
         verbose_name_plural = "اسناد خرید"
 
     def __str__(self):
-        return f"خرید از {self.supplier} - {self.purchased_at:%Y-%m-%d}"
+        from utils.jalali import jalali_str
+        return f"خرید از {self.supplier} - {jalali_str(self.purchased_at, fmt='%Y/%m/%d')}"
 
 
 class PurchaseLine(models.Model):

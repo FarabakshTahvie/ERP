@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.contrib import messages
 from unfold.admin import ModelAdmin
+from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from .models import PushDevice
 
 
 @admin.register(PushDevice)
-class PushDeviceAdmin(ModelAdmin):
+class PushDeviceAdmin(JalaliAdminMixin, ModelAdmin):
     """
     Unfold Admin configuration for PushDevice model with actions to test push and activate/deactivate.
     """
@@ -18,7 +19,7 @@ class PushDeviceAdmin(ModelAdmin):
         'browser',
         'os',
         'is_active',
-        'created_at',
+        'jalali_created_at',
     )
     list_filter = (
         'type',
@@ -35,8 +36,11 @@ class PushDeviceAdmin(ModelAdmin):
         'user__first_name',
         'user__last_name',
     )
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('jalali_created_at', 'jalali_updated_at')
     actions = ['send_test_push', 'activate_devices', 'deactivate_devices']
+
+    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
+    jalali_updated_at = jalali_column('updated_at', 'تاریخ به‌روزرسانی')
 
     def short_token(self, obj):
         return f"{obj.registration_id[:20]}..." if obj.registration_id else "—"

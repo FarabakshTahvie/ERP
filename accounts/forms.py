@@ -1,6 +1,11 @@
 import re
 from django import forms
 from django.core.exceptions import ValidationError
+from unfold.widgets import (
+    UnfoldAdminTextInputWidget,
+    UnfoldAdminPasswordWidget,
+    UnfoldAdminPasswordToggleWidget,
+)
 from .models import User
 from core.models import Specialty
 from utils.utils import generate_random_code, is_valid_national_code
@@ -15,18 +20,19 @@ class CustomAdminUserCreationForm(forms.ModelForm):
     """
     username = forms.CharField(
         label="نام کاربری",
+        widget=UnfoldAdminTextInputWidget(),
         required=False,
         help_text="اختیاری — در صورت خالی ماندن، شماره موبایل کاربر درج می‌شود.",
     )
     password = forms.CharField(
         label="رمز عبور",
-        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        widget=UnfoldAdminPasswordToggleWidget(attrs={"autocomplete": "new-password"}),
         required=False,
         help_text="اختیاری — اگر خالی بگذارید، رمز عبور تصادفی و امن به صورت خودکار ایجاد خواهد شد.",
     )
     password_confirm = forms.CharField(
         label="تکرار رمز عبور",
-        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        widget=UnfoldAdminPasswordToggleWidget(attrs={"autocomplete": "new-password"}),
         required=False,
         help_text="در صورت وارد کردن رمز عبور به صورت دستی، تکرار آن الزامی است.",
     )

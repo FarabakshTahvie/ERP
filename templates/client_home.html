@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load custom_tags %}
 
-{% block title %}داشبورد اختصاصی | سامانه فرابخش{% endblock %}
+{% block title %}پرتال مشتریان و همکاران | فرابخش تهویه{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -14,120 +14,110 @@
                     {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
                 </div>
                 <div>
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-2xl sm:text-3xl font-black text-base-content tracking-tight">
-                            سلام، {{ request.user.get_full_name|default:request.user.username }}
-                        </h1>
-                        <span class="badge badge-primary font-bold text-xs px-2.5 py-1.5 h-auto leading-none">{{ request.user.get_role_display }}</span>
-                    </div>
+                    <h1 class="text-2xl sm:text-3xl font-black text-base-content tracking-tight">
+                        سلام، {{ request.user.get_full_name|default:request.user.username }}
+                    </h1>
                     <p class="text-sm text-base-content/70 mt-1">
-                        خوش آمدید به پرتال جامع مدیریت خدمات تهویه مطبوع فرابخش
+                        به پرتال فرابخش تهویه خوش آمدید
                     </p>
                 </div>
             </div>
 
             <!-- دکمه‌های اقدام سریع -->
             <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <button onclick="document.getElementById('service-modal').showModal()" class="btn btn-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all gap-2 text-sm flex-1 md:flex-initial">
-                    {% icon "plus" "w-4 h-4" %} ثبت درخواست
-                </button>
-                <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-outline btn-secondary rounded-xl font-bold text-sm gap-2 flex-1 md:flex-initial">
-                    {% icon "phone" "w-4 h-4" %} پشتیبانی فنی
+                <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all gap-2 text-sm flex-1 md:flex-initial">
+                    {% icon "phone" "w-4 h-4" %} تماس با دفتر
                 </a>
-            </div>
-        </div>
-
-        <!-- نشان وضعیت سیستم در گوشه بنر -->
-        <div class="mt-6 pt-4 border-t border-base-300/60 flex flex-wrap items-center justify-between text-xs text-base-content/70 gap-4">
-            <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-success animate-pulse"></span>
-                <span>کلیه کارگاه‌ها و خطوط پشتیبانی فعال هستند</span>
-            </div>
-            <div class="font-technical text-xs text-base-content/60">
-                تاریخ امروز: {% now "Y/m/d" %}
+                {% if request.user.is_staff %}
+                <a href="/admin/" class="btn btn-outline btn-secondary rounded-xl font-bold text-sm gap-2 flex-1 md:flex-initial">
+                    {% icon "settings" "w-4 h-4" %} پنل مدیریت
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- بخش آمار و کارت‌های خلاصه (DaisyUI Stats) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- کارت ۱: پروژه‌های فعال -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 {% if party %}lg:grid-cols-4{% else %}lg:grid-cols-3{% endif %} gap-4">
+        <!-- کارت ۱: پروژه‌های در حال اجرا -->
         <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-base-content/60">پروژه‌های فعال</span>
-                    <div class="text-3xl font-black text-primary mt-1 font-technical">{{ active_projects_count }}</div>
+                    <span class="text-xs font-semibold text-base-content/60">پروژه‌های در حال اجرا</span>
+                    <div class="text-3xl font-black text-primary mt-1 font-technical">{{ active_projects_count|fa_digits }}</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                     {% icon "fan" "w-6 h-6" %}
                 </div>
             </div>
-            <span class="text-xs text-base-content/50 mt-3 block">در دست اقدام و نظارت فنی</span>
         </div>
 
-        <!-- کارت ۲: تکمیل‌شده -->
+        <!-- کارت ۲: پروژه‌های تحویل‌شده -->
         <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
                 <div>
                     <span class="text-xs font-semibold text-base-content/60">پروژه‌های تحویل‌شده</span>
-                    <div class="text-3xl font-black text-success mt-1 font-technical">{{ completed_projects_count }}</div>
+                    <div class="text-3xl font-black text-success mt-1 font-technical">{{ completed_projects_count|fa_digits }}</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-success/10 text-success flex items-center justify-center">
                     {% icon "check-circle" "w-6 h-6" %}
                 </div>
             </div>
-            <span class="text-xs text-base-content/50 mt-3 block">دارای تاییدیه نهایی و گارانتی</span>
         </div>
 
-        <!-- کارت ۳: کل سفارشات / پیش‌نویس -->
+        <!-- کارت ۳: کل پروژه‌ها -->
         <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-base-content/60">کل سوابق ثبت‌شده</span>
-                    <div class="text-3xl font-black text-secondary mt-1 font-technical">{{ total_projects_count }}</div>
+                    <span class="text-xs font-semibold text-base-content/60">کل پروژه‌ها</span>
+                    <div class="text-3xl font-black text-secondary mt-1 font-technical">{{ total_projects_count|fa_digits }}</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
                     {% icon "receipt" "w-6 h-6" %}
                 </div>
             </div>
-            <span class="text-xs text-base-content/50 mt-3 block">شامل کارشناسی، برآورد و اجرا</span>
         </div>
 
-        <!-- کارت ۴: گارانتی و پشتیبانی -->
+        <!-- کارت ۴: مانده قابل پرداخت (فقط برای کاربر party‌دار) -->
+        {% if party %}
         <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-base-content/60">وضعیت گارانتی</span>
-                    <div class="text-3xl font-black text-info mt-1">فعال</div>
+                    <span class="text-xs font-semibold text-base-content/60">مانده قابل پرداخت</span>
+                    <div class="text-2xl font-black text-warning mt-1 font-technical">
+                        {{ party.total_outstanding|intcomma_fa }} <span class="text-xs font-normal">تومان</span>
+                    </div>
                 </div>
-                <div class="w-12 h-12 rounded-2xl bg-info/10 text-info flex items-center justify-center">
-                    {% icon "shield-check" "w-6 h-6" %}
+                <div class="w-12 h-12 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
+                    {% icon "credit-card" "w-6 h-6" %}
                 </div>
             </div>
-            <span class="text-xs text-base-content/60 mt-3 block">پشتیبانی در ساعت کاری</span>
         </div>
+        {% endif %}
     </div>
 
-    <!-- شبکه ۲ ستونه: پروژه‌های کاربر و خدمات تخصصی -->
+    <!-- شبکه ۲ ستونه: پروژه‌های کاربر و تماس / پیام‌ها -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-        <!-- ستون سمت راست: پروژه‌ها و وضعیت کارها (۸ ستون) -->
+        <!-- ستون سمت راست: پروژه‌ها (۸ ستون) -->
         <div class="lg:col-span-8 space-y-6">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
                     {% icon "activity" "w-5 h-5 text-primary" %}
-                    <h2 class="text-lg font-black text-base-content">پروژه‌ها و خدمات اخیر شما</h2>
+                    <h2 class="text-lg font-black text-base-content">پروژه‌های شما</h2>
                 </div>
-                <span class="text-xs text-base-content/60 font-medium">به‌روزرسانی خودکار</span>
             </div>
 
             {% if projects %}
             <div class="space-y-4">
                 {% for project in projects %}
-                <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:border-primary/40 transition-all">
+                <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:border-primary/40 transition-all space-y-4">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-base-200">
                         <div>
-                            <h3 class="font-bold text-base text-base-content">{{ project.name }}</h3>
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-bold text-base text-base-content">{{ project.name }}</h3>
+                                <span class="badge badge-sm badge-ghost font-technical" dir="ltr">{{ project.code|fa_digits }}</span>
+                            </div>
                             <div class="flex items-center gap-3 text-xs text-base-content/60 mt-1">
                                 {% if project.location %}
                                 <span class="flex items-center gap-1">
@@ -140,113 +130,66 @@
                         </div>
                         <div>
                             {% if project.status == 'in_progress' %}
-                                <span class="badge badge-warning gap-1 text-xs font-bold py-3 px-3">
+                                <span class="badge badge-warning gap-1 text-xs font-bold py-2 px-3">
                                     {% icon "wrench" "w-3.5 h-3.5" %} در حال اجرا
                                 </span>
                             {% elif project.status == 'completed' %}
-                                <span class="badge badge-success gap-1 text-xs font-bold py-3 px-3">
-                                    {% icon "check" "w-3.5 h-3.5" %} تکمیل‌شده
+                                <span class="badge badge-success gap-1 text-xs font-bold py-2 px-3">
+                                    {% icon "check" "w-3.5 h-3.5" %} تحویل‌شده
                                 </span>
                             {% elif project.status == 'cancelled' %}
-                                <span class="badge badge-error gap-1 text-xs font-bold py-3 px-3">لغو‌شده</span>
+                                <span class="badge badge-error gap-1 text-xs font-bold py-2 px-3">لغو شده</span>
                             {% else %}
-                                <span class="badge badge-neutral gap-1 text-xs font-bold py-3 px-3">پیش‌نویس / بررسی اولیه</span>
+                                <span class="badge badge-neutral gap-1 text-xs font-bold py-2 px-3">در حال بررسی</span>
                             {% endif %}
                         </div>
                     </div>
 
-                    {% if project.description %}
-                    <p class="text-xs text-base-content/70 mt-3 leading-relaxed">
-                        {{ project.description|truncatewords:25 }}
-                    </p>
-                    {% endif %}
+                    <!-- نوار پیشرفت واقعی -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between text-xs text-base-content/70">
+                            <span>
+                                {% if project.current_client_stage %}
+                                مرحله جاری: <strong class="text-base-content">{{ project.current_client_stage.client_label|default:project.current_client_stage.title }}</strong>
+                                {% else %}
+                                وضعیت پیشرفت مراحل
+                                {% endif %}
+                            </span>
+                            <span class="font-technical">
+                                {{ project.progress_done|fa_digits }} از {{ project.progress_total|fa_digits }} مرحله
+                                ({{ project.progress_percent|fa_digits }}٪)
+                            </span>
+                        </div>
+                        <progress class="progress progress-primary w-full h-2.5" value="{{ project.progress_done }}" max="{{ project.progress_total|default:1 }}"></progress>
+                    </div>
 
-                    <!-- استپ‌های گرافیکی مراحل اجرا -->
-                    <div class="mt-4 pt-3">
-                        <ul class="steps steps-horizontal w-full text-xs">
-                            <li class="step step-primary font-medium">ثبت درخواست</li>
-                            <li class="step {% if project.status != 'draft' %}step-primary{% endif %} font-medium">کارشناسی</li>
-                            <li class="step {% if project.status == 'in_progress' or project.status == 'completed' %}step-primary{% endif %} font-medium">پیش‌فاکتور</li>
-                            <li class="step {% if project.status == 'in_progress' or project.status == 'completed' %}step-primary{% endif %} font-medium">اجرا</li>
-                            <li class="step {% if project.status == 'completed' %}step-primary{% endif %} font-medium">تحویل نهایی</li>
-                        </ul>
+                    <!-- دکمه‌های اقدام پروژه -->
+                    <div class="pt-2 flex flex-wrap items-center gap-3">
+                        <a href="{% url 'projects:portal_project_progress' project.id %}" class="btn btn-outline btn-primary btn-sm rounded-xl font-bold gap-2">
+                            {% icon "eye" "w-4 h-4" %} مشاهده‌ی مراحل
+                        </a>
+                        {% with invoice=invoices_map|get_item:project.id %}
+                        {% if invoice %}
+                        <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-secondary btn-sm rounded-xl font-bold gap-2">
+                            {% icon "receipt" "w-4 h-4" %} مشاهده‌ی پیش‌فاکتور/فاکتور
+                        </a>
+                        {% endif %}
+                        {% endwith %}
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <!-- حالت خالی: هنوز پروژه‌ای ثبت نشده -->
+            <!-- حالت خالی -->
             <div class="card bg-base-100 border border-dashed border-base-300 rounded-3xl p-8 text-center space-y-4">
                 <div class="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
                     {% icon "snowflake" "w-8 h-8" %}
                 </div>
                 <div class="max-w-md mx-auto">
-                    <h3 class="font-bold text-lg text-base-content">هنوز پروژه‌ای به این حساب متصل نشده است</h3>
-                    <p class="text-xs text-base-content/60 mt-1.5 leading-relaxed">
-                        چنانچه پروژه جدیدی در زمینه چیلر، داکت‌اسپلیت، کانال‌کشی یا هواساز دارید، می‌توانید درخواست خود را ثبت کنید تا کارشناسان ما بررسی کنند.
-                    </p>
-                </div>
-                <div>
-                    <button onclick="document.getElementById('service-modal').showModal()" class="btn btn-primary btn-sm rounded-xl font-bold gap-2">
-                        {% icon "plus" "w-4 h-4" %} ثبت اولین درخواست بازدید رایگان
-                    </button>
+                    <h3 class="font-bold text-base text-base-content">هنوز پروژه‌ای برای شما ثبت نشده است. برای هماهنگی با دفتر تماس بگیرید.</h3>
                 </div>
             </div>
             {% endif %}
-
-            <!-- خدمات تخصصی فرابخش (HVAC Services) -->
-            <div class="pt-6 space-y-4">
-                <div class="flex items-center gap-2.5">
-                    {% icon "wrench" "w-5 h-5 text-secondary" %}
-                    <h2 class="text-lg font-black text-base-content">خدمات تخصصی مهندسی فرابخش</h2>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- سرویس ۱ -->
-                    <div class="card bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:border-primary/50 transition-all flex flex-row items-start gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                            {% icon "fan" "w-5 h-5" %}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-sm text-base-content">سیستم‌های چیلر و موتورخانه</h4>
-                            <p class="text-xs text-base-content/60 mt-1 leading-relaxed">راه‌اندازی، سرویس فصلی، عیب‌یابی کمپرسور و مبردها</p>
-                        </div>
-                    </div>
-
-                    <!-- سرویس ۲ -->
-                    <div class="card bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:border-primary/50 transition-all flex flex-row items-start gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                            {% icon "wind" "w-5 h-5" %}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-sm text-base-content">هواساز و داکت‌اسپلیت</h4>
-                            <p class="text-xs text-base-content/60 mt-1 leading-relaxed">طراحی شبکه کانال‌کشی، شارژ گاز و بالانس جریان هوا</p>
-                        </div>
-                    </div>
-
-                    <!-- سرویس ۳ -->
-                    <div class="card bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:border-primary/50 transition-all flex flex-row items-start gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center flex-shrink-0">
-                            {% icon "cpu" "w-5 h-5" %}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-sm text-base-content">اتوماسیون و مانیتورینگ هوشمند</h4>
-                            <p class="text-xs text-base-content/60 mt-1 leading-relaxed">تنظیم سیستم‌های کنترلی، ترموستات‌ها و مدیریت مصرف انرژی</p>
-                        </div>
-                    </div>
-
-                    <!-- سرویس ۴ -->
-                    <div class="card bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:border-primary/50 transition-all flex flex-row items-start gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center flex-shrink-0">
-                            {% icon "shield-check" "w-5 h-5" %}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-sm text-base-content">تأمین قطعات یدکی با گارانتی</h4>
-                            <p class="text-xs text-base-content/60 mt-1 leading-relaxed">عرضه مستقیم قطعات استاندارد با برگه ضمانت اصالت</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- ستون سمت چپ: اعلان‌ها و تماس مستقیم (۴ ستون) -->
@@ -258,26 +201,25 @@
                     {% icon "phone" "w-40 h-40" %}
                 </div>
                 <div class="relative z-10 space-y-3">
-                    <span class="badge badge-neutral badge-sm px-3 py-1.5 h-auto leading-none font-semibold">ساعت کاری {{ CONTACT.hours }}</span>
+                    <span class="badge badge-neutral badge-sm px-3 py-1.5 h-auto leading-none font-semibold">ساعت کاری {{ CONTACT.hours|fa_digits }}</span>
                     <h3 class="text-xl font-black">نیاز به هماهنگی فوری دارید؟</h3>
                     <p class="text-xs opacity-85 leading-relaxed">در ساعت کاری با دفتر تماس بگیرید. خارج از ساعت کاری با شماره‌ی زیر در ارتباط باشید.</p>
                     <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-neutral btn-sm rounded-xl font-bold gap-2 text-xs w-full">
-                        {% icon "phone" "w-4 h-4" %} دفتر: <span class="font-technical">{{ CONTACT.office_phone.display }}</span>
+                        {% icon "phone" "w-4 h-4" %} دفتر: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display|fa_digits }}</span>
                     </a>
                     <a href="tel:{{ CONTACT.after_hours.tel }}" class="btn btn-outline btn-sm rounded-xl font-bold gap-2 text-xs w-full mt-2">
-                        {% icon "phone" "w-4 h-4" %} خارج از ساعت کاری: <span class="font-technical">{{ CONTACT.after_hours.display }}</span>
+                        {% icon "phone" "w-4 h-4" %} خارج از ساعت کاری: <span dir="ltr" class="font-technical">{{ CONTACT.after_hours.display|fa_digits }}</span>
                     </a>
                 </div>
             </div>
 
-            <!-- پنل آخرین اعلان‌ها و رویدادها -->
+            <!-- پنل آخرین اعلان‌ها -->
             <div class="card bg-base-100 border border-base-200 rounded-3xl p-5 shadow-sm space-y-4">
                 <div class="flex items-center justify-between pb-3 border-b border-base-200">
                     <div class="flex items-center gap-2">
                         {% icon "bell" "w-4 h-4 text-primary" %}
-                        <h3 class="font-bold text-sm text-base-content">اعلان‌های سامانه</h3>
+                        <h3 class="font-bold text-sm text-base-content">پیام‌های شما</h3>
                     </div>
-                    <span class="badge badge-ghost badge-sm text-[10px]">جدید</span>
                 </div>
 
                 {% if recent_notifications %}
@@ -295,7 +237,7 @@
                 {% else %}
                 <div class="text-center py-6 text-base-content/50 space-y-2">
                     {% icon "check-circle" "w-8 h-8 mx-auto text-success/60" %}
-                    <p class="text-xs font-medium">هیچ اعلان جدیدی وجود ندارد</p>
+                    <p class="text-xs font-medium">پیام جدیدی ندارید</p>
                 </div>
                 {% endif %}
             </div>
@@ -303,56 +245,4 @@
         </div>
     </div>
 </div>
-
-<!-- مودال ثبت درخواست سرویس و کارشناسی جدید -->
-<dialog id="service-modal" class="modal modal-bottom sm:modal-middle">
-    <div class="modal-box rounded-3xl p-6 sm:p-8 bg-base-100">
-        <form method="dialog">
-            <button class="btn btn-sm btn-circle btn-ghost absolute left-4 top-4">✕</button>
-        </form>
-        <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-                {% icon "wrench" "w-5 h-5" %}
-            </div>
-            <div>
-                <h3 class="font-black text-lg text-base-content">ثبت درخواست کارشناسی و سرویس</h3>
-                <p class="text-xs text-base-content/60">اطلاعات محل و نوع خدمات مورد نیاز را وارد کنید</p>
-            </div>
-        </div>
-
-        <div class="space-y-3.5 text-sm">
-            <div>
-                <label class="block text-xs font-semibold mb-1 text-base-content/80">نوع سیستم تهویه:</label>
-                <select class="select select-bordered w-full rounded-xl text-xs">
-                    <option>چیلر تراکمی / جذبی</option>
-                    <option>داکت اسپلیت</option>
-                    <option>سیستم هواساز و ایرواشر</option>
-                    <option>سیستم VRF و مولتی‌اسپلیت</option>
-                    <option>کانال‌کشی و تاسیسات موتورخانه</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold mb-1 text-base-content/80">آدرس یا نام پروژه:</label>
-                <input type="text" placeholder="مثال: برج مسکونی نیلوفر - سعادت آباد" class="input input-bordered w-full rounded-xl text-xs">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold mb-1 text-base-content/80">توضیح یا شرح مشکل:</label>
-                <textarea rows="3" placeholder="توضیحات تکمیلی در مورد عیب، نیاز به بازدید یا شارژ مبرد..." class="textarea textarea-bordered w-full rounded-xl text-xs"></textarea>
-            </div>
-
-            <div class="alert alert-info text-xs rounded-xl py-2.5 px-3 flex items-center gap-2">
-                {% icon "check-circle" "w-4 h-4 flex-shrink-0 text-info-content" %}
-                <span class="text-info-content">پس از ثبت، کارشناس فنی با شما تماس خواهد گرفت.</span>
-            </div>
-
-            <div class="modal-action mt-6">
-                <button type="button" onclick="alert('درخواست شما با موفقیت ثبت شد و به واحد فنی ارجاع یافت.'); document.getElementById('service-modal').close();" class="btn btn-primary w-full rounded-xl font-bold">
-                    ثبت نهایی درخواست
-                </button>
-            </div>
-        </div>
-    </div>
-</dialog>
 {% endblock %}

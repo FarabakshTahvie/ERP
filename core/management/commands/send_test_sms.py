@@ -63,5 +63,6 @@ class Command(BaseCommand):
 
         self.stdout.write("\n=== نتیجه ارسال ===")
         self.stdout.write(f"success: {result.get('success')}")
+        self.stdout.write(f"message_id: {result.get('message_id')}")
         self.stdout.write(f"error: {result.get('error')}")
         self.stdout.write(f"data: {result.get('data')}")

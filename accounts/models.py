@@ -187,5 +187,6 @@ class LoginHistory(models.Model):
         ]
 
     def __str__(self):
+        from utils.jalali import jalali_str
         who = self.user or self.username_attempted
-        return f"{who} - {self.get_result_display()} @ {self.created_at:%Y-%m-%d %H:%M}"
+        return f"{who} - {self.get_result_display()} @ {jalali_str(self.created_at, fmt='%Y/%m/%d %H:%M')}"

@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <title>{% block title %}سامانه فرابخش | سیستم جامع مدیریت تهویه مطبوع{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}سامانه هوشمند و یکپارچه مدیریت پروژه‌ها، پیش‌فاکتورها و خدمات مهندسی تهویه مطبوع فرابخش{% endblock %}">
+    <title>{% block title %}فرابخش تهویه{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}پرتال مشتریان و همکاران فرابخش تهویه{% endblock %}">
 
     <!-- PWA & Apple Meta Tags -->
     <link rel="icon" type="image/svg+xml" href="{% static 'icons/logo.svg' %}">
@@ -50,10 +50,10 @@
                 <!-- Brand / Logo -->
                 <div class="flex-1 flex items-center gap-3">
                     <a href="{% url 'home' %}" class="flex items-center gap-2.5 font-black text-xl tracking-tight text-primary transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                        <img src="{% static 'icons/logo.svg' %}" alt="فرابخش" class="w-10 h-10 object-contain">
+                        <img src="{% static 'icons/logo.svg' %}" alt="فرابخش" class="w-10 h-10 object-contain bg-white rounded-lg p-0.5 shadow-sm">
                         <div class="flex flex-col">
                             <span class="font-extrabold text-lg leading-tight">فرابخش</span>
-                            <span class="text-[10px] font-medium text-base-content/60 tracking-wider">مهندسی تهویه مطبوع</span>
+                            <span class="text-[10px] font-medium text-base-content/60 tracking-wider">پرتال مشتریان و همکاران</span>
                         </div>
                     </a>
                 </div>
@@ -61,7 +61,7 @@
                 <!-- Center Nav Links (Desktop) -->
                 <nav class="hidden md:flex items-center gap-1">
                     <a href="{% url 'home' %}" class="btn btn-ghost btn-sm rounded-lg font-medium hover:bg-base-200">
-                        {% icon "layout-dashboard" "w-4 h-4 text-primary" %} داشبورد
+                        {% icon "layout-dashboard" "w-4 h-4 text-primary" %} صفحه اصلی
                     </a>
                     {% if request.user.is_staff %}
                     <a href="/admin/" class="btn btn-ghost btn-sm rounded-lg font-medium text-secondary hover:bg-base-200">
@@ -94,19 +94,13 @@
                             <li class="menu-title px-3 py-2 border-b border-base-200 mb-1">
                                 <div class="flex flex-col gap-0.5">
                                     <span class="font-bold text-base-content text-sm">{{ request.user.get_full_name|default:request.user.username }}</span>
-                                    <span class="text-xs text-base-content/60 font-technical">{{ request.user.phone_number|default:request.user.email }}</span>
-                                    <span class="badge badge-primary badge-sm px-2.5 py-1.5 h-auto leading-none mt-1.5 self-start font-medium">{{ request.user.get_role_display }}</span>
+                                    <span class="text-xs text-base-content/60 font-technical" dir="ltr">{{ request.user.phone_number|default:request.user.email }}</span>
                                 </div>
-                            </li>
-                            <li>
-                                <a href="{% url 'home' %}" class="gap-2.5 rounded-lg py-2">
-                                    {% icon "home" "w-4 h-4 text-primary" %} پرتال کاربری
-                                </a>
                             </li>
                             {% if request.user.is_staff %}
                             <li>
                                 <a href="/admin/" class="gap-2.5 rounded-lg py-2 text-secondary font-medium">
-                                    {% icon "settings" "w-4 h-4" %} ورود به ادمین
+                                    {% icon "settings" "w-4 h-4" %} پنل مدیریت
                                 </a>
                             </li>
                             {% endif %}
@@ -153,14 +147,11 @@
     <footer class="footer footer-center p-6 bg-base-200/60 text-base-content/70 border-t border-base-300 text-xs mt-auto">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl w-full px-4">
             <div class="flex items-center gap-2">
-                <img src="{% static 'icons/logo.svg' %}" alt="فرابخش" class="w-5 h-5 object-contain">
-                <span class="font-semibold text-base-content">فرابخش</span>
-                <span class="text-base-content/60">| سامانه مدیریت خدمات مهندسی تهویه</span>
+                <img src="{% static 'icons/logo.svg' %}" alt="فرابخش تهویه" class="w-5 h-5 object-contain bg-white rounded-md p-0.5 shadow-sm">
+                <span class="font-semibold text-base-content">فرابخش تهویه</span>
             </div>
-            <div class="flex items-center gap-4 text-xs font-technical">
-                <span>نسخه ۱.۰.۰</span>
-                <span>•</span>
-                <span>پشتیبانی: {{ CONTACT.office_phone.display }}</span>
+            <div class="flex items-center gap-4 text-xs">
+                <span>پشتیبانی: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display }}</span></span>
             </div>
         </div>
     </footer>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% load custom_tags %}
 
-{% block title %}روند اجرای پروژه {{ project.code }} - فرابخش{% endblock %}
+{% block title %}روند اجرای پروژه {{ project.code|fa_digits }} - فرابخش{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
@@ -8,7 +9,7 @@
     <div class="card bg-base-100 shadow-sm border border-base-200 p-6">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <span class="badge badge-primary badge-outline text-xs">کد پروژه: {{ project.code }}</span>
+                <span class="badge badge-primary badge-outline text-xs">کد پروژه: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
                 <h1 class="text-xl font-bold text-base-content mt-2">{{ project.name }}</h1>
             </div>
             <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">بازگشت به خانه</a>

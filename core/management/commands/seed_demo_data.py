@@ -113,7 +113,7 @@ class Command(BaseCommand):
 
             project = Project.objects.create(
                 name="پروژه نمونه - ساختمان اداری الف", partner=partner_party, owner=client_party,
-                workflow_template=template, contract_date=timezone.now().date(),
+                workflow_template=template, contract_date=timezone.localdate(),
                 installation_fee=15000000, shipping_fee=2000000, extra_fee=0,
                 created_by=admin_user,
             )

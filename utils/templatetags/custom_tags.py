@@ -1,6 +1,5 @@
 from django import template
-from datetime import datetime, date
-import jdatetime
+from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits, rial_to_toman, format_price
 
 register = template.Library()
@@ -38,48 +37,38 @@ def get_item(dictionary, key):
 @register.filter
 def to_jalali(value, format_str=None):
     """
-    Converts Gregorian date or datetime to Jalali (Persian) date.
-    - For datetime: Default format includes date and time without seconds (e.g., 1403/06/25 14:30).
-    - For date: Default format includes date only (e.g., 1403/06/25).
+    Converts Gregorian date or datetime to Jalali (Persian) date using utils.jalali.jalali_str.
     """
-    if not value:
-        return ""
+    return jalali_str(value, fmt=format_str, persian=True)
 
-    try:
-        if isinstance(value, datetime):
-            jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
-            if format_str:
-                return jalali_dt.strftime(format_str)
-            return jalali_dt.strftime("%Y/%m/%d %H:%M")
-        elif isinstance(value, date):
-            jalali_d = jdatetime.date.fromgregorian(date=value)
-            if format_str:
-                return jalali_d.strftime(format_str)
-            return jalali_d.strftime("%Y/%m/%d")
-    except Exception:
-        return str(value)
 
-    return str(value)
+@register.filter
+def fa_digits(value):
+    """
+    Converts English digits to Persian digits.
+    """
+    return to_fa_digits(value)
 
 
 @register.filter
 def intcomma_fa(value):
     """
-    Separates numbers into 3-digit groups.
-    Example: 1500000 -> 1,500,000
+    Separates numbers into 3-digit groups and converts to Persian digits.
+    Example: 1500000 -> ۱,۵۰۰,۰۰۰
     """
-    return separate_digits(value)
+    return to_fa_digits(separate_digits(value))
 
 
 @register.filter
 def to_toman(value, is_rial_input=True):
     """
-    Converts Rials to Toman and formats with 3-digit comma separation.
-    Example: 100000 -> 10,000 تومان
+    Converts Rials to Toman and formats with 3-digit comma separation and Persian digits.
+    Example: 100000 -> ۱۰,۰۰۰ تومان
     """
     if value is None:
         return ""
-    return format_price(value, currency="تومان", is_rial_input=is_rial_input)
+    formatted = format_price(value, currency="تومان", is_rial_input=is_rial_input)
+    return to_fa_digits(formatted)
 
 
 @register.simple_tag
