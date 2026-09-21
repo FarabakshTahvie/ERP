@@ -1,55 +1,59 @@
 {% load custom_tags %}
-<div class="border-t border-base-300 pt-4 mt-4 space-y-4">
-    <!-- Success Alert -->
+<div id="otp-verify-section" class="space-y-4">
     <div class="alert alert-info text-sm shadow-sm rounded-xl py-2.5 px-3.5 flex items-center gap-2.5">
         {% icon "check-circle" "w-5 h-5 flex-shrink-0 text-info-content" %}
         <div class="flex flex-col text-xs text-info-content">
+            {% if resent %}
+            <span class="font-medium">کد تایید قبلاً برای این شماره ارسال شده و هنوز معتبر است:</span>
+            {% else %}
             <span class="font-medium">کد تایید پیامک شد:</span>
+            {% endif %}
             <span class="font-technical font-bold text-sm tracking-wider mt-0.5" dir="ltr">{{ phone_number|fa_digits }}</span>
         </div>
     </div>
 
-    <!-- OTP Verification Form -->
-    <form hx-post="{% url 'accounts:verify_otp_login' %}" hx-target="#otp-dynamic-area" class="space-y-4">
+    {% if error %}
+    <div class="alert alert-error text-sm shadow-md rounded-xl animate-shake flex items-center gap-2.5">
+        {% icon "alert-circle" "w-5 h-5 flex-shrink-0 text-error-content" %}
+        <span class="font-medium text-error-content">{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <form hx-post="{% url 'accounts:verify_otp_login' %}" hx-target="#otp-container" hx-swap="innerHTML" class="space-y-4">
         <input type="hidden" name="phone_number" value="{{ phone_number }}">
         <input type="hidden" name="next" value="{{ next }}">
 
         <div>
             <label class="block text-xs font-semibold mb-1.5 text-base-content/80">کد ۵ رقمی‌ای که پیامک شد را وارد کنید:</label>
-            <input type="text"
-                   name="code"
-                   placeholder="• • • • •"
+            <input type="text" name="code" placeholder="• • • • •"
                    class="input input-bordered w-full text-center text-2xl tracking-[0.5em] font-technical font-bold h-13 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl"
-                   required
-                   dir="ltr"
-                   autofocus
-                   maxlength="6"
-                   inputmode="numeric">
+                   required dir="ltr" autofocus maxlength="6" inputmode="numeric">
         </div>
 
-        <!-- Submit Button -->
         <button type="submit"
                 class="btn btn-primary w-full rounded-xl gap-2 font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all h-12"
-                hx-disabled-elt="this"
-                hx-indicator="#verify-spinner">
+                hx-disabled-elt="this" hx-indicator="#verify-spinner">
             {% icon "check" "w-5 h-5" %}
             <span>تایید و ورود به سامانه</span>
             <span id="verify-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
         </button>
     </form>
 
-    <!-- Resend Timer / Back Action -->
     <div class="flex items-center justify-between text-xs pt-1 px-1 text-base-content/70">
         <button type="button"
-                onclick="document.getElementById('otp-phone-section').classList.remove('hidden'); document.getElementById('otp-dynamic-area').innerHTML = '';"
+                hx-get="{% url 'accounts:otp_phone_form' %}"
+                hx-vals='{"next": "{{ next }}"}'
+                hx-target="#otp-container" hx-swap="innerHTML"
                 class="link link-hover text-base-content/60 hover:text-primary transition-colors flex items-center gap-1">
             {% icon "rotate-ccw" "w-3.5 h-3.5" %} ویرایش شماره
         </button>
 
-        <div id="otp-timer-container" class="flex items-center gap-1 font-technical font-medium text-base-content/80">
+        <div id="otp-timer-container"
+             class="flex items-center gap-1 font-technical font-medium text-base-content/80"
+             data-phone="{{ phone_number }}" data-next="{{ next }}">
             {% icon "clock" "w-3.5 h-3.5 opacity-60" %}
             <span>ارسال مجدد تا</span>
-            <span id="otp-seconds-left" class="font-bold text-primary">۶۰</span>
+            <span id="otp-seconds-left" class="font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
             <span>ثانیه</span>
         </div>
     </div>
@@ -57,26 +61,43 @@
 
 <script>
     (function() {
-        let seconds = 60;
+        let seconds = {{ remaining_seconds|default:0 }};
         const timerSpan = document.getElementById('otp-seconds-left');
         const container = document.getElementById('otp-timer-container');
-
         const faDigitsMap = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+
         function toFa(num) {
             return num.toString().replace(/\d/g, d => faDigitsMap[d]);
         }
 
-        const interval = setInterval(function() {
-            seconds--;
-            if (timerSpan) {
-                timerSpan.textContent = toFa(seconds);
-            }
-            if (seconds <= 0) {
-                clearInterval(interval);
-                if (container) {
-                    container.innerHTML = '<span class="text-primary font-bold cursor-pointer hover:underline" onclick="document.getElementById(\'btn-request-otp\').click()">ارسال مجدد کد</span>';
+        function showResendButton() {
+            if (!container) return;
+            const phone = container.dataset.phone || "";
+            const nextVal = container.dataset.next || "";
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'text-primary font-bold hover:underline';
+            btn.textContent = 'ارسال مجدد کد';
+            btn.setAttribute('hx-post', "{% url 'accounts:request_otp_login' %}");
+            btn.setAttribute('hx-vals', JSON.stringify({phone_number: phone, next: nextVal}));
+            btn.setAttribute('hx-target', '#otp-container');
+            btn.setAttribute('hx-swap', 'innerHTML');
+            container.innerHTML = '';
+            container.appendChild(btn);
+            if (window.htmx) { window.htmx.process(container); }
+        }
+
+        if (seconds <= 0) {
+            showResendButton();
+        } else {
+            const interval = setInterval(function() {
+                seconds--;
+                if (timerSpan) timerSpan.textContent = toFa(seconds);
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    showResendButton();
                 }
-            }
-        }, 1000);
+            }, 1000);
+        }
     })();
 </script>

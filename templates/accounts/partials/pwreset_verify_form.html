@@ -1,0 +1,120 @@
+{% load custom_tags %}
+<div id="pwreset-verify-section" class="space-y-3">
+    <div class="alert alert-info text-sm py-2">
+        {% icon "check-circle" "w-5 h-5 flex-shrink-0" %}
+        {% if resent %}
+        <span>کد بازنشانی قبلاً برای این شماره ارسال شده و هنوز معتبر است.</span>
+        {% else %}
+        <span>اگر شماره وارد شده در سیستم ثبت باشد، کد تایید برای آن پیامک شده است.</span>
+        {% endif %}
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error text-sm py-2">
+        {% icon "alert-circle" "w-5 h-5 flex-shrink-0" %}
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <form hx-post="{% url 'accounts:password_reset_verify' %}" hx-target="#pwreset-container" hx-swap="innerHTML"
+          id="pwreset-verify-form" class="space-y-3">
+        <input type="hidden" name="phone_number" value="{{ phone_number }}">
+
+        <div class="form-control mb-1">
+            <label class="label"><span class="label-text">کد تایید پیامک‌شده</span></label>
+            <input type="text" name="code" placeholder="•••••" class="input input-bordered w-full text-center text-lg tracking-widest"
+                   required dir="ltr" autofocus maxlength="6" inputmode="numeric">
+        </div>
+
+        <div class="form-control mb-1">
+            <label class="label"><span class="label-text">رمز عبور جدید</span></label>
+            <input type="password" id="pwreset-new-password" name="new_password" placeholder="••••••••"
+                   class="input input-bordered w-full" required dir="ltr">
+        </div>
+        {% include "accounts/partials/password_strength_checklist.html" with input_id="pwreset-new-password" %}
+
+        <div class="form-control mb-1">
+            <label class="label"><span class="label-text">تکرار رمز عبور جدید</span></label>
+            <input type="password" id="pwreset-new-password-confirm" name="new_password_confirm" placeholder="••••••••"
+                   class="input input-bordered w-full" required dir="ltr">
+        </div>
+        <span id="pwreset-match-error" class="text-error text-xs hidden">رمز عبور جدید و تکرار آن یکسان نیستند.</span>
+
+        <button type="submit" class="btn btn-primary w-full gap-2 mt-2">
+            {% icon "lock" "w-5 h-5" %} ذخیره رمز عبور و ورود
+        </button>
+    </form>
+
+    <div class="flex items-center justify-between text-xs pt-1 px-1 text-base-content/70">
+        <button type="button" hx-get="{% url 'accounts:pwreset_phone_form' %}"
+                hx-target="#pwreset-container" hx-swap="innerHTML"
+                class="link link-hover text-base-content/60 hover:text-primary transition-colors flex items-center gap-1">
+            {% icon "rotate-ccw" "w-3.5 h-3.5" %} ویرایش شماره
+        </button>
+        <div id="pwreset-timer-container" class="flex items-center gap-1 font-technical font-medium text-base-content/80"
+             data-phone="{{ phone_number }}">
+            {% icon "clock" "w-3.5 h-3.5 opacity-60" %}
+            <span>ارسال مجدد تا</span>
+            <span id="pwreset-seconds-left" class="font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
+            <span>ثانیه</span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let seconds = {{ remaining_seconds|default:0 }};
+    const timerSpan = document.getElementById('pwreset-seconds-left');
+    const container = document.getElementById('pwreset-timer-container');
+    const faDigitsMap = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+    function toFa(num) { return num.toString().replace(/\d/g, d => faDigitsMap[d]); }
+
+    function showResendButton() {
+        if (!container) return;
+        const phone = container.dataset.phone || "";
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-primary font-bold hover:underline';
+        btn.textContent = 'ارسال مجدد کد';
+        btn.setAttribute('hx-post', "{% url 'accounts:password_reset_request' %}");
+        btn.setAttribute('hx-vals', JSON.stringify({phone_number: phone}));
+        btn.setAttribute('hx-target', '#pwreset-container');
+        btn.setAttribute('hx-swap', 'innerHTML');
+        container.innerHTML = '';
+        container.appendChild(btn);
+        if (window.htmx) { window.htmx.process(container); }
+    }
+
+    if (seconds <= 0) {
+        showResendButton();
+    } else {
+        const interval = setInterval(function() {
+            seconds--;
+            if (timerSpan) timerSpan.textContent = toFa(seconds);
+            if (seconds <= 0) {
+                clearInterval(interval);
+                showResendButton();
+            }
+        }, 1000);
+    }
+
+    // اعتبارسنجی سمت مرورگر: تطابق رمز جدید و تکرار آن (قبل از ارسال به سرور)
+    const pass1 = document.getElementById('pwreset-new-password');
+    const pass2 = document.getElementById('pwreset-new-password-confirm');
+    const matchError = document.getElementById('pwreset-match-error');
+
+    function checkMatch() {
+        if (pass2.value && pass1.value !== pass2.value) {
+            pass2.setCustomValidity('رمز عبور جدید و تکرار آن یکسان نیستند.');
+            matchError.classList.remove('hidden');
+        } else {
+            pass2.setCustomValidity('');
+            matchError.classList.add('hidden');
+        }
+    }
+    if (pass1 && pass2) {
+        pass1.addEventListener('input', checkMatch);
+        pass2.addEventListener('input', checkMatch);
+    }
+})();
+</script>

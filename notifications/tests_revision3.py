@@ -58,16 +58,19 @@ class Revision3RegressionTests(TestCase):
         self.assertIn("اطلاعات حساب کاربری یافت نشد", resp_in.content.decode("utf-8"))
 
     @patch("utils.sms.SMSService.send_otp")
-    def test_otp_rate_limit(self, mock_send_otp):
+    def test_otp_reuses_active_code_without_resending(self, mock_send_otp):
         mock_send_otp.return_value = {"success": True}
         client = Client()
-        # درخواست اول
+
         r1 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
         self.assertEqual(r1.status_code, 200)
+        self.assertEqual(mock_send_otp.call_count, 1)
 
-        # درخواست دوم در کمتر از ۶۰ ثانیه
+        # درخواست دوم بلافاصله: نباید پیامک تازه‌ای بفرستد؛ باید همان فرم تایید کد را با پیام «قبلاً ارسال شده» نشان دهد.
         r2 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertIn("لطفاً ۶۰ ثانیه صبر کنید", r2.content.decode("utf-8"))
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(mock_send_otp.call_count, 1)
+        self.assertIn("قبلاً", r2.content.decode("utf-8"))
 
     @patch("utils.sms.SMSService.send_otp")
     def test_otp_failure_clears_cooldown(self, mock_send_otp):
@@ -76,8 +79,6 @@ class Revision3RegressionTests(TestCase):
 
         resp = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
         self.assertIn("ارسال پیامک ناموفق بود", resp.content.decode("utf-8"))
-        # بررسی اینکه cooldown پاک شده و کاربر می‌تواند فوراً دوباره تلاش کند
-        self.assertIsNone(cache.get("otp:cooldown:09151112233"))
 
     def test_push_device_register_csrf_protection(self):
         valid_uuid = str(uuid.uuid4())

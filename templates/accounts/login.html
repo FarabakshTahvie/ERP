@@ -147,40 +147,9 @@
 
                 <!-- فرم ورود با کد یکبارمصرف OTP -->
                 <div id="panel-otp" class="hidden space-y-4">
-                    <div id="otp-phone-section" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold mb-1.5 text-base-content/80">شماره موبایل ثبت‌شده در سیستم</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-base-content/40">
-                                    {% icon "phone" "w-5 h-5" %}
-                                </div>
-                                <input type="tel"
-                                       id="otp-phone"
-                                       name="phone_number"
-                                       placeholder="09123456789"
-                                       class="input input-bordered w-full pr-11 font-technical text-sm rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all h-12"
-                                       required
-                                       maxlength="11">
-                            </div>
-                        </div>
-
-                        <button type="button"
-                                id="btn-request-otp"
-                                class="btn btn-secondary w-full rounded-xl font-bold shadow-md shadow-secondary/20 hover:shadow-lg transition-all h-12 text-sm gap-2"
-                                hx-post="{% url 'accounts:request_otp_login' %}"
-                                hx-include="#otp-phone"
-                                hx-vals='{"next": "{{ next }}"}'
-                                hx-target="#otp-dynamic-area"
-                                hx-indicator="#otp-spinner"
-                                hx-disabled-elt="this">
-                            {% icon "send" "w-4 h-4 ml-1" %}
-                            <span>ارسال کد به موبایل</span>
-                            <span id="otp-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
-                        </button>
+                    <div id="otp-container">
+                        {% include "accounts/partials/otp_phone_form.html" %}
                     </div>
-
-                    <!-- بخش تزریق پارشال تایید کد -->
-                    <div id="otp-dynamic-area"></div>
                 </div>
 
                 <!-- بخش راهنما و تماس -->
