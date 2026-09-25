@@ -142,3 +142,20 @@ def sanitize_filename(instance, filename, upload_to_path="uploads/"):
 
     # Organize by path if provided
     return os.path.join(upload_to_path, new_filename)
+
+
+FILE_KIND_EXTENSIONS = {
+    "dwg": ("dwg", "dxf"),
+    "gcode": ("nc", "gcode", "tap", "cnc"),
+    "pdf": ("pdf",),
+    "image": ("jpg", "jpeg", "png", "webp", "gif", "bmp"),
+}
+
+
+def guess_file_kind(filename):
+    """تشخیص نوع فایل از روی پسوند؛ اگر ناشناخته بود 'other' برمی‌گرداند."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    for kind, exts in FILE_KIND_EXTENSIONS.items():
+        if ext in exts:
+            return kind
+    return "other"

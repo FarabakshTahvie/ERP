@@ -19,6 +19,7 @@ class SpecialtyAdmin(JalaliAdminMixin, ModelAdmin):
 
 @admin.register(Location)
 class LocationAdmin(JalaliAdminMixin, ModelAdmin):
+    change_form_before_template = "admin/core/location/change_form_map.html"
     list_display = ('id', 'title', 'city', 'has_exact_coordinates', 'jalali_created_at')
     list_filter = ('city', 'created_at')
     search_fields = ('title', 'address_text', 'city')

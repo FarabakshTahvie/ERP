@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}تایید مرحله | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'home' %}" class="link link-hover text-sm fb-muted">بازگشت به خانه</a>
+        <h1 class="fb-page-title mt-2">{{ stage.client_label|default:stage.title }}</h1>
+        <p class="fb-page-sub">{{ stage.project.name }}</p>
+    </div>
+
+    {% if already_decided %}
+    <div role="alert" class="alert alert-soft {% if approval.decision == 'approved' %}alert-success{% else %}alert-error{% endif %}">
+        {% if approval.decision == 'approved' %}{% icon "check-circle" "w-4 h-4 shrink-0" %}{% else %}{% icon "x-circle" "w-4 h-4 shrink-0" %}{% endif %}
+        <span>این درخواست قبلاً {% if approval.decision == 'approved' %}تایید{% else %}رد{% endif %} شده است.</span>
+    </div>
+    {% if invoice %}
+    <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm self-start">مشاهده فاکتور</a>
+    {% endif %}
+    {% else %}
+    <form method="post" enctype="multipart/form-data" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        {% if needs_payment and invoice %}
+        <input type="hidden" name="seen_total" value="{{ invoice.total_amount|stringformat:'d' }}">
+        {% endif %}
+        {% if invoice %}
+        <div class="fb-inset flex items-center justify-between gap-2 text-sm">
+            <span class="fb-muted">مبلغ قابل پرداخت</span>
+            <span class="font-bold"><span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</span>
+        </div>
+        {% endif %}
+
+        {% if needs_payment %}
+            {% include "finance/partials/payment_fields.html" with hide_note_field=True %}
+        {% endif %}
+
+        <div class="fb-field">
+            <label id="approval-comment-label" class="fb-label" for="approval-comment-input">توضیح (برای رد اجباری است)</label>
+            <textarea name="comment" id="approval-comment-input" class="textarea w-full" rows="2"></textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" name="action" value="approve" class="btn btn-primary flex-1">تایید</button>
+            <button type="submit" name="action" value="reject" formnovalidate class="btn btn-soft btn-error flex-1">رد</button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+<script>
+function fbSyncApprovalCommentRequirement(method) {
+    var input = document.getElementById('approval-comment-input');
+    var label = document.getElementById('approval-comment-label');
+    if (!input) return;
+    if (method === 'credit') {
+        input.required = true;
+        if (label) label.textContent = 'شرایط تسویه‌ی اعتباری (اجباری) — مثلاً چه زمانی تسویه می‌شود';
+    } else {
+        input.required = false;
+        if (label) label.textContent = 'توضیح (برای رد اجباری است)';
+    }
+}
+</script>
+{% endblock %}

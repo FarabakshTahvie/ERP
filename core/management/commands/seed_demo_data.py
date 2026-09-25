@@ -90,15 +90,23 @@ class Command(BaseCommand):
             l2 = PurchaseLine.objects.create(purchase=p2, item=item_sheet, warehouse=warehouse, qty=5, unit_cost=1700000)
             receive_stock(item=item_sheet, warehouse=warehouse, qty=5, unit_cost=1700000, received_at=p2.purchased_at, purchase_line=l2)
 
+            sp_cnc, _ = Specialty.objects.get_or_create(name="اپراتور CNC")
+            sp_assembler, _ = Specialty.objects.get_or_create(name="مونتاژکار")
+
             template = WorkflowTemplate.objects.create(name="گردش‌کار پیش‌فرض تهویه", is_default=True)
             steps_data = [
+                # title, client_label, specialty, approval_by, allows_file_upload
                 ("صدور پیش‌فاکتور", "صدور پیش‌فاکتور", None, "admin", False),
+                ("تایید پیش‌فاکتور و انتخاب روش پرداخت", "تایید پیش‌فاکتور", None, "choose_at_runtime", False),
                 ("بازدید کارگاهی", "بازدید و اندازه‌گیری", sp_duct, "none", False),
-                ("طراحی اولیه اتوکد", "طراحی اولیه", sp_design, "choose_at_runtime", True),
+                ("طراحی اولیه اتوکد", "طراحی اولیه", sp_design, "none", True),
+                ("تایید طرح اولیه", "تایید نقشه اولیه", None, "choose_at_runtime", False),
                 ("تکمیل طراحی", "طراحی نهایی", sp_design, "none", True),
-                ("داکت‌گیری", "آماده‌سازی متریال", sp_duct, "none", False),
+                ("جی‌کدگیری", "آماده‌سازی برش (جی‌کدگیری)", sp_cnc, "none", False),
                 ("برش‌کاری", "برش", sp_duct, "none", False),
-                ("نصب و تحویل", "نصب نهایی", sp_duct, "admin", False),
+                ("مونتاژ", "مونتاژ", sp_assembler, "none", False),
+                ("ارسال", "ارسال به محل نصب", None, "none", False),
+                ("نصب", "نصب نهایی", sp_duct, "admin", False),
             ]
             step_objs = []
             for i, (title, client_label, specialty, approval, upload) in enumerate(steps_data, start=1):
@@ -108,8 +116,8 @@ class Command(BaseCommand):
                     allows_file_upload=upload, client_visible=True,
                     estimated_duration_hours=8 if specialty else 4,
                 ))
-            step_objs[2].on_reject_go_to = step_objs[2]
-            step_objs[2].save()
+            step_objs[4].on_reject_go_to = step_objs[3]   # رد «تایید طرح اولیه» → برگشت به «طراحی اولیه اتوکد»
+            step_objs[4].save()
 
             project = Project.objects.create(
                 name="پروژه نمونه - ساختمان اداری الف", partner=partner_party, owner=client_party,
@@ -127,7 +135,7 @@ class Command(BaseCommand):
 
             invoice = generate_invoice_for_project(project)
             payment1 = Payment.objects.create(invoice=invoice, method=Payment.Method.CARD_TO_CARD, amount=20000000, reference_number="TRX-0001")
-            approve_payment(payment1, approved_by=admin_user)
+            approve_payment(payment1, approved_by=admin_user, verified_amount=20000000)
             Payment.objects.create(
                 invoice=invoice, method=Payment.Method.CREDIT,
                 amount=invoice.total_amount - invoice.paid_amount,

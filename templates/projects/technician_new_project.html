@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ثبت پروژه جدید | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <h1 class="fb-page-title">ثبت پروژه جدید</h1>
+        <p class="fb-page-sub">با ثبت پروژه، پیش‌فاکتور به‌صورت خودکار صادر می‌شود.</p>
+    </div>
+
+    <form method="post" action="{% url 'projects:new_project_submit' %}" id="new-project-form" class="space-y-5">
+        {% csrf_token %}
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">طرف‌حساب</h2>
+            <div class="fb-field">
+                <label class="fb-label" for="party-phone-search">شماره موبایل طرف‌حساب</label>
+                <div class="relative">
+                    <input type="tel" id="party-phone-search" name="phone_number_search"
+                           hx-get="{% url 'projects:new_project_party_search' %}"
+                           hx-trigger="keyup changed delay:500ms"
+                           hx-target="#party-search-result" hx-swap="innerHTML"
+                           hx-indicator="#party-search-spinner"
+                           hx-vals="js:{phone_number: event.target.value}"
+                           class="input w-full font-technical pl-10" dir="ltr" maxlength="11"
+                           inputmode="numeric" autocomplete="off" placeholder="09123456789">
+                    <span id="party-search-spinner" class="loading loading-spinner loading-xs htmx-indicator absolute left-3 top-1/2 -translate-y-1/2"></span>
+                </div>
+                <span id="party-required-error" class="fb-error hidden">ابتدا شماره‌ی طرف‌حساب را وارد کنید.</span>
+            </div>
+            <div id="party-search-result"></div>
+
+            <div id="partner-role-hint" role="alert" class="hidden alert alert-soft alert-warning">
+                {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                <span class="text-xs">
+                    <strong>فاکتور به نام صاحب ملک صادر می‌شود</strong>، نه این طرف‌حساب.
+                    <span id="hint-extra-new">اگر طرف مالی قرارداد خود اوست، گزینه‌ی «شریک تجاری» را هم فعال کنید.</span>
+                    <span id="hint-extra-found" class="hidden">این طرف‌حساب «شریک تجاری» نیست؛ برای تغییر با مدیر هماهنگ کنید.</span>
+                </span>
+            </div>
+        </section>
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="different_owner" id="different-owner-toggle" class="checkbox checkbox-sm">
+                <span class="text-sm">صاحب ملک یا کارفرما شخص/شرکت دیگری است</span>
+            </label>
+            <div id="owner-section" class="hidden space-y-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="owner-phone-search">شماره موبایل صاحب ملک/کارفرما</label>
+                    <div class="relative">
+                        <input type="tel" id="owner-phone-search" name="owner_phone_number_search"
+                               hx-get="{% url 'projects:new_project_party_search' %}"
+                               hx-trigger="keyup changed delay:500ms"
+                               hx-target="#owner-party-search-result" hx-swap="innerHTML"
+                               hx-indicator="#owner-search-spinner"
+                               hx-vals="js:{phone_number: event.target.value, prefix: 'owner_'}"
+                               class="input w-full font-technical pl-10" dir="ltr" maxlength="11"
+                               inputmode="numeric" autocomplete="off" placeholder="09123456789">
+                        <span id="owner-search-spinner" class="loading loading-spinner loading-xs htmx-indicator absolute left-3 top-1/2 -translate-y-1/2"></span>
+                    </div>
+                    <span id="owner-required-error" class="fb-error hidden">شماره‌ی صاحب ملک را وارد کنید یا تیک بالا را بردارید.</span>
+                </div>
+                <div id="owner-party-search-result"></div>
+            </div>
+        </section>
+
+        {% include "projects/partials/location_picker.html" %}
+
+        {% include "projects/partials/lines_editor.html" %}
+
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
+            <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
+        </label>
+
+        <div class="fb-sticky-bar">
+            <div>
+                <div class="text-xs fb-muted">جمع برآوردی پیش‌فاکتور</div>
+                <div class="text-sm font-bold"><span id="grand-total" class="font-technical">۰</span> تومان</div>
+            </div>
+            <button type="submit" id="submit-btn" class="btn btn-primary">ثبت نهایی پروژه</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* طرف‌حساب، صاحب ملک، هشدار نقش، و کنترل ارسال */
+(function () {
+    var form = document.getElementById('new-project-form');
+    var ownerToggle = document.getElementById('different-owner-toggle');
+    var submitBtn = document.getElementById('submit-btn');
+
+    function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+
+    function updateHint() {
+        var found = document.querySelector('#party-search-result [data-found-party]');
+        var newForm = document.querySelector('#party-search-result input[name="roles"]');
+        var isFound = !!found, visible = false;
+        if (ownerToggle.checked) {
+            if (found) {
+                visible = found.dataset.isPartner !== '1';
+            } else if (newForm) {
+                var checked = document.querySelectorAll('input[name="roles"]:checked');
+                var hasPartner = Array.prototype.some.call(checked, function (el) { return el.value === 'partner'; });
+                visible = checked.length > 0 && !hasPartner;
+            }
+        }
+        show('partner-role-hint', visible);
+        show('hint-extra-new', !isFound);
+        show('hint-extra-found', isFound);
+    }
+
+    ownerToggle.addEventListener('change', function () {
+        show('owner-section', this.checked);
+        if (!this.checked) {
+            document.getElementById('owner-party-search-result').innerHTML = '';
+            document.getElementById('owner-phone-search').value = '';
+            show('owner-required-error', false);
+        }
+        updateHint();
+    });
+    document.addEventListener('change', function (e) {
+        if (e.target.matches('input[name="roles"]')) {
+            if (document.querySelectorAll('input[name="roles"]:checked').length > 0) show('roles-required-error', false);
+            updateHint();
+        }
+        if (e.target.matches('input[name$="entity_type"]')) {
+            var brand = document.querySelector('input[name="' + e.target.name.replace('entity_type', 'brand_name') + '"]');
+            if (brand) brand.classList.toggle('hidden', e.target.value !== 'company');
+        }
+    });
+    document.body.addEventListener('htmx:afterSwap', function () {
+        updateHint();
+        if (document.querySelector('#party-search-result input')) show('party-required-error', false);
+        if (document.querySelector('#owner-party-search-result input')) show('owner-required-error', false);
+    });
+
+    form.addEventListener('submit', function (e) {
+        var hasFound = !!document.querySelector('input[name="party_id"]');
+        var hasNew = !!document.querySelector('#party-search-result input[name="phone_number"]');
+        if (!hasFound && !hasNew) {
+            e.preventDefault();
+            show('party-required-error', true);
+            document.getElementById('party-phone-search').focus();
+            return;
+        }
+        if (hasNew && document.querySelectorAll('input[name="roles"]:checked').length === 0) {
+            e.preventDefault();
+            var err = document.getElementById('roles-required-error');
+            show('roles-required-error', true);
+            if (err) err.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        if (ownerToggle.checked
+            && !document.querySelector('input[name="owner_party_id"]')
+            && !document.querySelector('#owner-party-search-result input[name="owner_phone_number"]')) {
+            e.preventDefault();
+            show('owner-required-error', true);
+            document.getElementById('owner-phone-search').focus();
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.insertAdjacentHTML('afterbegin', '<span class="loading loading-spinner loading-xs"></span>');
+    });
+
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) {
+            submitBtn.disabled = false;
+            var sp = submitBtn.querySelector('.loading');
+            if (sp) sp.remove();
+        }
+    });
+})();
+</script>
+
+{% if NESHAN_API_KEY %}
+<script>
+(function () {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.css';
+    document.head.appendChild(css);
+    var script = document.createElement('script');
+    script.src = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.umd.js';
+    script.onload = function () {
+        var maplibregl = window.maplibregl.default;
+        var map = new maplibregl.Map({
+            container: 'new-project-map',
+            style: 'https://static.neshan.org/sdk/maplibre/styles/light.json',
+            center: [59.6062, 36.2979], zoom: 12,
+            apiKey: '{{ NESHAN_API_KEY }}',
+        });
+        map.addControl(new maplibregl.NavigationControl());
+        var marker = null;
+        map.on('click', function (e) {
+            if (marker) marker.remove();
+            marker = new maplibregl.Marker().setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+            document.getElementById('id_latitude').value = e.lngLat.lat.toFixed(6);
+            document.getElementById('id_longitude').value = e.lngLat.lng.toFixed(6);
+        });
+    };
+    document.head.appendChild(script);
+})();
+</script>
+{% endif %}
+{% endblock %}

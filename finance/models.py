@@ -71,6 +71,10 @@ class InvoiceLine(models.Model):
     unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="قیمت واحد (تومان، برای تخفیف منفی وارد شود)")
     cost_snapshot = models.DecimalField(max_digits=18, decimal_places=0, null=True, blank=True, verbose_name="بهای تمام‌شده (اسنپ‌شات برای گزارش سود)")
     total = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="جمع ردیف (تومان)")
+    is_manual = models.BooleanField(
+        default=False, verbose_name="ردیف دستی",
+        help_text="ردیف‌های دستی هنگام بازتولید ردیف‌ها از روی پروژه حذف نمی‌شوند.",
+    )
 
     class Meta:
         verbose_name = "ردیف فاکتور"
@@ -97,6 +101,11 @@ class Payment(TimeStampedModel):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments", verbose_name="فاکتور")
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name="روش پرداخت")
     amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
+    claimed_amount = models.DecimalField(
+        max_digits=18, decimal_places=0, null=True, blank=True,
+        verbose_name="مبلغ اعلام‌شده توسط مشتری",
+        help_text="مبلغی که مشتری هنگام ثبت وارد کرده. مبلغ رسمی پرداخت همان «مبلغ» است که کارشناس از روی رسید تایید می‌کند.",
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="وضعیت")
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ پرداخت")
     reference_number = models.CharField(max_length=100, blank=True, verbose_name="شماره پیگیری/تراکنش")
@@ -114,6 +123,20 @@ class Payment(TimeStampedModel):
         verbose_name = "پرداخت"
         verbose_name_plural = "پرداخت‌ها"
         ordering = ["-created_at"]
+
+    @property
+    def receipt_is_image(self):
+        if not self.receipt_file:
+            return False
+        return self.receipt_file.name.lower().rsplit(".", 1)[-1] in ("jpg", "jpeg", "png", "webp", "gif")
+
+    @property
+    def rejection_reason(self):
+        """دلیل رد از آخرین خطِ «رد شد: ...» در یادداشت؛ خالی اگر رد نشده."""
+        for line in reversed((self.note or "").splitlines()):
+            if line.startswith("رد شد: "):
+                return line[len("رد شد: "):].strip()
+        return ""
 
     def save(self, *args, **kwargs):
         if self.method == self.Method.GATEWAY and self.status == self.Status.PENDING:

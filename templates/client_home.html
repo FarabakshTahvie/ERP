@@ -4,244 +4,137 @@
 {% block title %}پرتال مشتریان و همکاران | فرابخش تهویه{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+<div class="fb-page fb-page--lg">
 
-    <!-- بنر خوش‌آمدگویی و مشخصات کاربر -->
-    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary/15 via-base-200 to-base-100 border border-base-300 p-6 sm:p-8 shadow-sm">
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-            <div class="flex items-center gap-4">
-                <div class="w-16 h-16 rounded-2xl bg-primary text-primary-content flex items-center justify-center font-black text-2xl shadow-lg shadow-primary/20">
-                    {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
-                </div>
-                <div>
-                    <h1 class="text-2xl sm:text-3xl font-black text-base-content tracking-tight">
-                        سلام، {{ request.user.get_full_name|default:request.user.username }}
-                    </h1>
-                    <p class="text-sm text-base-content/70 mt-1">
-                        به پرتال فرابخش تهویه خوش آمدید
-                    </p>
-                </div>
-            </div>
-
-            <!-- دکمه‌های اقدام سریع -->
-            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-primary rounded-xl font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all gap-2 text-sm flex-1 md:flex-initial">
-                    {% icon "phone" "w-4 h-4" %} تماس با دفتر
-                </a>
-                {% if request.user.is_staff %}
-                <a href="/admin/" class="btn btn-outline btn-secondary rounded-xl font-bold text-sm gap-2 flex-1 md:flex-initial">
-                    {% icon "settings" "w-4 h-4" %} پنل مدیریت
-                </a>
-                {% endif %}
-            </div>
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">سلام، {{ request.user.get_full_name|default:request.user.username }}</h1>
+            <p class="fb-page-sub">وضعیت پروژه‌ها و صورت‌حساب‌های شما</p>
         </div>
+        <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-soft btn-sm">
+            {% icon "phone" "w-4 h-4" %} تماس با دفتر
+        </a>
     </div>
 
-    <!-- بخش آمار و کارت‌های خلاصه (DaisyUI Stats) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 {% if party %}lg:grid-cols-4{% else %}lg:grid-cols-3{% endif %} gap-4">
-        <!-- کارت ۱: پروژه‌های در حال اجرا -->
-        <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <span class="text-xs font-semibold text-base-content/60">پروژه‌های در حال اجرا</span>
-                    <div class="text-3xl font-black text-primary mt-1 font-technical">{{ active_projects_count|fa_digits }}</div>
-                </div>
-                <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    {% icon "fan" "w-6 h-6" %}
-                </div>
-            </div>
-        </div>
+    {% for project in projects %}{% if project.action_url %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "bell" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">مرحله «{{ project.action_stage_title }}» از پروژه «{{ project.name }}» منتظر تایید شماست.</span>
+        <a href="{{ project.action_url }}" class="btn btn-primary btn-sm">{{ project.action_label }}</a>
+    </div>
+    {% endif %}{% endfor %}
 
-        <!-- کارت ۲: پروژه‌های تحویل‌شده -->
-        <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <span class="text-xs font-semibold text-base-content/60">پروژه‌های تحویل‌شده</span>
-                    <div class="text-3xl font-black text-success mt-1 font-technical">{{ completed_projects_count|fa_digits }}</div>
-                </div>
-                <div class="w-12 h-12 rounded-xl bg-success/10 text-success flex items-center justify-center">
-                    {% icon "check-circle" "w-6 h-6" %}
-                </div>
-            </div>
+    <div class="grid grid-cols-2 {% if party %}lg:grid-cols-4{% else %}lg:grid-cols-3{% endif %} gap-3">
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value text-primary font-technical">{{ active_projects_count|fa_digits }}</div>
+            <div class="fb-stat-label">پروژه‌های در حال اجرا</div>
         </div>
-
-        <!-- کارت ۳: کل پروژه‌ها -->
-        <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <span class="text-xs font-semibold text-base-content/60">کل پروژه‌ها</span>
-                    <div class="text-3xl font-black text-secondary mt-1 font-technical">{{ total_projects_count|fa_digits }}</div>
-                </div>
-                <div class="w-12 h-12 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
-                    {% icon "receipt" "w-6 h-6" %}
-                </div>
-            </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ completed_projects_count|fa_digits }}</div>
+            <div class="fb-stat-label">پروژه‌های تحویل‌شده</div>
         </div>
-
-        <!-- کارت ۴: مانده قابل پرداخت (فقط برای کاربر party‌دار) -->
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ total_projects_count|fa_digits }}</div>
+            <div class="fb-stat-label">کل پروژه‌ها</div>
+        </div>
         {% if party %}
-        <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <span class="text-xs font-semibold text-base-content/60">مانده قابل پرداخت</span>
-                    <div class="text-2xl font-black text-warning mt-1 font-technical">
-                        {{ party.total_outstanding|intcomma_fa }} <span class="text-xs font-normal">تومان</span>
-                    </div>
-                </div>
-                <div class="w-12 h-12 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
-                    {% icon "credit-card" "w-6 h-6" %}
-                </div>
-            </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ party.total_outstanding|intcomma_fa }}</div>
+            <div class="fb-stat-label">مانده قابل پرداخت (تومان)</div>
         </div>
         {% endif %}
     </div>
 
-    <!-- شبکه ۲ ستونه: پروژه‌های کاربر و تماس / پیام‌ها -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-        <!-- ستون سمت راست: پروژه‌ها (۸ ستون) -->
-        <div class="lg:col-span-8 space-y-6">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                    {% icon "activity" "w-5 h-5 text-primary" %}
-                    <h2 class="text-lg font-black text-base-content">پروژه‌های شما</h2>
-                </div>
-            </div>
+        <div class="lg:col-span-8 flex flex-col gap-4">
+            <h2 class="fb-section-title">پروژه‌های شما</h2>
 
-            {% if projects %}
-            <div class="space-y-4">
-                {% for project in projects %}
-                <div class="card bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm hover:border-primary/40 transition-all space-y-4">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-base-200">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <h3 class="font-bold text-base text-base-content">{{ project.name }}</h3>
-                                <span class="badge badge-sm badge-ghost font-technical" dir="ltr">{{ project.code|fa_digits }}</span>
-                            </div>
-                            <div class="flex items-center gap-3 text-xs text-base-content/60 mt-1">
-                                {% if project.location %}
-                                <span class="flex items-center gap-1">
-                                    {% icon "map-pin" "w-3.5 h-3.5 text-primary" %}
-                                    {{ project.location.city|default:project.location.title }}
-                                </span>
-                                {% endif %}
-                                <span class="font-technical">{{ project.created_at|to_jalali:"%Y/%m/%d" }}</span>
-                            </div>
-                        </div>
-                        <div>
-                            {% if project.status == 'in_progress' %}
-                                <span class="badge badge-warning gap-1 text-xs font-bold py-2 px-3">
-                                    {% icon "wrench" "w-3.5 h-3.5" %} در حال اجرا
-                                </span>
-                            {% elif project.status == 'completed' %}
-                                <span class="badge badge-success gap-1 text-xs font-bold py-2 px-3">
-                                    {% icon "check" "w-3.5 h-3.5" %} تحویل‌شده
-                                </span>
-                            {% elif project.status == 'cancelled' %}
-                                <span class="badge badge-error gap-1 text-xs font-bold py-2 px-3">لغو شده</span>
-                            {% else %}
-                                <span class="badge badge-neutral gap-1 text-xs font-bold py-2 px-3">در حال بررسی</span>
+            {% for project in projects %}
+            <div class="fb-card fb-pad flex flex-col gap-3">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                        <h3 class="font-semibold">{{ project.name }}</h3>
+                        <div class="flex items-center gap-2 flex-wrap mt-1 text-xs fb-muted">
+                            <span class="fb-badge fb-badge-neutral"><span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
+                            {% if project.location %}
+                            <span class="inline-flex items-center gap-1">{% icon "map-pin" "w-3.5 h-3.5" %} {{ project.location.city|default:project.location.title }}</span>
                             {% endif %}
+                            <span class="font-technical">{{ project.created_at|to_jalali:"%Y/%m/%d" }}</span>
                         </div>
                     </div>
-
-                    <!-- نوار پیشرفت واقعی -->
-                    <div class="space-y-1.5">
-                        <div class="flex items-center justify-between text-xs text-base-content/70">
-                            <span>
-                                {% if project.current_client_stage %}
-                                مرحله جاری: <strong class="text-base-content">{{ project.current_client_stage.client_label|default:project.current_client_stage.title }}</strong>
-                                {% else %}
-                                وضعیت پیشرفت مراحل
-                                {% endif %}
-                            </span>
-                            <span class="font-technical">
-                                {{ project.progress_done|fa_digits }} از {{ project.progress_total|fa_digits }} مرحله
-                                ({{ project.progress_percent|fa_digits }}٪)
-                            </span>
-                        </div>
-                        <progress class="progress progress-primary w-full h-2.5" value="{{ project.progress_done }}" max="{{ project.progress_total|default:1 }}"></progress>
-                    </div>
-
-                    <!-- دکمه‌های اقدام پروژه -->
-                    <div class="pt-2 flex flex-wrap items-center gap-3">
-                        <a href="{% url 'projects:portal_project_progress' project.id %}" class="btn btn-outline btn-primary btn-sm rounded-xl font-bold gap-2">
-                            {% icon "eye" "w-4 h-4" %} مشاهده‌ی مراحل
-                        </a>
-                        {% with invoice=invoices_map|get_item:project.id %}
-                        {% if invoice %}
-                        <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-secondary btn-sm rounded-xl font-bold gap-2">
-                            {% icon "receipt" "w-4 h-4" %} مشاهده‌ی پیش‌فاکتور/فاکتور
-                        </a>
-                        {% endif %}
-                        {% endwith %}
-                    </div>
+                    {% if project.status == 'in_progress' %}
+                        <span class="fb-badge fb-badge-info">در حال اجرا</span>
+                    {% elif project.status == 'completed' %}
+                        <span class="fb-badge fb-badge-success">تحویل‌شده</span>
+                    {% elif project.status == 'cancelled' %}
+                        <span class="fb-badge fb-badge-error">لغو شده</span>
+                    {% else %}
+                        <span class="fb-badge fb-badge-neutral">در حال بررسی</span>
+                    {% endif %}
                 </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <!-- حالت خالی -->
-            <div class="card bg-base-100 border border-dashed border-base-300 rounded-3xl p-8 text-center space-y-4">
-                <div class="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                    {% icon "snowflake" "w-8 h-8" %}
+
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center justify-between gap-2 text-xs fb-muted">
+                        <span>
+                            {% if project.current_client_stage %}
+                            مرحله جاری: <strong class="text-base-content">{{ project.current_client_stage.client_label|default:project.current_client_stage.title }}</strong>
+                            {% else %}
+                            پیشرفت مراحل
+                            {% endif %}
+                        </span>
+                        <span>{{ project.progress_done|fa_digits }} از {{ project.progress_total|fa_digits }} مرحله ({{ project.progress_percent|fa_digits }}٪)</span>
+                    </div>
+                    <progress class="progress progress-primary w-full" value="{{ project.progress_done }}" max="{{ project.progress_total|default:1 }}"></progress>
                 </div>
-                <div class="max-w-md mx-auto">
-                    <h3 class="font-bold text-base text-base-content">هنوز پروژه‌ای برای شما ثبت نشده است. برای هماهنگی با دفتر تماس بگیرید.</h3>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{% url 'projects:portal_project_progress' project.id %}" class="btn btn-soft btn-sm">
+                        {% icon "eye" "w-4 h-4" %} مشاهده‌ی مراحل
+                    </a>
+                    {% with invoice=invoices_map|get_item:project.id %}
+                    {% if invoice %}
+                    <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">
+                        {% icon "receipt" "w-4 h-4" %} پیش‌فاکتور / فاکتور
+                    </a>
+                    {% endif %}
+                    {% endwith %}
                 </div>
             </div>
-            {% endif %}
+            {% empty %}
+            <div class="fb-card"><div class="fb-empty">هنوز پروژه‌ای برای شما ثبت نشده است. برای هماهنگی با دفتر تماس بگیرید.</div></div>
+            {% endfor %}
         </div>
 
-        <!-- ستون سمت چپ: اعلان‌ها و تماس مستقیم (۴ ستون) -->
-        <div class="lg:col-span-4 space-y-6">
-
-            <!-- کارت پشتیبانی فوری و تماس -->
-            <div class="card bg-gradient-to-br from-primary to-primary-focus text-primary-content rounded-3xl p-6 shadow-xl relative overflow-hidden">
-                <div class="absolute -right-8 -bottom-8 opacity-15 pointer-events-none">
-                    {% icon "phone" "w-40 h-40" %}
+        <div class="lg:col-span-4 flex flex-col gap-4">
+            <div class="fb-card fb-pad flex flex-col gap-3">
+                <div>
+                    <span class="fb-badge fb-badge-neutral">ساعت کاری {{ CONTACT.hours|fa_digits }}</span>
+                    <h3 class="font-semibold mt-2">نیاز به هماهنگی فوری دارید؟</h3>
+                    <p class="text-xs fb-muted mt-1">در ساعت کاری با دفتر تماس بگیرید. خارج از ساعت کاری با شماره‌ی زیر در ارتباط باشید.</p>
                 </div>
-                <div class="relative z-10 space-y-3">
-                    <span class="badge badge-neutral badge-sm px-3 py-1.5 h-auto leading-none font-semibold">ساعت کاری {{ CONTACT.hours|fa_digits }}</span>
-                    <h3 class="text-xl font-black">نیاز به هماهنگی فوری دارید؟</h3>
-                    <p class="text-xs opacity-85 leading-relaxed">در ساعت کاری با دفتر تماس بگیرید. خارج از ساعت کاری با شماره‌ی زیر در ارتباط باشید.</p>
-                    <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-neutral btn-sm rounded-xl font-bold gap-2 text-xs w-full">
-                        {% icon "phone" "w-4 h-4" %} دفتر: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display|fa_digits }}</span>
-                    </a>
-                    <a href="tel:{{ CONTACT.after_hours.tel }}" class="btn btn-outline btn-sm rounded-xl font-bold gap-2 text-xs w-full mt-2">
-                        {% icon "phone" "w-4 h-4" %} خارج از ساعت کاری: <span dir="ltr" class="font-technical">{{ CONTACT.after_hours.display|fa_digits }}</span>
-                    </a>
-                </div>
+                <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-soft btn-sm">
+                    {% icon "phone" "w-4 h-4" %} دفتر: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display|fa_digits }}</span>
+                </a>
+                <a href="tel:{{ CONTACT.after_hours.tel }}" class="btn btn-ghost btn-sm">
+                    {% icon "phone" "w-4 h-4" %} خارج از ساعت کاری: <span dir="ltr" class="font-technical">{{ CONTACT.after_hours.display|fa_digits }}</span>
+                </a>
             </div>
 
-            <!-- پنل آخرین اعلان‌ها -->
-            <div class="card bg-base-100 border border-base-200 rounded-3xl p-5 shadow-sm space-y-4">
-                <div class="flex items-center justify-between pb-3 border-b border-base-200">
-                    <div class="flex items-center gap-2">
-                        {% icon "bell" "w-4 h-4 text-primary" %}
-                        <h3 class="font-bold text-sm text-base-content">پیام‌های شما</h3>
+            <div class="fb-card fb-pad flex flex-col gap-3">
+                <h3 class="fb-section-title flex items-center gap-2">{% icon "bell" "w-4 h-4" %} پیام‌های شما</h3>
+                {% for notif in recent_notifications %}
+                <div class="fb-inset flex flex-col gap-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-semibold text-xs">{{ notif.title }}</span>
+                        <span class="text-[10px] fb-muted font-technical">{{ notif.created_at|to_jalali:"%m/%d %H:%M" }}</span>
                     </div>
+                    <p class="text-xs fb-muted">{{ notif.body|truncatechars:60 }}</p>
                 </div>
-
-                {% if recent_notifications %}
-                <div class="space-y-3">
-                    {% for notif in recent_notifications %}
-                    <div class="p-3 rounded-xl bg-base-200/50 hover:bg-base-200 transition-colors space-y-1">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-xs text-base-content">{{ notif.title }}</span>
-                            <span class="text-[10px] text-base-content/50 font-technical">{{ notif.created_at|to_jalali:"%m/%d %H:%M" }}</span>
-                        </div>
-                        <p class="text-xs text-base-content/70 leading-relaxed">{{ notif.body|truncatechars:60 }}</p>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="text-center py-6 text-base-content/50 space-y-2">
-                    {% icon "check-circle" "w-8 h-8 mx-auto text-success/60" %}
-                    <p class="text-xs font-medium">پیام جدیدی ندارید</p>
-                </div>
-                {% endif %}
+                {% empty %}
+                <p class="fb-hint text-center py-3">پیام جدیدی ندارید</p>
+                {% endfor %}
             </div>
-
         </div>
     </div>
 </div>

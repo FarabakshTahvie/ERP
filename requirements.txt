@@ -9,6 +9,7 @@ django-environ
 django-htmx
 django-ipware
 django-jalali
+django-jalali-date
 django-simple-history
 django-storages
 django-unfold
@@ -28,6 +29,7 @@ requests
 s3transfer
 six
 sqlparse
+setuptools
 ua-parser
 ua-parser-builtins
 urllib3

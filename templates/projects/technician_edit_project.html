@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ویرایش پروژه | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <a href="{% url 'projects:staff_project_overview' project.id %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه</a>
+        <h1 class="fb-page-title mt-2">ویرایش پروژه</h1>
+        <p class="fb-page-sub">{{ project.name }} — <span class="font-technical">{{ project.code|fa_digits }}</span></p>
+    </div>
+
+    <form method="post" id="edit-project-form" class="flex flex-col gap-5">
+        {% csrf_token %}
+
+        {% with contact_party=project.owner|default:project.partner %}
+        <section class="fb-card fb-pad flex flex-col gap-2">
+            <h2 class="fb-section-title">طرف‌حساب</h2>
+            <div class="flex justify-between gap-2 text-sm">
+                <span class="fb-muted">نام</span>
+                <span class="font-semibold">{{ contact_party.name|default:"ثبت نشده" }}</span>
+            </div>
+            <p class="fb-hint">تغییر طرف‌حساب یا صاحب ملک فقط از پنل مدیریت ممکن است، چون فاکتور و حساب ورود به آن وابسته است.</p>
+        </section>
+        {% endwith %}
+
+        {% include "projects/partials/location_picker.html" %}
+
+        {% if prices_open %}
+        <div role="alert" class="alert alert-soft alert-info">
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">با تغییر خدمات یا متریال، پیش‌فاکتور دوباره ساخته می‌شود و مشتری مبلغ جدید را می‌بیند. بعد از تایید مشتری یا ثبت پرداخت، قیمت‌ها قفل می‌شوند.</span>
+        </div>
+        {% include "projects/partials/lines_editor.html" %}
+        {% else %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">خدمات و متریال</h2>
+            <div role="alert" class="alert alert-soft alert-warning">
+                {% icon "lock" "w-4 h-4 shrink-0" %}
+                <span class="text-xs">قیمت‌ها قفل شده‌اند، چون پیش‌فاکتور تایید شده یا پرداختی ثبت شده است. فقط آدرس و موقعیت قابل ویرایش است. برای تغییر مبلغ به مدیر اطلاع دهید.</span>
+            </div>
+            {% for ps in project.services.all %}
+            <div class="fb-inset flex justify-between gap-2 text-sm">
+                <span>{{ ps.service.name }}</span>
+                <span class="font-technical fb-muted">{{ ps.qty|floatformat:"-2"|fa_digits }} × {{ ps.unit_price|intcomma_fa }}</span>
+            </div>
+            {% endfor %}
+            {% for pm in project.extra_materials.all %}
+            <div class="fb-inset flex justify-between gap-2 text-sm">
+                <span>{{ pm.item.name }}</span>
+                <span class="font-technical fb-muted">{{ pm.qty|floatformat:"-4"|fa_digits }} × {{ pm.unit_price|intcomma_fa }}</span>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <div class="fb-sticky-bar">
+            <div>
+                {% if prices_open %}
+                <div class="text-xs fb-muted">جمع خدمات و متریال</div>
+                <div class="text-sm font-bold"><span id="grand-total" class="font-technical">۰</span> تومان</div>
+                {% if project.installation_fee or project.shipping_fee or project.extra_fee %}
+                <div class="text-xs fb-muted">هزینه‌های نصب، ارسال و مازاد جدا محاسبه می‌شوند.</div>
+                {% endif %}
+                {% else %}
+                <div class="text-xs fb-muted">فقط آدرس و موقعیت قابل ویرایش است</div>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'projects:staff_project_overview' project.id %}" class="btn btn-ghost">انصراف</a>
+                <button type="submit" id="submit-btn" class="btn btn-primary">ذخیره تغییرات</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('edit-project-form');
+    var btn = document.getElementById('submit-btn');
+    form.addEventListener('submit', function () {
+        btn.disabled = true;
+        btn.insertAdjacentHTML('afterbegin', '<span class="loading loading-spinner loading-xs"></span>');
+    });
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) {
+            btn.disabled = false;
+            var sp = btn.querySelector('.loading');
+            if (sp) sp.remove();
+        }
+    });
+})();
+</script>
+{% endblock %}

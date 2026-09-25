@@ -48,7 +48,7 @@ class CustomUserAdmin(JalaliAdminMixin, BaseUserAdmin, ModelAdmin, SimpleHistory
         (None, {'fields': ('username', 'password')}),
         (_('Personal info'), {'fields': ('first_name', 'last_name', 'email')}),
         ('اطلاعات تکمیلی سیستم تهویه', {
-            'fields': ('role', 'party', 'specialties', 'phone_number', 'national_code', 'avatar', 'avatar_preview', 'must_change_password'),
+            'fields': ('role', 'party', 'specialties', 'phone_number', 'national_code', 'avatar', 'must_change_password'),
         }),
         (_('Permissions'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
@@ -76,7 +76,7 @@ class CustomUserAdmin(JalaliAdminMixin, BaseUserAdmin, ModelAdmin, SimpleHistory
         }),
     )
 
-    readonly_fields = ('avatar_preview', 'jalali_date_joined', 'jalali_last_login')
+    readonly_fields = ('jalali_date_joined', 'jalali_last_login')
 
     jalali_date_joined = jalali_column('date_joined', 'تاریخ عضویت')
     jalali_last_login = jalali_column('last_login', 'آخرین ورود')
@@ -94,16 +94,14 @@ class CustomUserAdmin(JalaliAdminMixin, BaseUserAdmin, ModelAdmin, SimpleHistory
         full_name = obj.get_full_name()
         title = full_name if full_name else obj.username
         subtitle = f"@{obj.username}" if full_name else ""
+        initial = (obj.first_name[:1] or obj.username[:1] or "؟").upper()
         if obj.avatar:
             avatar_info = {
                 "path": obj.avatar.url,
                 "squared": False,
                 "borderless": False,
-                "width": 32,
-                "height": 32,
             }
-            return [title, subtitle, avatar_info]
-        initial = (obj.first_name[:1] or obj.username[:1] or "؟").upper()
+            return [title, subtitle, initial, avatar_info]
         return [title, subtitle, initial]
 
     @display(
@@ -137,18 +135,6 @@ class CustomUserAdmin(JalaliAdminMixin, BaseUserAdmin, ModelAdmin, SimpleHistory
     @display(description="فعال", boolean=True)
     def display_active(self, obj):
         return obj.is_active
-
-    def avatar_tag(self, obj):
-        if obj.avatar:
-            return format_html('<img src="{}" width="36" height="36" style="border-radius: 50%; object-fit: cover;" />', obj.avatar.url)
-        return "—"
-    avatar_tag.short_description = "تصویر پروفایل"
-
-    def avatar_preview(self, obj):
-        if obj.avatar:
-            return format_html('<img src="{}" width="140" height="140" style="border-radius: 12px; object-fit: cover; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />', obj.avatar.url)
-        return "تصویری آپلود نشده است"
-    avatar_preview.short_description = "پیش‌نمایش تصویر پروفایل"
 
 
 @admin.register(OTPCode)

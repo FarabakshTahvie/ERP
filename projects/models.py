@@ -24,8 +24,6 @@ class Project(TimeStampedModel):
     workflow_template = models.ForeignKey('WorkflowTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name="projects", verbose_name="قالب گردش‌کار")
 
     contract_date = models.DateField(null=True, blank=True, verbose_name="تاریخ عقد قرارداد")
-    guaranteed_end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ تضمین پایان قرارداد")
-    estimated_end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ تخمینی پایان")
     actual_end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ دقیق اتمام")
 
     installation_fee = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="هزینه نصب (تومان)")
@@ -60,9 +58,9 @@ class Project(TimeStampedModel):
 
     @property
     def current_files(self):
-        """همه‌ی فایل‌های جاری (آخرین نسخه) پروژه، صرف‌نظر از اینکه در کدام مرحله آپلود شده‌اند."""
+        """همه‌ی فایل‌های جاری (آخرین نسخه) پروژه، صرف‌نظر از اینکه در کدام مرحله آپلود شده‌اند — جدیدترین بالا."""
         from .models import ProjectFile
-        return ProjectFile.objects.filter(stage__project=self, is_current=True).select_related("stage").order_by("kind", "-version")
+        return ProjectFile.objects.filter(stage__project=self, is_current=True).select_related("stage").order_by("-created_at")
 
 
 class ProjectService(models.Model):
@@ -162,6 +160,9 @@ class WorkflowStepTemplate(models.Model):
     estimated_duration_hours = models.PositiveIntegerField(null=True, blank=True, verbose_name="مدت‌زمان تخمینی (ساعت)")
     client_visible = models.BooleanField(default=True, verbose_name="قابل نمایش به کارفرما")
     allows_file_upload = models.BooleanField(default=False, verbose_name="امکان آپلود فایل در این مرحله")
+    requires_payment_selection = models.BooleanField(
+        default=False, verbose_name="این مرحله نیازمند انتخاب روش پرداخت هم هست (نه فقط تایید ساده)"
+    )
     default_assignee = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="default_assigned_steps", verbose_name="مسئول ثابت این مرحله (اختیاری)",
@@ -262,6 +263,7 @@ def project_file_upload_path(instance, filename):
 class ProjectFile(TimeStampedModel):
     class Kind(models.TextChoices):
         DWG = "dwg", "فایل اتوکد (DWG)"
+        GCODE = "gcode", "فایل جی‌کد (برش CNC)"
         PDF = "pdf", "PDF"
         IMAGE = "image", "عکس"
         OTHER = "other", "سایر"

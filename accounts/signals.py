@@ -15,6 +15,7 @@ def on_login_success(sender, request, user, **kwargs):
         ip_address=get_client_ip(request), user_agent=ua["raw"],
         browser=ua["browser"], os=ua["os"], device_type=ua["device_type"],
     )
+    request.session["user_avatar_url"] = user.avatar.url if user.avatar else None
 
 
 @receiver(user_login_failed)

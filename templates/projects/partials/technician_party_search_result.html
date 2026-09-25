@@ -1,0 +1,57 @@
+{% load custom_tags %}
+{% if party %}
+<input type="hidden" name="{{ prefix }}party_id" value="{{ party.id }}"
+       {% if not prefix %}data-found-party data-is-partner="{{ party.is_partner|yesno:'1,0' }}"{% endif %}>
+<div role="alert" class="alert alert-soft alert-success">
+    {% icon "check-circle" "w-4 h-4 shrink-0" %}
+    <div class="text-sm space-y-1.5">
+        <div>طرف‌حساب یافت شد: <strong>{{ party.name }}</strong></div>
+        {% if not prefix %}
+        <div class="flex flex-wrap gap-1">
+            {% if party.is_client %}<span class="fb-badge fb-badge-neutral">کارفرما</span>{% endif %}
+            {% if party.is_partner %}<span class="fb-badge fb-badge-neutral">شریک تجاری</span>{% endif %}
+            {% if party.is_contractor %}<span class="fb-badge fb-badge-neutral">پیمانکار</span>{% endif %}
+            {% if party.is_supplier %}<span class="fb-badge fb-badge-neutral">تأمین‌کننده</span>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% elif phone_number|length != 11 %}
+<p class="fb-hint">شماره‌ی موبایل را کامل (۱۱ رقم) وارد کنید.</p>
+{% else %}
+<div class="space-y-3">
+    <p class="fb-hint">طرف‌حسابی با این شماره پیدا نشد — اطلاعات زیر را کامل کنید.</p>
+    <input type="hidden" name="{{ prefix }}phone_number" value="{{ phone_number }}">
+
+    <div class="fb-field">
+        <label class="fb-label" for="{{ prefix }}party-name">نام / نام شرکت</label>
+        <input type="text" id="{{ prefix }}party-name" name="{{ prefix }}party_name" class="input w-full" required>
+    </div>
+
+    <div class="flex gap-2">
+        <label class="fb-choice"><input type="radio" name="{{ prefix }}entity_type" value="individual" class="sr-only" checked> شخص حقیقی</label>
+        <label class="fb-choice"><input type="radio" name="{{ prefix }}entity_type" value="company" class="sr-only"> شرکت</label>
+    </div>
+
+    <input type="text" name="{{ prefix }}brand_name" placeholder="نام برند/تجاری (اختیاری)" class="input w-full hidden">
+
+    <div class="fb-field">
+        <label class="fb-label" for="{{ prefix }}national-code">کد ملی (برای اشخاص)</label>
+        <input type="text" id="{{ prefix }}national-code" name="{{ prefix }}national_code"
+               class="input w-full font-technical" inputmode="numeric" maxlength="10">
+    </div>
+
+    {% if not prefix %}
+    <div class="fb-field">
+        <span class="fb-label">نقش این طرف‌حساب</span>
+        <div class="flex flex-wrap gap-2">
+            <label class="fb-choice"><input type="checkbox" name="roles" value="client" class="sr-only"> کارفرما</label>
+            <label class="fb-choice"><input type="checkbox" name="roles" value="partner" class="sr-only"> شریک تجاری</label>
+            <label class="fb-choice"><input type="checkbox" name="roles" value="contractor" class="sr-only"> پیمانکار</label>
+            <label class="fb-choice"><input type="checkbox" name="roles" value="supplier" class="sr-only"> تأمین‌کننده</label>
+        </div>
+        <span id="roles-required-error" class="fb-error hidden">انتخاب حداقل یک نقش الزامی است.</span>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

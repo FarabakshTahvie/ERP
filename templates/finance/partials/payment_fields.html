@@ -1,0 +1,133 @@
+{% load custom_tags %}
+<div class="flex flex-col gap-4" id="payment-fields">
+    <div class="fb-field">
+        <label class="fb-label" for="payment-method">روش پرداخت</label>
+        <select id="payment-method" name="payment_method" class="select w-full" onchange="fbTogglePaymentFields(this.value)" required>
+            <option value="">انتخاب کنید...</option>
+            <option value="card_to_card">کارت به کارت</option>
+            <option value="receipt">رسید واریز</option>
+            <option value="cheque">چک</option>
+            <option value="credit">اعتباری (پرداخت بعداً)</option>
+        </select>
+    </div>
+
+    <div class="fb-field">
+        <label class="fb-label" for="payment-amount">مبلغ پرداختی (تومان)</label>
+        <input type="text" inputmode="numeric" id="payment-amount" name="payment_amount" dir="ltr" autocomplete="off"
+               placeholder="اگر خالی بماند، کل مانده‌ی فاکتور ثبت می‌شود" class="input w-full font-technical">
+        <span id="payment-amount-hint" class="fb-hint hidden">مبلغ نهایی را کارشناس ما از روی رسید تایید می‌کند؛ اگر با مبلغ واردشده فرق داشته باشد، مبلغ رسید ملاک است.</span>
+    </div>
+
+    <div class="fb-field" id="reference-field">
+        <label class="fb-label" for="reference-input" id="reference-label">شماره پیگیری / تراکنش (اختیاری)</label>
+        <input type="text" id="reference-input" name="reference_number" dir="ltr" autocomplete="off" class="input w-full font-technical">
+    </div>
+
+    <div class="fb-field hidden" id="receipt-field">
+        <label class="fb-label" for="receipt-input" id="receipt-label">تصویر رسید (اجباری)</label>
+        <input type="file" id="receipt-input" name="receipt_file" accept="image/*,.pdf" class="file-input w-full">
+        <span id="either-hint" class="fb-hint hidden">برای کارت به کارت، حداقل یکی از «تصویر رسید» یا «شماره پیگیری» کافی است.</span>
+        <span class="fb-hint">عکس یا اسکرین‌شات (JPG، PNG، WEBP) یا PDFحداکثر ۱۰ مگابایت؛ .</span>
+    </div>
+
+    <div id="cheque-fields" class="hidden">
+        <div class="flex flex-col gap-4">
+            <div class="fb-field">
+                <label class="fb-label" for="cheque-number-input">شماره صیادی چک</label>
+                <input type="text" id="cheque-number-input" name="cheque_number" dir="ltr" autocomplete="off" class="input w-full font-technical">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="cheque-bank-input">نام بانک</label>
+                <input type="text" id="cheque-bank-input" name="cheque_bank" class="input w-full">
+            </div>
+        </div>
+    </div>
+
+    {% if not hide_note_field %}
+    <div class="fb-field">
+        <label class="fb-label" id="payment-note-label" for="payment-note-input">توضیح (اختیاری)</label>
+        <textarea name="payment_note" id="payment-note-input" class="textarea w-full" rows="2"></textarea>
+    </div>
+    {% endif %}
+</div>
+<script>
+function fbSyncProofRequirement() {
+    var method = document.getElementById('payment-method').value;
+    var file = document.getElementById('receipt-input');
+    var ref = document.getElementById('reference-input');
+    var missing = method === 'card_to_card' && !file.files.length && !ref.value.trim();
+    file.setCustomValidity(missing ? 'تصویر رسید یا شماره پیگیری را وارد کنید.' : '');
+}
+
+function fbTogglePaymentFields(method) {
+    var proof = ['card_to_card', 'receipt', 'cheque'].indexOf(method) !== -1;
+    var isCard = method === 'card_to_card';
+    var isCheque = method === 'cheque';
+    var isCredit = method === 'credit';
+    var fileRequired = method === 'receipt' || isCheque;
+    function el(id) { return document.getElementById(id); }
+
+    el('receipt-field').classList.toggle('hidden', !proof);
+    el('receipt-input').required = fileRequired;
+    el('receipt-label').textContent = isCheque ? 'تصویر چک (اجباری)' : (isCard ? 'تصویر رسید' : 'تصویر رسید (اجباری)');
+    el('either-hint').classList.toggle('hidden', !isCard);
+    el('cheque-fields').classList.toggle('hidden', !isCheque);
+    el('reference-field').classList.toggle('hidden', isCredit);
+    el('reference-input').required = false;
+    el('reference-label').textContent = isCard ? 'شماره پیگیری / تراکنش' : 'شماره پیگیری / تراکنش (اختیاری)';
+    el('payment-amount-hint').classList.toggle('hidden', !proof);
+    fbSyncProofRequirement();
+
+    var noteInput = el('payment-note-input');
+    var noteLabel = el('payment-note-label');
+    if (noteInput) {
+        noteInput.required = isCredit;
+        if (noteLabel) noteLabel.textContent = isCredit
+            ? 'شرایط تسویه‌ی اعتباری (اجباری) — مثلاً چه زمانی تسویه می‌شود'
+            : 'توضیح (اختیاری)';
+    }
+    if (typeof fbSyncApprovalCommentRequirement === 'function') {
+        fbSyncApprovalCommentRequirement(method);
+    }
+}
+document.getElementById('receipt-input').addEventListener('change', fbSyncProofRequirement);
+document.getElementById('reference-input').addEventListener('input', fbSyncProofRequirement);
+
+async function fbCompressImage(file, maxSide, quality) {
+    var bitmap;
+    try {
+        bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch (e) {
+        bitmap = await new Promise(function (resolve, reject) {
+            var img = new Image();
+            img.onload = function () { resolve(img); };
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
+        });
+    }
+    var w = bitmap.width, h = bitmap.height;
+    var scale = Math.min(1, maxSide / Math.max(w, h));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) {
+            if (!blob) { reject(new Error('compress failed')); return; }
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+    });
+}
+
+document.getElementById('receipt-input').addEventListener('change', async function (e) {
+    var file = e.target.files[0];
+    fbSyncProofRequirement();
+    if (!file || !file.type.startsWith('image/') || file.size < 700 * 1024) return;   // فایل کوچک یا غیرعکسی (PDF) دست‌نخورده می‌ماند
+    try {
+        var compressed = await fbCompressImage(file, 2000, 0.82);
+        var dt = new DataTransfer();
+        dt.items.add(compressed);
+        e.target.files = dt.files;
+    } catch (err) { /* فشرده‌سازی شکست خورد؛ فایل اصلی می‌رود، سرور خودش رسیدگی می‌کند */ }
+});
+</script>

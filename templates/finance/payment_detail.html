@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}بررسی پرداخت | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'finance:payments_review' %}" class="link link-hover text-sm fb-muted">بازگشت به پرداخت‌ها</a>
+        <h1 class="fb-page-title mt-2">بررسی پرداخت</h1>
+        <div class="flex items-center gap-2 flex-wrap mt-2">
+            <span class="fb-badge fb-badge-neutral">{{ payment.get_method_display }}</span>
+            <span class="fb-badge {% if payment.status == 'pending' %}fb-badge-warning{% elif payment.status == 'approved' %}fb-badge-success{% else %}fb-badge-error{% endif %}">{{ payment.get_status_display }}</span>
+        </div>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <h2 class="fb-section-title">فاکتور</h2>
+        <div class="flex justify-between gap-2"><span class="fb-muted">پروژه</span><span class="font-semibold">{{ invoice.project.name }}</span></div>
+        <div class="flex justify-between gap-2">
+            <span class="fb-muted">شماره فاکتور</span>
+            <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-primary font-technical">{{ invoice.number|fa_digits }}</a>
+        </div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">طرف‌حساب</span><span>{{ invoice.billed_party.name }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">مبلغ کل</span><span class="font-technical">{{ invoice.total_amount|intcomma_fa }} تومان</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">تا اینجا پرداخت‌شده</span><span class="font-technical">{{ invoice.paid_amount|intcomma_fa }} تومان</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">مانده</span><span class="font-technical font-bold">{{ invoice.remaining_amount|intcomma_fa }} تومان</span></div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اطلاعاتی که مشتری ثبت کرده</h2>
+        <div class="fb-inset flex items-center justify-between gap-2">
+            <span class="text-sm fb-muted">مبلغ اعلام‌شده</span>
+            <span class="font-technical font-bold text-lg">{{ claimed_amount|intcomma_fa }} تومان</span>
+        </div>
+        <div class="flex flex-col gap-2 text-sm">
+            <div class="flex justify-between gap-2"><span class="fb-muted">تاریخ ثبت</span><span class="font-technical">{{ payment.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>
+            {% if payment.reference_number %}
+            <div class="flex justify-between gap-2"><span class="fb-muted">شماره پیگیری</span><span class="font-technical">{{ payment.reference_number|fa_digits }}</span></div>
+            {% endif %}
+            {% if payment.cheque_number %}
+            <div class="flex justify-between gap-2"><span class="fb-muted">شماره صیادی</span><span class="font-technical">{{ payment.cheque_number|fa_digits }}</span></div>
+            {% endif %}
+            {% if payment.cheque_bank %}
+            <div class="flex justify-between gap-2"><span class="fb-muted">بانک</span><span>{{ payment.cheque_bank }}</span></div>
+            {% endif %}
+        </div>
+        {% if payment.note %}<p class="fb-inset text-sm whitespace-pre-line">{{ payment.note }}</p>{% endif %}
+    </section>
+
+    {% if payment.receipt_file %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">تصویر رسید / چک</h2>
+        {% if payment.receipt_is_image %}
+        <a href="{{ payment.receipt_file.url }}" target="_blank" rel="noopener">
+            <img src="{{ payment.receipt_file.url }}" alt="تصویر رسید" class="w-full max-h-96 object-contain rounded-field bg-base-200">
+        </a>
+        <span class="fb-hint">برای دیدن در اندازه‌ی کامل، روی تصویر بزنید.</span>
+        {% else %}
+        <a href="{{ payment.receipt_file.url }}" target="_blank" rel="noopener" class="btn btn-soft btn-sm self-start">
+            {% icon "file-text" "w-4 h-4" %} باز کردن فایل رسید
+        </a>
+        {% endif %}
+    </section>
+    {% elif needs_amount %}
+        {% if payment.method == 'card_to_card' and payment.reference_number %}
+        <div role="alert" class="alert alert-soft alert-info">
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">مشتری تصویر رسید نداده و فقط شماره پیگیری ثبت کرده است. مبلغ را با استعلام از حساب بانکی تطبیق دهید و بعد تایید کنید.</span>
+        </div>
+        {% else %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">برای این پرداخت تصویری بارگذاری نشده است (ثبت قدیمی).</span>
+        </div>
+        {% endif %}
+    {% endif %}
+
+    {% if payment.status == 'pending' %}
+        {% if needs_amount %}
+        <form method="post" action="{% url 'finance:payment_decide' payment.id %}" id="approve-form"
+              data-claimed="{{ claimed_amount|stringformat:'d' }}" class="fb-card fb-pad flex flex-col gap-3">
+            {% csrf_token %}
+            <div role="alert" class="alert alert-soft alert-warning">
+                {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                <div class="text-xs">
+                    <strong>مبلغ را خودتان بنویسید.</strong>
+                    مبلغ روی رسید ممکن است با مبلغی که مشتری وارد کرده فرق داشته باشد. تصویر رسید را با دقت ببینید و مبلغ واقعی را در کادر زیر بنویسید؛ همین مبلغ در فاکتور ثبت می‌شود.
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="verified-amount">مبلغ واقعی طبق رسید (تومان)</label>
+                <input type="text" id="verified-amount" name="verified_amount" required inputmode="numeric"
+                       dir="ltr" autocomplete="off" placeholder="مبلغ را از روی رسید بنویسید"
+                       class="input w-full font-technical">
+                <span id="amount-mismatch" class="fb-error hidden">با مبلغ اعلامی مشتری ({{ claimed_amount|intcomma_fa }} تومان) فرق دارد؛ دوباره رسید را بررسی کنید.</span>
+                <span class="fb-hint">حداکثر مبلغ قابل ثبت، مانده‌ی فاکتور است ({{ invoice.remaining_amount|intcomma_fa }} تومان).</span>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" name="action" value="approve" id="approve-btn" class="btn btn-primary flex-1">تایید و ثبت مبلغ</button>
+                <button type="button" class="btn btn-soft btn-error flex-1" onclick="document.getElementById('reject-modal').showModal()">رد</button>
+            </div>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'finance:payment_decide' payment.id %}" class="fb-card fb-pad flex flex-col gap-3">
+            {% csrf_token %}
+            <div role="alert" class="alert alert-soft alert-info">
+                {% icon "info" "w-4 h-4 shrink-0" %}
+                <span class="text-xs">تایید پرداخت اعتباری یعنی کار ادامه پیدا کند، نه اینکه پول رسیده باشد. این مبلغ در «پرداخت‌شده»ی فاکتور حساب نمی‌شود.</span>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" name="action" value="approve" class="btn btn-primary flex-1">تایید</button>
+                <button type="button" class="btn btn-soft btn-error flex-1" onclick="document.getElementById('reject-modal').showModal()">رد</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <dialog id="reject-modal" class="modal">
+            <div class="modal-box max-w-sm">
+                <h3 class="font-bold text-base mb-1">رد پرداخت</h3>
+                <p class="text-xs fb-muted mb-4">دلیل رد در یادداشت پرداخت ثبت می‌شود.</p>
+                <form method="post" action="{% url 'finance:payment_decide' payment.id %}" class="flex flex-col gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject">
+                    <textarea name="reason" required class="textarea w-full" rows="3" placeholder="دلیل رد (اجباری)"></textarea>
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-soft btn-error flex-1">رد پرداخت</button>
+                        <button type="button" class="btn btn-ghost flex-1" onclick="document.getElementById('reject-modal').close()">انصراف</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        </dialog>
+    {% else %}
+        {% if payment.status == 'approved' %}
+        <div role="alert" class="alert alert-soft alert-success">
+            {% icon "check-circle" "w-4 h-4 shrink-0" %}
+            <span class="text-sm">
+                تایید شد{% if payment.approved_by %} توسط {{ payment.approved_by.get_full_name|default:payment.approved_by.username }}{% endif %}
+                {% if payment.approved_at %} — <span class="font-technical">{{ payment.approved_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% endif %}
+            </span>
+        </div>
+        {% if needs_amount and payment.amount != claimed_amount %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">مبلغ اعلامی مشتری <span class="font-technical">{{ claimed_amount|intcomma_fa }}</span> تومان بود؛ مبلغ تاییدشده <span class="font-technical font-bold">{{ payment.amount|intcomma_fa }}</span> تومان ثبت شد.</span>
+        </div>
+        {% elif needs_amount %}
+        <div class="fb-inset text-sm flex justify-between gap-2">
+            <span class="fb-muted">مبلغ تاییدشده</span>
+            <span class="font-technical font-bold">{{ payment.amount|intcomma_fa }} تومان</span>
+        </div>
+        {% endif %}
+        {% else %}
+        <div role="alert" class="alert alert-soft alert-error">
+            {% icon "x-circle" "w-4 h-4 shrink-0" %}
+            <span class="text-sm">رد شد{% if payment.approved_by %} توسط {{ payment.approved_by.get_full_name|default:payment.approved_by.username }}{% endif %}؛ دلیل در یادداشت بالا ثبت شده است.</span>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('approve-form');
+    if (!form) return;
+    var input = document.getElementById('verified-amount');
+    var warn = document.getElementById('amount-mismatch');
+    var btn = document.getElementById('approve-btn');
+    var claimed = parseInt(form.dataset.claimed, 10);
+
+    function normalize(s) {
+        return s.replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); })
+                .replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); })
+                .replace(/[,٬\s]/g, '');
+    }
+    input.addEventListener('input', function () {
+        var v = parseInt(normalize(input.value), 10);
+        warn.classList.toggle('hidden', !(v && v !== claimed));
+    });
+    form.addEventListener('submit', function () {
+        setTimeout(function () { btn.disabled = true; }, 0);   // بعد از ساخته‌شدن داده‌ی فرم، تا مقدار action ارسال شود
+    });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) btn.disabled = false; });
+})();
+</script>
+{% endblock %}

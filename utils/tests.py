@@ -201,8 +201,8 @@ class JalaliAndUIWorkflowTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode("utf-8")
 
-        # issue_date شمسی نمایش داده شود
-        self.assertIn("۱۴۰۵/۰۶/۳۰", html)
+        # issue_date شمسی با ارقام لاتین و خط تیره رندر می‌شود (مقدار ورودی پکیج: 1405-06-30)
+        self.assertIn("1405-06-30", html)
 
         # settled_at در فیلدهای فرم نباشد
         self.assertNotIn('name="settled_at"', html)
@@ -214,8 +214,8 @@ class JalaliAndUIWorkflowTests(TestCase):
             "billed_party": party.pk,
             "document_type": invoice.document_type,
             "status": invoice.status,
-            "issue_date": "۱۴۰۵/۰۷/۰۱", # برابر با 2026-09-23
-            "contract_date": "۱۴۰۵/۰۷/۰۱",
+            "issue_date": "1405-07-01", # برابر با 2026-09-23
+            "contract_date": "1405-07-01",
             "notes": "یادداشت تست",
             "lines-TOTAL_FORMS": "0",
             "lines-INITIAL_FORMS": "0",

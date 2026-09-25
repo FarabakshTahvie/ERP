@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}افزودن پرداخت | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-hover text-sm fb-muted">بازگشت به فاکتور</a>
+        <h1 class="fb-page-title mt-2">افزودن پرداخت</h1>
+        <p class="fb-page-sub">فاکتور <span class="font-technical">{{ invoice.number|fa_digits }}</span> — مانده: <span class="font-technical font-bold">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</p>
+    </div>
+
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">بعد از ثبت، کارشناس ما رسید را بررسی و پرداخت را تایید می‌کند. وضعیت را در صفحه‌ی فاکتور می‌بینید.</span>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        {% include "finance/partials/payment_fields.html" %}
+        <button type="submit" class="btn btn-primary w-full">ثبت پرداخت</button>
+    </form>
+</div>
+{% endblock %}

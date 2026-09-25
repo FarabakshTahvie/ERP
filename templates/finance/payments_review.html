@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}پرداخت‌ها | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">پرداخت‌ها</h1>
+        <p class="fb-page-sub">همه‌ی پرداخت‌های ثبت‌شده؛ موارد در انتظار تایید بالاتر از بقیه‌اند. برای بررسی روی هر ردیف بزنید.</p>
+    </div>
+
+    {% if pending_count %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "credit-card" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">{{ pending_count|fa_digits }} پرداخت منتظر بررسی شماست.</span>
+    </div>
+    {% endif %}
+
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">هنگام تایید هر پرداخت، مبلغ را خودتان از روی رسید بنویسید؛ مبلغی که مشتری وارد کرده ممکن است با رسید فرق داشته باشد.</span>
+    </div>
+
+    {% include "utils/partials/generic_table.html" %}
+</div>
+{% endblock %}

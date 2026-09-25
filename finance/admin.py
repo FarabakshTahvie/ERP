@@ -8,8 +8,8 @@ from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from .models import Invoice, InvoiceLine, Payment, LedgerEntry
-from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line
-from .forms import AddInvoiceLineForm
+from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line, PROOF_METHODS
+from .forms import AddInvoiceLineForm, PaymentInlineForm
 
 
 class InvoiceLineInline(JalaliAdminMixin, TabularInline):
@@ -20,6 +20,7 @@ class InvoiceLineInline(JalaliAdminMixin, TabularInline):
 
 class PaymentInline(JalaliAdminMixin, TabularInline):
     model = Payment
+    form = PaymentInlineForm
     extra = 0
     readonly_fields = ('approved_by', 'jalali_approved_at', 'jalali_paid_at')
     jalali_approved_at = jalali_column('approved_at', 'تاریخ تأیید')
@@ -99,6 +100,9 @@ class InvoiceAdmin(JalaliAdminMixin, SimpleHistoryAdmin, ModelAdmin):
         from .services import ensure_billed_party_account_and_notify
         for invoice in queryset:
             user, raw_password = ensure_billed_party_account_and_notify(invoice)
+            if not user:
+                self.message_user(request, f"{invoice.number}: این شماره قبلاً برای حساب کاربری دیگری ثبت شده؛ حساب خودکار ساخته نشد.", level='error')
+                continue
             msg = f"{invoice.number}: یوزرنیم {user.username}"
             if raw_password:
                 msg += f" / پسورد {raw_password}"
@@ -133,10 +137,23 @@ class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
     def status_badge(self, obj):
         return obj.status
 
-    @admin.action(description="تایید پرداخت‌های انتخاب‌شده")
+    @admin.action(description="تایید پرداخت‌های اعتباری انتخاب‌شده (بقیه‌ی روش‌ها فقط از صفحه‌ی «پرداخت‌ها»)")
     def action_approve(self, request, queryset):
-        for payment in queryset.exclude(status=Payment.Status.APPROVED):
+        approved, skipped = 0, 0
+        for payment in queryset.filter(status=Payment.Status.PENDING):
+            if payment.method in PROOF_METHODS:
+                skipped += 1
+                continue
             approve_payment(payment, approved_by=request.user)
+            approved += 1
+        if approved:
+            self.message_user(request, f"{approved} پرداخت تایید شد.")
+        if skipped:
+            self.message_user(
+                request,
+                f"{skipped} پرداخت نیاز به بررسی رسید و ثبت مبلغ دارد؛ آن‌ها را از صفحه‌ی «پرداخت‌ها» تایید کنید.",
+                level='warning',
+            )
 
 
 @admin.register(LedgerEntry)

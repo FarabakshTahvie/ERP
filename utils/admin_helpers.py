@@ -1,13 +1,14 @@
 from django.db import models
 from unfold.decorators import display
-from unfold.widgets import UnfoldAdminTextInputWidget
 from utils.jalali import jalali_str
-from utils.jalali_forms import JalaliDateField, JalaliDateTimeField
+from jalali_date.fields import JalaliDateField as PackageJalaliDateField, SplitJalaliDateTimeField
+from jalali_date.widgets import AdminJalaliDateWidget, AdminSplitJalaliDateTime
 
 
 def jalali_column(field_name, label):
     """
-    متد صریح برای نمایش تاریخ/زمان شمسی در ستون‌های ادمین (list_display و readonly_fields)
+    متد صریح برای نمایش تاریخ/زمان شمسی در ستون‌های ادمین (list_display و readonly_fields).
+    این فقط نمایش است؛ کاری به ویجت فرم ویرایش ندارد.
     """
     @display(description=label, ordering=field_name)
     def _col(self, obj):
@@ -19,16 +20,20 @@ def jalali_column(field_name, label):
 
 
 class JalaliAdminMixin:
+    """
+    فیلدهای DateField/DateTimeField قابل‌ویرایش در فرم ادمین با تقویم گرافیکی
+    پکیج django-jalali-date نمایش داده می‌شوند (نشست قبل تست و تایید شد).
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.formfield_overrides = {
             **getattr(self, "formfield_overrides", {}),
             models.DateField: {
-                "form_class": JalaliDateField,
-                "widget": UnfoldAdminTextInputWidget(attrs={"dir": "ltr", "placeholder": "۱۴۰۵/۰۶/۳۰"}),
+                "form_class": PackageJalaliDateField,
+                "widget": AdminJalaliDateWidget,
             },
             models.DateTimeField: {
-                "form_class": JalaliDateTimeField,
-                "widget": UnfoldAdminTextInputWidget(attrs={"dir": "ltr", "placeholder": "۱۴۰۵/۰۶/۳۰ ۱۴:۳۰"}),
+                "form_class": SplitJalaliDateTimeField,
+                "widget": AdminSplitJalaliDateTime,
             },
         }

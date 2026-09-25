@@ -4,52 +4,50 @@
 {% block title %}روند اجرای پروژه {{ project.code|fa_digits }} - فرابخش{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-6">
-    <!-- Header -->
-    <div class="card bg-base-100 shadow-sm border border-base-200 p-6">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <span class="badge badge-primary badge-outline text-xs">کد پروژه: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
-                <h1 class="text-xl font-bold text-base-content mt-2">{{ project.name }}</h1>
-            </div>
-            <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">بازگشت به خانه</a>
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'home' %}" class="link link-hover text-sm fb-muted">بازگشت به خانه</a>
+        <h1 class="fb-page-title mt-2">{{ project.name }}</h1>
+        <div class="mt-2">
+            <span class="fb-badge fb-badge-neutral">کد پروژه: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
         </div>
     </div>
 
-    <!-- Progress Steps Timeline -->
-    <div class="card bg-base-100 shadow-sm border border-base-200 p-6">
-        <h2 class="text-base font-semibold mb-6 text-base-content/80">مراحل اجرایی پروژه</h2>
-
-        <ul class="steps steps-vertical w-full">
+    <div class="fb-card fb-pad">
+        <h2 class="fb-section-title mb-4">مراحل اجرایی پروژه</h2>
+        <ol class="fb-timeline">
             {% for stage in stages %}
-                <li class="step 
-                    {% if stage.status == 'done' %}step-primary
-                    {% elif stage.status == 'in_progress' %}step-info
-                    {% elif stage.status == 'waiting_approval' %}step-warning
-                    {% endif %}">
-                    <div class="flex flex-col items-start text-right py-2 px-2 w-full">
-                        <div class="flex items-center gap-2">
-                            <span class="font-medium text-sm text-base-content">{{ stage.title }}</span>
-                            {% if stage.status == 'done' %}
-                                <span class="badge badge-success badge-sm">تکمیل شد</span>
-                            {% elif stage.status == 'in_progress' %}
-                                <span class="badge badge-info badge-sm">در حال انجام</span>
-                            {% elif stage.status == 'waiting_approval' %}
-                                <span class="badge badge-warning badge-sm">در انتظار تایید</span>
-                            {% else %}
-                                <span class="badge badge-ghost badge-sm">در انتظار</span>
-                            {% endif %}
-                        </div>
-
-                        {% if stage.status == 'in_progress' and stage.hint %}
-                            <p class="text-xs text-info mt-1">{{ stage.hint }}</p>
+            <li class="fb-timeline-item">
+                <span class="fb-dot {% if stage.status == 'done' %}fb-dot-done{% elif stage.status == 'in_progress' %}fb-dot-active{% elif stage.status == 'waiting_approval' %}fb-dot-warn{% endif %}">
+                    {% if stage.status == 'done' %}{% icon "check" "w-3.5 h-3.5" %}{% else %}{{ forloop.counter|fa_digits }}{% endif %}
+                </span>
+                <div class="flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-semibold">{{ stage.title }}</span>
+                        {% if stage.status == 'done' %}
+                            <span class="fb-badge fb-badge-success">تکمیل شد</span>
+                        {% elif stage.status == 'in_progress' %}
+                            <span class="fb-badge fb-badge-info">در حال انجام</span>
+                        {% elif stage.status == 'waiting_approval' %}
+                            <span class="fb-badge fb-badge-warning">در انتظار تایید شما</span>
+                        {% elif stage.status == 'rejected' or stage.status == 'suspended' %}
+                            <span class="fb-badge fb-badge-neutral">در حال بررسی</span>
+                        {% else %}
+                            <span class="fb-badge fb-badge-neutral">در انتظار</span>
                         {% endif %}
                     </div>
-                </li>
+                    {% if stage.status == 'in_progress' and stage.hint %}
+                    <p class="text-xs fb-muted">{{ stage.hint }}</p>
+                    {% endif %}
+                    {% if stage.action_url %}
+                    <a href="{{ stage.action_url }}" class="btn btn-primary btn-sm self-start">{{ stage.action_label }}</a>
+                    {% endif %}
+                </div>
+            </li>
             {% empty %}
-                <p class="text-sm text-base-content/50 py-4">هنوز مرحله‌ای برای نمایش ایجاد نشده است.</p>
+            <p class="fb-hint">پروژه‌ی شما به‌تازگی ثبت شده و مراحل آن به‌زودی نمایش داده می‌شود.</p>
             {% endfor %}
-        </ul>
+        </ol>
     </div>
 </div>
 {% endblock %}

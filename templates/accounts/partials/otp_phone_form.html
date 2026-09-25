@@ -6,30 +6,24 @@
       hx-indicator="#otp-spinner"
       hx-disabled-elt="find button">
     {% if error %}
-    <div class="alert alert-error text-sm shadow-md rounded-xl animate-shake flex items-center gap-2.5">
-        {% icon "alert-circle" "w-5 h-5 flex-shrink-0 text-error-content" %}
-        <span class="font-medium text-error-content">{{ error }}</span>
+    <div role="alert" class="alert alert-soft alert-error animate-shake">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+        <span>{{ error }}</span>
     </div>
     {% endif %}
 
     <input type="hidden" name="next" value="{{ next }}">
 
-    <div>
-        <label class="block text-xs font-semibold mb-1.5 text-base-content/80">شماره موبایل ثبت‌شده در سیستم</label>
-        <div class="relative">
-            <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-base-content/40">
-                {% icon "phone" "w-5 h-5" %}
-            </div>
-            <input type="tel" name="phone_number" placeholder="09123456789" value="{{ phone_number|default:'' }}"
-                   class="input input-bordered w-full pr-11 font-technical text-sm rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all h-12"
-                   required maxlength="11">
-        </div>
+    <div class="fb-field">
+        <label class="fb-label" for="otp-phone-input">شماره موبایل ثبت‌شده در سیستم</label>
+        <input type="tel" id="otp-phone-input" name="phone_number" value="{{ phone_number|default:'' }}"
+               placeholder="09123456789" class="input w-full font-technical"
+               required maxlength="11" inputmode="numeric" autocomplete="tel">
     </div>
 
-    <button type="submit"
-            class="btn btn-secondary w-full rounded-xl font-bold shadow-md shadow-secondary/20 hover:shadow-lg transition-all h-12 text-sm gap-2">
-        {% icon "send" "w-4 h-4 ml-1" %}
+    <button type="submit" class="btn btn-primary w-full">
+        {% icon "send" "w-4 h-4" %}
         <span>ارسال کد به موبایل</span>
-        <span id="otp-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
+        <span id="otp-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
     </button>
 </form>

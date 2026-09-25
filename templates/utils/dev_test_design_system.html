@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}راهنمای استایل (داخلی){% endblock %}
+
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">راهنمای استایل فرابخش</h1>
+        <p class="fb-page-sub">صفحه‌ی داخلی برای بررسی چشمی دیزاین سیستم؛ چیزی ذخیره نمی‌شود. تم تاریک را با سوییچ بالای صفحه امتحان کنید.</p>
+    </div>
+
+    <section class="fb-card fb-pad space-y-3">
+        <h2 class="fb-section-title">رنگ‌ها</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div class="rounded-lg p-3 bg-base-100 border border-base-300">کارت<br><span class="fb-muted">base-100</span></div>
+            <div class="rounded-lg p-3 bg-base-200 border border-base-300">پس‌زمینه‌ی صفحه<br><span class="fb-muted">base-200</span></div>
+            <div class="rounded-lg p-3 bg-base-300">خط و جداکننده<br><span class="fb-muted">base-300</span></div>
+            <div class="rounded-lg p-3 bg-neutral text-neutral-content">متن اصلی<br>neutral</div>
+            <div class="rounded-lg p-3 bg-primary text-primary-content">رنگ برند<br>primary</div>
+            <div class="rounded-lg p-3 bg-secondary text-secondary-content">ثانویه<br>secondary</div>
+            <div class="rounded-lg p-3 bg-accent text-accent-content">رزرو (استفاده نشود)<br>accent</div>
+            <div class="rounded-lg p-3 bg-info text-info-content">اطلاع<br>info</div>
+            <div class="rounded-lg p-3 bg-success text-success-content">موفق<br>success</div>
+            <div class="rounded-lg p-3 bg-warning text-warning-content">هشدار<br>warning</div>
+            <div class="rounded-lg p-3 bg-error text-error-content">خطا<br>error</div>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad space-y-2">
+        <h2 class="fb-section-title">تایپوگرافی</h2>
+        <div class="fb-page-title">عنوان صفحه — fb-page-title</div>
+        <div class="fb-section-title">عنوان بخش — fb-section-title</div>
+        <div class="text-sm">متن معمولی — text-sm</div>
+        <div class="text-xs fb-muted">متن کمکی و متادیتا — text-xs fb-muted</div>
+        <div class="font-technical text-sm">۰۹۱۲۳۴۵۶۷۸۹ — font-technical</div>
+    </section>
+
+    <section class="fb-card fb-pad space-y-3">
+        <h2 class="fb-section-title">دکمه‌ها</h2>
+        <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary">ثبت نهایی</button>
+            <button class="btn btn-soft">ذخیره پیش‌نویس</button>
+            <button class="btn btn-ghost">انصراف</button>
+            <button class="btn btn-soft btn-error">رد</button>
+            <button class="btn btn-primary" disabled>غیرفعال</button>
+            <button class="btn btn-primary"><span class="loading loading-spinner loading-xs"></span> در حال ارسال</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm">{% icon "plus" "w-4 h-4" %} پروژه جدید</button>
+            <button class="btn btn-soft btn-sm">{% icon "download" "w-4 h-4" %} دانلود</button>
+            <button class="btn btn-ghost btn-xs">کوچک</button>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad space-y-4">
+        <h2 class="fb-section-title">فرم</h2>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <label class="fb-field"><span class="fb-label">شماره موبایل</span>
+                <input type="tel" class="input w-full font-technical" dir="ltr" placeholder="09123456789"></label>
+            <label class="fb-field"><span class="fb-label">نوع شخص</span>
+                <select class="select w-full"><option>شخص حقیقی</option><option>شرکت</option></select></label>
+            <label class="fb-field"><span class="fb-label">رمز عبور (حالت خطا)</span>
+                <input type="password" class="input input-error w-full" dir="ltr" value="123">
+                <span class="fb-error">رمز عبور باید حداقل ۸ کاراکتر باشد.</span></label>
+            <label class="fb-field"><span class="fb-label">فایل نقشه</span>
+                <input type="file" class="file-input w-full"></label>
+            <label class="fb-field sm:col-span-2"><span class="fb-label">توضیحات</span>
+                <textarea class="textarea w-full" rows="2" placeholder="توضیح شما..."></textarea>
+                <span class="fb-hint">متن راهنما زیر فیلد، کم‌رنگ و کوچک.</span></label>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <label class="fb-choice"><input type="checkbox" class="sr-only" checked> کارفرما</label>
+            <label class="fb-choice"><input type="checkbox" class="sr-only"> شریک تجاری</label>
+            <label class="fb-choice"><input type="checkbox" class="sr-only"> پیمانکار</label>
+            <label class="flex items-center gap-2 text-sm ms-2"><input type="checkbox" class="checkbox checkbox-sm" checked> ارسال پیامک</label>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad space-y-3">
+        <h2 class="fb-section-title">بج‌ها</h2>
+        <div class="flex flex-wrap gap-2">
+            <span class="fb-badge fb-badge-primary">کد: P1405-0001</span>
+            <span class="fb-badge fb-badge-success">تکمیل شد</span>
+            <span class="fb-badge fb-badge-warning">در انتظار تایید</span>
+            <span class="fb-badge fb-badge-info">در حال انجام</span>
+            <span class="fb-badge fb-badge-error">رد شده</span>
+            <span class="fb-badge fb-badge-neutral">در انتظار</span>
+        </div>
+    </section>
+
+    <section class="space-y-2">
+        <h2 class="fb-section-title">هشدارها (همیشه alert-soft)</h2>
+        <div role="alert" class="alert alert-soft alert-info">{% icon "info" "w-4 h-4 shrink-0" %}<span>پیام اطلاع‌رسانی معمولی.</span></div>
+        <div role="alert" class="alert alert-soft alert-success">{% icon "check-circle" "w-4 h-4 shrink-0" %}<span>پروژه با موفقیت ثبت شد.</span></div>
+        <div role="alert" class="alert alert-soft alert-warning">{% icon "alert-triangle" "w-4 h-4 shrink-0" %}<span>فاکتور به نام صاحب ملک صادر می‌شود.</span></div>
+        <div role="alert" class="alert alert-soft alert-error">{% icon "alert-circle" "w-4 h-4 shrink-0" %}<span>کد وارد شده صحیح نیست یا منقضی شده است.</span></div>
+    </section>
+
+    <section class="space-y-2">
+        <h2 class="fb-section-title">آمار، حالت خالی و پنل داخلی</h2>
+        <div class="grid grid-cols-3 gap-3">
+            <div class="fb-card fb-pad"><div class="fb-stat-value text-primary font-technical">۱۲</div><div class="fb-stat-label">کارهای من</div></div>
+            <div class="fb-card fb-pad"><div class="fb-stat-value font-technical">۳</div><div class="fb-stat-label">قابل برداشتن</div></div>
+            <div class="fb-card fb-pad"><div class="fb-stat-value font-technical">۴۸</div><div class="fb-stat-label">پروژه‌های ثبت‌شده</div></div>
+        </div>
+        <div class="fb-card fb-pad space-y-2">
+            <div class="text-sm font-semibold">کارت با پنل داخلی</div>
+            <div class="fb-inset text-xs">توضیحات پرداخت یا یادداشت داخل fb-inset نمایش داده می‌شود.</div>
+        </div>
+        <div class="fb-card"><div class="fb-empty">{% icon "check-circle" "w-6 h-6 mx-auto mb-2 opacity-50" %}فعلاً کار فعالی برای شما ثبت نشده.</div></div>
+    </section>
+
+    <section class="space-y-2">
+        <h2 class="fb-section-title">تب و جدول</h2>
+        <div role="tablist" class="tabs tabs-border">
+            <button role="tab" class="tab tab-active">کارهای من</button>
+            <button role="tab" class="tab">قابل برداشتن</button>
+            <button role="tab" class="tab">انجام‌شده</button>
+        </div>
+        <div class="fb-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead><tr class="text-xs text-base-content/60"><th>پروژه</th><th>مرحله</th><th>وضعیت</th></tr></thead>
+                    <tbody>
+                        <tr class="hover:bg-base-200/60"><td>ساختمان اداری الف</td><td>طراحی اولیه</td><td><span class="fb-badge fb-badge-info">در حال انجام</span></td></tr>
+                        <tr class="hover:bg-base-200/60"><td>ویلای ب</td><td>برش‌کاری</td><td><span class="fb-badge fb-badge-warning">بدون مسئول ثابت</span></td></tr>
+                        <tr class="hover:bg-base-200/60"><td>مجتمع ج</td><td>نصب</td><td><span class="fb-badge fb-badge-success">تکمیل شد</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

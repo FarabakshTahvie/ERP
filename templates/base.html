@@ -7,19 +7,17 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
     <title>{% block title %}فرابخش تهویه{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}پرتال مشتریان و همکاران فرابخش تهویه{% endblock %}">
+    <meta name="description" content="{% block meta_description %}فرابخش تهویه{% endblock %}">
 
-    <!-- PWA & Apple Meta Tags -->
     <link rel="icon" type="image/svg+xml" href="{% static 'icons/logo.svg' %}">
     <link rel="icon" type="image/png" sizes="192x192" href="{% static 'icons/icon-192.png' %}">
     <link rel="manifest" href="{% url 'manifest' %}">
-    <meta name="theme-color" content="#0E7C86">
+    <meta name="theme-color" content="#1A4A8A">
     <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon-180.png' %}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="فرابخش">
 
-    <!-- Anti-flicker Theme Initialization -->
     <script>
         (function() {
             try {
@@ -29,85 +27,81 @@
         })();
     </script>
 
-    <!-- Performance & Fonts Preload -->
     <link rel="preload" href="{% static 'fonts/Vazirmatn[wght].woff2' %}" as="font" type="font/woff2" crossorigin>
-
-    <!-- Tailwind CSS v4 & daisyUI 5 Compiled Stylesheet -->
     <link rel="stylesheet" href="{% static 'dist/output.css' %}">
-
-    <!-- HTMX Library with CSRF Token Integration -->
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="min-h-full flex flex-col bg-base-100 font-sans text-base-content antialiased selection:bg-primary selection:text-primary-content" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="min-h-full flex flex-col bg-base-200 font-sans text-base-content antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
     {% if request.user.is_authenticated %}
-    <!-- Modern DaisyUI 5 Navbar -->
-    <header class="sticky top-0 z-40 w-full backdrop-blur-md bg-base-100/90 border-b border-base-200 shadow-sm transition-colors">
+    <header class="sticky top-0 z-40 w-full bg-base-100 border-b border-base-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="navbar min-h-16 px-0 gap-2">
-                <!-- Brand / Logo -->
-                <div class="flex-1 flex items-center gap-3">
-                    <a href="{% url 'home' %}" class="flex items-center gap-2.5 font-black text-xl tracking-tight text-primary transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                        <img src="{% static 'icons/logo.svg' %}" alt="فرابخش" class="w-10 h-10 object-contain bg-white rounded-lg p-0.5 shadow-sm">
-                        <div class="flex flex-col">
-                            <span class="font-extrabold text-lg leading-tight">فرابخش</span>
-                            <span class="text-[10px] font-medium text-base-content/60 tracking-wider">پرتال مشتریان و همکاران</span>
-                        </div>
+            <div class="navbar min-h-14 px-0 gap-2">
+                <div class="flex-1">
+                    <a href="{% url 'home' %}" class="inline-flex items-center" aria-label="صفحه اصلی">
+                        <img src="{% static 'icons/logo.svg' %}" alt="فرابخش"
+                             class="w-9 h-9 object-contain bg-white rounded-field p-1 border border-base-300">
                     </a>
                 </div>
 
-                <!-- Center Nav Links (Desktop) -->
                 <nav class="hidden md:flex items-center gap-1">
-                    <a href="{% url 'home' %}" class="btn btn-ghost btn-sm rounded-lg font-medium hover:bg-base-200">
-                        {% icon "layout-dashboard" "w-4 h-4 text-primary" %} صفحه اصلی
+                    <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">
+                        {% icon "layout-dashboard" "w-4 h-4" %} صفحه اصلی
                     </a>
+                    {% if request.user.is_superuser or request.user.role == 'manager' %}
+                    <a href="{% url 'finance:payments_review' %}" class="btn btn-ghost btn-sm">
+                        {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
+                        {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}
+                    </a>
+                    {% endif %}
                     {% if request.user.is_staff %}
-                    <a href="/admin/" class="btn btn-ghost btn-sm rounded-lg font-medium text-secondary hover:bg-base-200">
+                    <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت
                     </a>
                     {% endif %}
                 </nav>
 
-                <!-- Actions: Theme Switcher & User Profile -->
-                <div class="flex-none flex items-center gap-2">
-                    <!-- Theme Toggle Controller -->
+                <div class="flex-none flex items-center gap-1">
                     <label class="swap swap-rotate btn btn-ghost btn-circle btn-sm" title="تغییر تم (روشن / تاریک)">
                         <input type="checkbox" id="theme-toggle" class="theme-controller" value="farabakhsh-dark" />
-                        {% icon "sun" "swap-off w-5 h-5 text-warning" %}
-                        {% icon "moon" "swap-on w-5 h-5 text-info" %}
+                        {% icon "sun" "swap-off w-4 h-4" %}
+                        {% icon "moon" "swap-on w-4 h-4" %}
                     </label>
 
-                    <!-- User Dropdown Menu -->
                     <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2 rounded-xl border border-base-300 hover:border-primary/50 transition-colors">
-                            <div class="w-7 h-7 rounded-lg bg-primary text-primary-content font-bold flex items-center justify-center text-xs shadow-sm">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2">
+                            {% if request.session.user_avatar_url %}
+                            <img src="{{ request.session.user_avatar_url }}" alt="" class="w-6 h-6 rounded-selector object-cover">
+                            {% else %}
+                            <div class="w-6 h-6 rounded-selector bg-primary text-primary-content font-bold flex items-center justify-center text-xs">
                                 {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
                             </div>
+                            {% endif %}
                             <span class="text-xs font-semibold hidden sm:inline max-w-[120px] truncate">
                                 {{ request.user.get_full_name|default:request.user.username }}
                             </span>
-                            {% icon "arrow-up-down" "w-3 h-3 opacity-50" %}
                         </div>
-                        <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-60 border border-base-200 mt-2 space-y-1">
-                            <li class="menu-title px-3 py-2 border-b border-base-200 mb-1">
+                        <ul tabindex="0" class="dropdown-content menu z-50 mt-2 w-60 p-2 bg-base-100 border border-base-300 rounded-box shadow-lg">
+                            <li class="menu-title px-3 py-2">
                                 <div class="flex flex-col gap-0.5">
                                     <span class="font-bold text-base-content text-sm">{{ request.user.get_full_name|default:request.user.username }}</span>
-                                    <span class="text-xs text-base-content/60 font-technical" dir="ltr">{{ request.user.phone_number|default:request.user.email }}</span>
+                                    <span class="text-xs fb-muted font-technical" dir="ltr">{{ request.user.phone_number|default:request.user.email }}</span>
                                 </div>
                             </li>
+                            {% if request.user.is_superuser or request.user.role == 'manager' %}
+                            <li><a href="{% url 'finance:payments_review' %}">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}</a></li>
+                            {% endif %}
                             {% if request.user.is_staff %}
                             <li>
-                                <a href="/admin/" class="gap-2.5 rounded-lg py-2 text-secondary font-medium">
-                                    {% icon "settings" "w-4 h-4" %} پنل مدیریت
-                                </a>
+                                <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
                             </li>
                             {% endif %}
-                            <li class="border-t border-base-200 mt-1 pt-1">
+                            <li class="border-t border-base-300 mt-1 pt-1">
                                 <form action="{% url 'accounts:logout' %}" method="post" class="p-0 m-0 w-full">
                                     {% csrf_token %}
-                                    <button type="submit" class="w-full flex items-center gap-2.5 text-error rounded-lg py-2 px-3 hover:bg-error/10 text-right">
+                                    <button type="submit" class="w-full flex items-center gap-2 text-error rounded-field py-2 px-3 hover:bg-error/10">
                                         {% icon "log-out" "w-4 h-4" %} خروج از حساب
                                     </button>
                                 </form>
@@ -120,45 +114,53 @@
     </header>
     {% endif %}
 
-    <!-- Messages & Notification Toasts -->
     {% if messages %}
     <div class="toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full">
         {% for message in messages %}
-        <div class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg rounded-2xl flex items-center gap-3 animate-shake">
+        <div role="alert" class="alert alert-soft {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg animate-shake">
             {% if message.tags == 'error' %}
-                {% icon "alert-circle" "w-6 h-6 flex-shrink-0" %}
+                {% icon "alert-circle" "w-5 h-5 shrink-0" %}
             {% elif message.tags == 'success' %}
-                {% icon "check-circle" "w-6 h-6 flex-shrink-0" %}
+                {% icon "check-circle" "w-5 h-5 shrink-0" %}
             {% else %}
-                {% icon "bell" "w-6 h-6 flex-shrink-0" %}
+                {% icon "bell" "w-5 h-5 shrink-0" %}
             {% endif %}
-            <span class="text-sm font-medium flex-1">{{ message }}</span>
+            <span class="text-sm font-medium">{{ message }}</span>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Main Content Slot -->
     <main class="flex-1">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Global Minimal Footer -->
-    <footer class="footer footer-center p-6 bg-base-200/60 text-base-content/70 border-t border-base-300 text-xs mt-auto">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl w-full px-4">
+    <footer class="mt-auto border-t border-base-300 bg-base-100 text-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4 flex-wrap">
             <div class="flex items-center gap-2">
-                <img src="{% static 'icons/logo.svg' %}" alt="فرابخش تهویه" class="w-5 h-5 object-contain bg-white rounded-md p-0.5 shadow-sm">
-                <span class="font-semibold text-base-content">فرابخش تهویه</span>
+                <img src="{% static 'icons/logo.svg' %}" alt="فرابخش تهویه"
+                     class="w-6 h-6 object-contain bg-white rounded-selector p-0.5 border border-base-300">
+                <span class="font-semibold">فرابخش تهویه</span>
             </div>
-            <div class="flex items-center gap-4 text-xs">
-                <span>پشتیبانی: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display }}</span></span>
-            </div>
+            <span class="fb-muted">پشتیبانی: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display }}</span></span>
         </div>
     </footer>
 
-    <!-- Theme Switch Script -->
     <script>
+        function fbAttachToastFade(root) {
+            (root || document).querySelectorAll('.toast .alert:not([data-fb-fade-bound])').forEach(function(el) {
+                el.setAttribute('data-fb-fade-bound', '1');
+                setTimeout(function() {
+                    el.style.transition = 'opacity 0.4s ease';
+                    el.style.opacity = '0';
+                    setTimeout(function() { el.remove(); }, 400);
+                }, 7000);
+            });
+        }
+        document.body.addEventListener('htmx:afterSwap', function(e) { fbAttachToastFade(e.detail.target); });
         document.addEventListener('DOMContentLoaded', function() {
+            fbAttachToastFade();
+
             const toggle = document.getElementById('theme-toggle');
             if (toggle) {
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'farabakhsh';
@@ -171,6 +173,33 @@
                     } catch(e) {}
                 });
             }
+        });
+
+        // چشم رمز عبور (برای همه‌ی صفحات و محتوای HTMX): دکمه‌ای با data-fb-toggle-password
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-fb-toggle-password]');
+            if (!btn) return;
+            var input = btn.parentElement.querySelector('input');
+            if (!input) return;
+            var show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            var icons = btn.querySelectorAll('svg');
+            if (icons.length === 2) {
+                icons[0].classList.toggle('hidden', show);
+                icons[1].classList.toggle('hidden', !show);
+            }
+        });
+
+        // جلوگیری از ارسال دوباره: <form data-fb-once>
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form.hasAttribute || !form.hasAttribute('data-fb-once') || e.defaultPrevented) return;
+            setTimeout(function () {   // بعد از ساخته‌شدن داده‌ی فرم، تا مقدار دکمه‌ی ارسال‌کننده برود
+                form.querySelectorAll('button[type=submit]').forEach(function (b) { b.disabled = true; });
+            }, 0);
+        });
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) document.querySelectorAll('form[data-fb-once] button[type=submit]').forEach(function (b) { b.disabled = false; });
         });
     </script>
     {% block extra_js %}{% endblock %}

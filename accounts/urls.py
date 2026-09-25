@@ -14,4 +14,5 @@ urlpatterns = [
     path("password-reset/verify/", views.verify_password_reset, name="password_reset_verify"),
     path("password-reset/phone-form/", views.pwreset_phone_form, name="pwreset_phone_form"),
     path("change-password/", views.StyledPasswordChangeView.as_view(), name="change_password"),
+    path("set-password/", views.force_set_password, name="force_set_password"),
 ]

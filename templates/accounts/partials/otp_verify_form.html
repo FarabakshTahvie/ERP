@@ -1,59 +1,53 @@
 {% load custom_tags %}
 <div id="otp-verify-section" class="space-y-4">
-    <div class="alert alert-info text-sm shadow-sm rounded-xl py-2.5 px-3.5 flex items-center gap-2.5">
-        {% icon "check-circle" "w-5 h-5 flex-shrink-0 text-info-content" %}
-        <div class="flex flex-col text-xs text-info-content">
-            {% if resent %}
-            <span class="font-medium">کد تایید قبلاً برای این شماره ارسال شده و هنوز معتبر است:</span>
-            {% else %}
-            <span class="font-medium">کد تایید پیامک شد:</span>
-            {% endif %}
-            <span class="font-technical font-bold text-sm tracking-wider mt-0.5" dir="ltr">{{ phone_number|fa_digits }}</span>
-        </div>
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "check-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">
+            {% if resent %}کد تایید قبلاً برای این شماره ارسال شده و هنوز معتبر است:{% else %}کد تایید پیامک شد:{% endif %}
+            <span class="font-technical font-bold" dir="ltr">{{ phone_number|fa_digits }}</span>
+        </span>
     </div>
 
     {% if error %}
-    <div class="alert alert-error text-sm shadow-md rounded-xl animate-shake flex items-center gap-2.5">
-        {% icon "alert-circle" "w-5 h-5 flex-shrink-0 text-error-content" %}
-        <span class="font-medium text-error-content">{{ error }}</span>
+    <div role="alert" class="alert alert-soft alert-error animate-shake">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+        <span>{{ error }}</span>
     </div>
     {% endif %}
 
-    <form hx-post="{% url 'accounts:verify_otp_login' %}" hx-target="#otp-container" hx-swap="innerHTML" class="space-y-4">
+    <form hx-post="{% url 'accounts:verify_otp_login' %}" hx-target="#otp-container" hx-swap="innerHTML"
+          hx-indicator="#verify-spinner" hx-disabled-elt="find button[type=submit]" class="space-y-4">
         <input type="hidden" name="phone_number" value="{{ phone_number }}">
         <input type="hidden" name="next" value="{{ next }}">
 
-        <div>
-            <label class="block text-xs font-semibold mb-1.5 text-base-content/80">کد ۵ رقمی‌ای که پیامک شد را وارد کنید:</label>
-            <input type="text" name="code" placeholder="• • • • •"
-                   class="input input-bordered w-full text-center text-2xl tracking-[0.5em] font-technical font-bold h-13 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl"
-                   required dir="ltr" autofocus maxlength="6" inputmode="numeric">
+        <div class="fb-field">
+            <label class="fb-label" for="otp-code-input">کد ۵ رقمی‌ای که پیامک شد را وارد کنید</label>
+            <input type="text" id="otp-code-input" name="code" placeholder="• • • • •"
+                   class="input w-full h-12 text-center text-xl tracking-[0.4em] font-technical font-bold"
+                   required dir="ltr" autofocus maxlength="6" inputmode="numeric" autocomplete="one-time-code">
         </div>
 
-        <button type="submit"
-                class="btn btn-primary w-full rounded-xl gap-2 font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all h-12"
-                hx-disabled-elt="this" hx-indicator="#verify-spinner">
-            {% icon "check" "w-5 h-5" %}
+        <button type="submit" class="btn btn-primary w-full">
+            {% icon "check" "w-4 h-4" %}
             <span>تایید و ورود به سامانه</span>
-            <span id="verify-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
+            <span id="verify-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
         </button>
     </form>
 
-    <div class="flex items-center justify-between text-xs pt-1 px-1 text-base-content/70">
+    <div class="flex items-center justify-between text-xs">
         <button type="button"
                 hx-get="{% url 'accounts:otp_phone_form' %}"
                 hx-vals='{"next": "{{ next }}"}'
                 hx-target="#otp-container" hx-swap="innerHTML"
-                class="link link-hover text-base-content/60 hover:text-primary transition-colors flex items-center gap-1">
+                class="btn btn-ghost btn-xs">
             {% icon "rotate-ccw" "w-3.5 h-3.5" %} ویرایش شماره
         </button>
 
-        <div id="otp-timer-container"
-             class="flex items-center gap-1 font-technical font-medium text-base-content/80"
+        <div id="otp-timer-container" class="flex items-center gap-1 fb-muted"
              data-phone="{{ phone_number }}" data-next="{{ next }}">
-            {% icon "clock" "w-3.5 h-3.5 opacity-60" %}
+            {% icon "clock" "w-3.5 h-3.5" %}
             <span>ارسال مجدد تا</span>
-            <span id="otp-seconds-left" class="font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
+            <span id="otp-seconds-left" class="font-technical font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
             <span>ثانیه</span>
         </div>
     </div>
@@ -76,7 +70,7 @@
             const nextVal = container.dataset.next || "";
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'text-primary font-bold hover:underline';
+            btn.className = 'btn btn-ghost btn-xs text-primary';
             btn.textContent = 'ارسال مجدد کد';
             btn.setAttribute('hx-post', "{% url 'accounts:request_otp_login' %}");
             btn.setAttribute('hx-vals', JSON.stringify({phone_number: phone, next: nextVal}));

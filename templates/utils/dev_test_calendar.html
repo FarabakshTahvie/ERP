@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+
+{% block title %}تست تقویم شمسی (داخلی){% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-6 space-y-8">
+    <div>
+        <h1 class="text-xl font-bold">تست تقویم شمسی — مقایسه دو گزینه</h1>
+        <p class="text-sm text-base-content/70 mt-1">این صفحه فقط برای تست داخلیه؛ به هیچ مدلی وصل نیست و چیزی ذخیره نمی‌کند.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="card bg-base-200 p-4 space-y-2">
+            <h2 class="font-bold">گزینه A — تقویم سفارشی (بدون وابستگی خارجی)</h2>
+            <input type="text" class="input w-full jalali-picker-a font-technical" dir="ltr" placeholder="روی فیلد کلیک کن" readonly>
+        </div>
+
+        <div class="card bg-base-200 p-4 space-y-2">
+            <h2 class="font-bold">گزینه B — پکیج django-jalali-date</h2>
+            <form>
+                {{ form_b.media }}
+                {{ form_b.date_b }}
+            </form>
+        </div>
+    </div>
+
+    <div class="card bg-base-200 p-4">
+        <h2 class="font-bold mb-3">بررسی سال‌های کبیسه (منبع: jdatetime سرور)</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr><th>سال شمسی</th><th>کبیسه است؟</th><th>پس اسفندش باید</th></tr>
+            </thead>
+            <tbody>
+                {% for row in leap_check %}
+                <tr>
+                    <td class="font-technical">{{ row.year|fa_digits }}</td>
+                    <td>{{ row.is_leap|yesno:"بله,خیر" }}</td>
+                    <td>{% if row.is_leap %}۳۰ روز{% else %}۲۹ روز{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="text-xs mt-3 text-base-content/70">
+            برو توی هر دو تقویم بالا، برای همین سال‌ها ماه اسفند رو باز کن و ببین تعداد روزهاش با همین جدول یکی است یا نه.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const FA_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+function toFaDigits(n) { return String(n).replace(/\d/g, d => FA_DIGITS[d]); }
+
+const JALALI_MONTHS = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+
+// فرمول کبیسه‌ی برهان‌الدین بیرشک (همان الگوریتم معروف jalaali-js) — فقط برای گزینه‌ی A، سمت کلاینت
+function isLeapJalaaliClient(jy) {
+    return ((((jy - (jy > 0 ? 474 : 473)) % 2820) + 474 + 38) * 682) % 2816 < 682;
+}
+
+function daysInJalaaliMonth(jy, jm) {
+    if (jm <= 6) return 31;
+    if (jm <= 11) return 30;
+    return isLeapJalaaliClient(jy) ? 30 : 29;
+}
+
+class PersianCalendarPickerA {
+    constructor(input, todayY, todayM) {
+        this.input = input;
+        this.year = todayY;
+        this.month = todayM;
+        this.popup = document.createElement('div');
+        this.popup.className = 'hidden absolute z-50 bg-base-100 border border-base-300 rounded-xl shadow-xl p-3 w-72 mt-1';
+        input.parentElement.style.position = 'relative';
+        input.parentElement.appendChild(this.popup);
+        this.render();
+        input.addEventListener('click', () => this.open());
+        document.addEventListener('click', (e) => {
+            if (!this.popup.contains(e.target) && e.target !== input) this.close();
+        });
+    }
+    open() { this.popup.classList.remove('hidden'); }
+    close() { this.popup.classList.add('hidden'); }
+    render() {
+        const daysCount = daysInJalaaliMonth(this.year, this.month);
+        let html = `
+        <div class="flex items-center justify-between mb-2">
+            <button type="button" data-nav="next" class="btn btn-ghost btn-xs">‹ بعد</button>
+            <span class="text-sm font-bold">${JALALI_MONTHS[this.month - 1]} ${toFaDigits(this.year)}</span>
+            <button type="button" data-nav="prev" class="btn btn-ghost btn-xs">قبل ›</button>
+        </div>
+        <div class="grid grid-cols-7 gap-1 text-xs text-center">`;
+        for (let d = 1; d <= daysCount; d++) {
+            html += `<button type="button" data-day="${d}" class="btn btn-ghost btn-xs">${toFaDigits(d)}</button>`;
+        }
+        html += `</div>`;
+        this.popup.innerHTML = html;
+        this.popup.querySelector('[data-nav="prev"]').onclick = () => this.changeMonth(-1);
+        this.popup.querySelector('[data-nav="next"]').onclick = () => this.changeMonth(1);
+        this.popup.querySelectorAll('[data-day]').forEach(btn => {
+            btn.onclick = () => this.selectDay(parseInt(btn.dataset.day));
+        });
+    }
+    changeMonth(delta) {
+        this.month += delta;
+        if (this.month > 12) { this.month = 1; this.year++; }
+        if (this.month < 1) { this.month = 12; this.year--; }
+        this.render();
+    }
+    selectDay(d) {
+        const yy = toFaDigits(this.year);
+        const mm = toFaDigits(String(this.month).padStart(2, '0'));
+        const dd = toFaDigits(String(d).padStart(2, '0'));
+        this.input.value = `${yy}/${mm}/${dd}`;
+        this.close();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.jalali-picker-a').forEach(inp => {
+        new PersianCalendarPickerA(inp, {{ today_year }}, {{ today_month }});
+    });
+});
+</script>
+{% endblock %}

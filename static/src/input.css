@@ -3,50 +3,79 @@
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
 
+/* ============================================================
+   فرابخش — دیزاین سیستم (نسخه ۱)
+   اصول: تخت و مینیمال • یک رنگ برند • بدون سایه روی کنترل‌ها
+         بوردر ۱px کمرنگ • دو اندازه‌ی گوشه‌گرد (کنترل / کارت)
+   سلسله‌مراتب سطح‌ها: صفحه (base-200) ← کارت (base-100) ← خط (base-300)
+   ============================================================ */
+
 @plugin "daisyui/theme" {
   name: "farabakhsh";
   default: true;
   color-scheme: "light";
-  --color-base-100: #F3F6F6;
-  --color-base-200: #E7ECEC;
-  --color-base-300: #D8E0E0;
-  --color-base-content: #12181B;
-  --color-primary: #0E7C86;
+
+  --color-base-100: #FFFFFF;
+  --color-base-200: #F6F7F9;
+  --color-base-300: #E3E7EC;
+  --color-base-content: #1B2430;
+
+  --color-primary: #1A4A8A;
   --color-primary-content: #FFFFFF;
-  --color-secondary: #5B6B6E;
+  --color-secondary: #475569;
   --color-secondary-content: #FFFFFF;
-  --color-accent: #B4602E;
+  --color-accent: #4C51E0;
   --color-accent-content: #FFFFFF;
-  --color-neutral: #12181B;
-  --color-neutral-content: #F3F6F6;
-  --color-info: #2E6F9E;      --color-info-content: #FFFFFF;
-  --color-success: #3F7D4F;   --color-success-content: #FFFFFF;
-  --color-warning: #B98A2E;   --color-warning-content: #FFFFFF;
-  --color-error: #B23A34;     --color-error-content: #FFFFFF;
-  --radius-box: 0.75rem; --radius-field: 0.5rem; --radius-selector: 0.5rem;
+  --color-neutral: #1B2430;
+  --color-neutral-content: #F6F7F9;
+
+  --color-info: #0E7490;      --color-info-content: #FFFFFF;
+  --color-success: #15803D;   --color-success-content: #FFFFFF;
+  --color-warning: #B45309;   --color-warning-content: #FFFFFF;
+  --color-error: #B91C1C;     --color-error-content: #FFFFFF;
+
+  --radius-selector: 0.375rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
 
 @plugin "daisyui/theme" {
   name: "farabakhsh-dark";
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: #12181B;
-  --color-base-200: #182024;
-  --color-base-300: #20292E;
-  --color-base-content: #F3F6F6;
-  --color-primary: #4FB8C2;
-  --color-primary-content: #0B2226;
-  --color-secondary: #8FA0A3;
-  --color-secondary-content: #12181B;
-  --color-accent: #D98A4E;
-  --color-accent-content: #2A1508;
-  --color-neutral: #3A4548;
-  --color-neutral-content: #F3F6F6;
-  --color-info: #5B9BC7;      --color-info-content: #0B1F2E;
-  --color-success: #6FAE7C;   --color-success-content: #0C1F10;
-  --color-warning: #D9A94E;   --color-warning-content: #2E2007;
-  --color-error: #D9635C;     --color-error-content: #2E0B08;
-  --radius-box: 0.75rem; --radius-field: 0.5rem; --radius-selector: 0.5rem;
+
+  --color-base-100: #151B23;
+  --color-base-200: #0F141A;
+  --color-base-300: #263039;
+  --color-base-content: #E6EAEF;
+
+  --color-primary: #7AA7E8;
+  --color-primary-content: #08182E;
+  --color-secondary: #94A3B8;
+  --color-secondary-content: #0F141A;
+  --color-accent: #8B90FF;
+  --color-accent-content: #0F1226;
+  --color-neutral: #2B3540;
+  --color-neutral-content: #E6EAEF;
+
+  --color-info: #5CC0DB;      --color-info-content: #06222B;
+  --color-success: #5CC98A;   --color-success-content: #06210F;
+  --color-warning: #F2B14C;   --color-warning-content: #2B1A03;
+  --color-error: #F27A74;     --color-error-content: #2E0A08;
+
+  --radius-selector: 0.375rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
 
 @source "../../templates/**/*.html";
@@ -68,6 +97,160 @@
   --font-sans: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+@layer base {
+  :root {
+    /* خط جداکننده‌ی استاندارد؛ در هر دو تم خودش را با رنگ متن تطبیق می‌دهد */
+    --fb-line: color-mix(in oklab, var(--color-base-content) 11%, transparent);
+  }
+}
+
+/* ------------------------------------------------------------
+   فوکوس کنترل‌ها: حلقه‌ی نازک هم‌رنگ برند
+   (به‌جای حلقه‌ی ضخیم و تیره‌ی پیش‌فرض daisyUI 5)
+   بدون @layer تا روی استایل‌های daisyUI برنده شود؛ !important لازم نیست.
+   ------------------------------------------------------------ */
+.input:focus, .input:focus-within,
+.select:focus, .select:focus-within,
+.textarea:focus,
+.file-input:focus, .file-input:focus-within {
+  --input-color: var(--color-primary);
+  border-color: var(--color-primary);
+  outline: 3px solid color-mix(in oklab, var(--color-primary) 18%, transparent);
+  outline-offset: 0;
+}
+.input-error:focus, .input-error:focus-within,
+.select-error:focus, .select-error:focus-within,
+.textarea-error:focus {
+  --input-color: var(--color-error);
+  border-color: var(--color-error);
+  outline-color: color-mix(in oklab, var(--color-error) 18%, transparent);
+}
+
+/* ------------------------------------------------------------
+   کامپوننت‌های فرابخش (fb-*)
+   داخل @layer components تا کلاس‌های utility مثل hidden بتوانند رویشان برنده شوند.
+   قانون: روی این کلاس‌ها rounded-* و shadow-* اضافه نکنید.
+   ------------------------------------------------------------ */
+@layer components {
+
+  /* --- صفحه --- */
+  .fb-page {
+    width: 100%; max-width: 48rem; margin-inline: auto;
+    padding: 1rem; display: flex; flex-direction: column; gap: 1.25rem;
+  }
+  .fb-page--sm { max-width: 36rem; }
+  .fb-page--lg { max-width: 64rem; }
+  @media (min-width: 40rem) { .fb-page { padding: 1.5rem; } }
+
+  /* --- تایپوگرافی --- */
+  .fb-page-title { font-size: 1.25rem; line-height: 1.5; font-weight: 700; }
+  .fb-page-sub { font-size: .8125rem; margin-top: .25rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+  .fb-section-title { font-size: .875rem; font-weight: 600; }
+  .fb-muted { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+
+  /* --- کارت --- */
+  .fb-card {
+    background: var(--color-base-100);
+    border: 1px solid var(--fb-line);
+    border-radius: var(--radius-box);
+  }
+  .fb-pad { padding: 1rem; }
+  @media (min-width: 40rem) { .fb-pad { padding: 1.25rem; } }
+  .fb-inset {
+    background: var(--color-base-200);
+    border-radius: var(--radius-field);
+    padding: .75rem;
+  }
+
+  /* --- فیلد فرم: برچسب + کنترل + راهنما + خطا --- */
+  .fb-field { display: flex; flex-direction: column; gap: .375rem; }
+  .fb-label { font-size: .8125rem; font-weight: 600; }
+  .fb-hint { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+  .fb-error { font-size: .75rem; color: var(--color-error); }
+
+  /* --- بج: رنگ فقط با یک متغیر تعیین می‌شود --- */
+  .fb-badge {
+    --_c: var(--color-base-content);
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .15rem .6rem; border-radius: 9999px;
+    font-size: .7rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+    color: var(--_c);
+    background: color-mix(in oklab, var(--_c) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--_c) 22%, transparent);
+  }
+  .fb-badge-primary { --_c: var(--color-primary); }
+  .fb-badge-success { --_c: var(--color-success); }
+  .fb-badge-warning { --_c: var(--color-warning); }
+  .fb-badge-info    { --_c: var(--color-info); }
+  .fb-badge-error   { --_c: var(--color-error); }
+  .fb-badge-neutral { color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+
+  /* --- دکمه‌ی انتخابی (نقش طرف‌حساب و مشابه). input داخلش را با sr-only مخفی کنید نه hidden --- */
+  .fb-choice {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: .45rem .9rem; border-radius: var(--radius-field);
+    border: 1px solid var(--fb-line); background: var(--color-base-100);
+    font-size: .8125rem; font-weight: 500; cursor: pointer;
+    transition: background-color .15s, border-color .15s, color .15s;
+  }
+  .fb-choice:hover { background: var(--color-base-200); }
+  .fb-choice:has(input:checked) {
+    border-color: var(--color-primary);
+    background: color-mix(in oklab, var(--color-primary) 10%, var(--color-base-100));
+    color: var(--color-primary);
+  }
+  .fb-choice:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+  /* --- آمار و حالت خالی --- */
+  .fb-stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; text-align: right; }
+  .fb-stat-label { font-size: .75rem; margin-top: .25rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+  .fb-empty { text-align: center; padding: 2rem 1rem; font-size: .8125rem; color: color-mix(in oklab, var(--color-base-content) 55%, transparent); }
+
+  /* --- صفحات تک‌کارتی (ورود، بازیابی رمز، تغییر رمز) --- */
+  .fb-auth { min-height: calc(100dvh - 8rem); display: grid; place-items: center; padding: 1.5rem 1rem; }
+  .fb-auth-card { width: 100%; max-width: 26rem; }
+
+  /* --- نوار اقدام چسبان پایین صفحه (فرم‌های بلند) --- */
+  .fb-sticky-bar {
+    position: sticky; bottom: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+    margin-inline: -1rem; padding: .75rem 1rem;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom));
+    background: var(--color-base-100);
+    border-top: 1px solid var(--fb-line);
+  }
+  @media (min-width: 40rem) {
+    .fb-sticky-bar {
+      margin-inline: 0; bottom: .75rem;
+      border: 1px solid var(--fb-line); border-radius: var(--radius-box);
+    }
+  }
+
+  /* --- خط زمانی مراحل (پرتال مشتری) --- */
+  .fb-timeline { display: flex; flex-direction: column; list-style: none; margin: 0; padding: 0; }
+  .fb-timeline-item { position: relative; display: flex; gap: .75rem; padding-bottom: 1.25rem; }
+  .fb-timeline-item:last-child { padding-bottom: 0; }
+  .fb-timeline-item::before {
+    content: ""; position: absolute; top: 1.75rem; bottom: 0;
+    inset-inline-start: calc(.875rem - .5px); width: 1px; background: var(--fb-line);
+  }
+  .fb-timeline-item:last-child::before { display: none; }
+  .fb-dot {
+    flex: none; width: 1.75rem; height: 1.75rem; border-radius: 9999px;
+    display: grid; place-items: center; font-size: .75rem; font-weight: 600;
+    background: var(--color-base-200); border: 1px solid var(--fb-line);
+    color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+  }
+  .fb-dot-done  { background: var(--color-success); color: var(--color-success-content); border-color: transparent; }
+  .fb-dot-active { background: var(--color-info); color: var(--color-info-content); border-color: transparent; }
+  .fb-dot-warn  { background: var(--color-warning); color: var(--color-warning-content); border-color: transparent; }
+}
+
+/* ------------------------------------------------------------
+   ابزارهای قدیمی (رفتارشان حفظ شده)
+   ------------------------------------------------------------ */
+
 /* بافت کاغذ نقشه‌کشی برای پنل برند */
 .blueprint-panel {
   background-color: var(--color-primary);
@@ -86,13 +269,9 @@
 }
 
 /* مدیریت نمایش المان‌های لودینگ HTMX */
-.htmx-indicator {
-  display: none;
-}
+.htmx-indicator { display: none; }
 .htmx-request .htmx-indicator,
-.htmx-request.htmx-indicator {
-  display: inline-block;
-}
+.htmx-request.htmx-indicator { display: inline-block; }
 
 /* انیمیشن لرزش ملایم برای خطاهای فرم */
 @keyframes shake {
@@ -100,12 +279,9 @@
   20%, 60% { transform: translateX(-6px); }
   40%, 80% { transform: translateX(6px); }
 }
+.animate-shake { animation: shake 0.4s ease-in-out; }
 
-.animate-shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-/* گرادیان بافت پیشرفته برای پنل برند */
+/* گرادیان برند (هم‌رنگ با primary) */
 .brand-gradient {
-  background: linear-gradient(135deg, var(--color-primary) 0%, oklch(35% 0.1 200) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, color-mix(in oklab, var(--color-primary) 65%, #000) 100%);
 }

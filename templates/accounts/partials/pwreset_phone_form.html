@@ -1,23 +1,25 @@
 {% load custom_tags %}
-<form id="pwreset-phone-section" class="space-y-3"
+<form id="pwreset-phone-section" class="space-y-4"
       hx-post="{% url 'accounts:password_reset_request' %}"
       hx-target="#pwreset-container" hx-swap="innerHTML"
       hx-indicator="#pwreset-spinner" hx-disabled-elt="find button">
     {% if error %}
-    <div class="alert alert-error text-sm py-2">
-        {% icon "alert-circle" "w-5 h-5 flex-shrink-0" %}
+    <div role="alert" class="alert alert-soft alert-error animate-shake">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
         <span>{{ error }}</span>
     </div>
     {% endif %}
 
-    <div class="form-control mb-2">
-        <label class="label"><span class="label-text">شماره موبایل</span></label>
-        <input type="tel" name="phone_number" value="{{ phone_number|default:'' }}"
-               placeholder="09123456789" class="input input-bordered w-full" required dir="ltr" maxlength="11">
+    <div class="fb-field">
+        <label class="fb-label" for="pwreset-phone-input">شماره موبایل</label>
+        <input type="tel" id="pwreset-phone-input" name="phone_number" value="{{ phone_number|default:'' }}"
+               placeholder="09123456789" class="input w-full font-technical"
+               required maxlength="11" inputmode="numeric" autocomplete="tel">
     </div>
 
-    <button type="submit" class="btn btn-primary w-full gap-2">
-        {% icon "send" "w-5 h-5" %} ارسال کد بازنشانی
-        <span id="pwreset-spinner" class="loading loading-spinner loading-sm htmx-indicator mr-2"></span>
+    <button type="submit" class="btn btn-primary w-full">
+        {% icon "send" "w-4 h-4" %}
+        <span>ارسال کد بازنشانی</span>
+        <span id="pwreset-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
     </button>
 </form>

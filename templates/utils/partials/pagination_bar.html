@@ -1,0 +1,44 @@
+{% load custom_tags %}
+<div class="flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-t border-base-300 text-xs">
+    <span class="fb-muted">
+        {% if paginator.count %}
+            {{ page_obj.start_index|fa_digits }}–{{ page_obj.end_index|fa_digits }} از {{ paginator.count|fa_digits }} مورد
+        {% else %}
+            بدون مورد
+        {% endif %}
+    </span>
+
+    <div class="flex items-center gap-2">
+        <select name="{{ size_param }}"
+                hx-get="{{ list_url }}"
+                hx-target="#{{ container_id }}"
+                hx-swap="outerHTML"
+                hx-trigger="change"
+                aria-label="تعداد در صفحه"
+                class="select select-xs w-auto">
+            {% for choice in page_size_choices %}
+            <option value="{{ choice }}" {% if choice == page_size %}selected{% endif %}>{{ choice|fa_digits }} در صفحه</option>
+            {% endfor %}
+        </select>
+
+        <div class="flex items-center gap-1">
+            {% if page_obj.has_previous %}
+            <button type="button" class="btn btn-ghost btn-xs"
+                    hx-get="{{ list_url }}{% paginate_url page_param page_obj.previous_page_number %}"
+                    hx-target="#{{ container_id }}" hx-swap="outerHTML">قبلی</button>
+            {% else %}
+            <button type="button" class="btn btn-ghost btn-xs" disabled>قبلی</button>
+            {% endif %}
+
+            <span class="font-technical fb-muted px-1">{{ page_obj.number|fa_digits }} / {{ paginator.num_pages|fa_digits }}</span>
+
+            {% if page_obj.has_next %}
+            <button type="button" class="btn btn-ghost btn-xs"
+                    hx-get="{{ list_url }}{% paginate_url page_param page_obj.next_page_number %}"
+                    hx-target="#{{ container_id }}" hx-swap="outerHTML">بعدی</button>
+            {% else %}
+            <button type="button" class="btn btn-ghost btn-xs" disabled>بعدی</button>
+            {% endif %}
+        </div>
+    </div>
+</div>

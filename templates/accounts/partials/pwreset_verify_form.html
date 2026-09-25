@@ -1,61 +1,51 @@
 {% load custom_tags %}
-<div id="pwreset-verify-section" class="space-y-3">
-    <div class="alert alert-info text-sm py-2">
-        {% icon "check-circle" "w-5 h-5 flex-shrink-0" %}
+<div id="pwreset-verify-section" class="space-y-4">
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "check-circle" "w-4 h-4 shrink-0" %}
         {% if resent %}
-        <span>کد بازنشانی قبلاً برای این شماره ارسال شده و هنوز معتبر است.</span>
+        <span class="text-xs">کد بازنشانی قبلاً برای این شماره ارسال شده و هنوز معتبر است.</span>
         {% else %}
-        <span>اگر شماره وارد شده در سیستم ثبت باشد، کد تایید برای آن پیامک شده است.</span>
+        <span class="text-xs">کد تایید برای این شماره پیامک شد.</span>
         {% endif %}
     </div>
 
     {% if error %}
-    <div class="alert alert-error text-sm py-2">
-        {% icon "alert-circle" "w-5 h-5 flex-shrink-0" %}
+    <div role="alert" class="alert alert-soft alert-error animate-shake">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
         <span>{{ error }}</span>
     </div>
     {% endif %}
 
     <form hx-post="{% url 'accounts:password_reset_verify' %}" hx-target="#pwreset-container" hx-swap="innerHTML"
-          id="pwreset-verify-form" class="space-y-3">
+          id="pwreset-verify-form" class="space-y-4">
         <input type="hidden" name="phone_number" value="{{ phone_number }}">
 
-        <div class="form-control mb-1">
-            <label class="label"><span class="label-text">کد تایید پیامک‌شده</span></label>
-            <input type="text" name="code" placeholder="•••••" class="input input-bordered w-full text-center text-lg tracking-widest"
-                   required dir="ltr" autofocus maxlength="6" inputmode="numeric">
+        <div class="fb-field">
+            <label class="fb-label" for="pwreset-code">کد تایید پیامک‌شده</label>
+            <input type="text" id="pwreset-code" name="code" placeholder="•••••"
+                   class="input w-full text-center tracking-widest font-technical"
+                   required dir="ltr" autofocus maxlength="6" inputmode="numeric" autocomplete="one-time-code">
         </div>
 
-        <div class="form-control mb-1">
-            <label class="label"><span class="label-text">رمز عبور جدید</span></label>
-            <input type="password" id="pwreset-new-password" name="new_password" placeholder="••••••••"
-                   class="input input-bordered w-full" required dir="ltr">
-        </div>
+        {% include "accounts/partials/password_field.html" with field_id="pwreset-new-password" name="new_password" label="رمز عبور جدید" autocomplete="new-password" %}
         {% include "accounts/partials/password_strength_checklist.html" with input_id="pwreset-new-password" %}
+        {% include "accounts/partials/password_field.html" with field_id="pwreset-new-password-confirm" name="new_password_confirm" label="تکرار رمز عبور جدید" autocomplete="new-password" %}
+        <span id="pwreset-match-error" class="fb-error hidden">رمز عبور جدید و تکرار آن یکسان نیستند.</span>
 
-        <div class="form-control mb-1">
-            <label class="label"><span class="label-text">تکرار رمز عبور جدید</span></label>
-            <input type="password" id="pwreset-new-password-confirm" name="new_password_confirm" placeholder="••••••••"
-                   class="input input-bordered w-full" required dir="ltr">
-        </div>
-        <span id="pwreset-match-error" class="text-error text-xs hidden">رمز عبور جدید و تکرار آن یکسان نیستند.</span>
-
-        <button type="submit" class="btn btn-primary w-full gap-2 mt-2">
-            {% icon "lock" "w-5 h-5" %} ذخیره رمز عبور و ورود
+        <button type="submit" class="btn btn-primary w-full">
+            {% icon "lock" "w-4 h-4" %} ذخیره رمز عبور و ورود
         </button>
     </form>
 
-    <div class="flex items-center justify-between text-xs pt-1 px-1 text-base-content/70">
+    <div class="flex items-center justify-between text-xs">
         <button type="button" hx-get="{% url 'accounts:pwreset_phone_form' %}"
-                hx-target="#pwreset-container" hx-swap="innerHTML"
-                class="link link-hover text-base-content/60 hover:text-primary transition-colors flex items-center gap-1">
+                hx-target="#pwreset-container" hx-swap="innerHTML" class="btn btn-ghost btn-xs">
             {% icon "rotate-ccw" "w-3.5 h-3.5" %} ویرایش شماره
         </button>
-        <div id="pwreset-timer-container" class="flex items-center gap-1 font-technical font-medium text-base-content/80"
-             data-phone="{{ phone_number }}">
-            {% icon "clock" "w-3.5 h-3.5 opacity-60" %}
+        <div id="pwreset-timer-container" class="flex items-center gap-1 fb-muted" data-phone="{{ phone_number }}">
+            {% icon "clock" "w-3.5 h-3.5" %}
             <span>ارسال مجدد تا</span>
-            <span id="pwreset-seconds-left" class="font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
+            <span id="pwreset-seconds-left" class="font-technical font-bold text-primary">{{ remaining_seconds|fa_digits }}</span>
             <span>ثانیه</span>
         </div>
     </div>
@@ -74,7 +64,7 @@
         const phone = container.dataset.phone || "";
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'text-primary font-bold hover:underline';
+        btn.className = 'btn btn-ghost btn-xs text-primary';
         btn.textContent = 'ارسال مجدد کد';
         btn.setAttribute('hx-post', "{% url 'accounts:password_reset_request' %}");
         btn.setAttribute('hx-vals', JSON.stringify({phone_number: phone}));

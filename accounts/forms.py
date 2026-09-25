@@ -132,28 +132,31 @@ class StaffRegistrationForm(forms.Form):
     first_name = forms.CharField(
         max_length=150,
         label="نام",
-        widget=forms.TextInput(attrs={'class': 'input input-bordered w-full', 'placeholder': 'نام'})
+        widget=forms.TextInput(attrs={'class': 'input w-full', 'placeholder': 'نام'})
     )
     last_name = forms.CharField(
         max_length=150,
         label="نام خانوادگی",
-        widget=forms.TextInput(attrs={'class': 'input input-bordered w-full', 'placeholder': 'نام خانوادگی'})
+        widget=forms.TextInput(attrs={'class': 'input w-full', 'placeholder': 'نام خانوادگی'})
     )
     phone_number = forms.CharField(
         max_length=11,
         label="شماره موبایل",
-        widget=forms.TextInput(attrs={'class': 'input input-bordered w-full', 'placeholder': '09123456789'})
+        widget=forms.TextInput(attrs={
+            'class': 'input w-full font-technical', 'placeholder': '09123456789',
+            'inputmode': 'numeric', 'autocomplete': 'off',
+        })
     )
     role = forms.ChoiceField(
         choices=[(User.Role.ADMIN, "مدیر"), (User.Role.EMPLOYEE, "تکنسین")],
         label="نقش",
-        widget=forms.Select(attrs={'class': 'select select-bordered w-full'})
+        widget=forms.Select(attrs={'class': 'select w-full'})
     )
     specialties = forms.ModelMultipleChoiceField(
         queryset=Specialty.objects.filter(is_active=True),
         required=False,
         label="تخصص‌ها",
-        widget=forms.SelectMultiple(attrs={'class': 'select select-bordered w-full min-h-[120px]'})
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'sr-only'})
     )
 
     def clean_phone_number(self):

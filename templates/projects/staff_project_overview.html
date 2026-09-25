@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ project.name }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <a href="{% url 'home' %}" class="link link-hover text-sm fb-muted">بازگشت به خانه</a>
+        <h1 class="fb-page-title mt-2">{{ project.name }}</h1>
+        <div class="flex items-center gap-2 flex-wrap mt-2">
+            <span class="fb-badge fb-badge-neutral">کد: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
+            <span class="fb-badge {% if project.status == 'completed' %}fb-badge-success{% elif project.status == 'cancelled' %}fb-badge-error{% elif project.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">
+                {{ project.get_status_display }}
+            </span>
+            {% if can_edit %}
+            <a href="{% url 'projects:project_edit' project.id %}" class="btn btn-soft btn-xs">{% icon "pencil" "w-3.5 h-3.5" %} ویرایش پروژه</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% with contact_party=project.owner|default:project.partner %}
+    <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+        <input type="checkbox" checked aria-label="اطلاعات پروژه" />
+        <div class="collapse-title text-sm font-semibold">اطلاعات پروژه</div>
+        <div class="collapse-content text-sm space-y-3">
+            <div class="flex justify-between items-center gap-2">
+                <span class="fb-muted">طرف‌حساب</span>
+                <span class="font-semibold">{{ contact_party.name|default:"ثبت نشده" }}</span>
+            </div>
+            <div class="flex justify-between items-center gap-2">
+                <span class="fb-muted">شماره تماس</span>
+                {% if contact_party.phone_number %}
+                <a href="tel:{{ contact_party.phone_number }}" dir="ltr" class="font-technical font-semibold text-primary">{{ contact_party.phone_number|fa_digits }}</a>
+                {% else %}
+                <span class="fb-muted">ثبت نشده</span>
+                {% endif %}
+            </div>
+            <div class="space-y-2">
+                <div class="fb-muted">آدرس</div>
+                {% if project.location.address_text %}
+                <p class="fb-inset text-xs">{{ project.location.address_text }}</p>
+                {% endif %}
+                {% if project.location.has_exact_coordinates %}
+                <a href="{% map_url project.location.latitude project.location.longitude %}"
+                   target="_blank" rel="noopener" class="btn btn-soft btn-sm">
+                    {% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه
+                </a>
+                {% endif %}
+                {% if not project.location.address_text and not project.location.has_exact_coordinates %}
+                <span class="fb-muted text-xs">ثبت نشده</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endwith %}
+
+    {% with files=project.current_files %}
+    <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+        <input type="checkbox" aria-label="فایل‌های پروژه" />
+        <div class="collapse-title text-sm font-semibold">فایل‌های پروژه ({{ files|length|fa_digits }})</div>
+        <div class="collapse-content space-y-2">
+            {% for f in files %}
+            <a href="{{ f.file.url }}" target="_blank" rel="noopener"
+               class="fb-inset flex items-center gap-3 text-xs hover:bg-base-300/60">
+                <span class="text-primary shrink-0">
+                    {% if f.kind == 'dwg' %}{% icon "pencil" "w-4 h-4" %}
+                    {% elif f.kind == 'gcode' %}{% icon "cpu" "w-4 h-4" %}
+                    {% elif f.kind == 'pdf' %}{% icon "file-text" "w-4 h-4" %}
+                    {% elif f.kind == 'image' %}{% icon "image" "w-4 h-4" %}
+                    {% else %}{% icon "paperclip" "w-4 h-4" %}{% endif %}
+                </span>
+                <span class="flex-1 min-w-0 truncate">{{ f.get_kind_display }} — {{ f.stage.title }}{% if f.title %} ({{ f.title }}){% endif %}</span>
+                <span class="fb-muted shrink-0">نسخه {{ f.version|fa_digits }}</span>
+                {% icon "download" "w-4 h-4 shrink-0" %}
+            </a>
+            {% empty %}
+            <p class="fb-hint">هنوز فایلی برای این پروژه آپلود نشده.</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endwith %}
+
+    <div class="fb-card fb-pad space-y-4">
+        <h2 class="fb-section-title">مراحل پروژه</h2>
+        {% for s in stages %}
+        <div id="stage-{{ s.id }}" class="{% if s.id == highlight_stage_id %}bg-primary/5 -mx-3 px-3 py-3 rounded-field ring-1 ring-primary/30{% elif not forloop.last %}pb-4 border-b border-base-300{% endif %}">
+            <div class="flex gap-3">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0
+                    {% if s.status == 'done' %}bg-success text-success-content
+                    {% elif s.status == 'in_progress' %}bg-info text-info-content
+                    {% elif s.status == 'waiting_approval' %}bg-warning text-warning-content
+                    {% elif s.status == 'rejected' or s.status == 'suspended' %}bg-error text-error-content
+                    {% else %}bg-base-300 text-base-content/60{% endif %}">
+                    {{ s.order|fa_digits }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between flex-wrap gap-1">
+                        <span class="text-sm font-semibold">{{ s.title }}</span>
+                        <span class="fb-badge {% if s.status == 'done' %}fb-badge-success{% elif s.status == 'in_progress' %}fb-badge-info{% elif s.status == 'waiting_approval' %}fb-badge-warning{% elif s.status == 'rejected' or s.status == 'suspended' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">
+                            {{ s.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="text-xs fb-muted mt-0.5">
+                        {% if s.assigned_to %}
+                            مسئول: {{ s.assigned_to.get_full_name|default:s.assigned_to.username }}
+                        {% elif s.candidate_count %}
+                            در استخر ({{ s.candidate_count|fa_digits }} کاندیدا)
+                        {% else %}
+                            بدون مسئول مشخص
+                        {% endif %}
+                    </div>
+                    {% for ev in s.events.all %}
+                        {% if ev.comment %}
+                        <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor.get_full_name|default:ev.actor.username }}</div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if s.is_candidate and not s.is_mine %}
+            <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3 ms-10">
+                {% csrf_token %}
+                <button class="btn btn-primary btn-sm">پذیرفتن این وظیفه</button>
+            </form>
+            {% endif %}
+
+            {% if s.is_mine %}
+            <div class="mt-3 ms-10">
+                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" enctype="multipart/form-data" class="fb-inset space-y-3">
+                    {% csrf_token %}
+                    <div class="fb-label">تکمیل این مرحله</div>
+                    {% if s.step_template.allows_file_upload %}
+                    <div class="fb-field">
+                        <input type="file" name="uploaded_file" class="file-input file-input-sm w-full" required>
+                        <span class="fb-hint">نوع فایل خودکار از روی پسوند تشخیص داده می‌شود.</span>
+                    </div>
+                    {% endif %}
+                    <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>
+                    <div class="flex gap-2">
+                        <button class="btn btn-primary btn-sm flex-1">تکمیل شد</button>
+                        {% if s.transfer_candidates %}
+                        <button type="button" class="btn btn-soft btn-sm flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">انتقال به همکار</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+
+            {% if s.transfer_candidates %}
+            <dialog id="fb_transfer_modal_{{ s.id }}" class="modal">
+                <div class="modal-box max-w-sm">
+                    <h3 class="font-bold text-base mb-1">انتقال به همکار</h3>
+                    <p class="text-xs fb-muted mb-4">این کار به یک تکنسین هم‌تخصص دیگر منتقل می‌شود و دیگر جزو کارهای شما نخواهد بود.</p>
+                    <form method="post" action="{% url 'projects:my_task_transfer' s.id %}" class="space-y-3">
+                        {% csrf_token %}
+                        <select name="target_user" required class="select w-full">
+                            <option value="">انتخاب همکار...</option>
+                            {% for tech in s.transfer_candidates %}
+                            <option value="{{ tech.id }}">{{ tech.get_full_name|default:tech.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <textarea name="comment" class="textarea w-full" rows="2" placeholder="توضیح (اختیاری)"></textarea>
+                        <div class="flex gap-2 pt-1">
+                            <button type="submit" class="btn btn-primary flex-1">انتقال بده</button>
+                            <button type="button" class="btn btn-ghost flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').close()">انصراف</button>
+                        </div>
+                    </form>
+                </div>
+                <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            </dialog>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="fb-hint">مرحله‌ای ثبت نشده است.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{% if highlight_stage_id %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('stage-{{ highlight_stage_id }}');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+</script>
+{% endif %}
+{% endblock %}

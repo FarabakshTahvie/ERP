@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'storages',
     'simple_history',
     'axes',
+    'jalali_date',   # فقط برای صفحه‌ی تست تقویم — گزینه B
     # Local apps
     'core',
     'accounts',
@@ -151,7 +152,9 @@ if not DEBUG:
 
 NAJVA_ENABLED = env.bool('NAJVA_ENABLED', default=False)
 
-# اطلاعات تماس واقعی شرکت (طبق تابلوی دفتر) — همه‌ی قالب‌ها از همین‌جا می‌خوانند
+# لینک «مشاهده روی نقشه»؛ جای‌نگهدار {lat} و {lng}. فقط با الگوی تاییدشده‌ی نشان عوض شود.
+MAP_LINK_TEMPLATE = 'https://www.google.com/maps?q={lat},{lng}'
+
 COMPANY_CONTACT = {
     "hours": "۸ صبح تا ۱۷ عصر",
     "office_phone": {"tel": "05133873734", "display": "۰۵۱-۳۳۸۷-۳۷۳۴"},
@@ -322,6 +325,9 @@ SMS_IR_SANDBOX_API_KEY = env('SMS_IR_SANDBOX_API_KEY', default='')  # فقط ب�
 OTP_LENGTH = env.int('OTP_LENGTH', default=5)
 OTP_EXPIRY_MINUTES = env.int('OTP_EXPIRY_MINUTES', default=2)
 
+
+NESHAN_API_KEY=env('NESHAN_API_KEY', default='')
+
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'
 
@@ -398,6 +404,7 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {"title": "قالب‌های گردش‌کار", "icon": "account_tree", "link": reverse_lazy("admin:projects_workflowtemplate_changelist")},
+                    {"title": "مراحل پروژه‌ها", "icon": "list_alt", "link": reverse_lazy("admin:projects_projectstage_changelist")},
                 ],
             },
             {

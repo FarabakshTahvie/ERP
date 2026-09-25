@@ -1,0 +1,137 @@
+{% load custom_tags %}
+<section class="fb-card fb-pad flex flex-col gap-4">
+    <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+            <h2 class="fb-section-title">خدمات</h2>
+            <button type="button" id="add-service-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن خدمت</button>
+        </div>
+        <div id="service-rows" class="flex flex-col gap-2"></div>
+        <p id="service-empty" class="fb-hint">هنوز خدمتی اضافه نشده.</p>
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+            <h2 class="fb-section-title">متریال</h2>
+            <button type="button" id="add-material-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن متریال</button>
+        </div>
+        <div id="material-rows" class="flex flex-col gap-2"></div>
+        <p id="material-empty" class="fb-hint">هنوز متریالی اضافه نشده.</p>
+    </div>
+
+    {# name را جاوااسکریپت می‌گذارد؛ اگر اجرا نشود، فیلد ارسال نمی‌شود و سرور ردیف‌ها را دست نمی‌زند #}
+    <input type="hidden" id="services_json" data-name="services_json">
+    <input type="hidden" id="materials_json" data-name="materials_json">
+</section>
+
+<template id="row-template">
+    <div class="fb-inset flex flex-col gap-2" data-row>
+        <select class="select select-sm w-full" aria-label="انتخاب مورد"></select>
+        <div class="flex items-center gap-2">
+            <input type="number" data-qty min="0" step="0.01" placeholder="مقدار" dir="ltr"
+                   class="input input-sm w-24 font-technical">
+            <input type="number" data-price min="0" step="1" placeholder="قیمت واحد (تومان)" dir="ltr"
+                   class="input input-sm flex-1 min-w-0 font-technical">
+            <button type="button" data-remove class="btn btn-soft btn-error btn-sm btn-square" aria-label="حذف ردیف">
+                {% icon "trash-2" "w-4 h-4" %}
+            </button>
+        </div>
+        <div class="text-xs fb-muted">جمع ردیف: <span class="font-technical" data-line-total>۰</span> تومان</div>
+        <div class="fb-error hidden" data-row-warn>مقدار را وارد کنید؛ ردیف بدون مقدار ثبت نمی‌شود.</div>
+    </div>
+</template>
+
+<script id="services-data" type="application/json">
+    [{% for s in services %}{"id": {{ s.id }}, "name": "{{ s.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+<script id="items-data" type="application/json">
+    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+{% if initial_lines %}{{ initial_lines|json_script:"initial-lines" }}{% endif %}
+
+<script>
+(function () {
+    function init() {
+        var nf = new Intl.NumberFormat('fa-IR');
+        function fmt(n) { return nf.format(n).replace(/٬/g, ','); }
+
+        var tpl = document.getElementById('row-template');
+        var initialEl = document.getElementById('initial-lines');
+        var initial = initialEl ? JSON.parse(initialEl.textContent) : {};
+        var lists = {
+            service: {
+                box: document.getElementById('service-rows'), empty: document.getElementById('service-empty'),
+                hidden: document.getElementById('services_json'), addBtn: document.getElementById('add-service-row'),
+                data: JSON.parse(document.getElementById('services-data').textContent),
+                initial: initial.services || []
+            },
+            material: {
+                box: document.getElementById('material-rows'), empty: document.getElementById('material-empty'),
+                hidden: document.getElementById('materials_json'), addBtn: document.getElementById('add-material-row'),
+                data: JSON.parse(document.getElementById('items-data').textContent),
+                initial: initial.materials || []
+            }
+        };
+
+        function sync() {
+            var grand = 0;
+            Object.keys(lists).forEach(function (key) {
+                var list = lists[key], out = [];
+                Array.prototype.forEach.call(list.box.children, function (row) {
+                    var id = parseInt(row.querySelector('select').value, 10);
+                    var qty = row.querySelector('[data-qty]').value;
+                    var price = row.querySelector('[data-price]').value || '0';
+                    var qtyNum = parseFloat(qty) || 0;
+                    var line = qtyNum * (parseFloat(price) || 0);
+                    row.querySelector('[data-line-total]').textContent = fmt(line);
+                    row.querySelector('[data-row-warn]').classList.toggle('hidden', qtyNum > 0);
+                    if (id && qtyNum > 0) {
+                        var entry = { id: id, qty: qty, unit_price: price };
+                        if (row.dataset.pk) entry.pk = parseInt(row.dataset.pk, 10);
+                        out.push(entry);
+                        grand += line;
+                    }
+                });
+                list.hidden.value = JSON.stringify(out);
+                list.empty.classList.toggle('hidden', list.box.children.length > 0);
+            });
+            var totalEl = document.getElementById('grand-total');
+            if (totalEl) totalEl.textContent = fmt(grand);
+        }
+
+        function addRow(key, pre) {
+            var list = lists[key];
+            var row = tpl.content.firstElementChild.cloneNode(true);
+            var select = row.querySelector('select');
+            list.data.forEach(function (d) {
+                var opt = document.createElement('option');
+                opt.value = d.id; opt.textContent = d.name;
+                select.appendChild(opt);
+            });
+            if (pre) {
+                select.value = pre.id;
+                row.querySelector('[data-qty]').value = pre.qty;
+                row.querySelector('[data-price]').value = pre.unit_price;
+                row.dataset.pk = pre.pk;
+            }
+            list.box.appendChild(row);
+        }
+
+        Object.keys(lists).forEach(function (key) {
+            var list = lists[key];
+            list.hidden.name = list.hidden.dataset.name;
+            if (!list.data.length) { list.addBtn.disabled = true; }
+            list.addBtn.addEventListener('click', function () { addRow(key); sync(); });
+            ['input', 'change'].forEach(function (evt) { list.box.addEventListener(evt, sync); });
+            list.box.addEventListener('click', function (e) {
+                var btn = e.target.closest('[data-remove]');
+                if (btn) { btn.closest('[data-row]').remove(); sync(); }
+            });
+            list.initial.forEach(function (pre) { addRow(key, pre); });
+        });
+        sync();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>

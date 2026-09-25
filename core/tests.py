@@ -1,7 +1,8 @@
 from datetime import timedelta
 from io import BytesIO
 from PIL import Image
-from django.test import TestCase
+from django.test import TestCase, Client, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
@@ -68,3 +69,41 @@ class ImageOptimizeTests(TestCase):
         uploaded = SimpleUploadedFile("test.webp", img_io.read(), content_type="image/webp")
         result = optimize_image(uploaded, profile_name="avatar")
         self.assertIs(result, uploaded)
+
+
+class LocationAdminMapWidgetTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username="loc_admin_test", phone_number="09120000099",
+            password="AdminPassword123", role=User.Role.ADMIN,
+        )
+
+    @override_settings(NESHAN_API_KEY="")
+    def test_add_location_page_shows_warning_without_key(self):
+        client = Client(SERVER_NAME='localhost')
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("admin:core_location_add"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("کلید NESHAN_API_KEY تنظیم نشده", resp.content.decode("utf-8"))
+
+    @override_settings(NESHAN_API_KEY="test-fake-key-for-render-check")
+    def test_add_location_page_shows_map_with_key(self):
+        client = Client(SERVER_NAME='localhost')
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("admin:core_location_add"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("location-map", content)
+        self.assertIn("neshan-maplibre-sdk", content)
+
+    def test_location_still_saves_lat_lng_via_plain_post(self):
+        client = Client(SERVER_NAME='localhost')
+        client.force_login(self.admin_user)
+        resp = client.post(reverse("admin:core_location_add"), {
+            "title": "دفتر مرکزی",
+            "address_text": "",
+            "city": "مشهد",
+            "latitude": "36.297900",
+            "longitude": "59.606200",
+        })
+        self.assertEqual(resp.status_code, 302)

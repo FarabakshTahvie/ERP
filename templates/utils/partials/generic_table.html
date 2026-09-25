@@ -1,0 +1,48 @@
+{% load custom_tags %}
+<div class="fb-card fb-table-region overflow-hidden" id="{{ container_id }}">
+    <div class="overflow-x-auto">
+        <table class="table table-sm">
+            <thead>
+                <tr class="text-xs fb-muted">
+                    {% for col in columns %}<th class="font-medium">{{ col.label }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr class="{% if row.url %}hover:bg-base-200/60 cursor-pointer{% endif %}"
+                    {% if row.url %}onclick="window.location.href='{{ row.url }}'"{% endif %}>
+                    {% for cell in row.cells %}
+                    <td class="align-middle{% if forloop.first %} font-medium{% endif %}">
+                        {% if cell.type == 'badge' %}
+                            <span class="fb-badge fb-badge-{{ cell.variant|default:'neutral' }}">{{ cell.value }}</span>
+                        {% elif cell.type == 'link' %}
+                            <a href="{{ cell.url }}" class="link link-primary" onclick="event.stopPropagation()">{{ cell.value }}</a>
+                        {% elif cell.type == 'muted' %}
+                            <span class="fb-muted text-xs font-technical">{{ cell.value }}</span>
+                        {% elif cell.type == 'actions' %}
+                            <div class="flex gap-1 flex-wrap" onclick="event.stopPropagation()">
+                                {% for act in cell.actions %}
+                                <a href="{{ act.url }}" class="btn btn-ghost btn-xs">{{ act.label }}</a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ cell.value }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ columns|length }}" class="fb-empty">
+                        {% icon empty_icon "w-6 h-6 mx-auto mb-2 opacity-50" %}
+                        {{ empty_text }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if paginator.num_pages > 1 or paginator.count > page_size_choices.0 %}
+        {% include "utils/partials/pagination_bar.html" %}
+    {% endif %}
+</div>

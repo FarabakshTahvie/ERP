@@ -1,0 +1,53 @@
+{% load custom_tags %}
+<section class="fb-card fb-pad flex flex-col gap-3">
+    <h2 class="fb-section-title">موقعیت پروژه</h2>
+    {% if not NESHAN_API_KEY %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">کلید نقشه تنظیم نشده؛ آدرس را دستی وارد کنید.</span>
+    </div>
+    {% else %}
+    <div id="new-project-map" style="height: 280px;" class="rounded-field overflow-hidden"></div>
+    <p class="fb-hint">برای ثبت یا تغییر موقعیت، روی نقشه کلیک کنید.</p>
+    {% endif %}
+    <input type="hidden" name="latitude" id="id_latitude" value="{{ lat|default:'' }}">
+    <input type="hidden" name="longitude" id="id_longitude" value="{{ lng|default:'' }}">
+    <div class="fb-field">
+        <label class="fb-label" for="address-text">آدرس</label>
+        <textarea id="address-text" name="address_text" placeholder="آدرس دقیق" class="textarea w-full" rows="2">{{ address_text|default:'' }}</textarea>
+    </div>
+</section>
+
+{% if NESHAN_API_KEY %}
+<script>
+(function () {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.css';
+    document.head.appendChild(css);
+    var script = document.createElement('script');
+    script.src = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.umd.js';
+    script.onload = function () {
+        var maplibregl = window.maplibregl.default;
+        var latEl = document.getElementById('id_latitude'), lngEl = document.getElementById('id_longitude');
+        var hasInit = !!(latEl.value && lngEl.value);
+        var center = hasInit ? [parseFloat(lngEl.value), parseFloat(latEl.value)] : [59.6062, 36.2979];
+        var map = new maplibregl.Map({
+            container: 'new-project-map',
+            style: 'https://static.neshan.org/sdk/maplibre/styles/light.json',
+            center: center, zoom: hasInit ? 15 : 12,
+            apiKey: '{{ NESHAN_API_KEY }}',
+        });
+        map.addControl(new maplibregl.NavigationControl());
+        var marker = hasInit ? new maplibregl.Marker().setLngLat(center).addTo(map) : null;
+        map.on('click', function (e) {
+            if (marker) marker.remove();
+            marker = new maplibregl.Marker().setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+            latEl.value = e.lngLat.lat.toFixed(6);
+            lngEl.value = e.lngLat.lng.toFixed(6);
+        });
+    };
+    document.head.appendChild(script);
+})();
+</script>
+{% endif %}

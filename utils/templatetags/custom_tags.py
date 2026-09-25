@@ -77,3 +77,25 @@ def icon(name, css_class="w-5 h-5"):
     from django.templatetags.static import static
     from django.utils.html import format_html
     return format_html('<svg class="{}"><use href="{}#{}"></use></svg>', css_class, static("icons/sprite.svg"), name)
+
+
+@register.simple_tag
+def map_url(lat, lng):
+    from django.conf import settings
+    template = getattr(settings, "MAP_LINK_TEMPLATE", "https://www.google.com/maps?q={lat},{lng}")
+    return template.replace("{lat}", str(lat)).replace("{lng}", str(lng))
+
+
+@register.simple_tag(takes_context=True)
+def paginate_url(context, key, value):
+    """
+    نسخه‌ی مخصوص صفحه‌بندی url_replace: مقادیر querystring فعلی را حفظ می‌کند
+    و فقط یک کلید (که اسمش می‌تواند داینامیک باشد، مثل 'mytasks_page') را عوض می‌کند.
+    """
+    request = context.get('request')
+    if not request:
+        return ""
+    params = request.GET.copy()
+    params[key] = value
+    return "?" + params.urlencode()
+

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}داشبورد من | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">سلام، {{ request.user.get_full_name|default:request.user.username }}</h1>
+            <p class="fb-page-sub">خلاصه‌ی کارها و پروژه‌های شما</p>
+        </div>
+        <div class="flex items-center gap-2">
+            {% if can_review_payments %}
+            <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
+                {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
+                {% if pending_payments_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_count|fa_digits }}</span>{% endif %}
+            </a>
+            {% endif %}
+            {% if can_create_projects %}
+            <a href="{% url 'projects:new_project_form' %}" class="btn btn-primary btn-sm">
+                {% icon "plus" "w-4 h-4" %} پروژه جدید
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid {% if can_create_projects %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-3">
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value text-primary font-technical">{{ my_stages_count|fa_digits }}</div>
+            <div class="fb-stat-label">کارهای من</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ pool_stages_count|fa_digits }}</div>
+            <div class="fb-stat-label">قابل برداشتن</div>
+        </div>
+        {% if can_create_projects %}
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ my_projects_count|fa_digits }}</div>
+            <div class="fb-stat-label">پروژه‌های ثبت‌شده</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div role="tablist" class="tabs tabs-border">
+        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="کارهای من" checked
+               hx-get="{% url 'projects:dashboard_my_tasks_table' %}"
+               hx-target="#tab-panel-mytasks" hx-swap="innerHTML"
+               hx-trigger="click, load once">
+        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-mytasks">
+            <div class="flex justify-center py-6"><span class="loading loading-spinner loading-sm"></span></div>
+        </div>
+
+        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="قابل برداشتن"
+               hx-get="{% url 'projects:dashboard_claimable_table' %}"
+               hx-target="#tab-panel-claimable" hx-swap="innerHTML" hx-trigger="click">
+        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-claimable"></div>
+
+        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="انجام‌شده"
+               hx-get="{% url 'projects:dashboard_completed_table' %}"
+               hx-target="#tab-panel-completed" hx-swap="innerHTML" hx-trigger="click">
+        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-completed"></div>
+
+        {% if can_create_projects %}
+        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="پروژه‌های من"
+               hx-get="{% url 'projects:dashboard_my_projects_table' %}"
+               hx-target="#tab-panel-myprojects" hx-swap="innerHTML" hx-trigger="click">
+        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-myprojects"></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

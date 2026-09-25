@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}تست نقشه (داخلی){% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto p-6 space-y-8">
+    <div>
+        <h1 class="text-xl font-bold">تست نقشه — مقایسه دو گزینه</h1>
+        <p class="text-sm text-base-content/70 mt-1">این صفحه فقط برای تست داخلیه؛ هیچ مکانی ذخیره نمی‌شود.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="card bg-base-200 p-4 space-y-2">
+            <h2 class="font-bold">گزینه A — نشان (Neshan MapLibre SDK)</h2>
+            {% if not neshan_key %}
+                <div class="alert alert-warning text-sm rounded-xl">
+                    کلید NESHAN_API_KEY در .env یا تنظیمات سیستم پیدا نشد. کلید دسترسی (API Key) سرویس وب‌سرویس/نقشه‌ی وب را از پنل توسعه‌دهندگان نشان دریافت کرده و در .env قرار دهید.
+                </div>
+            {% else %}
+                <div id="neshan-map" style="height: 360px;" class="rounded-xl overflow-hidden relative"></div>
+                <p class="text-xs mt-2">مختصات انتخاب‌شده: <span id="neshan-coords" class="font-technical font-bold text-primary">-</span></p>
+            {% endif %}
+        </div>
+
+        <div class="card bg-base-200 p-4 space-y-2">
+            <h2 class="font-bold">گزینه B — Leaflet + OpenStreetMap (رایگان)</h2>
+            <div id="osm-map" style="height: 360px;" class="rounded-xl overflow-hidden relative z-0"></div>
+            <p class="text-xs mt-2">مختصات انتخاب‌شده: <span id="osm-coords" class="font-technical font-bold text-primary">-</span></p>
+            <p class="text-[10px] text-base-content/50 mt-1">جستجوی آدرس این گزینه معمولاً از Nominatim است (رایگان؛ برای پروداکشن سنگین محدودیت نرخ دارد، فعلاً فقط برای تست کلیک روی نقشه کافیست).</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+    const map = L.map('osm-map').setView([35.6892, 51.3890], 12); // تهران، پیش‌فرض
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+    }).addTo(map);
+    let marker = null;
+    map.on('click', function (e) {
+        if (marker) map.removeLayer(marker);
+        marker = L.marker(e.latlng).addTo(map);
+        document.getElementById('osm-coords').textContent = e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6);
+    });
+})();
+
+{% if neshan_key %}
+(function() {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.css';
+    document.head.appendChild(css);
+
+    var script = document.createElement('script');
+    script.src = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.umd.js';
+    script.onload = function() {
+        var maplibregl = window.maplibregl.default;
+        var map = new maplibregl.Map({
+            container: "neshan-map",
+            style: "https://static.neshan.org/sdk/maplibre/styles/light.json",
+            center: [51.3890, 35.6892],
+            zoom: 12,
+            apiKey: "{{ neshan_key }}",
+        });
+        map.addControl(new maplibregl.NavigationControl());
+        var marker = null;
+        map.on('click', function(e) {
+            if (marker) marker.remove();
+            marker = new maplibregl.Marker()
+                .setLngLat([e.lngLat.lng, e.lngLat.lat])
+                .addTo(map);
+            document.getElementById('neshan-coords').textContent = e.lngLat.lat.toFixed(6) + ', ' + e.lngLat.lng.toFixed(6);
+        });
+    };
+    document.head.appendChild(script);
+})();
+{% endif %}
+</script>
+{% endblock %}

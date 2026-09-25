@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.db import models
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.http import HttpResponse
 from django.urls import reverse_lazy
 from django.contrib import messages
@@ -126,7 +127,7 @@ class ProjectStageAdmin(JalaliAdminMixin, ModelAdmin):
     @display(description="وضعیت ارجاع", boolean=False)
     def assignment_flag(self, obj):
         if obj.needs_manual_assignment:
-            return format_html('<span style="color:#dc2626;font-weight:bold;">⚠ نیازمند تعیین مسئول</span>')
+            return format_html("{}", mark_safe('<span style="color:#dc2626;font-weight:bold;">⚠ نیازمند تعیین مسئول</span>'))
         if obj.assigned_to_id:
             return format_html('<span style="color:#16a34a;">✓ {}</span>', obj.assigned_to.get_full_name() or obj.assigned_to.username)
         return format_html('<span style="color:#d97706;">در استخر ({} کاندیدا)</span>', obj.candidate_users.count())

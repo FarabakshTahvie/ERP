@@ -146,31 +146,31 @@ def request_password_reset(request):
             })
 
         user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-        remaining = 0
-        resent = False
+        if not user:
+            return render(request, "accounts/partials/pwreset_phone_form.html", {
+                "error": "حساب کاربری فعالی با این شماره‌ی موبایل پیدا نشد. اگر فکر می‌کنید اشتباه است، با پشتیبانی تماس بگیرید.",
+                "phone_number": phone_number,
+            })
 
-        # نکته‌ی امنیتی: چه کاربر با این شماره وجود داشته باشد چه نه، همیشه همین صفحه
-        # (فرم تایید کد) نشان داده می‌شود تا وجود/عدم‌وجود شماره در سیستم لو نرود.
-        if user:
-            otp, raw_code, is_new = get_or_create_active_otp(phone_number, OTPCode.Purpose.PASSWORD_RESET, user=user)
-            if is_new:
-                error = _otp_ip_rate_limit_error(request)
-                if error:
-                    otp.delete()
-                    return render(request, "accounts/partials/pwreset_phone_form.html", {
-                        "error": error, "phone_number": phone_number,
-                    })
-                result = SMSService().send_otp(mobile=phone_number, code=raw_code)
-                if not result.get("success"):
-                    otp.delete()
-                    return render(request, "accounts/partials/pwreset_phone_form.html", {
-                        "error": "ارسال پیامک ناموفق بود، دوباره تلاش کنید.", "phone_number": phone_number,
-                    })
-            remaining = otp_remaining_seconds(phone_number, OTPCode.Purpose.PASSWORD_RESET)
-            resent = not is_new
+        otp, raw_code, is_new = get_or_create_active_otp(phone_number, OTPCode.Purpose.PASSWORD_RESET, user=user)
+        if is_new:
+            error = _otp_ip_rate_limit_error(request)
+            if error:
+                otp.delete()
+                return render(request, "accounts/partials/pwreset_phone_form.html", {
+                    "error": error, "phone_number": phone_number,
+                })
+            result = SMSService().send_otp(mobile=phone_number, code=raw_code)
+            if not result.get("success"):
+                otp.delete()
+                return render(request, "accounts/partials/pwreset_phone_form.html", {
+                    "error": "ارسال پیامک ناموفق بود، دوباره تلاش کنید.", "phone_number": phone_number,
+                })
 
         return render(request, "accounts/partials/pwreset_verify_form.html", {
-            "phone_number": phone_number, "remaining_seconds": remaining, "resent": resent,
+            "phone_number": phone_number,
+            "remaining_seconds": otp_remaining_seconds(phone_number, OTPCode.Purpose.PASSWORD_RESET),
+            "resent": not is_new,
         })
 
     return render(request, "accounts/password_reset_request.html")
@@ -223,6 +223,28 @@ def verify_password_reset(request):
     user.must_change_password = False
     user.save(update_fields=["password", "must_change_password"])
     return HttpResponseClientRedirect(reverse("accounts:login"))
+
+
+from django.contrib.auth.forms import SetPasswordForm
+
+
+@login_required
+def force_set_password(request):
+    next_url = request.GET.get("next") or request.POST.get("next", "")
+    if request.method == "POST":
+        if "skip" in request.POST:
+            return redirect(next_url or "home")
+        form = SetPasswordForm(request.user, request.POST)
+        if form.is_valid():
+            form.save()
+            request.user.must_change_password = False
+            request.user.save(update_fields=["must_change_password"])
+            from django.contrib.auth import update_session_auth_hash
+            update_session_auth_hash(request, request.user)
+            return redirect(next_url or "home")
+    else:
+        form = SetPasswordForm(request.user)
+    return render(request, "accounts/force_set_password.html", {"form": form, "next": next_url})
 
 
 class StyledPasswordChangeView(PasswordChangeView):

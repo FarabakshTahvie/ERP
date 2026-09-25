@@ -1,0 +1,78 @@
+{% load i18n %}
+<div class="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-xs">
+    <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">انتخاب موقعیت روی نقشه</h3>
+        <button type="button" id="location-locate-me" class="text-xs px-3 py-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700">
+            📍 موقعیت فعلی من
+        </button>
+    </div>
+
+    {% if not NESHAN_API_KEY %}
+        <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            کلید NESHAN_API_KEY تنظیم نشده؛ نقشه نمایش داده نمی‌شود. مختصات را دستی در فیلدهای پایین‌تر وارد کنید.
+        </div>
+    {% else %}
+        <div id="location-map" style="height: 340px;" class="rounded-lg overflow-hidden"></div>
+        <p class="text-xs text-gray-500 mt-2">روی نقشه کلیک کنید تا مختصات فیلدهای «عرض جغرافیایی» و «طول جغرافیایی» پایین همین صفحه پر شوند.</p>
+    {% endif %}
+</div>
+
+{% if NESHAN_API_KEY %}
+<script>
+(function () {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.css';
+    document.head.appendChild(css);
+
+    var script = document.createElement('script');
+    script.src = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.umd.js';
+    script.onload = function () {
+        var maplibregl = window.maplibregl.default;
+        var latInput = document.getElementById('id_latitude');
+        var lngInput = document.getElementById('id_longitude');
+        if (!latInput || !lngInput) { return; }
+
+        var hasInitial = !!(latInput.value && lngInput.value);
+        var initialLat = parseFloat(latInput.value) || 36.2979;
+        var initialLng = parseFloat(lngInput.value) || 59.6062;
+
+        var map = new maplibregl.Map({
+            container: 'location-map',
+            style: 'https://static.neshan.org/sdk/maplibre/styles/light.json',
+            center: [initialLng, initialLat],
+            zoom: hasInitial ? 15 : 12,
+            apiKey: '{{ NESHAN_API_KEY }}',
+        });
+        map.addControl(new maplibregl.NavigationControl());
+
+        var marker = null;
+        function placeMarker(lat, lng) {
+            if (marker) marker.remove();
+            marker = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
+            latInput.value = lat.toFixed(6);
+            lngInput.value = lng.toFixed(6);
+        }
+        if (hasInitial) { placeMarker(initialLat, initialLng); }
+
+        map.on('click', function (e) {
+            placeMarker(e.lngLat.lat, e.lngLat.lng);
+        });
+
+        document.getElementById('location-locate-me').addEventListener('click', function () {
+            if (!navigator.geolocation) {
+                alert('مرورگر شما موقعیت مکانی را پشتیبانی نمی‌کند.');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(function (pos) {
+                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16 });
+                placeMarker(pos.coords.latitude, pos.coords.longitude);
+            }, function () {
+                alert('دسترسی به موقعیت مکانی رد شد یا در دسترس نیست.');
+            });
+        });
+    };
+    document.head.appendChild(script);
+})();
+</script>
+{% endif %}

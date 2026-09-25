@@ -10,6 +10,7 @@ from django.conf import settings
 from .models import PushDevice, DeviceType
 from .request_meta import parse_user_agent
 from projects.models import Project, ProjectStage
+from projects.services import stage_approval_action
 from finance.models import Invoice
 from notifications.models import Notification
 
@@ -24,56 +25,59 @@ def home_view(request):
     user = request.user
     party = getattr(user, "party", None)
 
-    # فیلتر پروژه‌ها برای کاربر دارای party فقط partner یا owner باشد (هم‌خوان با project_progress)
+    from accounts.models import User
+    if not party and user.role == User.Role.EMPLOYEE:
+        from projects.views import technician_home_view
+        return technician_home_view(request, user)
+
     if party:
         q_filter = Q(partner=party) | Q(owner=party)
     else:
         q_filter = Q(created_by=user) | Q(assigned_technicians=user) | Q(participants__user=user)
 
-    # مراحل را با Prefetch بخوان (فقط client_visible، مرتب بر اساس order)
-    stages_qs = ProjectStage.objects.filter(client_visible=True).order_by('order')
-    prefetch_stages = Prefetch('stages', queryset=stages_qs, to_attr='client_stages')
+    stages_qs = ProjectStage.objects.filter(client_visible=True).select_related("step_template").order_by("order")
+    prefetch_stages = Prefetch("stages", queryset=stages_qs, to_attr="client_stages")
 
-    projects_qs = Project.objects.filter(q_filter).select_related('partner', 'owner', 'location').prefetch_related(prefetch_stages).distinct().order_by('-created_at')
+    projects_qs = (
+        Project.objects.filter(q_filter)
+        .select_related("partner", "owner", "location")
+        .prefetch_related(prefetch_stages).distinct().order_by("-created_at")
+    )
     projects_list = list(projects_qs[:6])
 
-    # محاسبه done، total، percent و current برای هر پروژه
+    invoices_map = {}
+    if party and projects_list:
+        for inv in Invoice.objects.filter(project__in=projects_list, billed_party=party):
+            invoices_map[inv.project_id] = inv
+
     for p in projects_list:
-        c_stages = getattr(p, 'client_stages', [])
+        c_stages = getattr(p, "client_stages", [])
         total_stages = len(c_stages)
         done_stages = sum(1 for s in c_stages if s.status == ProjectStage.Status.DONE)
-        percent = int((done_stages / total_stages * 100)) if total_stages > 0 else 0
         current_stage = next((s for s in c_stages if s.status == ProjectStage.Status.IN_PROGRESS), None)
         if not current_stage and c_stages:
             current_stage = next((s for s in c_stages if s.status != ProjectStage.Status.DONE), c_stages[-1])
 
         p.progress_total = total_stages
         p.progress_done = done_stages
-        p.progress_percent = percent
+        p.progress_percent = int(done_stages / total_stages * 100) if total_stages else 0
         p.current_client_stage = current_stage
 
-    # فاکتورها را با یک کوئری Invoice.objects.filter(project__in=..., billed_party=party) بگیر و به شکل دیکشنری بده
-    invoices_map = {}
-    if party and projects_list:
-        invs = Invoice.objects.filter(project__in=projects_list, billed_party=party).select_related('project')
-        for inv in invs:
-            invoices_map[inv.project_id] = inv
-
-    active_count = projects_qs.filter(status=Project.Status.IN_PROGRESS).count()
-    completed_count = projects_qs.filter(status=Project.Status.COMPLETED).count()
-    draft_count = projects_qs.filter(status=Project.Status.DRAFT).count()
-    total_count = projects_qs.count()
-
-    recent_notifications = Notification.objects.filter(user=user).order_by('-created_at')[:5]
+        # اقدام معطل تایید مشتری (بنر بالای صفحه)
+        p.action_url = p.action_label = p.action_stage_title = None
+        waiting = next((s for s in c_stages if s.status == ProjectStage.Status.WAITING_APPROVAL), None)
+        if waiting:
+            p.action_url, p.action_label = stage_approval_action(waiting, invoices_map.get(p.id))
+            if p.action_url:
+                p.action_stage_title = waiting.client_label or waiting.title
 
     context = {
         'projects': projects_list,
         'invoices_map': invoices_map,
-        'total_projects_count': total_count,
-        'active_projects_count': active_count,
-        'completed_projects_count': completed_count,
-        'draft_projects_count': draft_count,
-        'recent_notifications': recent_notifications,
+        'total_projects_count': projects_qs.count(),
+        'active_projects_count': projects_qs.filter(status=Project.Status.IN_PROGRESS).count(),
+        'completed_projects_count': projects_qs.filter(status=Project.Status.COMPLETED).count(),
+        'recent_notifications': Notification.objects.filter(user=user).order_by('-created_at')[:5],
         'party': party,
     }
     return render(request, "client_home.html", context)
@@ -114,8 +118,8 @@ def manifest_view(request):
         "display": "standalone",
         "dir": "rtl",
         "lang": "fa",
-        "background_color": "#F3F6F6",
-        "theme_color": "#0E7C86",
+        "background_color": "#F6F7F9",
+        "theme_color": "#1A4A8A",
         "icons": [
             {
                 "src": static("icons/icon-192.png"),
