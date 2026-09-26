@@ -13,6 +13,7 @@ urlpatterns = [
     path('najva-messaging-sw.js', najva_service_worker, name='najva_sw'),
     path('accounts/', include('accounts.urls', namespace='accounts')),
     path('utils/', include('utils.urls', namespace='utils')),
+    path('', include('inventory.urls', namespace='inventory')),
     path('', include('notifications.urls', namespace='notifications')),
     path('', include('projects.urls', namespace='projects')),
     path('', include('finance.urls', namespace='finance')),

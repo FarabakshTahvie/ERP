@@ -171,3 +171,30 @@ class TechnicianPaymentCounterTests(TestCase):
         content_cli = resp_cli.content.decode("utf-8")
         self.assertNotIn(reverse("finance:payments_review"), content_cli)
         self.assertNotIn("pending_payments_nav_count", resp_cli.context)
+
+
+class TechnicianHomeInventoryTabTests(TestCase):
+    def setUp(self):
+        from core.models import Specialty
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(
+            username="home_wh_user", phone_number="09300000111",
+            password="Password123", role=User.Role.EMPLOYEE,
+        )
+        self.wh_user.specialties.add(self.sp_warehouse)
+
+        self.plain_tech = User.objects.create_user(
+            username="home_plain_tech", phone_number="09300000112",
+            password="Password123", role=User.Role.EMPLOYEE,
+        )
+
+    def test_inventory_tab_shown_only_for_warehouse_keeper(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("home"))
+        self.assertContains(resp, "موجودی انبار")
+
+        client.force_login(self.plain_tech)
+        resp2 = client.get(reverse("home"))
+        self.assertNotContains(resp2, "موجودی انبار")
+

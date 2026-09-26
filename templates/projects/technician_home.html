@@ -15,6 +15,14 @@
                 {% if pending_payments_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_count|fa_digits }}</span>{% endif %}
             </a>
             {% endif %}
+            {% if can_manage_inventory %}
+            <a href="{% url 'inventory:purchase_new' %}" class="btn btn-soft btn-sm">
+                {% icon "plus" "w-4 h-4" %} ثبت خرید
+            </a>
+            <a href="{% url 'inventory:stock_movement_new' %}" class="btn btn-soft btn-sm">
+                {% icon "arrow-left-right" "w-4 h-4" %} ثبت مصرف/تعدیل
+            </a>
+            {% endif %}
             {% if can_create_projects %}
             <a href="{% url 'projects:new_project_form' %}" class="btn btn-primary btn-sm">
                 {% icon "plus" "w-4 h-4" %} پروژه جدید
@@ -23,7 +31,7 @@
         </div>
     </div>
 
-    <div class="grid {% if can_create_projects %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-3">
+    <div class="grid grid-cols-2 {% if can_create_projects and can_manage_inventory %}sm:grid-cols-4{% elif can_create_projects or can_manage_inventory %}sm:grid-cols-3{% endif %} gap-3">
         <div class="fb-card fb-pad">
             <div class="fb-stat-value text-primary font-technical">{{ my_stages_count|fa_digits }}</div>
             <div class="fb-stat-label">کارهای من</div>
@@ -36,6 +44,12 @@
         <div class="fb-card fb-pad">
             <div class="fb-stat-value font-technical">{{ my_projects_count|fa_digits }}</div>
             <div class="fb-stat-label">پروژه‌های ثبت‌شده</div>
+        </div>
+        {% endif %}
+        {% if can_manage_inventory %}
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical {% if low_stock_count %}text-warning{% endif %}">{{ low_stock_count|fa_digits }}</div>
+            <div class="fb-stat-label">کالای رو به اتمام</div>
         </div>
         {% endif %}
     </div>
@@ -64,6 +78,16 @@
                hx-get="{% url 'projects:dashboard_my_projects_table' %}"
                hx-target="#tab-panel-myprojects" hx-swap="innerHTML" hx-trigger="click">
         <div role="tabpanel" class="tab-content pt-3" id="tab-panel-myprojects"></div>
+        {% endif %}
+
+        {% if can_manage_inventory %}
+        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="موجودی انبار"
+               hx-get="{% url 'inventory:stock_table' %}"
+               hx-target="#tab-panel-stock-table" hx-swap="innerHTML" hx-trigger="click">
+        <div role="tabpanel" class="tab-content pt-3 space-y-3">
+            <p class="fb-hint">جمع موجودی در همه‌ی انبارها نشان داده می‌شود (فعلاً فقط «انبار مرکزی»).</p>
+            <div id="tab-panel-stock-table"></div>
+        </div>
         {% endif %}
     </div>
 </div>

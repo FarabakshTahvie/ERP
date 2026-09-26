@@ -25,6 +25,7 @@ class Command(BaseCommand):
             sp_reception, _ = Specialty.objects.get_or_create(name="پذیرش")
             sp_installer, _ = Specialty.objects.get_or_create(name="نصاب")
             sp_driver, _ = Specialty.objects.get_or_create(name="راننده")
+            sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
 
             def upsert_user(username, first, last, role, phone, specialties=None,
                              is_superuser=False, party=None):
@@ -74,6 +75,8 @@ class Command(BaseCommand):
                         "09300000081", specialties=[sp_installer])
             upsert_user("tech_driver_1", "کیوان", "راننده", User.Role.EMPLOYEE,
                         "09300000091", specialties=[sp_driver])
+            upsert_user("tech_warehouse_1", "نگار", "انباردار", User.Role.EMPLOYEE,
+                        "09300000101", specialties=[sp_warehouse])
 
             # شریک تجاری نمونه
             partner_party, _ = Party.objects.update_or_create(

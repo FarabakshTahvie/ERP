@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ثبت مصرف یا تعدیل موجودی | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <h1 class="fb-page-title">ثبت مصرف یا تعدیل موجودی</h1>
+        <p class="fb-page-sub">هر سه حالت زیر بلافاصله در موجودی کالا اثر می‌گذارند و برگشت‌پذیر نیستند؛ دلیل را دقیق بنویسید.</p>
+    </div>
+
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4" id="stock-movement-form">
+        {% csrf_token %}
+
+        <div class="fb-field">
+            <label class="fb-label" for="movement-item">کالا</label>
+            <select id="movement-item" name="item_id" class="select w-full" required>
+                <option value="">انتخاب کنید...</option>
+            </select>
+            <span id="current-stock-hint" class="fb-hint"></span>
+        </div>
+
+        <div class="fb-field">
+            <span class="fb-label">نوع تغییر</span>
+            <div class="flex flex-col gap-2">
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در کار)</label>
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات/اشتباه شمارش)</label>
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی جا افتاده)</label>
+            </div>
+        </div>
+
+        <div class="fb-field">
+            <label class="fb-label" for="movement-qty">مقدار</label>
+            <input type="text" id="movement-qty" name="qty" dir="ltr" inputmode="decimal" autocomplete="off" required class="input w-full font-technical">
+        </div>
+
+        <div class="fb-field hidden" id="unit-cost-field">
+            <label class="fb-label" for="movement-cost">بهای واحد (تومان)</label>
+            <input type="text" id="movement-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+            <span class="fb-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
+        </div>
+
+        <div class="fb-field">
+            <label class="fb-label" for="movement-notes">دلیل (اجباری)</label>
+            <textarea id="movement-notes" name="notes" required class="textarea w-full" rows="2" placeholder="مثلاً: مصرف در پروژه... یا: در انبارگردانی کسری پیدا شد"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full">ثبت</button>
+    </form>
+</div>
+
+<script id="stock-items-data" type="application/json">
+    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}", "stock": "{{ it.stock }}", "avg_cost": "{{ it.moving_average_cost }}", "unit": "{{ it.get_unit_display|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var data = JSON.parse(document.getElementById('stock-items-data').textContent);
+    var select = document.getElementById('movement-item');
+    data.forEach(function (d) {
+        var opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name;
+        opt.dataset.stock = d.stock;
+        opt.dataset.avgCost = d.avg_cost;
+        opt.dataset.unit = d.unit;
+        select.appendChild(opt);
+    });
+
+    function updateStockHint() {
+        var opt = select.options[select.selectedIndex];
+        var hint = document.getElementById('current-stock-hint');
+        hint.textContent = (opt && opt.value) ? ('موجودی فعلی: ' + opt.dataset.stock + ' ' + opt.dataset.unit) : '';
+    }
+
+    function toggleCostField() {
+        var kind = document.querySelector('input[name="kind"]:checked').value;
+        var isIncrease = kind === 'adjust_increase';
+        var costField = document.getElementById('unit-cost-field');
+        var costInput = document.getElementById('movement-cost');
+        costField.classList.toggle('hidden', !isIncrease);
+        if (isIncrease) {
+            var opt = select.options[select.selectedIndex];
+            if (opt && opt.value) { costInput.placeholder = 'مثلاً ' + opt.dataset.avgCost; }
+        }
+    }
+
+    select.addEventListener('change', function () { updateStockHint(); toggleCostField(); });
+    document.querySelectorAll('input[name="kind"]').forEach(function (r) {
+        r.addEventListener('change', toggleCostField);
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ثبت خرید جدید | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <h1 class="fb-page-title">ثبت ورود خرید</h1>
+        <p class="fb-page-sub">با ثبت این فرم، موجودی کالاهای زیر بلافاصله در انبار اضافه می‌شود.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="new-purchase-form" data-fb-once class="space-y-5">
+        {% csrf_token %}
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">تأمین‌کننده</h2>
+            <div class="fb-field">
+                <label class="fb-label" for="supplier-phone-search">شماره موبایل تأمین‌کننده</label>
+                <div class="relative">
+                    <input type="tel" id="supplier-phone-search" name="supplier_phone_number_search"
+                           hx-get="{% url 'projects:new_project_party_search' %}"
+                           hx-trigger="keyup changed delay:500ms"
+                           hx-target="#supplier-search-result" hx-swap="innerHTML"
+                           hx-indicator="#supplier-search-spinner"
+                           hx-vals="js:{phone_number: event.target.value, prefix: 'supplier_'}"
+                           class="input w-full font-technical pl-10" dir="ltr" maxlength="11"
+                           inputmode="numeric" autocomplete="off" placeholder="09123456789">
+                    <span id="supplier-search-spinner" class="loading loading-spinner loading-xs htmx-indicator absolute left-3 top-1/2 -translate-y-1/2"></span>
+                </div>
+                <span id="supplier-required-error" class="fb-error hidden">ابتدا شماره‌ی تأمین‌کننده را وارد کنید.</span>
+            </div>
+            <div id="supplier-search-result"></div>
+        </section>
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">اطلاعات خرید</h2>
+            <div class="grid sm:grid-cols-2 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="purchased-at-input">تاریخ خرید</label>
+                    <input type="text" id="purchased-at-input" name="purchased_at" dir="ltr"
+                           value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical">
+                    <span class="fb-hint">خالی بماند یعنی امروز.</span>
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="invoice-number-input">شماره فاکتور خرید (اختیاری)</label>
+                    <input type="text" id="invoice-number-input" name="invoice_number" class="input w-full font-technical" dir="ltr">
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="invoice-file-input">تصویر فاکتور خرید (اختیاری)</label>
+                <input type="file" id="invoice-file-input" name="invoice_file" accept="image/*,.pdf" class="file-input w-full">
+                <span class="fb-hint">عکس (JPG، PNG، WEBP) یا PDF، حداکثر ۱۰ مگابایت.</span>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="notes-input">یادداشت (اختیاری)</label>
+                <textarea id="notes-input" name="notes" class="textarea w-full" rows="2"></textarea>
+            </div>
+        </section>
+
+        {% include "inventory/partials/purchase_lines_editor.html" %}
+
+        <div class="fb-sticky-bar">
+            <a href="{% url 'home' %}" class="btn btn-ghost">انصراف</a>
+            <button type="submit" id="submit-purchase-btn" class="btn btn-primary">ثبت خرید</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('new-purchase-form');
+    form.addEventListener('submit', function (e) {
+        var hasFound = !!document.querySelector('#supplier-search-result input[name="supplier_party_id"]');
+        var hasNew = !!document.querySelector('#supplier-search-result input[name="supplier_phone_number"]');
+        if (!hasFound && !hasNew) {
+            e.preventDefault();
+            document.getElementById('supplier-required-error').classList.remove('hidden');
+            document.getElementById('supplier-phone-search').focus();
+        }
+    });
+})();
+</script>
+{% endblock %}

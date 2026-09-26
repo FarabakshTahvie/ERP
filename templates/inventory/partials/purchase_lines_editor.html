@@ -1,0 +1,98 @@
+{% load custom_tags %}
+<section class="fb-card fb-pad flex flex-col gap-4">
+    <div class="flex items-center justify-between gap-2">
+        <h2 class="fb-section-title">ردیف‌های کالای خریداری‌شده</h2>
+        <button type="button" id="add-purchase-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن ردیف</button>
+    </div>
+    <div id="purchase-rows" class="flex flex-col gap-2"></div>
+    <p id="purchase-empty" class="fb-hint">هنوز ردیفی اضافه نشده.</p>
+    <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
+        <span>جمع کل خرید</span>
+        <span class="font-technical" id="purchase-grand-total">۰</span>
+    </div>
+    <input type="hidden" id="lines_json" name="lines_json">
+</section>
+
+<template id="purchase-row-template">
+    <div class="fb-inset flex flex-col gap-2" data-row>
+        <select class="select select-sm w-full" aria-label="انتخاب کالا"></select>
+        <div class="flex items-center gap-2">
+            <input type="number" data-qty min="0" step="0.0001" placeholder="مقدار" dir="ltr"
+                   class="input input-sm w-24 font-technical">
+            <input type="number" data-cost min="0" step="1" placeholder="بهای واحد (تومان)" dir="ltr"
+                   class="input input-sm flex-1 min-w-0 font-technical">
+            <button type="button" data-remove class="btn btn-soft btn-error btn-sm btn-square" aria-label="حذف ردیف">
+                {% icon "trash-2" "w-4 h-4" %}
+            </button>
+        </div>
+        <div class="text-xs fb-muted">جمع ردیف: <span class="font-technical" data-line-total>۰</span> تومان</div>
+        <div class="fb-error hidden" data-row-warn>مقدار و بهای واحد را وارد کنید؛ ردیف ناقص ثبت نمی‌شود.</div>
+    </div>
+</template>
+
+<script id="purchase-items-data" type="application/json">
+    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
+</script>
+
+<script>
+(function () {
+    function init() {
+        var nf = new Intl.NumberFormat('fa-IR');
+        function fmt(n) { return nf.format(n).replace(/٬/g, ','); }
+
+        var tpl = document.getElementById('purchase-row-template');
+        var box = document.getElementById('purchase-rows');
+        var empty = document.getElementById('purchase-empty');
+        var hidden = document.getElementById('lines_json');
+        var addBtn = document.getElementById('add-purchase-row');
+        var grandTotalEl = document.getElementById('purchase-grand-total');
+        var itemsData = JSON.parse(document.getElementById('purchase-items-data').textContent);
+
+        function sync() {
+            var out = [], grand = 0;
+            Array.prototype.forEach.call(box.children, function (row) {
+                var id = parseInt(row.querySelector('select').value, 10);
+                var qty = row.querySelector('[data-qty]').value;
+                var cost = row.querySelector('[data-cost]').value;
+                var qtyNum = parseFloat(qty) || 0;
+                var costNum = parseFloat(cost) || 0;
+                var line = qtyNum * costNum;
+                row.querySelector('[data-line-total]').textContent = fmt(line);
+                row.querySelector('[data-row-warn]').classList.toggle('hidden', qtyNum > 0 && costNum > 0);
+                if (id && qtyNum > 0 && costNum > 0) {
+                    out.push({ id: id, qty: qty, unit_cost: cost });
+                    grand += line;
+                }
+            });
+            hidden.value = JSON.stringify(out);
+            empty.classList.toggle('hidden', box.children.length > 0);
+            grandTotalEl.textContent = fmt(grand);
+        }
+
+        function addRow() {
+            var row = tpl.content.firstElementChild.cloneNode(true);
+            var select = row.querySelector('select');
+            var placeholder = document.createElement('option');
+            placeholder.value = ''; placeholder.textContent = 'انتخاب کالا...';
+            select.appendChild(placeholder);
+            itemsData.forEach(function (d) {
+                var opt = document.createElement('option');
+                opt.value = d.id; opt.textContent = d.name;
+                select.appendChild(opt);
+            });
+            box.appendChild(row);
+        }
+
+        if (!itemsData.length) { addBtn.disabled = true; }
+        addBtn.addEventListener('click', function () { addRow(); sync(); });
+        ['input', 'change'].forEach(function (evt) { box.addEventListener(evt, sync); });
+        box.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-remove]');
+            if (btn) { btn.closest('[data-row]').remove(); sync(); }
+        });
+        addRow();
+        sync();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>

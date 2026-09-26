@@ -12,7 +12,7 @@ from accounts.models import User
 from core.models import Party
 from catalog.models import Service, Item
 from .models import Project, ProjectStage, StageApproval
-from .services import (
+from projects.services import (
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, project_prices_editable,
@@ -20,6 +20,7 @@ from .services import (
     stage_approval_action,
 )
 from finance.services import create_customer_payment
+from inventory.services import user_can_manage_inventory, low_stock_items_count
 
 
 def _parse_json_lines(raw_value):
@@ -94,6 +95,7 @@ def _duration_hint(hours):
 
 def technician_home_view(request, user):
     can_create = user_can_create_projects(user)
+    can_manage_inventory = user_can_manage_inventory(user)
 
     my_stages_count = ProjectStage.objects.filter(status=ProjectStage.Status.IN_PROGRESS, assigned_to=user).count()
     pool_stages_count = ProjectStage.objects.filter(
@@ -109,13 +111,17 @@ def technician_home_view(request, user):
             pending_qs = pending_qs.filter(invoice__project__created_by=user)
         pending_payments_count = pending_qs.count()
 
+    low_stock_count = low_stock_items_count() if can_manage_inventory else 0
+
     return render(request, "projects/technician_home.html", {
         "can_create_projects": can_create,
         "can_review_payments": can_create or user.is_superuser or user.role == User.Role.ADMIN,
+        "can_manage_inventory": can_manage_inventory,
         "my_stages_count": my_stages_count,
         "pool_stages_count": pool_stages_count,
         "my_projects_count": my_projects_count,
         "pending_payments_count": pending_payments_count,
+        "low_stock_count": low_stock_count,
     })
 
 
