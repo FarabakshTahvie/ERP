@@ -44,5 +44,5 @@ class Command(BaseCommand):
             w_id = w.get("id")
             w_addr = w.get("address", "")
             self.stdout.write(f" - ID: {w_id} | آدرس: {w_addr}")
-            if "farabakhshtahvie.com" not in w_addr:
-                self.stdout.write(self.style.WARNING(f"   [هشدار] آدرس وب‌سایت '{w_addr}' با farabakhshtahvie.com مطابقت ندارد!"))
+            if "farabakhshtahvieh.com" not in w_addr:
+                self.stdout.write(self.style.WARNING(f"   [هشدار] آدرس وب‌سایت '{w_addr}' با farabakhshtahvieh.com مطابقت ندارد!"))

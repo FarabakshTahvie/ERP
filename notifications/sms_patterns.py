@@ -11,12 +11,12 @@ SMS_PATTERNS = {
         "reference_text": (
             "سلام %name%\nپیش‌فاکتور شما به شماره %number% ثبت شد.\n"
             "یوزرنیم: %username%\nپسورد: %password%\n"
-            "لینک: farabakhshtahvie.com/%LINK%\nفرابخش تهویه"
+            "لینک: farabakhshtahvieh.com/%LINK%\nفرابخش تهویه"
         ),
     },
     "login_otp": {
         "pattern_code": "673093",
         "parameters": ["code"],
-        "reference_text": "کد ورود شما: %code%\nفرابخش تهویه\nfarabakhshtahvie.com",
+        "reference_text": "کد ورود شما: %code%\nفرابخش تهویه\nfarabakhshtahvieh.com",
     },
 }

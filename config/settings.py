@@ -33,7 +33,7 @@ if DEBUG or 'test' in sys.argv:
 else:
     SECRET_KEY = env('SECRET_KEY')  # Raises ImproperlyConfigured in production if SECRET_KEY is missing
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost', 'farabakhshtahvie.com', 'www.farabakhshtahvie.com'])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost', 'farabakhshtahvieh.com', 'www.farabakhshtahvieh.com'])
 
 
 # Application definition
@@ -144,7 +144,7 @@ if 'test' in sys.argv:
 # https://docs.djangoproject.com/en/6.1/topics/http/sessions/#using-cookie-based-sessions
 
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS',
-    default=['https://farabakhshtahvie.com', 'https://www.farabakhshtahvie.com'])
+    default=['https://farabakhshtahvieh.com', 'https://www.farabakhshtahvieh.com'])
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
@@ -318,7 +318,7 @@ NAJVA_WEBSITE_ID = env('NAJVA_WEBSITE_ID', default='')
 NAJVA_SEND_URL = env('NAJVA_SEND_URL', default='https://push.najva.com/v1/send/token/')
 
 # Site URL for tracking links
-SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhshtahvie.com')
+SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhshtahvieh.com')
 SMS_IR_SANDBOX_API_KEY = env('SMS_IR_SANDBOX_API_KEY', default='')  # فقط برای تست‌ها
 
 # OTP Configuration
