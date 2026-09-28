@@ -11,8 +11,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 
-from catalog.models import Item
-from utils.generic_table import build_table_context
+from catalog.models import Item, ItemCategory
+from utils.generic_table import build_table_context, render_table
 from utils.jalali import to_fa_digits, jalali_str
 from utils.jalali_forms import JalaliDateField
 from .services import (
@@ -55,15 +55,13 @@ def _stock_queryset():
     )
 
 
-@login_required
-@user_passes_test(user_can_manage_inventory)
-def stock_table(request):
+def _stock_table_context(request):
     qs = _stock_queryset()
 
     def row_builder(item):
         low = item.is_low == 1
         return {
-            "url": None,  # در W1 ردیف‌ها کلیک‌پذیر نیستند؛ صفحه‌ی جزئیات کالا هنوز نداریم
+            "url": None,
             "cells": [
                 {"type": "text", "value": item.name},
                 {"type": "muted", "value": item.get_item_type_display()},
@@ -75,19 +73,35 @@ def stock_table(request):
             ],
         }
 
-    context = build_table_context(
+    category_choices = [(c.id, c.name) for c in ItemCategory.objects.order_by("name")]
+
+    return build_table_context(
         request, qs,
         columns=[
-            {"label": "کالا"}, {"label": "نوع"}, {"label": "دسته‌بندی"}, {"label": "واحد"},
-            {"label": "موجودی فعلی"}, {"label": "حد هشدار"}, {"label": "وضعیت"},
+            {"label": "کالا", "sort_field": "name"},
+            {"label": "نوع", "sort_field": "item_type", "filter_key": "item_type", "filter_type": "select",
+             "choices": Item.ItemType.choices},
+            {"label": "دسته‌بندی", "sort_field": "category__name", "filter_key": "category", "filter_type": "select",
+             "filter_field": "category_id", "choices": category_choices},
+            {"label": "واحد", "sort_field": "unit"},
+            {"label": "موجودی فعلی", "sort_field": "stock"},
+            {"label": "حد هشدار", "sort_field": "reorder_point"},
+            {"label": "وضعیت", "sort_field": "is_low", "filter_key": "low", "filter_type": "boolean",
+             "filter_field": "is_low", "true_label": "کمبود", "false_label": "عادی"},
         ],
         row_builder=row_builder,
         container_id="table-stock",
         param_prefix="st_",
         empty_icon="package", empty_text="هنوز کالایی در کاتالوگ فعال ثبت نشده.",
         list_url=reverse("inventory:stock_table"),
+        search_fields=["name", "category__name"],
     )
-    return render(request, "utils/partials/generic_table.html", context)
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+def stock_table(request):
+    return render_table(request, _stock_table_context(request))
 
 
 def _parse_json_lines(raw_value):

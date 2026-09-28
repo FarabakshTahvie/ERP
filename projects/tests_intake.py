@@ -77,3 +77,80 @@ class NewProjectIntakeTests(TestCase):
 
         invoice = Invoice.objects.get(project=project)
         self.assertEqual(invoice.total_amount, 1200000)
+
+
+class PartySearchForPurchaseTests(TestCase):
+    """جستجوی طرف‌حساب از فرم ثبت خرید انبار (اصلاح روی W2)."""
+
+    def setUp(self):
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.warehouse_user = User.objects.create_user(
+            username="pw_wh_user", phone_number="09370000001",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.warehouse_user.specialties.add(self.sp_warehouse)
+
+        self.plain_tech = User.objects.create_user(
+            username="pw_plain_tech", phone_number="09370000002",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+
+    def test_warehouse_keeper_without_reception_can_search_parties(self):
+        client = Client()
+        client.force_login(self.warehouse_user)
+        resp = client.get(reverse("projects:new_project_party_search") + "?phone_number=09370000099")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_plain_employee_without_any_relevant_specialty_denied(self):
+        client = Client()
+        client.force_login(self.plain_tech)
+        resp = client.get(reverse("projects:new_project_party_search") + "?phone_number=09370000099")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_supplier_context_shows_existing_role_badges_and_auto_add_hint(self):
+        party = Party.objects.create(
+            name="کارفرمای موجود برای خرید", phone_number="09370000003",
+            entity_type=Party.EntityType.INDIVIDUAL, national_code="5555555555", is_client=True,
+        )
+        client = Client()
+        client.force_login(self.warehouse_user)
+        resp = client.get(
+            reverse("projects:new_project_party_search")
+            + f"?phone_number={party.phone_number}&prefix=supplier_&context_role=supplier"
+        )
+        content = resp.content.decode("utf-8")
+        self.assertIn("کارفرما", content)
+        self.assertIn("نقش «تأمین‌کننده» را نداشت", content)
+
+    def test_supplier_context_hides_hint_when_already_supplier(self):
+        party = Party.objects.create(
+            name="تامین‌کننده‌ی از قبل", phone_number="09370000004",
+            entity_type=Party.EntityType.INDIVIDUAL, national_code="6666666666", is_supplier=True,
+        )
+        client = Client()
+        client.force_login(self.warehouse_user)
+        resp = client.get(
+            reverse("projects:new_project_party_search")
+            + f"?phone_number={party.phone_number}&prefix=supplier_&context_role=supplier"
+        )
+        content = resp.content.decode("utf-8")
+        self.assertIn("تأمین‌کننده", content)
+        self.assertNotIn("نقش «تأمین‌کننده» را نداشت", content)
+
+    def test_owner_search_still_hides_role_badges_without_context_role(self):
+        """رگرسیون: فرم صاحب ملک در ثبت پروژه نباید تحت تاثیر این اصلاح قرار بگیرد."""
+        party = Party.objects.create(
+            name="طرف‌حساب چندنقشی", phone_number="09370000005",
+            entity_type=Party.EntityType.INDIVIDUAL, national_code="7777777777",
+            is_client=True, is_partner=True,
+        )
+        client = Client()
+        client.force_login(self.warehouse_user)
+        resp = client.get(
+            reverse("projects:new_project_party_search")
+            + f"?phone_number={party.phone_number}&prefix=owner_"
+        )
+        content = resp.content.decode("utf-8")
+        self.assertNotIn("کارفرما", content)
+        self.assertNotIn("شریک تجاری", content)
+

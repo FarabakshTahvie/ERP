@@ -263,3 +263,227 @@ class JalaliAndUIWorkflowTests(TestCase):
         inv_html = resp_inv.content.decode("utf-8")
         self.assertIsNone(pattern_stray_slash.search(inv_html), "Stray / found in portal invoice HTML")
         self.assertIsNone(pattern_stray_closing_slash.search(inv_html), "Stray >/ found in portal invoice HTML")
+
+
+class TableUrlTagTests(TestCase):
+    def test_table_url_overrides_multiple_keys_and_preserves_rest(self):
+        from django.test import RequestFactory
+        from django.template import Context, Template
+        request = RequestFactory().get("/fake/?mt_q=test&mt_page=3&other=1")
+        tpl = Template("{% load custom_tags %}{% table_url 'mt_sort' 'name' 'mt_page' 1 %}")
+        rendered = tpl.render(Context({"request": request}))
+        self.assertIn("mt_q=test", rendered)
+        self.assertIn("other=1", rendered)
+        self.assertIn("mt_sort=name", rendered)
+        self.assertIn("mt_page=1", rendered)
+
+    def test_sort_next_dir(self):
+        from utils.templatetags.custom_tags import sort_next_dir
+        self.assertEqual(sort_next_dir("name", "asc", "name"), "desc")
+        self.assertEqual(sort_next_dir("name", "desc", "name"), "asc")
+        self.assertEqual(sort_next_dir("other", "asc", "name"), "asc")
+
+
+class GenericTableAdvancedFilterUnitTests(TestCase):
+    def test_select_filter_rejects_value_outside_choices(self):
+        from django.test import RequestFactory
+        from utils.generic_table import build_table_context
+        from accounts.models import User as UserModel
+
+        UserModel.objects.create_user(username="gtf_a", phone_number="09190004001", password="x", role="employee")
+        UserModel.objects.create_user(username="gtf_b", phone_number="09190004002", password="x", role="manager")
+
+        request = RequestFactory().get("/fake/", {"f_role": "not-a-real-role"})
+        ctx = build_table_context(
+            request, UserModel.objects.filter(phone_number__in=["09190004001", "09190004002"]),
+            columns=[{"label": "نقش", "filter_key": "role", "filter_type": "select",
+                      "choices": [("employee", "تکنسین"), ("manager", "مدیر")]}],
+            row_builder=lambda u: {"url": None, "cells": [{"type": "text", "value": u.username}]},
+            container_id="gtf-test-1",
+        )
+        self.assertEqual(ctx["active_filter_count"], 0)
+        self.assertEqual(len(ctx["rows"]), 2)
+
+    def test_number_range_filter_applies_correctly(self):
+        from django.test import RequestFactory
+        from utils.generic_table import build_table_context
+        from core.models import Party
+
+        Party.objects.create(name="طرف کم", credit_limit=1000, is_client=True, national_code="1010101010")
+        Party.objects.create(name="طرف زیاد", credit_limit=90000, is_client=True, national_code="2020202020")
+
+        request = RequestFactory().get("/fake/", {"fmin_credit": "5000"})
+        ctx = build_table_context(
+            request, Party.objects.all(),
+            columns=[{"label": "سقف اعتبار", "filter_key": "credit", "filter_type": "number_range",
+                      "filter_field": "credit_limit"}],
+            row_builder=lambda p: {"url": None, "cells": [{"type": "text", "value": p.name}]},
+            container_id="gtf-test-2",
+        )
+        self.assertEqual(len(ctx["rows"]), 1)
+        self.assertEqual(ctx["active_filter_count"], 1)
+
+    def test_reset_url_drops_only_this_tables_own_params(self):
+        from django.test import RequestFactory
+        from utils.generic_table import build_table_context
+        from core.models import Party
+
+        request = RequestFactory().get("/fake/", {
+            "py_sort": "name", "py_dir": "desc", "py_f_is_client": "1", "other_page": "3",
+        })
+        ctx = build_table_context(
+            request, Party.objects.none(),
+            columns=[{"label": "نام", "sort_field": "name", "filter_key": "is_client", "filter_type": "boolean"}],
+            row_builder=lambda p: {"url": None, "cells": []},
+            container_id="gtf-test-3",
+            param_prefix="py_",
+        )
+        self.assertNotIn("py_sort", ctx["reset_url"])
+        self.assertNotIn("py_f_is_client", ctx["reset_url"])
+        self.assertIn("other_page=3", ctx["reset_url"])
+
+    def test_table_without_filter_types_still_gets_sort_modal(self):
+        from django.test import RequestFactory
+        from utils.generic_table import build_table_context
+        from core.models import Party
+
+        request = RequestFactory().get("/fake/")
+        ctx = build_table_context(
+            request, Party.objects.none(),
+            columns=[{"label": "نام", "sort_field": "name"}],
+            row_builder=lambda p: {"url": None, "cells": []},
+            container_id="gtf-test-4",
+        )
+        self.assertTrue(ctx["has_modal"])
+        self.assertEqual(ctx["active_filter_count"], 0)
+
+
+class TabsEngineTests(TestCase):
+    def test_resolve_active_tab_defaults_to_first_when_missing(self):
+        from django.test import RequestFactory
+        from utils.tabs import resolve_active_tab
+        request = RequestFactory().get("/")
+        self.assertEqual(resolve_active_tab(request, ["a", "b", "c"]), "a")
+
+    def test_resolve_active_tab_reads_valid_param(self):
+        from django.test import RequestFactory
+        from utils.tabs import resolve_active_tab
+        request = RequestFactory().get("/", {"tab": "b"})
+        self.assertEqual(resolve_active_tab(request, ["a", "b", "c"]), "b")
+
+    def test_resolve_active_tab_ignores_invalid_value(self):
+        from django.test import RequestFactory
+        from utils.tabs import resolve_active_tab
+        request = RequestFactory().get("/", {"tab": "not-real"})
+        self.assertEqual(resolve_active_tab(request, ["a", "b", "c"]), "a")
+
+    def test_build_tabs_context_marks_correct_tab_active(self):
+        from django.test import RequestFactory
+        from utils.tabs import build_tabs_context
+        request = RequestFactory().get("/", {"tab": "second"})
+        ctx = build_tabs_context(request, [
+            {"key": "first", "label": "اول", "url": "/x/", "container_id": "c1"},
+            {"key": "second", "label": "دوم", "url": "/y/", "container_id": "c2"},
+        ])
+        self.assertFalse(ctx["tabs"][0]["is_active"])
+        self.assertTrue(ctx["tabs"][1]["is_active"])
+        self.assertEqual(ctx["active_tab_key"], "second")
+
+    def test_eager_render_called_only_for_active_tab(self):
+        from django.test import RequestFactory
+        from utils.tabs import build_tabs_context
+        calls = {"first": 0, "second": 0}
+
+        def make_render(name):
+            def _r():
+                calls[name] += 1
+                return f"<p>{name}</p>"
+            return _r
+
+        request = RequestFactory().get("/", {"tab": "second"})
+        ctx = build_tabs_context(request, [
+            {"key": "first", "label": "اول", "url": "/x/", "container_id": "c1", "eager_render": make_render("first")},
+            {"key": "second", "label": "دوم", "url": "/y/", "container_id": "c2", "eager_render": make_render("second")},
+        ])
+        self.assertEqual(calls["first"], 0)
+        self.assertEqual(calls["second"], 1)
+        self.assertIsNone(ctx["tabs"][0]["eager_html"])
+        self.assertIn("second", ctx["tabs"][1]["eager_html"])
+
+    def test_count_builder_called_for_every_tab_regardless_of_active(self):
+        from django.test import RequestFactory
+        from utils.tabs import build_tabs_context
+        request = RequestFactory().get("/")
+        ctx = build_tabs_context(request, [
+            {"key": "a", "label": "آ", "url": "/x/", "container_id": "c1", "count_builder": lambda: 5},
+            {"key": "b", "label": "ب", "url": "/y/", "container_id": "c2", "count_builder": lambda: 9},
+        ])
+        self.assertEqual(ctx["tabs"][0]["count"], 5)
+        self.assertEqual(ctx["tabs"][1]["count"], 9)
+
+    def test_tab_without_count_builder_has_none_count(self):
+        from django.test import RequestFactory
+        from utils.tabs import build_tabs_context
+        request = RequestFactory().get("/")
+        ctx = build_tabs_context(request, [{"key": "a", "label": "آ", "url": "/x/", "container_id": "c1"}])
+        self.assertIsNone(ctx["tabs"][0]["count"])
+
+
+class TableToolbarRegressionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="ttr_admin", phone_number="09190006001",
+            password="Test@1234", role=User.Role.ADMIN, is_superuser=True,
+        )
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.url = reverse("finance:payments_table")
+
+    def test_no_live_search_trigger_and_has_submit_icon(self):
+        content = self.client.get(self.url).content.decode("utf-8")
+        self.assertNotIn('hx-trigger="input changed', content)
+        self.assertIn('type="submit"', content)
+        self.assertIn('aria-label="جستجو"', content)
+
+    def test_sort_header_targets_partial_endpoint_not_current_page(self):
+        content = self.client.get(self.url).content.decode("utf-8")
+        self.assertNotIn('hx-get="?', content)
+        self.assertIn('hx-get="/payments/table/?py_sort=', content)
+
+    def test_no_hardcoded_push_url_attribute_in_table(self):
+        content = self.client.get(self.url).content.decode("utf-8")
+        self.assertNotIn("hx-push-url", content)
+
+    def test_search_form_preserves_sort_filter_and_resets_page(self):
+        content = self.client.get(self.url, {
+            "py_sort": "amount", "py_dir": "desc", "py_f_method": "credit", "py_page": "3", "py_q": "x",
+        }).content.decode("utf-8")
+        self.assertIn('name="py_sort" value="amount"', content)
+        self.assertIn('name="py_f_method" value="credit"', content)
+        self.assertNotIn('name="py_page" value="3"', content)
+        self.assertIn('name="py_page" value="1"', content)
+
+    def test_push_url_header_targets_host_page_and_merges_params(self):
+        from urllib.parse import urlsplit, parse_qs
+        resp = self.client.get(
+            self.url, {"py_q": "abc"},
+            headers={"HX-Request": "true",
+                     "HX-Current-URL": "http://testserver/payments/?py_page=3&other=1&tab=claimable"},
+        )
+        parts = urlsplit(resp["HX-Push-Url"])
+        self.assertEqual(parts.path, "/payments/")
+        self.assertEqual(parse_qs(parts.query), {"other": ["1"], "py_q": ["abc"], "tab": ["claimable"]})
+
+    def test_tab_click_request_sets_new_tab_in_push_url(self):
+        from urllib.parse import urlsplit, parse_qs
+        resp = self.client.get(
+            self.url, {"tab": "stock"},
+            headers={"HX-Request": "true", "HX-Current-URL": "http://testserver/?tab=my_tasks"},
+        )
+        self.assertEqual(parse_qs(urlsplit(resp["HX-Push-Url"]).query), {"tab": ["stock"]})
+
+    def test_no_push_header_without_htmx(self):
+        resp = self.client.get(self.url)
+        self.assertNotIn("HX-Push-Url", resp.headers)
+
+

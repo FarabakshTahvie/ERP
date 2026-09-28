@@ -216,6 +216,17 @@ class PurchaseEntryTests(TestCase):
         })
         self.assertTrue(party.is_supplier)
 
+    def test_resolve_supplier_party_adds_supplier_role_to_existing_party_without_it(self):
+        existing_client = Party.objects.create(
+            name="کارفرمای موجود", phone_number="09350000005",
+            entity_type=Party.EntityType.INDIVIDUAL, national_code="4444444444", is_client=True,
+        )
+        self.assertFalse(existing_client.is_supplier)
+        resolved = _resolve_supplier_party(party_id=existing_client.id)
+        self.assertTrue(resolved.is_supplier)
+        existing_client.refresh_from_db()
+        self.assertTrue(existing_client.is_supplier)
+
     def test_resolve_supplier_party_rejects_duplicate_phone(self):
         with self.assertRaises(ValueError):
             _resolve_supplier_party(party_data={
@@ -416,6 +427,165 @@ class ManualStockChangeTests(TestCase):
         self.assertRedirects(resp, reverse("home"))
         item.refresh_from_db()
         self.assertEqual(item.current_stock, Decimal("8"))
+
+
+class StockTableAdvancedFilterTests(TestCase):
+    def setUp(self):
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(
+            username="stf_wh_user", phone_number="09190002101",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.wh_user.specialties.add(self.sp_warehouse)
+        self.warehouse = Warehouse.objects.create(name="انبار تست فیلتر", is_default=True)
+        self.cat_a = ItemCategory.objects.create(name="دسته آ فیلتر")
+        self.cat_b = ItemCategory.objects.create(name="دسته ب فیلتر")
+
+        self.item_material = Item.objects.create(
+            name="متریال فیلتری", item_type=Item.ItemType.MATERIAL,
+            category=self.cat_a, unit=Item.Unit.PIECE, reorder_point=10,
+        )
+        self.item_part = Item.objects.create(
+            name="قطعه فیلتری", item_type=Item.ItemType.PART,
+            category=self.cat_b, unit=Item.Unit.PIECE, reorder_point=10,
+        )
+        receive_stock(item=self.item_material, warehouse=self.warehouse, qty=1, unit_cost=1000, received_at=timezone.now())
+        receive_stock(item=self.item_part, warehouse=self.warehouse, qty=100, unit_cost=1000, received_at=timezone.now())
+
+    def test_filter_by_item_type(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_f_item_type": "part"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("قطعه فیلتری", content)
+        self.assertNotIn("متریال فیلتری", content)
+
+    def test_filter_by_category(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_f_category": str(self.cat_b.id)})
+        content = resp.content.decode("utf-8")
+        self.assertIn("قطعه فیلتری", content)
+        self.assertNotIn("متریال فیلتری", content)
+
+    def test_sort_by_stock_ascending(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "asc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("متریال فیلتری") < content.find("قطعه فیلتری"))
+
+    def test_sort_by_stock_descending(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "desc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("قطعه فیلتری") < content.find("متریال فیلتری"))
+
+    def test_invalid_category_id_ignored(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_f_category": "999999"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("متریال فیلتری", content)
+        self.assertIn("قطعه فیلتری", content)
+
+
+
+class StockTableSearchSortTests(TestCase):
+    def setUp(self):
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(
+            username="st_wh_user", phone_number="09190002001",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.wh_user.specialties.add(self.sp_warehouse)
+        self.warehouse = Warehouse.objects.create(name="انبار تست جدول", is_default=True)
+        self.cat = ItemCategory.objects.create(name="دسته تست جدول")
+
+        self.item_alpha = Item.objects.create(
+            name="آلفا کالا", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE,
+        )
+        self.item_beta = Item.objects.create(
+            name="بتا کالا", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE,
+        )
+        receive_stock(item=self.item_alpha, warehouse=self.warehouse, qty=5, unit_cost=1000, received_at=timezone.now())
+        receive_stock(item=self.item_beta, warehouse=self.warehouse, qty=50, unit_cost=1000, received_at=timezone.now())
+
+    def test_search_by_name(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_q": "آلفا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("آلفا کالا", content)
+        self.assertNotIn("بتا کالا", content)
+
+    def test_sort_by_stock_ascending(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "asc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("آلفا کالا") < content.find("بتا کالا"))
+
+    def test_pagination_regression_still_works(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"), {"st_page_size": "1"})
+        self.assertEqual(resp.status_code, 200)
+
+
+class TechnicianHomeStockTabEagerRenderTests(TestCase):
+    def setUp(self):
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(
+            username="th_stock_eager", phone_number="09190005101",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.wh_user.specialties.add(self.sp_warehouse)
+        self.warehouse = Warehouse.objects.create(name="انبار تست eager", is_default=True)
+        self.cat = ItemCategory.objects.create(name="دسته تست eager")
+        self.item = Item.objects.create(
+            name="کالای تست eager رندر", item_type=Item.ItemType.MATERIAL,
+            category=self.cat, unit=Item.Unit.PIECE,
+        )
+        receive_stock(item=self.item, warehouse=self.warehouse, qty=5, unit_cost=1000, received_at=timezone.now())
+
+    def test_stock_tab_eager_rendered_when_selected(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("home"), {"tab": "stock"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("کالای تست eager رندر", content)
+        self.assertIn("جمع موجودی در همه", content)
+
+    def test_stock_table_endpoint_still_works_after_refactor(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"))
+        self.assertEqual(resp.status_code, 200)
+
+
+class StockTableToolbarLayoutTests(TestCase):
+    def setUp(self):
+        sp, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(
+            username="stl_wh", phone_number="09190007001",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.wh_user.specialties.add(sp)
+        for i in range(11):
+            Item.objects.create(name=f"کالای چیدمان {i}", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
+
+    def test_pagination_rendered_above_table_not_below(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        content = client.get(reverse("inventory:stock_table")).content.decode("utf-8")
+        select_pos = content.find('aria-label="تعداد در صفحه"')
+        table_pos = content.find("<table")
+        self.assertNotEqual(select_pos, -1)
+        self.assertLess(select_pos, table_pos)
+        self.assertEqual(content.count('aria-label="تعداد در صفحه"'), 1)
+
 
 
 

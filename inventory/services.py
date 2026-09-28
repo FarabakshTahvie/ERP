@@ -173,8 +173,18 @@ def _clean_purchase_lines(raw_lines):
 
 
 def _resolve_supplier_party(*, party_id=None, party_data=None):
+    """
+    پیدا کردن یا ساختن طرف‌حساب تأمین‌کننده. نقش «تأمین‌کننده» همیشه تضمین می‌شود:
+    - طرف‌حساب تازه‌ساز: is_supplier=True از همان ابتدا (نقش از قبل معلوم است، بدون چک‌باکس).
+    - طرف‌حساب موجودِ پیداشده: اگر از قبل این نقش را نداشت، همین‌جا اضافه می‌شود (رفع باگ:
+      قبلاً این حالت فراموش شده بود و طرف‌حساب موجود بدون گرفتن نقش تأمین‌کننده مصرف می‌شد).
+    """
     if party_id:
-        return Party.objects.get(pk=party_id)
+        party = Party.objects.get(pk=party_id)
+        if not party.is_supplier:
+            party.is_supplier = True
+            party.save(update_fields=["is_supplier"])
+        return party
     if not party_data or not party_data.get("phone_number"):
         raise ValueError("اطلاعات تأمین‌کننده ناقص است.")
     if Party.objects.filter(phone_number=party_data["phone_number"]).exists():

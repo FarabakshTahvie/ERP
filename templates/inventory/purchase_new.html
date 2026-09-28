@@ -21,7 +21,7 @@
                            hx-trigger="keyup changed delay:500ms"
                            hx-target="#supplier-search-result" hx-swap="innerHTML"
                            hx-indicator="#supplier-search-spinner"
-                           hx-vals="js:{phone_number: event.target.value, prefix: 'supplier_'}"
+                           hx-vals="js:{phone_number: event.target.value, prefix: 'supplier_', context_role: 'supplier'}"
                            class="input w-full font-technical pl-10" dir="ltr" maxlength="11"
                            inputmode="numeric" autocomplete="off" placeholder="09123456789">
                     <span id="supplier-search-spinner" class="loading loading-spinner loading-xs htmx-indicator absolute left-3 top-1/2 -translate-y-1/2"></span>

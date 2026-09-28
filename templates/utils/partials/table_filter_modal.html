@@ -1,0 +1,85 @@
+{% load custom_tags %}
+{% if has_modal %}
+<button type="button" class="btn btn-soft btn-sm btn-square relative shrink-0"
+        onclick="document.getElementById('{{ container_id }}-filter-modal').showModal()"
+        aria-label="فیلتر و مرتب‌سازی" title="فیلتر و مرتب‌سازی">
+    {% icon "sliders-horizontal" "w-4 h-4" %}
+    {% if active_filter_count %}
+    <span class="absolute -top-1 -left-1 bg-primary text-primary-content text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{{ active_filter_count|fa_digits }}</span>
+    {% endif %}
+</button>
+
+<dialog id="{{ container_id }}-filter-modal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-1">فیلتر و مرتب‌سازی</h3>
+        <p class="text-xs fb-muted mb-4">فقط روی همین جدول اثر می‌گذارد.</p>
+
+        <form method="get" action="{{ list_url }}"
+              hx-get="{{ list_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML"
+              class="flex flex-col gap-3">
+            <input type="hidden" name="{{ search_param }}" value="{{ search_query }}">
+            <input type="hidden" name="{{ size_param }}" value="{{ page_size }}">
+            <input type="hidden" name="{{ page_param }}" value="1">
+
+            <div class="fb-field">
+                <label class="fb-label" for="{{ container_id }}-sort-select">مرتب‌سازی بر اساس</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="{{ container_id }}-sort-select" name="{{ sort_param }}" class="select select-sm w-full">
+                        <option value="">بدون مرتب‌سازی خاص</option>
+                        {% for col in columns %}
+                            {% if col.sort_field %}
+                            <option value="{{ col.sort_field }}" {% if sort_field == col.sort_field %}selected{% endif %}>{{ col.label }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <select name="{{ dir_param }}" class="select select-sm w-full">
+                        <option value="asc" {% if sort_dir == "asc" %}selected{% endif %}>صعودی</option>
+                        <option value="desc" {% if sort_dir == "desc" %}selected{% endif %}>نزولی</option>
+                    </select>
+                </div>
+            </div>
+
+            {% for col in columns %}
+                {% if col.filter_key and col.filter_type %}
+                <div class="fb-field">
+                    <span class="fb-label">{{ col.label }}</span>
+                    {% if col.filter_type == "number_range" %}
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" inputmode="decimal" name="{{ param_prefix }}fmin_{{ col.filter_key }}"
+                                   value="{{ col.filter_value_min }}" placeholder="حداقل" dir="ltr"
+                                   class="input input-sm w-full font-technical">
+                            <input type="text" inputmode="decimal" name="{{ param_prefix }}fmax_{{ col.filter_key }}"
+                                   value="{{ col.filter_value_max }}" placeholder="حداکثر" dir="ltr"
+                                   class="input input-sm w-full font-technical">
+                        </div>
+                    {% elif col.filter_type == "select" %}
+                        <select name="{{ param_prefix }}f_{{ col.filter_key }}" class="select select-sm w-full">
+                            <option value="">همه</option>
+                            {% for choice_val, choice_label in col.choices %}
+                            <option value="{{ choice_val }}" {% if col.filter_value == choice_val|stringformat:"s" %}selected{% endif %}>{{ choice_label }}</option>
+                            {% endfor %}
+                        </select>
+                    {% elif col.filter_type == "boolean" %}
+                        <select name="{{ param_prefix }}f_{{ col.filter_key }}" class="select select-sm w-full">
+                            <option value="">همه</option>
+                            <option value="1" {% if col.filter_value == "1" %}selected{% endif %}>{{ col.true_label|default:"بله" }}</option>
+                            <option value="0" {% if col.filter_value == "0" %}selected{% endif %}>{{ col.false_label|default:"خیر" }}</option>
+                        </select>
+                    {% else %}
+                        <input type="text" name="{{ param_prefix }}f_{{ col.filter_key }}" value="{{ col.filter_value }}"
+                               class="input input-sm w-full">
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+
+            <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-1">اعمال</button>
+                <a href="{{ reset_url }}" hx-get="{{ reset_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML"
+                   class="btn btn-soft btn-sm flex-1" onclick="document.getElementById('{{ container_id }}-filter-modal').close()">پاک‌کردن فیلترها</a>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}

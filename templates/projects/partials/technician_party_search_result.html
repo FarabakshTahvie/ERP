@@ -6,13 +6,16 @@
     {% icon "check-circle" "w-4 h-4 shrink-0" %}
     <div class="text-sm space-y-1.5">
         <div>طرف‌حساب یافت شد: <strong>{{ party.name }}</strong></div>
-        {% if not prefix %}
+        {% if not prefix or context_role %}
         <div class="flex flex-wrap gap-1">
             {% if party.is_client %}<span class="fb-badge fb-badge-neutral">کارفرما</span>{% endif %}
             {% if party.is_partner %}<span class="fb-badge fb-badge-neutral">شریک تجاری</span>{% endif %}
             {% if party.is_contractor %}<span class="fb-badge fb-badge-neutral">پیمانکار</span>{% endif %}
             {% if party.is_supplier %}<span class="fb-badge fb-badge-neutral">تأمین‌کننده</span>{% endif %}
         </div>
+        {% endif %}
+        {% if context_role == 'supplier' and not party.is_supplier %}
+        <p class="fb-hint">این طرف‌حساب نقش «تأمین‌کننده» را نداشت؛ با ثبت این خرید، این نقش هم به او اضافه می‌شود.</p>
         {% endif %}
     </div>
 </div>

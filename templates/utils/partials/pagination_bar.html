@@ -1,5 +1,5 @@
 {% load custom_tags %}
-<div class="flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-t border-base-300 text-xs">
+<div class="flex items-center justify-between gap-3 flex-wrap text-xs">
     <span class="fb-muted">
         {% if paginator.count %}
             {{ page_obj.start_index|fa_digits }}–{{ page_obj.end_index|fa_digits }} از {{ paginator.count|fa_digits }} مورد
@@ -10,12 +10,9 @@
 
     <div class="flex items-center gap-2">
         <select name="{{ size_param }}"
-                hx-get="{{ list_url }}"
-                hx-target="#{{ container_id }}"
-                hx-swap="outerHTML"
-                hx-trigger="change"
-                aria-label="تعداد در صفحه"
-                class="select select-xs w-auto">
+                hx-get="{{ list_url }}{% table_url page_param 1 %}"
+                hx-target="#{{ container_id }}" hx-swap="outerHTML" hx-trigger="change"
+                aria-label="تعداد در صفحه" class="select select-xs w-auto">
             {% for choice in page_size_choices %}
             <option value="{{ choice }}" {% if choice == page_size %}selected{% endif %}>{{ choice|fa_digits }} در صفحه</option>
             {% endfor %}

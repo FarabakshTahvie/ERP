@@ -1,10 +1,54 @@
 {% load custom_tags %}
 <div class="fb-card fb-table-region overflow-hidden" id="{{ container_id }}">
+    {% if search_enabled or has_modal or show_pagination %}
+    <div id="{{ container_id }}-controls" class="p-3 border-b border-base-300 flex flex-col gap-3">
+        {% if search_enabled or has_modal %}
+        <div class="flex items-center gap-2">
+            {% if search_enabled %}
+            <form class="relative flex-1" role="search"
+                  hx-get="{{ list_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML">
+                {% for name, value in preserved_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+                <input type="hidden" name="{{ page_param }}" value="1">
+                <input type="text" name="{{ search_param }}" value="{{ search_query }}"
+                       placeholder="{{ search_placeholder }}" autocomplete="off" enterkeyhint="search"
+                       class="input input-sm w-full pl-11">
+                <button type="submit" aria-label="جستجو"
+                        class="btn btn-ghost btn-xs btn-square absolute left-1.5 top-1/2 -translate-y-1/2 text-base-content/50">
+                    {% icon "search" "w-4 h-4" %}
+                </button>
+            </form>
+            {% endif %}
+            {% include "utils/partials/table_filter_modal.html" %}
+        </div>
+        {% endif %}
+        {% if show_pagination %}
+            {% include "utils/partials/pagination_bar.html" %}
+        {% endif %}
+    </div>
+    {% endif %}
     <div class="overflow-x-auto">
         <table class="table table-sm">
             <thead>
                 <tr class="text-xs fb-muted">
-                    {% for col in columns %}<th class="font-medium">{{ col.label }}</th>{% endfor %}
+                    {% for col in columns %}
+                    <th class="font-medium">
+                        {% if col.sort_field %}
+                            {% sort_next_dir sort_field sort_dir col.sort_field as next_dir %}
+                            <button type="button" class="inline-flex items-center gap-1 hover:text-base-content cursor-pointer"
+                                    hx-get="{{ list_url }}{% table_url sort_param col.sort_field dir_param next_dir page_param 1 %}"
+                                    hx-target="#{{ container_id }}" hx-swap="outerHTML">
+                                <span>{{ col.label }}</span>
+                                {% if sort_field == col.sort_field %}
+                                    {% icon "arrow-up-down" "w-3.5 h-3.5 text-primary" %}
+                                {% else %}
+                                    {% icon "arrow-up-down" "w-3.5 h-3.5 opacity-50" %}
+                                {% endif %}
+                            </button>
+                        {% else %}
+                            {{ col.label }}
+                        {% endif %}
+                    </th>
+                    {% endfor %}
                 </tr>
             </thead>
             <tbody>
@@ -42,7 +86,4 @@
             </tbody>
         </table>
     </div>
-    {% if paginator.num_pages > 1 or paginator.count > page_size_choices.0 %}
-        {% include "utils/partials/pagination_bar.html" %}
-    {% endif %}
 </div>

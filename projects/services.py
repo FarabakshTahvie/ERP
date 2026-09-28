@@ -15,6 +15,16 @@ def user_can_create_projects(user):
     )
 
 
+def can_search_parties_for_purchase(user):
+    """
+    جستجوی طرف‌حساب (new_project_party_search) هم برای «پذیرش» و هم برای «انباردار» باز است،
+    چون این ویو فقط جستجوی خواندنی است و هیچ نوشتنی در دیتابیس انجام نمی‌دهد؛ محدودیت واقعی
+    روی ثبت پروژه/خرید در ویوهای خودشان (project creation / purchase_new) باقی می‌ماند.
+    """
+    from inventory.services import user_can_manage_inventory
+    return user_can_create_projects(user) or user_can_manage_inventory(user)
+
+
 EDITABLE_PROJECT_STATUSES = (Project.Status.DRAFT, Project.Status.IN_PROGRESS)
 
 

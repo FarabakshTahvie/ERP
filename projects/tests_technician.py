@@ -1,5 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.utils import timezone
 from accounts.models import User
 from core.models import Specialty, Party, Location
 from projects.models import Project, ProjectStage, WorkflowTemplate, WorkflowStepTemplate
@@ -197,4 +198,251 @@ class TechnicianHomeInventoryTabTests(TestCase):
         client.force_login(self.plain_tech)
         resp2 = client.get(reverse("home"))
         self.assertNotContains(resp2, "موجودی انبار")
+
+
+class DashboardTablesSearchSortTests(TestCase):
+    def setUp(self):
+        self.sp_duct, _ = Specialty.objects.get_or_create(name="کانال‌کش")
+        self.tech = User.objects.create_user(
+            username="dt_tech", phone_number="09190001001",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.tech.specialties.add(self.sp_duct)
+
+        self.partner = Party.objects.create(name="همکار تست جدول", is_partner=True, national_code="9990000001")
+        self.template = WorkflowTemplate.objects.create(name="قالب تست جدول", is_default=True)
+        self.step1 = WorkflowStepTemplate.objects.create(
+            template=self.template, order=1, title="آلفا مرحله", responsible_specialty=self.sp_duct,
+        )
+        self.step2 = WorkflowStepTemplate.objects.create(
+            template=self.template, order=2, title="بتا مرحله", responsible_specialty=self.sp_duct,
+        )
+
+        self.project_alpha = Project.objects.create(
+            name="پروژه آلفا جدول", partner=self.partner, workflow_template=self.template,
+        )
+        self.project_beta = Project.objects.create(
+            name="پروژه بتا جدول", partner=self.partner, workflow_template=self.template,
+        )
+
+        self.stage_alpha = ProjectStage.objects.create(
+            project=self.project_alpha, step_template=self.step1, order=1,
+            title="آلفا مرحله", status=ProjectStage.Status.IN_PROGRESS, assigned_to=self.tech,
+        )
+        self.stage_beta = ProjectStage.objects.create(
+            project=self.project_beta, step_template=self.step2, order=1,
+            title="بتا مرحله", status=ProjectStage.Status.IN_PROGRESS, assigned_to=self.tech,
+        )
+
+    def test_my_tasks_search_by_project_name(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_q": "آلفا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه آلفا جدول", content)
+        self.assertNotIn("پروژه بتا جدول", content)
+
+    def test_my_tasks_sort_by_project_name_asc(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_sort": "project__name", "mt_dir": "asc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("پروژه آلفا جدول") < content.find("پروژه بتا جدول"))
+
+    def test_my_tasks_sort_by_project_name_desc(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_sort": "project__name", "mt_dir": "desc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("پروژه بتا جدول") < content.find("پروژه آلفا جدول"))
+
+    def test_my_tasks_sort_by_project_name(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_sort": "project__name", "mt_dir": "asc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("پروژه آلفا جدول") < content.find("پروژه بتا جدول"))
+
+    def test_claimable_search(self):
+        self.stage_alpha.assigned_to = None
+        self.stage_alpha.save()
+        self.stage_alpha.candidate_users.add(self.tech)
+        self.stage_beta.assigned_to = None
+        self.stage_beta.save()
+        self.stage_beta.candidate_users.add(self.tech)
+
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_claimable_table"), {"cl_q": "بتا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه بتا جدول", content)
+        self.assertNotIn("پروژه آلفا جدول", content)
+
+    def test_completed_sort_by_completion_date(self):
+        self.stage_alpha.status = ProjectStage.Status.DONE
+        self.stage_alpha.completed_by = self.tech
+        self.stage_alpha.completed_at = timezone.now() - timezone.timedelta(days=2)
+        self.stage_alpha.save()
+        self.stage_beta.status = ProjectStage.Status.DONE
+        self.stage_beta.completed_by = self.tech
+        self.stage_beta.completed_at = timezone.now()
+        self.stage_beta.save()
+
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_completed_table"), {"dn_sort": "completed_at", "dn_dir": "asc"})
+        content = resp.content.decode("utf-8")
+        self.assertTrue(content.find("پروژه آلفا جدول") < content.find("پروژه بتا جدول"))
+
+    def test_my_projects_search_by_code(self):
+        sp_intake, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.tech.specialties.add(sp_intake)
+        self.project_alpha.created_by = self.tech
+        self.project_alpha.save()
+        self.project_beta.created_by = self.tech
+        self.project_beta.save()
+
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_projects_table"), {"pr_q": "آلفا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه آلفا جدول", content)
+        self.assertNotIn("پروژه بتا جدول", content)
+
+
+class TechnicianHomeTabsTests(TestCase):
+    def setUp(self):
+        self.sp_reception, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.tech = User.objects.create_user(
+            username="th_tabs_tech", phone_number="09190005001",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        self.tech.specialties.add(self.sp_reception)
+
+        self.partner = Party.objects.create(name="همکار تست تب صفحه اصلی", is_partner=True, national_code="9990001111")
+        self.template = WorkflowTemplate.objects.create(name="قالب تست تب صفحه اصلی", is_default=True)
+        self.step = WorkflowStepTemplate.objects.create(template=self.template, order=1, title="مرحله تست تب صفحه")
+
+        self.project_mine = Project.objects.create(
+            name="پروژه اختصاصی من", partner=self.partner, workflow_template=self.template,
+            created_by=self.tech,
+        )
+        self.stage_mine = ProjectStage.objects.create(
+            project=self.project_mine, step_template=self.step, order=1,
+            title="مرحله اختصاصی من", status=ProjectStage.Status.IN_PROGRESS, assigned_to=self.tech,
+        )
+
+        self.project_pool = Project.objects.create(
+            name="پروژه در استخر مشترک", partner=self.partner, workflow_template=self.template,
+        )
+        self.stage_pool = ProjectStage.objects.create(
+            project=self.project_pool, step_template=self.step, order=1,
+            title="مرحله در استخر مشترک", status=ProjectStage.Status.IN_PROGRESS,
+        )
+        self.stage_pool.candidate_users.add(self.tech)
+
+    def test_default_tab_is_my_tasks_and_eager_rendered(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"))
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه اختصاصی من", content)
+
+    def test_tab_param_selects_claimable_eagerly_without_js(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"), {"tab": "claimable"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه در استخر مشترک", content)
+
+    def test_inactive_tab_stays_as_loading_placeholder(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"), {"tab": "claimable"})
+        content = resp.content.decode("utf-8")
+        self.assertNotIn("پروژه اختصاصی من", content)
+        self.assertIn("loading loading-spinner", content)
+
+    def test_invalid_tab_param_falls_back_to_default(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"), {"tab": "this-tab-does-not-exist"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه اختصاصی من", content)
+
+    def test_tab_count_shown_next_to_label(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"))
+        content = resp.content.decode("utf-8")
+        self.assertIn("کارهای من", content)
+        self.assertIn("قابل برداشتن", content)
+
+    def test_my_projects_tab_absent_without_permission(self):
+        plain_tech = User.objects.create_user(
+            username="th_tabs_plain", phone_number="09190005002",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        client = Client()
+        client.force_login(plain_tech)
+        resp = client.get(reverse("home"))
+        content = resp.content.decode("utf-8")
+        self.assertNotIn("پروژه‌های من", content)
+
+    def test_tab_click_link_carries_push_url_param(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("home"))
+        content = resp.content.decode("utf-8")
+        self.assertIn("tab=claimable", content)
+        self.assertIn("tab=completed", content)
+
+    def test_underlying_htmx_endpoints_still_work_after_refactor(self):
+        client = Client()
+        client.force_login(self.tech)
+        for url_name in [
+            "projects:dashboard_my_tasks_table",
+            "projects:dashboard_claimable_table",
+            "projects:dashboard_completed_table",
+        ]:
+            resp = client.get(reverse(url_name))
+            self.assertEqual(resp.status_code, 200, url_name)
+
+    def test_pagination_regression_still_works(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_page_size": "1", "mt_page": "1"})
+        self.assertEqual(resp.status_code, 200)
+
+
+class MyProjectsTableFilterTests(TestCase):
+    def setUp(self):
+        self.tech = User.objects.create_user(
+            username="mpf_tech", phone_number="09190003101",
+            password="Test@1234", role=User.Role.EMPLOYEE,
+        )
+        sp_reception, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.tech.specialties.add(sp_reception)
+        self.partner = Party.objects.create(name="همکار تست فیلتر پروژه", is_partner=True, national_code="9990000099")
+        self.template = WorkflowTemplate.objects.create(name="قالب تست فیلتر پروژه", is_default=True)
+        WorkflowStepTemplate.objects.create(template=self.template, order=1, title="مرحله تست")
+
+        self.proj_active = Project.objects.create(
+            name="پروژه در حال اجرا فیلتری", partner=self.partner, workflow_template=self.template,
+            created_by=self.tech, status=Project.Status.IN_PROGRESS,
+        )
+        self.proj_done = Project.objects.create(
+            name="پروژه تکمیل‌شده فیلتری", partner=self.partner, workflow_template=self.template,
+            created_by=self.tech, status=Project.Status.COMPLETED,
+        )
+
+    def test_filter_by_status(self):
+        client = Client()
+        client.force_login(self.tech)
+        resp = client.get(reverse("projects:dashboard_my_projects_table"), {"pr_f_status": "completed"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("پروژه تکمیل‌شده فیلتری", content)
+        self.assertNotIn("پروژه در حال اجرا فیلتری", content)
+
+
 

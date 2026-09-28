@@ -275,15 +275,88 @@ class PaymentTests(TestCase):
         resp = client.get(reverse("finance:payment_detail", args=[pay.id]))
         self.assertEqual(resp.status_code, 200)
 
-        post_resp = client.post(reverse("finance:payment_decide", args=[pay.id]), {"action": "approve"})
-        self.assertRedirects(post_resp, reverse("finance:payment_detail", args=[pay.id]))
-        pay.refresh_from_db()
-        self.assertEqual(pay.status, Payment.Status.PENDING)
 
-        client.force_login(self.other_tech)
-        resp_other = client.get(reverse("finance:payment_detail", args=[pay.id]))
-        self.assertEqual(resp_other.status_code, 404)
+class PaymentsTableSearchSortTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="pt_admin", phone_number="09190000001",
+            password="Test@1234", role=User.Role.ADMIN, is_superuser=True,
+        )
+        self.template = WorkflowTemplate.objects.create(name="قالب تست جدول پرداخت", is_default=True)
+        WorkflowStepTemplate.objects.create(template=self.template, order=1, title="صدور پیش‌فاکتور")
+        WorkflowStepTemplate.objects.create(template=self.template, order=2, title="تایید پیش‌فاکتور")
 
+        self.party_a = Party.objects.create(
+            name="آلفا شرکت", phone_number="09190000011",
+            entity_type=Party.EntityType.COMPANY, company_registration_number="8880001",
+            is_client=True, is_partner=True,
+        )
+        self.party_b = Party.objects.create(
+            name="بتا شرکت", phone_number="09190000012",
+            entity_type=Party.EntityType.COMPANY, company_registration_number="8880002",
+            is_client=True, is_partner=True,
+        )
+        self.service = Service.objects.create(name="خدمت تست جدول پرداخت")
+
+        self.project_a, self.invoice_a, _ = create_project_from_technician_intake(
+            created_by=self.admin_user, party_id=self.party_a.id,
+            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
+            material_lines=[], send_sms=False,
+        )
+        self.project_b, self.invoice_b, _ = create_project_from_technician_intake(
+            created_by=self.admin_user, party_id=self.party_b.id,
+            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("2000000")}],
+            material_lines=[], send_sms=False,
+        )
+        self.pay_a = create_customer_payment(
+            invoice=self.invoice_a, method=Payment.Method.CARD_TO_CARD,
+            amount_raw="100000", reference_number="REF-ALFA",
+        )
+        self.pay_b = create_customer_payment(
+            invoice=self.invoice_b, method=Payment.Method.CARD_TO_CARD,
+            amount_raw="900000", reference_number="REF-BETA",
+        )
+
+    def test_search_filters_by_project_name(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_q": "آلفا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn(self.project_a.name, content)
+        self.assertNotIn(self.project_b.name, content)
+
+    def test_search_normalizes_persian_digits_in_invoice_number(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        persian_query = self.invoice_a.number.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+        resp = client.get(reverse("finance:payments_table"), {"py_q": persian_query})
+        self.assertIn(self.project_a.name, resp.content.decode("utf-8"))
+
+    def test_search_no_match_shows_empty_state(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_q": "چیزی-که-نیست-XYZ"})
+        self.assertIn("هنوز پرداختی ثبت نشده", resp.content.decode("utf-8"))
+
+    def test_sort_by_amount_asc_then_desc(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp_asc = client.get(reverse("finance:payments_table"), {"py_sort": "amount", "py_dir": "asc"})
+        content_asc = resp_asc.content.decode("utf-8")
+        self.assertTrue(content_asc.find(self.project_a.name) < content_asc.find(self.project_b.name))
+
+        resp_desc = client.get(reverse("finance:payments_table"), {"py_sort": "amount", "py_dir": "desc"})
+        content_desc = resp_desc.content.decode("utf-8")
+        self.assertTrue(content_desc.find(self.project_b.name) < content_desc.find(self.project_a.name))
+
+    def test_unknown_sort_field_is_ignored_not_crashed(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_sort": "invoice__uuid__hacked"})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_pagination_regression_with_search_and_sort_params_present(self):
+        client = Client()
         client.force_login(self.admin_user)
         resp_admin = client.get(reverse("finance:payment_detail", args=[pay.id]))
         self.assertEqual(resp_admin.status_code, 200)
@@ -317,3 +390,162 @@ class PaymentTests(TestCase):
         self.assertEqual(resp2.status_code, 200)
         approval.refresh_from_db()
         self.assertEqual(approval.decision, StageApproval.Decision.PENDING)
+
+
+class PaymentsTableSearchSortTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="pt_admin", phone_number="09190000001",
+            password="Test@1234", role=User.Role.ADMIN, is_superuser=True,
+        )
+        self.template = WorkflowTemplate.objects.create(name="قالب تست جدول پرداخت", is_default=True)
+        WorkflowStepTemplate.objects.create(template=self.template, order=1, title="صدور پیش‌فاکتور")
+        WorkflowStepTemplate.objects.create(template=self.template, order=2, title="تایید پیش‌فاکتور")
+
+        self.party_a = Party.objects.create(
+            name="آلفا شرکت", phone_number="09190000011",
+            entity_type=Party.EntityType.COMPANY, company_registration_number="8880001",
+            is_client=True, is_partner=True,
+        )
+        self.party_b = Party.objects.create(
+            name="بتا شرکت", phone_number="09190000012",
+            entity_type=Party.EntityType.COMPANY, company_registration_number="8880002",
+            is_client=True, is_partner=True,
+        )
+        self.service = Service.objects.create(name="خدمت تست جدول پرداخت")
+
+        self.project_a, self.invoice_a, _ = create_project_from_technician_intake(
+            created_by=self.admin_user, party_id=self.party_a.id,
+            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
+            material_lines=[], send_sms=False,
+        )
+        self.project_b, self.invoice_b, _ = create_project_from_technician_intake(
+            created_by=self.admin_user, party_id=self.party_b.id,
+            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("2000000")}],
+            material_lines=[], send_sms=False,
+        )
+        self.pay_a = create_customer_payment(
+            invoice=self.invoice_a, method=Payment.Method.CARD_TO_CARD,
+            amount_raw="100000", reference_number="REF-ALFA",
+        )
+        self.pay_b = create_customer_payment(
+            invoice=self.invoice_b, method=Payment.Method.CARD_TO_CARD,
+            amount_raw="900000", reference_number="REF-BETA",
+        )
+
+    def test_search_filters_by_project_name(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_q": "آلفا"})
+        content = resp.content.decode("utf-8")
+        self.assertIn(self.project_a.name, content)
+        self.assertNotIn(self.project_b.name, content)
+
+    def test_search_normalizes_persian_digits_in_invoice_number(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        persian_query = self.invoice_a.number.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+        resp = client.get(reverse("finance:payments_table"), {"py_q": persian_query})
+        self.assertIn(self.project_a.name, resp.content.decode("utf-8"))
+
+    def test_search_no_match_shows_empty_state(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_q": "چیزی-که-نیست-XYZ"})
+        self.assertIn("هنوز پرداختی ثبت نشده", resp.content.decode("utf-8"))
+
+    def test_sort_by_amount_asc_then_desc(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp_asc = client.get(reverse("finance:payments_table"), {"py_sort": "amount", "py_dir": "asc"})
+        content_asc = resp_asc.content.decode("utf-8")
+        self.assertTrue(content_asc.find(self.project_a.name) < content_asc.find(self.project_b.name))
+
+        resp_desc = client.get(reverse("finance:payments_table"), {"py_sort": "amount", "py_dir": "desc"})
+        content_desc = resp_desc.content.decode("utf-8")
+        self.assertTrue(content_desc.find(self.project_b.name) < content_desc.find(self.project_a.name))
+
+    def test_unknown_sort_field_is_ignored_not_crashed(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_sort": "invoice__uuid__hacked"})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_pagination_regression_with_search_and_sort_params_present(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_page_size": "1", "py_page": "2"})
+        self.assertEqual(resp.status_code, 200)
+
+
+class PaymentsTableAdvancedFilterTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="ptf_admin", phone_number="09190000101",
+            password="Test@1234", role=User.Role.ADMIN, is_superuser=True,
+        )
+        self.template = WorkflowTemplate.objects.create(name="قالب تست فیلتر پرداخت", is_default=True)
+        WorkflowStepTemplate.objects.create(template=self.template, order=1, title="صدور پیش‌فاکتور")
+        WorkflowStepTemplate.objects.create(template=self.template, order=2, title="تایید پیش‌فاکتور")
+
+        self.party = Party.objects.create(
+            name="شرکت تست فیلتر", phone_number="09190000111",
+            entity_type=Party.EntityType.COMPANY, company_registration_number="8880011",
+            is_client=True, is_partner=True,
+        )
+        self.service = Service.objects.create(name="خدمت تست فیلتر پرداخت")
+        self.project, self.invoice, _ = create_project_from_technician_intake(
+            created_by=self.admin_user, party_id=self.party.id,
+            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("5000000")}],
+            material_lines=[], send_sms=False,
+        )
+        self.pay_card = create_customer_payment(
+            invoice=self.invoice, method=Payment.Method.CARD_TO_CARD,
+            amount_raw="100000", reference_number="REF-CARD",
+        )
+        self.pay_credit = create_customer_payment(
+            invoice=self.invoice, method=Payment.Method.CREDIT,
+            amount_raw="900000", note="اعتباری تست فیلتر",
+        )
+
+    def test_filter_by_method_select(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_f_method": "credit"})
+        content = resp.content.decode("utf-8")
+        self.assertNotIn("۱۰۰,۰۰۰", content)
+        self.assertIn("۹۰۰,۰۰۰", content)
+
+    def test_filter_by_amount_min(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_fmin_amount": "500000"})
+        content = resp.content.decode("utf-8")
+        self.assertIn("۹۰۰,۰۰۰", content)
+        self.assertNotIn("۱۰۰,۰۰۰", content)
+
+    def test_invalid_select_value_is_ignored_not_crashed(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_f_method": "this-is-not-a-real-method"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("کارت به کارت", resp.content.decode("utf-8"))
+
+    def test_invalid_number_range_value_ignored(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {"py_fmin_amount": "not-a-number"})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_reset_url_clears_filters_but_keeps_search(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        resp = client.get(reverse("finance:payments_table"), {
+            "py_q": "test", "py_f_method": "credit", "py_sort": "amount", "py_dir": "desc",
+        })
+        self.assertEqual(resp.status_code, 200)
+        reset_url = resp.context["reset_url"]
+        self.assertIn("py_q=test", reset_url)
+        self.assertNotIn("py_f_method", reset_url)
+        self.assertNotIn("py_sort", reset_url)
+

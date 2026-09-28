@@ -6,7 +6,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 import json
 from decimal import Decimal, InvalidOperation
-from utils.generic_table import build_table_context
+from django.template.loader import render_to_string
+from utils.generic_table import build_table_context, render_table
+from utils.tabs import build_tabs_context
 from utils.jalali import jalali_str, to_fa_digits
 from accounts.models import User
 from core.models import Party
@@ -93,45 +95,13 @@ def _duration_hint(hours):
     return "ممکن است چند روز طول بکشد."
 
 
-def technician_home_view(request, user):
-    can_create = user_can_create_projects(user)
-    can_manage_inventory = user_can_manage_inventory(user)
-
-    my_stages_count = ProjectStage.objects.filter(status=ProjectStage.Status.IN_PROGRESS, assigned_to=user).count()
-    pool_stages_count = ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS, candidate_users=user
-    ).exclude(assigned_to=user).distinct().count()
-    my_projects_count = Project.objects.filter(created_by=user).count() if can_create else 0
-
-    from finance.models import Payment
-    pending_payments_count = 0
-    if can_create or user.is_superuser or user.role == User.Role.ADMIN:
-        pending_qs = Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY)
-        if not (user.is_superuser or user.role == User.Role.ADMIN):
-            pending_qs = pending_qs.filter(invoice__project__created_by=user)
-        pending_payments_count = pending_qs.count()
-
-    low_stock_count = low_stock_items_count() if can_manage_inventory else 0
-
-    return render(request, "projects/technician_home.html", {
-        "can_create_projects": can_create,
-        "can_review_payments": can_create or user.is_superuser or user.role == User.Role.ADMIN,
-        "can_manage_inventory": can_manage_inventory,
-        "my_stages_count": my_stages_count,
-        "pool_stages_count": pool_stages_count,
-        "my_projects_count": my_projects_count,
-        "pending_payments_count": pending_payments_count,
-        "low_stock_count": low_stock_count,
-    })
-
-
-@login_required
-@user_passes_test(_is_technician)
-def dashboard_my_tasks_table(request):
-    qs = ProjectStage.objects.filter(
+def _my_tasks_base_qs(request):
+    return ProjectStage.objects.filter(
         status=ProjectStage.Status.IN_PROGRESS, assigned_to=request.user
     ).select_related("project", "step_template").order_by("project__name", "order")
 
+
+def _my_tasks_table_context(request):
     def row_builder(stage):
         return {
             "url": reverse("projects:my_task_detail", args=[stage.id]),
@@ -142,25 +112,35 @@ def dashboard_my_tasks_table(request):
             ],
         }
 
-    context = build_table_context(
-        request, qs,
-        columns=[{"label": "پروژه"}, {"label": "مرحله"}, {"label": "وضعیت"}],
+    return build_table_context(
+        request, _my_tasks_base_qs(request),
+        columns=[
+            {"label": "پروژه", "sort_field": "project__name"},
+            {"label": "مرحله", "sort_field": "title"},
+            {"label": "وضعیت"},
+        ],
         row_builder=row_builder,
         container_id="table-my-tasks",
         param_prefix="mt_",
         empty_icon="check-circle", empty_text="فعلاً کار فعالی برای شما ثبت نشده.",
         list_url=reverse("projects:dashboard_my_tasks_table"),
+        search_fields=["project__name", "title", "client_label"],
     )
-    return render(request, "utils/partials/generic_table.html", context)
 
 
 @login_required
 @user_passes_test(_is_technician)
-def dashboard_claimable_table(request):
-    qs = ProjectStage.objects.filter(
+def dashboard_my_tasks_table(request):
+    return render_table(request, _my_tasks_table_context(request))
+
+
+def _claimable_base_qs(request):
+    return ProjectStage.objects.filter(
         status=ProjectStage.Status.IN_PROGRESS, candidate_users=request.user
     ).exclude(assigned_to=request.user).select_related("project", "step_template").distinct().order_by("project__name", "order")
 
+
+def _claimable_table_context(request):
     def row_builder(stage):
         return {
             "url": reverse("projects:my_task_detail", args=[stage.id]),
@@ -171,25 +151,35 @@ def dashboard_claimable_table(request):
             ],
         }
 
-    context = build_table_context(
-        request, qs,
-        columns=[{"label": "پروژه"}, {"label": "مرحله"}, {"label": "وضعیت"}],
+    return build_table_context(
+        request, _claimable_base_qs(request),
+        columns=[
+            {"label": "پروژه", "sort_field": "project__name"},
+            {"label": "مرحله", "sort_field": "title"},
+            {"label": "وضعیت"},
+        ],
         row_builder=row_builder,
         container_id="table-claimable",
         param_prefix="cl_",
         empty_icon="folder-kanban", empty_text="فعلاً کاری در استخر قابل‌برداشتن نیست.",
         list_url=reverse("projects:dashboard_claimable_table"),
+        search_fields=["project__name", "title", "client_label"],
     )
-    return render(request, "utils/partials/generic_table.html", context)
 
 
 @login_required
 @user_passes_test(_is_technician)
-def dashboard_completed_table(request):
-    qs = ProjectStage.objects.filter(
+def dashboard_claimable_table(request):
+    return render_table(request, _claimable_table_context(request))
+
+
+def _completed_base_qs(request):
+    return ProjectStage.objects.filter(
         status=ProjectStage.Status.DONE, completed_by=request.user
     ).select_related("project", "step_template").order_by("-completed_at")
 
+
+def _completed_table_context(request):
     def row_builder(stage):
         return {
             "url": reverse("projects:my_task_detail", args=[stage.id]) if stage.assigned_to_id == request.user.id else None,
@@ -201,23 +191,34 @@ def dashboard_completed_table(request):
             ],
         }
 
-    context = build_table_context(
-        request, qs,
-        columns=[{"label": "پروژه"}, {"label": "مرحله"}, {"label": "تاریخ تکمیل"}, {"label": "وضعیت"}],
+    return build_table_context(
+        request, _completed_base_qs(request),
+        columns=[
+            {"label": "پروژه", "sort_field": "project__name"},
+            {"label": "مرحله", "sort_field": "title"},
+            {"label": "تاریخ تکمیل", "sort_field": "completed_at"},
+            {"label": "وضعیت"},
+        ],
         row_builder=row_builder,
         container_id="table-completed",
         param_prefix="dn_",
         empty_icon="check-circle", empty_text="هنوز هیچ کاری را تکمیل نکرده‌اید.",
         list_url=reverse("projects:dashboard_completed_table"),
+        search_fields=["project__name", "title"],
     )
-    return render(request, "utils/partials/generic_table.html", context)
 
 
 @login_required
-@user_passes_test(user_can_create_projects)
-def dashboard_my_projects_table(request):
-    qs = Project.objects.filter(created_by=request.user).order_by("-created_at")
+@user_passes_test(_is_technician)
+def dashboard_completed_table(request):
+    return render_table(request, _completed_table_context(request))
 
+
+def _my_projects_base_qs(request):
+    return Project.objects.filter(created_by=request.user).order_by("-created_at")
+
+
+def _my_projects_table_context(request):
     def row_builder(project):
         total = project.stages.count()
         done = project.stages.filter(status=ProjectStage.Status.DONE).count()
@@ -233,16 +234,101 @@ def dashboard_my_projects_table(request):
             ],
         }
 
-    context = build_table_context(
-        request, qs,
-        columns=[{"label": "پروژه"}, {"label": "کد"}, {"label": "پیشرفت"}, {"label": "وضعیت"}],
+    return build_table_context(
+        request, _my_projects_base_qs(request),
+        columns=[
+            {"label": "پروژه", "sort_field": "name"},
+            {"label": "کد", "sort_field": "code"},
+            {"label": "پیشرفت"},
+            {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
+             "choices": Project.Status.choices},
+        ],
         row_builder=row_builder,
         container_id="table-my-projects",
         param_prefix="pr_",
         empty_icon="folder-kanban", empty_text="هنوز پروژه‌ای ثبت نکرده‌اید.",
         list_url=reverse("projects:dashboard_my_projects_table"),
+        search_fields=["name", "code"],
     )
-    return render(request, "utils/partials/generic_table.html", context)
+
+
+@login_required
+@user_passes_test(user_can_create_projects)
+def dashboard_my_projects_table(request):
+    return render_table(request, _my_projects_table_context(request))
+
+
+def technician_home_view(request, user):
+    can_create = user_can_create_projects(user)
+    can_manage_inventory = user_can_manage_inventory(user)
+    can_review = can_create or user.is_superuser or user.role == User.Role.ADMIN
+
+    from finance.models import Payment
+    pending_payments_count = 0
+    if can_review:
+        pending_qs = Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY)
+        if not (user.is_superuser or user.role == User.Role.ADMIN):
+            pending_qs = pending_qs.filter(invoice__project__created_by=user)
+        pending_payments_count = pending_qs.count()
+
+    low_stock_count = low_stock_items_count() if can_manage_inventory else 0
+
+    def _eager(context_builder):
+        return lambda: render_to_string(
+            "utils/partials/generic_table.html", context_builder(request), request=request,
+        )
+
+    tabs = [
+        {
+            "key": "my_tasks", "label": "کارهای من",
+            "count_builder": lambda: _my_tasks_base_qs(request).count(),
+            "url": reverse("projects:dashboard_my_tasks_table"),
+            "container_id": "tab-panel-mytasks",
+            "eager_render": _eager(_my_tasks_table_context),
+        },
+        {
+            "key": "claimable", "label": "قابل برداشتن",
+            "count_builder": lambda: _claimable_base_qs(request).count(),
+            "url": reverse("projects:dashboard_claimable_table"),
+            "container_id": "tab-panel-claimable",
+            "eager_render": _eager(_claimable_table_context),
+        },
+        {
+            "key": "completed", "label": "انجام‌شده",
+            "count_builder": lambda: _completed_base_qs(request).count(),
+            "url": reverse("projects:dashboard_completed_table"),
+            "container_id": "tab-panel-completed",
+            "eager_render": _eager(_completed_table_context),
+        },
+    ]
+    if can_create:
+        tabs.append({
+            "key": "my_projects", "label": "پروژه‌های من",
+            "count_builder": lambda: _my_projects_base_qs(request).count(),
+            "url": reverse("projects:dashboard_my_projects_table"),
+            "container_id": "tab-panel-myprojects",
+            "eager_render": _eager(_my_projects_table_context),
+        })
+    if can_manage_inventory:
+        from inventory.views import _stock_table_context
+        tabs.append({
+            "key": "stock", "label": "موجودی انبار",
+            "hint": "جمع موجودی در همه‌ی انبارها نشان داده می‌شود (فعلاً فقط «انبار مرکزی»).",
+            "url": reverse("inventory:stock_table"),
+            "container_id": "tab-panel-stock-table",
+            "eager_render": _eager(_stock_table_context),
+        })
+
+    tabs_context = build_tabs_context(request, tabs)
+
+    return render(request, "projects/technician_home.html", {
+        "can_create_projects": can_create,
+        "can_review_payments": can_review,
+        "can_manage_inventory": can_manage_inventory,
+        "pending_payments_count": pending_payments_count,
+        "low_stock_count": low_stock_count,
+        "tabs": tabs_context,
+    })
 
 
 def _render_staff_project_view(request, project, highlight_stage_id=None):
@@ -487,14 +573,19 @@ def new_project_form(request):
     return render(request, "projects/technician_new_project.html", {"services": services, "items": items})
 
 
+def _party_search_permission(user):
+    return user_can_create_projects(user) or user_can_manage_inventory(user)
+
+
 @login_required
-@user_passes_test(user_can_create_projects)
+@user_passes_test(_party_search_permission)
 def new_project_party_search(request):
     phone = request.GET.get("phone_number", "").strip()
     prefix = request.GET.get("prefix", "")
+    context_role = request.GET.get("context_role", "")
     party = Party.objects.filter(phone_number=phone).first() if phone else None
     return render(request, "projects/partials/technician_party_search_result.html", {
-        "phone_number": phone, "party": party, "prefix": prefix,
+        "phone_number": phone, "party": party, "prefix": prefix, "context_role": context_role,
     })
 
 

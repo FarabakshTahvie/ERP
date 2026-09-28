@@ -31,64 +31,35 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-2 {% if can_create_projects and can_manage_inventory %}sm:grid-cols-4{% elif can_create_projects or can_manage_inventory %}sm:grid-cols-3{% endif %} gap-3">
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value text-primary font-technical">{{ my_stages_count|fa_digits }}</div>
-            <div class="fb-stat-label">کارهای من</div>
-        </div>
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical">{{ pool_stages_count|fa_digits }}</div>
-            <div class="fb-stat-label">قابل برداشتن</div>
-        </div>
-        {% if can_create_projects %}
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical">{{ my_projects_count|fa_digits }}</div>
-            <div class="fb-stat-label">پروژه‌های ثبت‌شده</div>
-        </div>
-        {% endif %}
-        {% if can_manage_inventory %}
+    {% if can_manage_inventory %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="fb-card fb-pad">
             <div class="fb-stat-value font-technical {% if low_stock_count %}text-warning{% endif %}">{{ low_stock_count|fa_digits }}</div>
             <div class="fb-stat-label">کالای رو به اتمام</div>
         </div>
-        {% endif %}
     </div>
+    {% endif %}
 
-    <div role="tablist" class="tabs tabs-border">
-        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="کارهای من" checked
-               hx-get="{% url 'projects:dashboard_my_tasks_table' %}"
-               hx-target="#tab-panel-mytasks" hx-swap="innerHTML"
-               hx-trigger="click, load once">
-        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-mytasks">
-            <div class="flex justify-center py-6"><span class="loading loading-spinner loading-sm"></span></div>
+    <div class="overflow-x-auto">
+        <div role="tablist" class="tabs tabs-border flex-nowrap">
+            {% for tab in tabs.tabs %}
+            <input type="radio" name="dash-tabs" role="tab" class="tab whitespace-nowrap"
+                   aria-label="{{ tab.label }}{% if tab.count is not None %} {{ tab.count|fa_digits }}{% endif %}"
+                   {% if tab.is_active %}checked{% endif %}
+                   hx-get="{{ tab.url }}?{{ tabs.tab_param }}={{ tab.key }}"
+                   hx-target="#{{ tab.container_id }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="click">
+            <div role="tabpanel" class="tab-content pt-3">
+                {% if tab.hint %}<p class="fb-hint mb-2">{{ tab.hint }}</p>{% endif %}
+                <div id="{{ tab.container_id }}">
+                    {% if tab.eager_html %}{{ tab.eager_html|safe }}{% else %}
+                    <div class="flex justify-center py-6"><span class="loading loading-spinner loading-sm"></span></div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
         </div>
-
-        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="قابل برداشتن"
-               hx-get="{% url 'projects:dashboard_claimable_table' %}"
-               hx-target="#tab-panel-claimable" hx-swap="innerHTML" hx-trigger="click">
-        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-claimable"></div>
-
-        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="انجام‌شده"
-               hx-get="{% url 'projects:dashboard_completed_table' %}"
-               hx-target="#tab-panel-completed" hx-swap="innerHTML" hx-trigger="click">
-        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-completed"></div>
-
-        {% if can_create_projects %}
-        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="پروژه‌های من"
-               hx-get="{% url 'projects:dashboard_my_projects_table' %}"
-               hx-target="#tab-panel-myprojects" hx-swap="innerHTML" hx-trigger="click">
-        <div role="tabpanel" class="tab-content pt-3" id="tab-panel-myprojects"></div>
-        {% endif %}
-
-        {% if can_manage_inventory %}
-        <input type="radio" name="dash-tabs" role="tab" class="tab" aria-label="موجودی انبار"
-               hx-get="{% url 'inventory:stock_table' %}"
-               hx-target="#tab-panel-stock-table" hx-swap="innerHTML" hx-trigger="click">
-        <div role="tabpanel" class="tab-content pt-3 space-y-3">
-            <p class="fb-hint">جمع موجودی در همه‌ی انبارها نشان داده می‌شود (فعلاً فقط «انبار مرکزی»).</p>
-            <div id="tab-panel-stock-table"></div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

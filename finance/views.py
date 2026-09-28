@@ -8,7 +8,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 import weasyprint
 
-from utils.generic_table import build_table_context
+from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
 from .models import Invoice, Payment
@@ -130,13 +130,23 @@ def _payments_table_context(request):
 
     return build_table_context(
         request, qs,
-        columns=[{"label": "پروژه"}, {"label": "فاکتور"}, {"label": "روش"},
-                 {"label": "مبلغ (تومان)"}, {"label": "تاریخ ثبت"}, {"label": "وضعیت"}],
+        columns=[
+            {"label": "پروژه", "sort_field": "invoice__project__name"},
+            {"label": "فاکتور", "sort_field": "invoice__number"},
+            {"label": "روش", "sort_field": "method", "filter_key": "method", "filter_type": "select",
+             "choices": Payment.Method.choices},
+            {"label": "مبلغ (تومان)", "sort_field": "amount", "filter_key": "amount", "filter_type": "number_range"},
+            {"label": "تاریخ ثبت", "sort_field": "created_at"},
+            {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
+             "choices": Payment.Status.choices},
+        ],
         row_builder=row_builder,
         container_id="table-payments",
         param_prefix="py_",
         empty_icon="receipt", empty_text="هنوز پرداختی ثبت نشده.",
         list_url=reverse("finance:payments_table"),
+        search_fields=["invoice__project__name", "invoice__number", "invoice__billed_party__name", "reference_number"],
+        search_placeholder="جستجو در پروژه، فاکتور، طرف‌حساب یا شماره پیگیری...",
     )
 
 
@@ -151,7 +161,7 @@ def payments_review(request):
 @login_required
 @user_passes_test(_can_review_payments)
 def payments_table(request):
-    return render(request, "utils/partials/generic_table.html", _payments_table_context(request))
+    return render_table(request, _payments_table_context(request))
 
 
 @login_required
