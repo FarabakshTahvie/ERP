@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load custom_tags %}
+{% load static custom_tags %}
 {% block title %}ثبت مصرف یا تعدیل موجودی | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--sm">
@@ -12,10 +12,10 @@
         {% csrf_token %}
 
         <div class="fb-field">
-            <label class="fb-label" for="movement-item">کالا</label>
-            <select id="movement-item" name="item_id" class="select w-full" required>
-                <option value="">انتخاب کنید...</option>
-            </select>
+            <span class="fb-label">کالا</span>
+            <div id="movement-item-picker"></div>
+            <input type="hidden" name="item_id" id="movement-item">
+            <span id="movement-item-error" class="fb-error hidden">یک کالا از فهرست انتخاب کنید.</span>
             <span id="current-stock-hint" class="fb-hint"></span>
         </div>
 
@@ -54,41 +54,40 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/item_picker.js' %}"></script>
 <script>
 (function () {
     var data = JSON.parse(document.getElementById('stock-items-data').textContent);
-    var select = document.getElementById('movement-item');
-    data.forEach(function (d) {
-        var opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = d.name;
-        opt.dataset.stock = d.stock;
-        opt.dataset.avgCost = d.avg_cost;
-        opt.dataset.unit = d.unit;
-        select.appendChild(opt);
+    var hiddenId = document.getElementById('movement-item');
+    var current = null;
+
+    var picker = fbItemPicker({
+        items: data, ariaLabel: 'جستجوی کالا',
+        onSelect: function (it) {
+            current = it;
+            hiddenId.value = it ? it.id : '';
+            if (it) document.getElementById('movement-item-error').classList.add('hidden');
+            updateStockHint(); toggleCostField();
+        }
     });
+    document.getElementById('movement-item-picker').appendChild(picker.el);
 
     function updateStockHint() {
-        var opt = select.options[select.selectedIndex];
-        var hint = document.getElementById('current-stock-hint');
-        hint.textContent = (opt && opt.value) ? ('موجودی فعلی: ' + opt.dataset.stock + ' ' + opt.dataset.unit) : '';
+        document.getElementById('current-stock-hint').textContent =
+            current ? ('موجودی فعلی: ' + current.stock + ' ' + current.unit) : '';
     }
-
     function toggleCostField() {
-        var kind = document.querySelector('input[name="kind"]:checked').value;
-        var isIncrease = kind === 'adjust_increase';
-        var costField = document.getElementById('unit-cost-field');
-        var costInput = document.getElementById('movement-cost');
-        costField.classList.toggle('hidden', !isIncrease);
-        if (isIncrease) {
-            var opt = select.options[select.selectedIndex];
-            if (opt && opt.value) { costInput.placeholder = 'مثلاً ' + opt.dataset.avgCost; }
-        }
+        var isIncrease = document.querySelector('input[name="kind"]:checked').value === 'adjust_increase';
+        document.getElementById('unit-cost-field').classList.toggle('hidden', !isIncrease);
+        if (isIncrease && current) document.getElementById('movement-cost').placeholder = 'مثلاً ' + current.avg_cost;
     }
-
-    select.addEventListener('change', function () { updateStockHint(); toggleCostField(); });
-    document.querySelectorAll('input[name="kind"]').forEach(function (r) {
-        r.addEventListener('change', toggleCostField);
+    document.querySelectorAll('input[name="kind"]').forEach(function (r) { r.addEventListener('change', toggleCostField); });
+    document.getElementById('stock-movement-form').addEventListener('submit', function (e) {
+        if (!hiddenId.value) {
+            e.preventDefault();
+            document.getElementById('movement-item-error').classList.remove('hidden');
+            picker.focus();
+        }
     });
 })();
 </script>

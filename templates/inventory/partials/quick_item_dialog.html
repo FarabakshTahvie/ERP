@@ -1,0 +1,102 @@
+{% load custom_tags %}
+<dialog id="quick-item-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-1">کالای جدید</h3>
+        <p class="text-xs fb-muted mb-4">کالا در کاتالوگ ساخته می‌شود و موجودی‌اش با همین خرید اضافه می‌شود. مشخصات فنی و جزئیات بیشتر را بعداً از «موجودی انبار» ویرایش کنید.</p>
+        <div class="flex flex-col gap-3" id="quick-item-fields" data-url="{% url 'inventory:item_quick_create' %}">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="quick-item-name">نام کالا</label>
+                <input type="text" id="quick-item-name" name="name" class="input w-full" maxlength="255">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div class="fb-field">
+                    <label class="fb-label" for="quick-item-type">نوع</label>
+                    <select id="quick-item-type" name="item_type" class="select w-full">
+                        {% for value, label in type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="quick-item-unit">واحد</label>
+                    <select id="quick-item-unit" name="unit" class="select w-full">
+                        <option value="">انتخاب کنید...</option>
+                        {% for value, label in unit_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="quick-item-category">دسته‌بندی (اختیاری)</label>
+                <select id="quick-item-category" name="category_id" class="select w-full">
+                    <option value="">بدون دسته</option>
+                    {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="quick-item-reorder">حداقل موجودی برای هشدار (اختیاری)</label>
+                <input type="text" id="quick-item-reorder" name="reorder_point" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+            </div>
+            <span id="quick-item-error" class="fb-error hidden"></span>
+            <label id="quick-item-dup" class="hidden items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" name="confirm_duplicate" value="1" class="checkbox checkbox-sm"> با همین نام ادامه بده
+            </label>
+            <div class="flex gap-2 pt-1">
+                <button type="button" id="quick-item-save" class="btn btn-primary flex-1">ساخت کالا</button>
+                <button type="button" class="btn btn-ghost flex-1" onclick="document.getElementById('quick-item-dialog').close()">انصراف</button>
+            </div>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script>
+(function () {
+    function init() {
+        var dlg = document.getElementById('quick-item-dialog');
+        var box = document.getElementById('quick-item-fields');
+        var err = document.getElementById('quick-item-error');
+        var dup = document.getElementById('quick-item-dup');
+        var saveBtn = document.getElementById('quick-item-save');
+        var openBtn = document.getElementById('open-quick-item');
+        if (!dlg || !openBtn) return;
+
+        function showError(msg, isDup) {
+            err.textContent = msg; err.classList.remove('hidden');
+            dup.classList.toggle('hidden', !isDup); dup.classList.toggle('flex', !!isDup);
+        }
+        function resetForm() {
+            box.querySelectorAll('input[type=text]').forEach(function (i) { i.value = ''; });
+            box.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+            dup.querySelector('input').checked = false;
+            err.classList.add('hidden'); dup.classList.add('hidden'); dup.classList.remove('flex');
+        }
+        function formData() {
+            var f = new FormData();
+            box.querySelectorAll('[name]').forEach(function (el) {
+                if (el.type === 'checkbox') { if (el.checked) f.append(el.name, el.value); }
+                else f.append(el.name, el.value);
+            });
+            return f;
+        }
+
+        openBtn.addEventListener('click', function () { resetForm(); dlg.showModal(); });
+        saveBtn.addEventListener('click', function () {
+            saveBtn.disabled = true;
+            err.classList.add('hidden');
+            fetch(box.dataset.url, { method: 'POST', body: formData(), credentials: 'same-origin',
+                                     headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json().then(function (data) { return data; }); })
+                .then(function (data) {
+                    if (data.ok) {
+                        document.dispatchEvent(new CustomEvent('fb:item-created', { detail: data.item }));
+                        dlg.close(); resetForm();
+                    } else {
+                        showError(data.error || 'ثبت انجام نشد.', !!data.duplicate);
+                    }
+                })
+                .catch(function () { showError('ثبت انجام نشد؛ دوباره تلاش کنید یا صفحه را تازه کنید.', false); })
+                .finally(function () { saveBtn.disabled = false; });
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{% if item %}ویرایش کالا{% else %}کالای جدید{% endif %} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'home' %}?tab=stock" class="link link-hover text-sm fb-muted">بازگشت به موجودی انبار</a>
+        <h1 class="fb-page-title mt-2">{% if item %}ویرایش کالا{% else %}کالای جدید{% endif %}</h1>
+        {% if item and not item.is_active %}<div class="mt-2"><span class="fb-badge fb-badge-neutral">غیرفعال</span></div>{% endif %}
+    </div>
+
+    {% if duplicate_warning %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">{{ duplicate_warning }} اگر واقعاً کالای جداست، تیک «با همین نام ادامه بده» را بزنید و دوباره ثبت کنید.</span>
+    </div>
+    {% endif %}
+
+    {% if item %}
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2"><span class="fb-muted">موجودی فعلی</span><span class="font-technical">{{ current_stock_display }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">میانگین موزون قیمت (خودکار)</span><span class="font-technical">{{ item.moving_average_cost|intcomma_fa }} تومان</span></div>
+        {% if locked %}<p class="fb-hint">نوع و واحد این کالا قفل است، چون قبلاً در خرید، انبار، پروژه یا فهرست متریال خدمات استفاده شده است.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    <form method="post" id="item-form" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+
+        <div class="fb-field">
+            <label class="fb-label" for="item-name">نام کالا</label>
+            <input type="text" id="item-name" name="name" value="{{ values.name }}" required maxlength="255" class="input w-full">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="item-type">نوع</label>
+                <select id="item-type" name="item_type" class="select w-full" {% if locked %}disabled{% else %}required{% endif %}>
+                    <option value="">انتخاب کنید...</option>
+                    {% for value, label in type_choices %}<option value="{{ value }}" {% if values.item_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="item-unit">واحد سنجش</label>
+                <select id="item-unit" name="unit" class="select w-full" {% if locked %}disabled{% else %}required{% endif %}>
+                    <option value="">انتخاب کنید...</option>
+                    {% for value, label in unit_choices %}<option value="{{ value }}" {% if values.unit == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="item-category">دسته‌بندی</label>
+                <select id="item-category" name="category_id" class="select w-full">
+                    <option value="">بدون دسته</option>
+                    {% for c in categories %}<option value="{{ c.id }}" {% if values.category_id|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="item-new-category">یا دسته‌ی جدید</label>
+                <input type="text" id="item-new-category" name="new_category_name" value="{{ values.new_category_name }}" maxlength="100" class="input w-full">
+            </div>
+        </div>
+
+        <div class="fb-field">
+            <label class="fb-label" for="item-reorder">حداقل موجودی برای هشدار</label>
+            <input type="text" id="item-reorder" name="reorder_point" value="{{ values.reorder_point }}" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+            <span class="fb-hint">خالی یا صفر یعنی برای این کالا هشدار کمبود نباشد.</span>
+        </div>
+
+        <div class="fb-field">
+            <div class="flex items-center justify-between gap-2">
+                <span class="fb-label">مشخصات فنی (اختیاری)</span>
+                <button type="button" id="add-spec-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن مورد</button>
+            </div>
+            <div id="specs-rows" class="flex flex-col gap-2"></div>
+            <span class="fb-hint">مثلاً «جنس: گالوانیزه» یا «ضخامت: ۰٫۶ میلیمتر».</span>
+            <input type="hidden" id="specs_json" data-name="specs_json">
+        </div>
+
+        {% if duplicate_warning %}
+        <label class="flex items-center gap-2 cursor-pointer text-sm">
+            <input type="checkbox" name="confirm_duplicate" value="1" class="checkbox checkbox-sm"> با همین نام ادامه بده
+        </label>
+        {% endif %}
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary flex-1">{% if item %}ذخیره تغییرات{% else %}ثبت کالا{% endif %}</button>
+            <a href="{% url 'home' %}?tab=stock" class="btn btn-ghost flex-1">انصراف</a>
+        </div>
+    </form>
+
+    {% if item %}
+    <form method="post" action="{% url 'inventory:item_toggle_active' item.id %}" data-fb-once class="fb-card fb-pad flex items-center justify-between gap-3">
+        {% csrf_token %}
+        <span class="text-xs fb-muted">{% if item.is_active %}کالای غیرفعال در فرم‌های خرید و مصرف دیده نمی‌شود. فقط اگر موجودی صفر باشد امکان‌پذیر است.{% else %}این کالا فعلاً در فرم‌های خرید و مصرف دیده نمی‌شود.{% endif %}</span>
+        <button type="submit" class="btn btn-soft btn-sm {% if item.is_active %}btn-error{% endif %}">{% if item.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+    </form>
+    {% endif %}
+</div>
+
+<template id="spec-row-template">
+    <div class="flex items-center gap-2" data-spec-row>
+        <input type="text" data-key placeholder="برچسب" maxlength="100" class="input input-sm w-2/5 min-w-0">
+        <input type="text" data-value placeholder="مقدار" maxlength="200" class="input input-sm flex-1 min-w-0">
+        <button type="button" data-remove class="btn btn-soft btn-error btn-sm btn-square" aria-label="حذف مورد">{% icon "trash-2" "w-4 h-4" %}</button>
+    </div>
+</template>
+{{ specs|json_script:"initial-specs" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var box = document.getElementById('specs-rows');
+    var hidden = document.getElementById('specs_json');
+    var tpl = document.getElementById('spec-row-template');
+    var initial = JSON.parse(document.getElementById('initial-specs').textContent || '[]');
+
+    function sync() {
+        var out = [];
+        Array.prototype.forEach.call(box.children, function (row) {
+            out.push({ key: row.querySelector('[data-key]').value, value: row.querySelector('[data-value]').value });
+        });
+        hidden.value = JSON.stringify(out);
+    }
+    function addRow(pre) {
+        var row = tpl.content.firstElementChild.cloneNode(true);
+        if (pre) { row.querySelector('[data-key]').value = pre.key; row.querySelector('[data-value]').value = pre.value; }
+        box.appendChild(row);
+    }
+    hidden.name = hidden.dataset.name;   // اگر JS اجرا نشود، فیلد ارسال نمی‌شود و سرور مشخصات را دست نمی‌زند
+    document.getElementById('add-spec-row').addEventListener('click', function () { addRow(); sync(); });
+    box.addEventListener('input', sync);
+    box.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-remove]');
+        if (btn) { btn.closest('[data-spec-row]').remove(); sync(); }
+    });
+    initial.forEach(addRow);
+    sync();
+})();
+</script>
+{% endblock %}

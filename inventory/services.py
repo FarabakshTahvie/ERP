@@ -3,7 +3,7 @@ from django.db import transaction
 from django.db.models import F, Sum, Value, DecimalField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from catalog.models import Item
+from catalog.models import Item, ItemCategory
 from core.models import Party
 from .models import StockLot, StockMovement, Purchase, PurchaseLine, Warehouse
 
@@ -277,3 +277,167 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         received_at=timezone.now(), movement_type=StockMovement.MovementType.ADJUST,
         notes=notes, created_by=user,
     )
+
+
+# ----------------------- مدیریت کالا (C2) -----------------------
+
+ITEM_NAME_MAX = 255
+CATEGORY_NAME_MAX = 100
+SPEC_KEY_MAX, SPEC_VALUE_MAX, SPECS_MAX_ENTRIES = 100, 200, 20
+_SPECS_INVALID = "مشخصات فنی نامعتبر است؛ صفحه را دوباره باز کنید."
+_AR_TO_FA = str.maketrans({"ي": "ی", "ك": "ک"})
+
+
+class DuplicateItemNameError(ValueError):
+    """نام با کالای دیگری یکی است؛ فراخوان می‌تواند با تایید صریح (confirm_duplicate) ادامه دهد."""
+
+
+def normalize_item_name(name):
+    text = (name or "").translate(_AR_TO_FA).translate(_FA_TO_EN)
+    text = text.replace("\u200c", " ")
+    return " ".join(text.split()).casefold()
+
+
+def parse_nonneg_decimal(raw, *, label, max_value=Decimal("9999999999")):
+    """خالی = صفر؛ منفی، نامعتبر یا خیلی بزرگ = ValueError فارسی."""
+    text = str(raw if raw is not None else "").strip().translate(_FA_TO_EN)
+    text = text.replace("٫", ".").replace(",", "").replace("٬", "").replace(" ", "")
+    if not text:
+        return Decimal("0.00")
+    try:
+        value = Decimal(text)
+    except InvalidOperation:
+        raise ValueError(f"{label} نامعتبر است؛ فقط عدد وارد کنید.")
+    if not value.is_finite() or value < 0 or value > max_value:
+        raise ValueError(f"{label} باید عددی بین صفر و {max_value} باشد.")
+    return value.quantize(Decimal("0.01"))
+
+
+def clean_specs(pairs):
+    """لیست [{key, value}, ...] را به dict تمیز تبدیل می‌کند؛ ردیف کاملاً خالی نادیده گرفته می‌شود."""
+    if not isinstance(pairs, list):
+        raise ValueError(_SPECS_INVALID)
+    out = {}
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            raise ValueError(_SPECS_INVALID)
+        key = str(pair.get("key", "")).strip()
+        value = str(pair.get("value", "")).strip()
+        if not key and not value:
+            continue
+        if not key or not value:
+            raise ValueError("در مشخصات فنی، هر ردیف باید هم برچسب و هم مقدار داشته باشد.")
+        if len(key) > SPEC_KEY_MAX or len(value) > SPEC_VALUE_MAX:
+            raise ValueError("برچسب یا مقدار مشخصات فنی بیش از حد طولانی است.")
+        if key in out:
+            raise ValueError(f"برچسب «{key}» در مشخصات فنی تکراری است.")
+        out[key] = value
+    if len(out) > SPECS_MAX_ENTRIES:
+        raise ValueError(f"حداکثر {SPECS_MAX_ENTRIES} مورد مشخصات فنی مجاز است.")
+    return out
+
+
+def _clean_item_name(name):
+    name = " ".join((name or "").split())
+    if not name:
+        raise ValueError("نام کالا الزامی است.")
+    if len(name) > ITEM_NAME_MAX:
+        raise ValueError(f"نام کالا نباید بیش از {ITEM_NAME_MAX} کاراکتر باشد.")
+    return name
+
+
+def _clean_choice(value, enum_cls, label):
+    if value not in enum_cls.values:
+        raise ValueError(f"{label} معتبر انتخاب کنید.")
+    return value
+
+
+def _check_duplicate_name(name, *, exclude_pk, confirmed):
+    if confirmed:
+        return
+    target = normalize_item_name(name)
+    for pk, other in Item.objects.values_list("pk", "name"):
+        if pk != exclude_pk and normalize_item_name(other) == target:
+            raise DuplicateItemNameError(f"کالایی با نام مشابه «{other}» از قبل وجود دارد.")
+
+
+def _resolve_category(*, category_id, new_category_name):
+    new_name = " ".join((new_category_name or "").split())
+    if new_name:
+        if len(new_name) > CATEGORY_NAME_MAX:
+            raise ValueError(f"نام دسته‌بندی نباید بیش از {CATEGORY_NAME_MAX} کاراکتر باشد.")
+        return ItemCategory.objects.filter(name__iexact=new_name).first() or ItemCategory.objects.create(name=new_name)
+    if category_id in (None, "", "0"):
+        return None
+    try:
+        return ItemCategory.objects.get(pk=int(category_id))
+    except (TypeError, ValueError, ItemCategory.DoesNotExist):
+        raise ValueError("دسته‌بندی انتخاب‌شده معتبر نیست.")
+
+
+def item_structure_locked(item):
+    """بعد از اولین استفاده، نوع و واحد کالا قفل می‌شود (تغییرش داده‌های قبلی را بی‌معنی می‌کند)."""
+    return (
+        item.lots.exists() or item.purchase_lines.exists()
+        or item.project_usages.exists() or item.used_in_services.exists()
+    )
+
+
+@transaction.atomic
+def create_item(*, name, item_type, unit, category_id=None, new_category_name="",
+                reorder_point_raw="", specs_pairs=None, confirm_duplicate=False):
+    name = _clean_item_name(name)
+    item_type = _clean_choice(item_type, Item.ItemType, "نوع کالا")
+    unit = _clean_choice(unit, Item.Unit, "واحد سنجش")
+    reorder_point = parse_nonneg_decimal(reorder_point_raw, label="حداقل موجودی برای هشدار")
+    specs = clean_specs(specs_pairs or [])
+    _check_duplicate_name(name, exclude_pk=None, confirmed=confirm_duplicate)
+    category = _resolve_category(category_id=category_id, new_category_name=new_category_name)
+    return Item.objects.create(
+        name=name, item_type=item_type, unit=unit, category=category,
+        reorder_point=reorder_point, specs=specs,
+    )
+
+
+@transaction.atomic
+def update_item(item, *, name, item_type=None, unit=None, category_id=None, new_category_name="",
+                reorder_point_raw="", specs_pairs=None, confirm_duplicate=False):
+    """
+    specs_pairs=None یعنی «ارسال نشده، دست نزن»؛ [] یعنی «همه را پاک کن».
+    وقتی نوع/واحد قفل است، فیلد ارسال‌نشده (کنترل disabled) یعنی بدون تغییر؛ مقدار متفاوت = خطا.
+    """
+    item = Item.objects.select_for_update().get(pk=item.pk)
+    locked = item_structure_locked(item)
+
+    name = _clean_item_name(name)
+    if locked:
+        if (item_type and item_type != item.item_type) or (unit and unit != item.unit):
+            raise ValueError("نوع و واحد این کالا قفل است، چون قبلاً در خرید، انبار یا پروژه استفاده شده است.")
+        item_type, unit = item.item_type, item.unit
+    else:
+        item_type = item.item_type if item_type is None else _clean_choice(item_type, Item.ItemType, "نوع کالا")
+        unit = item.unit if unit is None else _clean_choice(unit, Item.Unit, "واحد سنجش")
+    reorder_point = parse_nonneg_decimal(reorder_point_raw, label="حداقل موجودی برای هشدار")
+    specs = None if specs_pairs is None else clean_specs(specs_pairs)
+    if normalize_item_name(name) != normalize_item_name(item.name):
+        _check_duplicate_name(name, exclude_pk=item.pk, confirmed=confirm_duplicate)
+    category = _resolve_category(category_id=category_id, new_category_name=new_category_name)
+
+    item.name, item.item_type, item.unit = name, item_type, unit
+    item.category, item.reorder_point = category, reorder_point
+    fields = ["name", "item_type", "unit", "category", "reorder_point", "updated_at"]
+    if specs is not None:
+        item.specs = specs
+        fields.append("specs")
+    item.save(update_fields=fields)
+    return item
+
+
+@transaction.atomic
+def set_item_active(item, *, active):
+    item = Item.objects.select_for_update().get(pk=item.pk)
+    if not active and item.current_stock > 0:
+        raise ValueError("این کالا هنوز موجودی دارد؛ ابتدا با «ثبت مصرف/تعدیل» موجودی را صفر کنید.")
+    item.is_active = active
+    item.save(update_fields=["is_active", "updated_at"])
+    return item

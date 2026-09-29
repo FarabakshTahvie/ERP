@@ -1,8 +1,12 @@
-{% load custom_tags %}
+{% load static custom_tags %}
+<script src="{% static 'js/item_picker.js' %}"></script>
 <section class="fb-card fb-pad flex flex-col gap-4">
     <div class="flex items-center justify-between gap-2">
         <h2 class="fb-section-title">ردیف‌های کالای خریداری‌شده</h2>
-        <button type="button" id="add-purchase-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن ردیف</button>
+        <div class="flex gap-2">
+            <button type="button" id="open-quick-item" class="btn btn-ghost btn-sm">{% icon "package" "w-4 h-4" %} کالای جدید</button>
+            <button type="button" id="add-purchase-row" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن ردیف</button>
+        </div>
     </div>
     <div id="purchase-rows" class="flex flex-col gap-2"></div>
     <p id="purchase-empty" class="fb-hint">هنوز ردیفی اضافه نشده.</p>
@@ -15,7 +19,7 @@
 
 <template id="purchase-row-template">
     <div class="fb-inset flex flex-col gap-2" data-row>
-        <select class="select select-sm w-full" aria-label="انتخاب کالا"></select>
+        <div data-picker></div>
         <div class="flex items-center gap-2">
             <input type="number" data-qty min="0" step="0.0001" placeholder="مقدار" dir="ltr"
                    class="input input-sm w-24 font-technical">
@@ -26,12 +30,12 @@
             </button>
         </div>
         <div class="text-xs fb-muted">جمع ردیف: <span class="font-technical" data-line-total>۰</span> تومان</div>
-        <div class="fb-error hidden" data-row-warn>مقدار و بهای واحد را وارد کنید؛ ردیف ناقص ثبت نمی‌شود.</div>
+        <div class="fb-error hidden" data-row-warn>کالا، مقدار و بهای واحد را وارد کنید؛ ردیف ناقص ثبت نمی‌شود.</div>
     </div>
 </template>
 
 <script id="purchase-items-data" type="application/json">
-    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
+    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}", "unit": "{{ it.get_unit_display|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
 </script>
 
 <script>
@@ -51,14 +55,14 @@
         function sync() {
             var out = [], grand = 0;
             Array.prototype.forEach.call(box.children, function (row) {
-                var id = parseInt(row.querySelector('select').value, 10);
+                var id = row._picker ? row._picker.getId() : null;
                 var qty = row.querySelector('[data-qty]').value;
                 var cost = row.querySelector('[data-cost]').value;
                 var qtyNum = parseFloat(qty) || 0;
                 var costNum = parseFloat(cost) || 0;
                 var line = qtyNum * costNum;
                 row.querySelector('[data-line-total]').textContent = fmt(line);
-                row.querySelector('[data-row-warn]').classList.toggle('hidden', qtyNum > 0 && costNum > 0);
+                row.querySelector('[data-row-warn]').classList.toggle('hidden', !!id && qtyNum > 0 && costNum > 0);
                 if (id && qtyNum > 0 && costNum > 0) {
                     out.push({ id: id, qty: qty, unit_cost: cost });
                     grand += line;
@@ -71,25 +75,30 @@
 
         function addRow() {
             var row = tpl.content.firstElementChild.cloneNode(true);
-            var select = row.querySelector('select');
-            var placeholder = document.createElement('option');
-            placeholder.value = ''; placeholder.textContent = 'انتخاب کالا...';
-            select.appendChild(placeholder);
-            itemsData.forEach(function (d) {
-                var opt = document.createElement('option');
-                opt.value = d.id; opt.textContent = d.name;
-                select.appendChild(opt);
-            });
+            var picker = fbItemPicker({ items: itemsData, ariaLabel: 'انتخاب کالا', onSelect: function () { sync(); } });
+            row.querySelector('[data-picker]').appendChild(picker.el);
+            row._picker = picker;
             box.appendChild(row);
         }
 
-        if (!itemsData.length) { addBtn.disabled = true; }
         addBtn.addEventListener('click', function () { addRow(); sync(); });
         ['input', 'change'].forEach(function (evt) { box.addEventListener(evt, sync); });
         box.addEventListener('click', function (e) {
             var btn = e.target.closest('[data-remove]');
             if (btn) { btn.closest('[data-row]').remove(); sync(); }
         });
+
+        document.addEventListener('fb:item-created', function (e) {
+            var it = e.detail;
+            itemsData.push(it);
+            Array.prototype.forEach.call(box.children, function (row) { row._picker.addItem(it); });
+            var target = null;
+            Array.prototype.forEach.call(box.children, function (row) { if (!row._picker.getId()) target = row; });
+            if (!target) { addRow(); target = box.lastElementChild; }
+            target._picker.select(it.id);
+            sync();
+        });
+
         addRow();
         sync();
     }

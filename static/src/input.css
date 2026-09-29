@@ -82,6 +82,7 @@
 @source "../../**/templates/**/*.html";
 @source "../../*.py";
 @source "../../**/*.py";
+@source "../js/item_picker.js";
 
 @font-face {
   font-family: 'Vazirmatn';
