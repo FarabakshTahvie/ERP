@@ -41,7 +41,7 @@
     {% endif %}
 
     <div class="overflow-x-auto">
-        <div role="tablist" class="tabs tabs-border flex-nowrap">
+        <div role="tablist" class="tabs tabs-border">
             {% for tab in tabs.tabs %}
             <input type="radio" name="dash-tabs" role="tab" class="tab whitespace-nowrap"
                    aria-label="{{ tab.label }}{% if tab.count is not None %} {{ tab.count|fa_digits }}{% endif %}"

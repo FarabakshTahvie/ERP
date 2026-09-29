@@ -348,6 +348,16 @@ class TechnicianHomeTabsTests(TestCase):
         content = resp.content.decode("utf-8")
         self.assertIn("پروژه اختصاصی من", content)
 
+    def test_tablist_does_not_use_flex_nowrap(self):
+        """پنل تب daisyUI هم‌سطح تب‌هاست؛ flex-nowrap روی .tabs پنل را کنار تب‌ها فشرده می‌کند."""
+        import re
+        client = Client()
+        client.force_login(self.tech)
+        content = client.get(reverse("home")).content.decode("utf-8")
+        match = re.search(r'role="tablist"[^>]*class="([^"]*)"', content)
+        self.assertIsNotNone(match)
+        self.assertNotIn("flex-nowrap", match.group(1))
+
     def test_tab_param_selects_claimable_eagerly_without_js(self):
         client = Client()
         client.force_login(self.tech)
