@@ -321,6 +321,15 @@ NAJVA_SEND_URL = env('NAJVA_SEND_URL', default='https://push.najva.com/v1/send/t
 SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhshtahvieh.com')
 SMS_IR_SANDBOX_API_KEY = env('SMS_IR_SANDBOX_API_KEY', default='')  # فقط برای تست‌ها
 
+# در اجرای تست‌ها هیچ کلید واقعی پیامک/پوش نباید فعال باشد (حتی اگر در .env لوکال باشد).
+# SMS_IR_SANDBOX_API_KEY عمداً دست‌نخورده می‌ماند: فقط برای تست sandbox است و پیامک واقعی نمی‌فرستد.
+if 'test' in sys.argv:
+    SMS_IR_API_KEY = ''
+    SMS_IR_LINE_NUMBER = ''
+    NAJVA_API_KEY = ''
+    NAJVA_WEBSITE_ID = ''
+    NAJVA_ENABLED = False
+
 # OTP Configuration
 OTP_LENGTH = env.int('OTP_LENGTH', default=5)
 OTP_EXPIRY_MINUTES = env.int('OTP_EXPIRY_MINUTES', default=2)

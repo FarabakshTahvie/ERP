@@ -50,7 +50,7 @@ class NewProjectIntakeTests(TestCase):
         self.assertEqual(r2.status_code, 200)
         self.assertIn("طرف‌حسابی با این شماره پیدا نشد", r2.content.decode("utf-8"))
 
-    @mock.patch("notifications.services.SMSService.send_otp")
+    @mock.patch("notifications.services.SMSService.send_invoice_issued")
     def test_submit_new_project_creates_project_invoice_and_notifies(self, mock_sms):
         mock_sms.return_value = {"success": True, "message_id": "1001"}
         client = Client()
@@ -77,6 +77,7 @@ class NewProjectIntakeTests(TestCase):
 
         invoice = Invoice.objects.get(project=project)
         self.assertEqual(invoice.total_amount, 1200000)
+        mock_sms.assert_called_once()
 
 
 class PartySearchForPurchaseTests(TestCase):

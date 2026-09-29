@@ -82,7 +82,7 @@ def icon(name, css_class="w-5 h-5"):
 @register.simple_tag
 def map_url(lat, lng):
     from django.conf import settings
-    template = getattr(settings, "MAP_LINK_TEMPLATE", "@url:`https://www.google.com/maps?q=`{lat},{lng}")
+    template = getattr(settings, "MAP_LINK_TEMPLATE", "https://www.google.com/maps?q={lat},{lng}")
     return template.replace("{lat}", str(lat)).replace("{lng}", str(lng))
 
 
