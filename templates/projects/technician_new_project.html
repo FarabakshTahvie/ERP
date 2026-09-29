@@ -69,6 +69,8 @@
 
         {% include "projects/partials/lines_editor.html" %}
 
+        {% include "projects/partials/project_costs.html" with costs=costs costs_locked=False participants_cost=0 %}
+
         <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
             <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>

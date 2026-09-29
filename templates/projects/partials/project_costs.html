@@ -1,0 +1,45 @@
+{% load custom_tags %}
+<section class="fb-card fb-pad flex flex-col gap-4" id="project-costs" data-participants="{{ participants_cost|default:0 }}">
+    <h2 class="fb-section-title">هزینه‌ها و قرارداد</h2>
+
+    {% if costs_locked %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "lock" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">هزینه‌ها و تاریخ قرارداد قفل شده‌اند، چون پیش‌فاکتور تایید شده یا پرداختی ثبت شده است. فقط یادداشت قابل ویرایش است.</span>
+    </div>
+    {% endif %}
+
+    <div class="grid sm:grid-cols-2 gap-3">
+        <div class="fb-field">
+            <label class="fb-label" for="cost-installation">هزینه نصب (تومان)</label>
+            <input type="text" id="cost-installation" name="installation_fee" data-fee value="{{ costs.installation_fee }}"
+                   dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
+            <span class="fb-hint">خالی یا صفر یعنی ردیف نصب در پیش‌فاکتور نیاید.</span>
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="cost-shipping">هزینه ارسال (تومان)</label>
+            <input type="text" id="cost-shipping" name="shipping_fee" data-fee value="{{ costs.shipping_fee }}"
+                   dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="cost-extra">هزینه‌های مازاد (تومان)</label>
+            <input type="text" id="cost-extra" name="extra_fee" data-fee value="{{ costs.extra_fee }}"
+                   dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
+            {% if participants_cost %}
+            <span class="fb-hint">هزینه‌ی عوامل اجرایی بیرونی (<span class="font-technical">{{ participants_cost|intcomma_fa }}</span> تومان) خودکار به مازاد فاکتور اضافه می‌شود.</span>
+            {% endif %}
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="cost-contract-date">تاریخ قرارداد</label>
+            <input type="text" id="cost-contract-date" name="contract_date" value="{{ costs.contract_date }}"
+                   dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
+            <span class="fb-hint">خالی یعنی ثبت نشود.</span>
+        </div>
+    </div>
+
+    <div class="fb-field">
+        <label class="fb-label" for="project-notes">یادداشت داخلی (اختیاری)</label>
+        <textarea id="project-notes" name="notes" rows="3" maxlength="2000" class="textarea w-full">{{ costs.notes }}</textarea>
+        <span class="fb-hint">مشتری این یادداشت را نمی‌بیند؛ کارکنانی که صفحه‌ی پروژه را می‌بینند می‌بینند.</span>
+    </div>
+</section>

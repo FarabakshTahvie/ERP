@@ -31,3 +31,4 @@
 27. انتخاب کالا (یا هر فهرست بلند) در فرم‌ها با `fbItemPicker` (static/js/item_picker.js) باشد، نه `<select>` ساده. کلاس‌های Tailwind داخل آن فایل با `@source` در input.css ساخته می‌شوند.
 28. فرم داخل فرم ممنوع است؛ پنجره‌های ساخت سریع (`dialog`) بیرون از `<form>` صفحه بیایند و با fetch کار کنند.
 29. روی `.tabs` در تب‌های daisyUI (radio + tab-content) هرگز `flex-nowrap` نگذار؛ پنل تب هم‌سطح تب‌هاست و با nowrap کنار آن‌ها فشرده می‌شود.
+30. مبلغ تومانی در فرم‌ها: `type="text"` با `inputmode="numeric"`، `dir="ltr"` و `font-technical`؛ سمت سرور با parser (ارقام فارسی و کاما) خوانده شود. `type="number"` فقط برای ردیف‌های ویرایشگر خدمات/متریال/خرید.

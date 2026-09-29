@@ -34,6 +34,20 @@
                 <span class="fb-muted">ثبت نشده</span>
                 {% endif %}
             </div>
+            <div class="flex justify-between items-center gap-2">
+                <span class="fb-muted">تاریخ قرارداد</span>
+                {% if project.contract_date %}
+                <span class="font-technical font-semibold">{{ project.contract_date|to_jalali }}</span>
+                {% else %}
+                <span class="fb-muted">ثبت نشده</span>
+                {% endif %}
+            </div>
+            {% if project.notes %}
+            <div class="space-y-2">
+                <div class="fb-muted">یادداشت</div>
+                <p class="fb-inset text-xs whitespace-pre-line">{{ project.notes }}</p>
+            </div>
+            {% endif %}
             <div class="space-y-2">
                 <div class="fb-muted">آدرس</div>
                 {% if project.location.address_text %}

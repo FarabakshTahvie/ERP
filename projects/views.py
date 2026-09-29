@@ -9,6 +9,9 @@ from decimal import Decimal, InvalidOperation
 from django.template.loader import render_to_string
 from utils.generic_table import build_table_context, render_table
 from utils.tabs import build_tabs_context
+from django.core.exceptions import ValidationError
+from django.db.models import Sum
+from utils.jalali_forms import JalaliDateField
 from utils.jalali import jalali_str, to_fa_digits
 from accounts.models import User
 from core.models import Party
@@ -19,10 +22,22 @@ from projects.services import (
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
-    stage_approval_action, can_search_parties_for_purchase,
+    stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
 )
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count
+
+
+def _cost_values(project):
+    def money(v):
+        return str(int(v)) if v else ""
+    return {
+        "installation_fee": money(project.installation_fee),
+        "shipping_fee": money(project.shipping_fee),
+        "extra_fee": money(project.extra_fee),
+        "contract_date": jalali_str(project.contract_date, fmt="%Y/%m/%d") if project.contract_date else "",
+        "notes": project.notes or "",
+    }
 
 
 def _parse_json_lines(raw_value):
@@ -558,7 +573,10 @@ def my_task_transfer(request, stage_id):
 def new_project_form(request):
     services = Service.objects.filter(is_active=True).exclude(children__isnull=False)
     items = Item.objects.filter(is_active=True)
-    return render(request, "projects/technician_new_project.html", {"services": services, "items": items})
+    return render(request, "projects/technician_new_project.html", {
+        "services": services, "items": items,
+        "costs": {}, "participants_cost": 0,
+    })
 
 
 @login_required
@@ -583,6 +601,18 @@ def project_edit(request, project_id):
         return redirect("projects:staff_project_overview", project.id)
 
     if request.method == "POST":
+        raw_date = request.POST.get("contract_date")
+        if raw_date is None:
+            contract_date = NOT_SENT
+        elif not raw_date.strip():
+            contract_date = None
+        else:
+            try:
+                contract_date = JalaliDateField().clean(raw_date.strip())
+            except ValidationError as e:
+                messages.error(request, " ".join(e.messages))
+                return redirect("projects:project_edit", project.id)
+
         try:
             project, rebuilt = update_project_from_technician_edit(
                 project=project, actor=request.user,
@@ -591,6 +621,11 @@ def project_edit(request, project_id):
                 location_address=request.POST.get("address_text", ""),
                 service_lines=_parse_json_lines_strict(request.POST.get("services_json")),
                 material_lines=_parse_json_lines_strict(request.POST.get("materials_json")),
+                installation_fee_raw=request.POST.get("installation_fee"),
+                shipping_fee_raw=request.POST.get("shipping_fee"),
+                extra_fee_raw=request.POST.get("extra_fee"),
+                contract_date=contract_date,
+                notes=request.POST.get("notes"),
             )
         except ValueError as e:
             messages.error(request, str(e))
@@ -604,6 +639,8 @@ def project_edit(request, project_id):
         "project": project,
         "prices_open": project_prices_editable(project),
         "services": services, "items": items, "initial_lines": _initial_lines(project),
+        "costs": _cost_values(project),
+        "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,
         "lat": str(location.latitude) if location and location.latitude is not None else "",
         "lng": str(location.longitude) if location and location.longitude is not None else "",
         "address_text": location.address_text if location else "",
@@ -654,6 +691,14 @@ def new_project_submit(request):
 
     service_lines = _parse_json_lines(request.POST.get("services_json"))
     material_lines = _parse_json_lines(request.POST.get("materials_json"))
+    raw_date = (request.POST.get("contract_date") or "").strip()
+    contract_date = None
+    if raw_date:
+        try:
+            contract_date = JalaliDateField().clean(raw_date)
+        except ValidationError as e:
+            messages.error(request, " ".join(e.messages))
+            return redirect("projects:new_project_form")
 
     try:
         project, invoice, account_conflict = create_project_from_technician_intake(
@@ -664,6 +709,11 @@ def new_project_submit(request):
             location_lng=request.POST.get("longitude") or None,
             location_address=request.POST.get("address_text", ""),
             service_lines=service_lines, material_lines=material_lines,
+            installation_fee_raw=request.POST.get("installation_fee", ""),
+            shipping_fee_raw=request.POST.get("shipping_fee", ""),
+            extra_fee_raw=request.POST.get("extra_fee", ""),
+            contract_date=contract_date,
+            notes=request.POST.get("notes", ""),
             send_sms=request.POST.get("send_sms") == "on",
         )
         messages.success(request, f"پروژه «{project.name}» با موفقیت ثبت شد.")

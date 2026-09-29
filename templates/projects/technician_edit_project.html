@@ -31,6 +31,7 @@
             <span class="text-xs">با تغییر خدمات یا متریال، پیش‌فاکتور دوباره ساخته می‌شود و مشتری مبلغ جدید را می‌بیند. بعد از تایید مشتری یا ثبت پرداخت، قیمت‌ها قفل می‌شوند.</span>
         </div>
         {% include "projects/partials/lines_editor.html" %}
+        {% include "projects/partials/project_costs.html" with costs=costs costs_locked=False %}
         {% else %}
         <section class="fb-card fb-pad flex flex-col gap-3">
             <h2 class="fb-section-title">خدمات و متریال</h2>
@@ -51,18 +52,16 @@
             </div>
             {% endfor %}
         </section>
+        {% include "projects/partials/project_costs.html" with costs=costs costs_locked=True %}
         {% endif %}
 
         <div class="fb-sticky-bar">
             <div>
                 {% if prices_open %}
-                <div class="text-xs fb-muted">جمع خدمات و متریال</div>
+                <div class="text-xs fb-muted">جمع برآوردی پیش‌فاکتور</div>
                 <div class="text-sm font-bold"><span id="grand-total" class="font-technical">۰</span> تومان</div>
-                {% if project.installation_fee or project.shipping_fee or project.extra_fee %}
-                <div class="text-xs fb-muted">هزینه‌های نصب، ارسال و مازاد جدا محاسبه می‌شوند.</div>
-                {% endif %}
                 {% else %}
-                <div class="text-xs fb-muted">فقط آدرس و موقعیت قابل ویرایش است</div>
+                <div class="text-xs fb-muted">فقط یادداشت قابل ویرایش است</div>
                 {% endif %}
             </div>
             <div class="flex items-center gap-2">

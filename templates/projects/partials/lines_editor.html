@@ -56,6 +56,23 @@
         var nf = new Intl.NumberFormat('fa-IR');
         function fmt(n) { return nf.format(n).replace(/٬/g, ','); }
 
+        function fbDigits(s) {
+            return String(s || '')
+                .replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); })
+                .replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); })
+                .replace(/[,٬\s]/g, '');
+        }
+        function feeTotal() {
+            var total = 0;
+            document.querySelectorAll('[data-fee]').forEach(function (el) {
+                var v = parseFloat(fbDigits(el.value));
+                if (v > 0) total += v;
+            });
+            var box = document.getElementById('project-costs');
+            if (box) total += parseFloat(box.dataset.participants) || 0;
+            return total;
+        }
+
         var tpl = document.getElementById('row-template');
         var initialEl = document.getElementById('initial-lines');
         var initial = initialEl ? JSON.parse(initialEl.textContent) : {};
@@ -96,6 +113,7 @@
                 list.hidden.value = JSON.stringify(out);
                 list.empty.classList.toggle('hidden', list.box.children.length > 0);
             });
+            grand += feeTotal();
             var totalEl = document.getElementById('grand-total');
             if (totalEl) totalEl.textContent = fmt(grand);
         }
@@ -130,6 +148,7 @@
             });
             list.initial.forEach(function (pre) { addRow(key, pre); });
         });
+        document.querySelectorAll('[data-fee]').forEach(function (el) { el.addEventListener('input', sync); });
         sync();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

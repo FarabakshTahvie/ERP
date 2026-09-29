@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.utils import timezone
@@ -5,6 +6,34 @@ from django.utils import timezone
 from .models import Project, ProjectStage, StageEvent, ProjectService, ProjectMaterial, WorkflowStepTemplate
 
 INTAKE_SPECIALTY_NAME = "پذیرش"
+NOT_SENT = object()   # برای تاریخ قرارداد در ویرایش: None یعنی «پاک کن»، NOT_SENT یعنی «دست نزن»
+FEE_MAX = Decimal(10) ** 12
+NOTES_MAX = 2000
+_FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def parse_fee(raw, *, label):
+    """
+    مبلغ تومان: خالی = صفر؛ ارقام فارسی/عربی و کاما مجاز؛ فقط عدد صحیح نامنفی کمتر از FEE_MAX.
+    هر ایرادی ValueError فارسی می‌دهد.
+    """
+    text = str(raw if raw is not None else "").strip().translate(_FA_TO_EN)
+    text = text.replace(",", "").replace("٬", "").replace(" ", "")
+    if not text:
+        return Decimal("0")
+    if not re.fullmatch(r"\d+", text):
+        raise ValueError(f"{label} نامعتبر است؛ فقط عدد صحیح (به تومان) وارد کنید.")
+    value = Decimal(int(text))
+    if value >= FEE_MAX:
+        raise ValueError(f"{label} بیش از حد بزرگ است.")
+    return value
+
+
+def clean_project_notes(raw):
+    text = (raw or "").strip()
+    if len(text) > NOTES_MAX:
+        raise ValueError(f"یادداشت نباید بیش از {NOTES_MAX} کاراکتر باشد.")
+    return text
 
 
 def user_can_create_projects(user):
@@ -121,7 +150,9 @@ def _sync_project_lines(model, fk_name, project, lines):
 
 @transaction.atomic
 def update_project_from_technician_edit(*, project, actor, location_lat=None, location_lng=None,
-                                         location_address="", service_lines=None, material_lines=None):
+                                         location_address="", service_lines=None, material_lines=None,
+                                         installation_fee_raw=None, shipping_fee_raw=None, extra_fee_raw=None,
+                                         contract_date=NOT_SENT, notes=None):
     """
     service_lines/material_lines برابر None یعنی «ارسال نشده، دست نزن».
     خروجی: (project, پیش‌فاکتور بازتولید شد؟)
@@ -136,11 +167,26 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
         raise ValueError("پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
 
     prices_open = project_prices_editable(project)
-    if (service_lines is not None or material_lines is not None) and not prices_open:
-        raise ValueError("قیمت‌ها قفل شده‌اند (پیش‌فاکتور تایید شده یا پرداختی ثبت شده). فقط آدرس و موقعیت قابل ویرایش است.")
+    fees_sent = any(v is not None for v in (installation_fee_raw, shipping_fee_raw, extra_fee_raw))
+    costs_touched = fees_sent or contract_date is not NOT_SENT
+    if (service_lines is not None or material_lines is not None or costs_touched) and not prices_open:
+        raise ValueError(
+            "قیمت‌ها و اطلاعات قرارداد قفل شده‌اند (پیش‌فاکتور تایید شده یا پرداختی ثبت شده). "
+            "فقط آدرس، موقعیت و یادداشت قابل ویرایش است."
+        )
 
     service_lines = None if service_lines is None else _clean_lines(service_lines, Service, "خدمات")
     material_lines = None if material_lines is None else _clean_lines(material_lines, Item, "متریال")
+
+    new_fees = {}
+    for field, raw, label in (
+        ("installation_fee", installation_fee_raw, "هزینه نصب"),
+        ("shipping_fee", shipping_fee_raw, "هزینه ارسال"),
+        ("extra_fee", extra_fee_raw, "هزینه مازاد"),
+    ):
+        if raw is not None:
+            new_fees[field] = parse_fee(raw, label=label)
+    notes = None if notes is None else clean_project_notes(notes)
 
     # --- موقعیت ---
     lat, lng = _to_coordinate(location_lat, 90), _to_coordinate(location_lng, 180)
@@ -157,7 +203,23 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
     else:
         new_location = Location.objects.create(latitude=lat, longitude=lng, address_text=address)
     project.location = new_location
-    project.save(update_fields=["location", "updated_at"])   # برای ثبت در تاریخچه‌ی پروژه
+    
+    fees_changed = False
+    for field, value in new_fees.items():
+        if getattr(project, field) != value:
+            setattr(project, field, value)
+            fees_changed = True
+    date_changed = contract_date is not NOT_SENT and project.contract_date != contract_date
+    if date_changed:
+        project.contract_date = contract_date
+    if notes is not None:
+        project.notes = notes
+    update_fields = ["location", "updated_at", *new_fees]
+    if date_changed:
+        update_fields.append("contract_date")
+    if notes is not None:
+        update_fields.append("notes")
+    project.save(update_fields=update_fields)   # برای ثبت در تاریخچه‌ی پروژه
 
     # --- ردیف‌ها ---
     lines_changed = False
@@ -171,8 +233,12 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
     rebuilt = False
     if prices_open and invoice is not None:
         invoice.address_snapshot = new_location.address_text if new_location else ""
-        invoice.save(update_fields=["address_snapshot"])
-        if lines_changed:
+        invoice_fields = ["address_snapshot"]
+        if date_changed:
+            invoice.contract_date = project.contract_date
+            invoice_fields.append("contract_date")
+        invoice.save(update_fields=invoice_fields)
+        if lines_changed or fees_changed:
             from finance.services import refresh_invoice_lines
             refresh_invoice_lines(invoice)
             rebuilt = True
@@ -491,11 +557,17 @@ def transfer_stage(stage, from_user, to_user, comment=""):
 def create_project_from_technician_intake(*, created_by, party_id=None, party_data=None,
                                            owner_party_id=None, owner_party_data=None,
                                            location_lat=None, location_lng=None, location_address="",
-                                           service_lines=None, material_lines=None, send_sms=False):
+                                           service_lines=None, material_lines=None,
+                                           installation_fee_raw="", shipping_fee_raw="", extra_fee_raw="",
+                                           contract_date=None, notes="", send_sms=False):
     from core.models import Party, Location
     from catalog.models import Service, Item
     service_lines = _clean_lines(service_lines, Service, "خدمات")
     material_lines = _clean_lines(material_lines, Item, "متریال")
+    installation_fee = parse_fee(installation_fee_raw, label="هزینه نصب")
+    shipping_fee = parse_fee(shipping_fee_raw, label="هزینه ارسال")
+    extra_fee = parse_fee(extra_fee_raw, label="هزینه مازاد")
+    notes = clean_project_notes(notes)
 
     if party_id:
         party = Party.objects.get(pk=party_id)
@@ -540,6 +612,8 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     project = Project.objects.create(
         name=proj_name, partner=partner, owner=owner, location=location,
         workflow_template=template, created_by=created_by, status=Project.Status.IN_PROGRESS,
+        installation_fee=installation_fee, shipping_fee=shipping_fee, extra_fee=extra_fee,
+        contract_date=contract_date, notes=notes,
     )
 
     for line in (service_lines or []):
