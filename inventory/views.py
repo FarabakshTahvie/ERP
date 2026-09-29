@@ -15,8 +15,11 @@ from catalog.models import Item, ItemCategory
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import to_fa_digits, jalali_str
 from utils.jalali_forms import JalaliDateField
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from .services import (
     user_can_manage_inventory, create_purchase_from_form, record_manual_stock_change,
+    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError,
 )
 
 
@@ -28,15 +31,10 @@ def _format_qty(value):
     return format(normalized, "f")
 
 
-def _stock_queryset():
-    """
-    جمع موجودی هر کالا از روی همه‌ی لات‌های همه‌ی انبارها (نه یک انبار ثابت) —
-    همین الان هم چندانباره درست کار می‌کند، چون هیچ‌جا فرض «یک انبار» گذاشته نشده.
-    Coalesce لازم است تا کالای بدون هیچ لات هم در نتیجه بماند (نه اینکه با INNER JOIN حذف شود).
-    """
+def _stock_queryset(include_inactive=False):
+    qs = Item.objects.all() if include_inactive else Item.objects.filter(is_active=True)
     return (
-        Item.objects.filter(is_active=True)
-        .select_related("category")
+        qs.select_related("category")
         .annotate(
             stock=Coalesce(
                 Sum("lots__qty_remaining"),
@@ -46,22 +44,26 @@ def _stock_queryset():
         )
         .annotate(
             is_low=Case(
-                When(reorder_point__gt=0, stock__lte=F("reorder_point"), then=Value(1)),
+                When(is_active=True, reorder_point__gt=0, stock__lte=F("reorder_point"), then=Value(1)),
                 default=Value(0),
                 output_field=IntegerField(),
             )
         )
-        .order_by("-is_low", "name")
+        .order_by("-is_active", "-is_low", "name")
     )
 
 
 def _stock_table_context(request):
-    qs = _stock_queryset()
+    qs = _stock_queryset(include_inactive=True)
 
     def row_builder(item):
         low = item.is_low == 1
+        if not item.is_active:
+            status_cell = {"type": "badge", "value": "غیرفعال", "variant": "neutral"}
+        else:
+            status_cell = {"type": "badge", "value": "کمبود" if low else "عادی", "variant": "warning" if low else "success"}
         return {
-            "url": None,
+            "url": reverse("inventory:item_edit", args=[item.id]),
             "cells": [
                 {"type": "text", "value": item.name},
                 {"type": "muted", "value": item.get_item_type_display()},
@@ -69,7 +71,7 @@ def _stock_table_context(request):
                 {"type": "muted", "value": item.get_unit_display()},
                 {"type": "text", "value": to_fa_digits(_format_qty(item.stock))},
                 {"type": "muted", "value": to_fa_digits(_format_qty(item.reorder_point)) if item.reorder_point else "—"},
-                {"type": "badge", "value": "کمبود" if low else "عادی", "variant": "warning" if low else "success"},
+                status_cell,
             ],
         }
 
@@ -78,7 +80,8 @@ def _stock_table_context(request):
     return build_table_context(
         request, qs,
         columns=[
-            {"label": "کالا", "sort_field": "name"},
+            {"label": "کالا", "sort_field": "name", "filter_key": "active", "filter_type": "boolean",
+             "filter_field": "is_active", "true_label": "فعال", "false_label": "غیرفعال"},
             {"label": "نوع", "sort_field": "item_type", "filter_key": "item_type", "filter_type": "select",
              "choices": Item.ItemType.choices},
             {"label": "دسته‌بندی", "sort_field": "category__name", "filter_key": "category", "filter_type": "select",
@@ -162,8 +165,9 @@ def purchase_new(request):
         return redirect("home")
 
     return render(request, "inventory/purchase_new.html", {
-        "items": Item.objects.filter(is_active=True),
+        "items": Item.objects.filter(is_active=True).order_by("name"),
         "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
+        **item_form_choices(),
     })
 
 
@@ -190,4 +194,151 @@ def stock_movement_new(request):
     return render(request, "inventory/stock_movement_new.html", {
         "items": _stock_queryset(),
     })
+
+
+def _stock_tab_url():
+    return reverse("home") + "?tab=stock"
+
+
+def item_form_choices():
+    return {
+        "type_choices": Item.ItemType.choices,
+        "unit_choices": Item.Unit.choices,
+        "categories": ItemCategory.objects.order_by("name"),
+    }
+
+
+def _parse_specs_json(raw):
+    """None = ارسال نشده. JSON خراب خطا می‌دهد (نه لیست خالی که مشخصات را پاک می‌کرد)."""
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("مشخصات فنی نامعتبر است؛ صفحه را دوباره باز کنید.")
+    if not isinstance(data, list):
+        raise ValueError("مشخصات فنی نامعتبر است؛ صفحه را دوباره باز کنید.")
+    return data
+
+
+def _item_specs_list(item):
+    specs = item.specs if isinstance(item.specs, dict) else {}
+    return [{"key": str(k), "value": str(v)} for k, v in specs.items()]
+
+
+def _item_values_from_post(post):
+    return {
+        "name": post.get("name", ""), "item_type": post.get("item_type", ""), "unit": post.get("unit", ""),
+        "category_id": post.get("category_id", ""), "new_category_name": post.get("new_category_name", ""),
+        "reorder_point": post.get("reorder_point", ""),
+    }
+
+
+def _item_values_from_item(item):
+    return {
+        "name": item.name, "item_type": item.item_type, "unit": item.unit,
+        "category_id": item.category_id or "", "new_category_name": "",
+        "reorder_point": _format_qty(item.reorder_point),
+    }
+
+
+def _render_item_form(request, *, item, values, specs, locked, duplicate_warning):
+    return render(request, "inventory/item_form.html", {
+        **item_form_choices(),
+        "item": item, "values": values, "specs": specs, "locked": locked,
+        "duplicate_warning": duplicate_warning,
+        "current_stock_display": to_fa_digits(_format_qty(item.current_stock)) if item else "",
+    })
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+def item_new(request):
+    values, specs, duplicate_warning = {}, [], None
+    if request.method == "POST":
+        values = _item_values_from_post(request.POST)
+        try:
+            specs_pairs = _parse_specs_json(request.POST.get("specs_json"))
+            specs = specs_pairs or []
+            item = create_item(
+                name=values["name"], item_type=values["item_type"], unit=values["unit"],
+                category_id=values["category_id"], new_category_name=values["new_category_name"],
+                reorder_point_raw=values["reorder_point"], specs_pairs=specs_pairs,
+                confirm_duplicate=request.POST.get("confirm_duplicate") == "1",
+            )
+        except DuplicateItemNameError as e:
+            duplicate_warning = str(e)
+        except ValueError as e:
+            messages.error(request, str(e))
+        else:
+            messages.success(request, f"کالای «{item.name}» ثبت شد.")
+            return redirect(_stock_tab_url())
+    return _render_item_form(request, item=None, values=values, specs=specs, locked=False,
+                             duplicate_warning=duplicate_warning)
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+def item_edit(request, item_id):
+    item = get_object_or_404(Item, pk=item_id)
+    locked = item_structure_locked(item)
+    duplicate_warning = None
+    if request.method == "POST":
+        values = _item_values_from_post(request.POST)
+        specs_pairs = None
+        try:
+            specs_pairs = _parse_specs_json(request.POST.get("specs_json"))
+            update_item(
+                item, name=values["name"], item_type=values["item_type"], unit=values["unit"],
+                category_id=values["category_id"], new_category_name=values["new_category_name"],
+                reorder_point_raw=values["reorder_point"], specs_pairs=specs_pairs,
+                confirm_duplicate=request.POST.get("confirm_duplicate") == "1",
+            )
+        except DuplicateItemNameError as e:
+            duplicate_warning = str(e)
+        except ValueError as e:
+            messages.error(request, str(e))
+        else:
+            messages.success(request, f"تغییرات کالای «{values['name'].strip()}» ذخیره شد.")
+            return redirect(_stock_tab_url())
+        if locked:   # کنترل‌های disabled ارسال نمی‌شوند؛ برای نمایش، مقدار فعلی
+            values["item_type"], values["unit"] = item.item_type, item.unit
+        specs = specs_pairs if specs_pairs is not None else _item_specs_list(item)
+    else:
+        values, specs = _item_values_from_item(item), _item_specs_list(item)
+    return _render_item_form(request, item=item, values=values, specs=specs, locked=locked,
+                             duplicate_warning=duplicate_warning)
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+@require_POST
+def item_toggle_active(request, item_id):
+    item = get_object_or_404(Item, pk=item_id)
+    target = not item.is_active
+    try:
+        set_item_active(item, active=target)
+        messages.success(request, f"کالای «{item.name}» {'فعال' if target else 'غیرفعال'} شد.")
+    except ValueError as e:
+        messages.error(request, str(e))
+    return redirect("inventory:item_edit", item.id)
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+@require_POST
+def item_quick_create(request):
+    """ساخت سریع کالا از داخل فرم خرید (JSON)."""
+    try:
+        item = create_item(
+            name=request.POST.get("name"), item_type=request.POST.get("item_type"),
+            unit=request.POST.get("unit"), category_id=request.POST.get("category_id"),
+            reorder_point_raw=request.POST.get("reorder_point", ""),
+            confirm_duplicate=request.POST.get("confirm_duplicate") == "1",
+        )
+    except DuplicateItemNameError as e:
+        return JsonResponse({"ok": False, "duplicate": True, "error": str(e)}, status=409)
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "item": {"id": item.id, "name": item.name, "unit": item.get_unit_display()}})
 

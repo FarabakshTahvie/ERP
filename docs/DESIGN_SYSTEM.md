@@ -1,7 +1,7 @@
 # قوانین دیزاین سیستم فرابخش
 1. کارت = `fb-card fb-pad`. صفحه = `fb-page` (با `--sm` / `--lg`). پنل داخلی = `fb-inset`.
 2. روی `fb-*` هیچ `rounded-*` / `shadow-*` اضافه نشود. سایه فقط برای منو، توست و مودال.
-3. دکمه: در هر ناحیه یک `btn-primary`؛ بقیه `btn-soft` یا `btn-ghost`؛ رد/حذف: `btn-soft btn-error`. روی دکمه‌ها `rounded-*`، `shadow-*`، `h-*` ننویسید.
+3. دکمه: در هر ناحیه یک `btn-primary`؛ بقیه `btn-soft` یا `btn-ghost`; رد/حذف: `btn-soft btn-error`. روی دکمه‌ها `rounded-*`، `shadow-*`، `h-*` ننویسید.
 4. فرم: `fb-field` + `fb-label` + کنترل `input|select|textarea|file-input` با `w-full` (بدون `-bordered`). خطا: `input-error` + `fb-error`.
 5. هشدار: همیشه `alert alert-soft alert-*`؛ کلاس `text-*-content` داخلش نگذارید.
 6. بج: فقط `fb-badge fb-badge-*`. تب: `tabs tabs-border`.
