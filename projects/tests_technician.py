@@ -256,12 +256,12 @@ class DashboardTablesSearchSortTests(TestCase):
         content = resp.content.decode("utf-8")
         self.assertTrue(content.find("پروژه بتا جدول") < content.find("پروژه آلفا جدول"))
 
-    def test_my_tasks_sort_by_project_name(self):
+    def test_my_tasks_sort_by_stage_title_desc(self):
         client = Client()
         client.force_login(self.tech)
-        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_sort": "project__name", "mt_dir": "asc"})
+        resp = client.get(reverse("projects:dashboard_my_tasks_table"), {"mt_sort": "title", "mt_dir": "desc"})
         content = resp.content.decode("utf-8")
-        self.assertTrue(content.find("پروژه آلفا جدول") < content.find("پروژه بتا جدول"))
+        self.assertTrue(content.find("بتا مرحله") < content.find("آلفا مرحله"))
 
     def test_claimable_search(self):
         self.stage_alpha.assigned_to = None
@@ -375,8 +375,13 @@ class TechnicianHomeTabsTests(TestCase):
         client.force_login(self.tech)
         resp = client.get(reverse("home"))
         content = resp.content.decode("utf-8")
-        self.assertIn("کارهای من", content)
-        self.assertIn("قابل برداشتن", content)
+        tabs = {t["key"]: t for t in resp.context["tabs"]["tabs"]}
+        self.assertEqual(tabs["my_tasks"]["count"], 1)
+        self.assertEqual(tabs["claimable"]["count"], 1)
+        self.assertEqual(tabs["completed"]["count"], 0)
+        self.assertEqual(tabs["my_projects"]["count"], 1)
+        self.assertIn('aria-label="کارهای من ۱"', content)
+        self.assertIn('aria-label="قابل برداشتن ۱"', content)
 
     def test_my_projects_tab_absent_without_permission(self):
         plain_tech = User.objects.create_user(

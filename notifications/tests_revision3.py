@@ -126,6 +126,7 @@ class Revision3RegressionTests(TestCase):
         resp_404 = client.get("/s/99999/")
         self.assertEqual(resp_404.status_code, 404)
 
+    @override_settings(SMS_IR_API_KEY="test_key")
     def test_sms_service_status_0_returns_false(self):
         with patch("utils.sms.requests.post") as mock_post:
             mock_resp = MagicMock()
@@ -135,6 +136,7 @@ class Revision3RegressionTests(TestCase):
 
             res = SMSService().send_otp("09151112233", "12345")
             self.assertFalse(res["success"])
+            mock_post.assert_called_once()
 
     def test_service_worker_and_contact_info(self):
         client = Client()

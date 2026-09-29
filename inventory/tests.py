@@ -452,6 +452,19 @@ class StockTableAdvancedFilterTests(TestCase):
         receive_stock(item=self.item_material, warehouse=self.warehouse, qty=1, unit_cost=1000, received_at=timezone.now())
         receive_stock(item=self.item_part, warehouse=self.warehouse, qty=100, unit_cost=1000, received_at=timezone.now())
 
+    def test_filter_by_low_stock_boolean(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        url = reverse("inventory:stock_table")
+
+        low = client.get(url, {"st_f_low": "1"}).content.decode("utf-8")
+        self.assertIn("متریال فیلتری", low)
+        self.assertNotIn("قطعه فیلتری", low)
+
+        normal = client.get(url, {"st_f_low": "0"}).content.decode("utf-8")
+        self.assertIn("قطعه فیلتری", normal)
+        self.assertNotIn("متریال فیلتری", normal)
+
     def test_filter_by_item_type(self):
         client = Client()
         client.force_login(self.wh_user)
@@ -520,12 +533,14 @@ class StockTableSearchSortTests(TestCase):
         self.assertIn("آلفا کالا", content)
         self.assertNotIn("بتا کالا", content)
 
-    def test_sort_by_stock_ascending(self):
+    def test_sort_by_stock_both_directions(self):
         client = Client()
         client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "asc"})
-        content = resp.content.decode("utf-8")
-        self.assertTrue(content.find("آلفا کالا") < content.find("بتا کالا"))
+        url = reverse("inventory:stock_table")
+        asc = client.get(url, {"st_sort": "stock", "st_dir": "asc"}).content.decode("utf-8")
+        self.assertTrue(asc.find("آلفا کالا") < asc.find("بتا کالا"))
+        desc = client.get(url, {"st_sort": "stock", "st_dir": "desc"}).content.decode("utf-8")
+        self.assertTrue(desc.find("بتا کالا") < desc.find("آلفا کالا"))
 
     def test_pagination_regression_still_works(self):
         client = Client()

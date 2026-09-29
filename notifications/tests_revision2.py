@@ -85,6 +85,14 @@ class NajvaServiceTest(TestCase):
 
 
 class SMSServiceTest(TestCase):
+    def test_send_text_with_invalid_line_number_fails_gracefully(self):
+        sms = SMSService()
+        sms.api_key = "test_key"
+        sms.line_number = "your_sms_ir_line_number"
+        res = sms.send_text("09120000000", "سلام")
+        self.assertFalse(res["success"])
+        self.assertIn("SMS_IR_LINE_NUMBER", res["error"])
+
     @patch("utils.sms.requests.post")
     def test_sms_send_pattern_success(self, mock_post):
         mock_resp = MagicMock()

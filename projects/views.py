@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.db import models as dj_models, transaction
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -19,7 +19,7 @@ from projects.services import (
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
-    stage_approval_action,
+    stage_approval_action, can_search_parties_for_purchase,
 )
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count
@@ -478,18 +478,6 @@ def project_progress(request, project_id):
     return render(request, "projects/portal_progress.html", {"project": project, "stages": stages})
 
 
-def _is_technician(user):
-    return user.is_authenticated and user.role == User.Role.EMPLOYEE
-
-
-def _technician_stage_qs(user):
-    return ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS,
-    ).filter(
-        dj_models.Q(assigned_to=user) | dj_models.Q(candidate_users=user)
-    ).select_related("project", "step_template").distinct().order_by("project__name", "order")
-
-
 @login_required
 @user_passes_test(_is_technician)
 def my_tasks(request):
@@ -573,12 +561,8 @@ def new_project_form(request):
     return render(request, "projects/technician_new_project.html", {"services": services, "items": items})
 
 
-def _party_search_permission(user):
-    return user_can_create_projects(user) or user_can_manage_inventory(user)
-
-
 @login_required
-@user_passes_test(_party_search_permission)
+@user_passes_test(can_search_parties_for_purchase)
 def new_project_party_search(request):
     phone = request.GET.get("phone_number", "").strip()
     prefix = request.GET.get("prefix", "")

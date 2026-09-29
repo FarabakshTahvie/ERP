@@ -266,6 +266,17 @@ class JalaliAndUIWorkflowTests(TestCase):
 
 
 class TableUrlTagTests(TestCase):
+    def test_map_url_uses_setting_and_valid_default(self):
+        from django.conf import settings
+        from django.template import Context, Template
+        from django.test import override_settings
+        tpl = Template("{% load custom_tags %}{% map_url 36.2979 59.6062 %}")
+        with override_settings(MAP_LINK_TEMPLATE="https://example.test/?q={lat},{lng}"):
+            self.assertEqual(tpl.render(Context()), "https://example.test/?q=36.2979,59.6062")
+        with override_settings():
+            del settings.MAP_LINK_TEMPLATE
+            self.assertEqual(tpl.render(Context()), "https://www.google.com/maps?q=36.2979,59.6062")
+
     def test_table_url_overrides_multiple_keys_and_preserves_rest(self):
         from django.test import RequestFactory
         from django.template import Context, Template
@@ -485,5 +496,44 @@ class TableToolbarRegressionTests(TestCase):
     def test_no_push_header_without_htmx(self):
         resp = self.client.get(self.url)
         self.assertNotIn("HX-Push-Url", resp.headers)
+
+
+class TestModulesIntegrityTests(TestCase):
+    """تکرار نام کلاس/متد تست باعث می‌شود تست‌های قبلی بی‌صدا اجرا نشوند."""
+
+    def test_no_duplicate_test_class_or_method_names(self):
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+        problems = []
+        for path in Path(settings.BASE_DIR).rglob("tests*.py"):
+            if any(part in ("venv", ".venv", "node_modules", "staticfiles") for part in path.parts):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            seen_classes = set()
+            for node in tree.body:
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                if node.name in seen_classes:
+                    problems.append(f"{path.name}: کلاس تکراری {node.name}")
+                seen_classes.add(node.name)
+                seen_methods = set()
+                for item in node.body:
+                    if isinstance(item, ast.FunctionDef):
+                        if item.name in seen_methods:
+                            problems.append(f"{path.name}: متد تکراری {node.name}.{item.name}")
+                        seen_methods.add(item.name)
+        self.assertEqual(problems, [])
+
+
+class TestEnvironmentIsolationTests(TestCase):
+    def test_no_real_sms_or_najva_credentials_during_tests(self):
+        from django.conf import settings
+        self.assertEqual(settings.SMS_IR_API_KEY, "")
+        self.assertEqual(settings.SMS_IR_LINE_NUMBER, "")
+        self.assertEqual(settings.NAJVA_API_KEY, "")
+        self.assertEqual(settings.NAJVA_WEBSITE_ID, "")
+        self.assertFalse(settings.NAJVA_ENABLED)
+
 
 

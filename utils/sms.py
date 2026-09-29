@@ -62,8 +62,12 @@ class SMSService:
     def send_text(self, mobile, message):
         if not self.line_number:
             return {"success": False, "error": "SMS_IR_LINE_NUMBER is empty", "message_id": None}
+        try:
+            line_number = int(self.line_number)
+        except (TypeError, ValueError):
+            return {"success": False, "error": "SMS_IR_LINE_NUMBER is invalid", "message_id": None}
         return self._post("send/bulk", {
-            "lineNumber": int(self.line_number), "messageText": message, "mobiles": [str(mobile)],
+            "lineNumber": line_number, "messageText": message, "mobiles": [str(mobile)],
         })
 
     def send_otp(self, mobile, code):
