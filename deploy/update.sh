@@ -1,28 +1,72 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-PROJECT_DIR="/var/www/farabakhsh/app"
+APP_DIR="/var/www/farabakhsh/app"
 VENV_DIR="/var/www/farabakhsh/venv"
 
-echo "=== Pulling latest changes from Git ==="
-cd "$PROJECT_DIR"
-git pull origin main
+echo "=== Starting Farabakhsh Update Script ==="
+
+cd "$APP_DIR"
+
+# Ensure git safe.directory for www-data and root
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+sudo -u www-data git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
+# Check uncommitted changes
+UNCOMMITTED=$(sudo -u www-data git status --porcelain 2>/dev/null || git status --porcelain || true)
+if [ -n "$UNCOMMITTED" ]; then
+    echo "ERROR: Uncommitted changes detected on server:"
+    echo "$UNCOMMITTED"
+    echo "Aborting update to prevent data loss."
+    exit 1
+fi
+
+# Get PREV commit hash
+PREV=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || git rev-parse HEAD)
+echo "PREV Commit: $PREV"
+
+echo "=== Fetching and Resetting to origin/main ==="
+sudo -u www-data git fetch origin main
+sudo -u www-data git reset --hard origin/main
+
+NEW=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || git rev-parse HEAD)
+echo "NEW Commit:  $NEW"
 
 echo "=== Installing Python dependencies ==="
-"$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install -r requirements.txt
+sudo -u www-data "$VENV_DIR/bin/pip" install --upgrade pip
+sudo -u www-data "$VENV_DIR/bin/pip" install -r requirements.txt
 
 echo "=== Building frontend assets with pnpm ==="
-pnpm install --frozen-lockfile
-pnpm run build
+sudo -u www-data pnpm install --frozen-lockfile
+sudo -u www-data pnpm run build
 
 echo "=== Collecting static files ==="
-"$VENV_DIR/bin/python" manage.py collectstatic --noinput
+sudo -u www-data "$VENV_DIR/bin/python" manage.py collectstatic --noinput
 
-echo "=== Applying database migrations ==="
-"$VENV_DIR/bin/python" manage.py migrate --noinput
+echo "=== Running Database Migrations ==="
+sudo -u www-data "$VENV_DIR/bin/python" manage.py migrate --noinput
 
-echo "=== Restarting Gunicorn service ==="
+echo "=== Restarting Farabakhsh Service ==="
 systemctl restart farabakhsh
 
-echo "=== Update completed successfully! ==="
+echo "=== Running Health Check ==="
+HEALTH_PASS=0
+for i in {1..10}; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: farabakhshtahvieh.com" http://127.0.0.1:8000/accounts/login/ || echo "000")
+    echo "Health check attempt $i/10: HTTP $HTTP_CODE"
+    if [ "$HTTP_CODE" = "200" ]; then
+        HEALTH_PASS=1
+        break
+    fi
+    sleep 2
+done
+
+if [ "$HEALTH_PASS" -ne 1 ]; then
+    echo "ERROR: Health check failed! (HTTP $HTTP_CODE)"
+    echo "PREV Commit: $PREV"
+    echo "NEW Commit:  $NEW"
+    echo "برای برگشت کد: cd $APP_DIR && sudo -u www-data git reset --hard $PREV && systemctl restart farabakhsh"
+    exit 1
+fi
+
+echo "=== Update Completed Successfully! ==="
