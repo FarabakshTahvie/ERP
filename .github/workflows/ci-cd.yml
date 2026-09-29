@@ -49,7 +49,7 @@ jobs:
           PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          echo "$KEY" | tr -d '\r' > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
       - name: Deploy
