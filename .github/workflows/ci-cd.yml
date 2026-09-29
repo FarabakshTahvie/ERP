@@ -1,0 +1,60 @@
+name: CI-CD
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: System libs (WeasyPrint)
+        run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+      - run: pip install -r requirements.txt
+      - name: Migrations check
+        env:
+          DEBUG: "True"
+          SECRET_KEY: ci-only-not-secret
+        run: python manage.py makemigrations --check --dry-run
+      - name: Tests
+        env:
+          SMS_IR_API_KEY: ""
+          SMS_IR_LINE_NUMBER: ""
+          SMS_IR_SANDBOX_API_KEY: ""
+          NAJVA_API_KEY: ""
+          NAJVA_WEBSITE_ID: ""
+          NAJVA_ENABLED: "False"
+        run: python manage.py test
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Prepare SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: ssh -i ~/.ssh/id_deploy -p "$PORT" "$USER@$HOST" "sudo /var/www/farabakhsh/app/deploy/update.sh"

@@ -11,6 +11,18 @@
 - Node.js + pnpm (برای Tailwind)
 - کتابخانه‌های سیستم‌عاملی برای خروجی PDF (در Ubuntu: `sudo apt install libpango-1.0-0 libpangoft2-1.0-0`)
 
+## CI/CD Pipeline (GitHub Actions)
+این پروژه از GitHub Actions برای اجرای تست‌های خودکار و استقرار امن رو سرور استفاده می‌کند.
+
+* **فرآیند (Workflow):** با هر Commit روی `main` یا ایجاد Pull Request، تست‌های پایتون و بررسی صحت مایگریشن‌ها اجرا می‌شود.
+* **دیپلوی خودکار:** در صورت سبز بودن تست‌ها رو برنچ `main`، اسکریپت استقرار به‌صورت خودکار روی سرور اجرا می‌گردد.
+* **اجرای دستی:** از تب Actions در ریپو با انتخاب workflow و زدن دکمه `Run workflow`.
+* **Secrets مورد نیاز:**
+  - `DEPLOY_HOST`
+  - `DEPLOY_PORT`
+  - `DEPLOY_USER`
+  - `DEPLOY_SSH_KEY`
+
 ## فعال‌سازی نجوا (Push Notification)
 1. مقادیر `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در فایل `.env` تنظیم کنید.
 2. آی‌پی سرور خود را در پنل نجوا وایت‌لیست کنید.
