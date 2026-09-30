@@ -134,6 +134,16 @@
    ------------------------------------------------------------ */
 @layer components {
 
+  /* --- اسپلش داخل برنامه (فقط PWA نصب‌شده)؛ زمینه = background_color مانیفست --- */
+  .fb-splash {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    align-items: center; justify-content: center;
+    background: #F6F7F9; transition: opacity .4s ease;
+  }
+  html.fb-splash-on .fb-splash { display: flex; }
+  .fb-splash.is-leaving { opacity: 0; pointer-events: none; }
+  .fb-splash img { width: min(50vw, 12rem); height: auto; }
+
   /* --- صفحه --- */
   .fb-page {
     width: 100%; max-width: 48rem; margin-inline: auto;

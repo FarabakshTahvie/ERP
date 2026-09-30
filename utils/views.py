@@ -108,6 +108,16 @@ def register_push_device(request):
     return JsonResponse({"status": "success", "created": created, "device_id": device.id})
 
 
+PWA_ICON_VERSION = "2"   # با هر تغییر فایل آیکون‌ها بالا برود (دور زدن کش مرورگر و nginx که ۳۰ روزه است)
+
+
+def _pwa_icon(filename, sizes, purpose):
+    return {
+        "src": f"{static('icons/' + filename)}?v={PWA_ICON_VERSION}",
+        "sizes": sizes, "type": "image/png", "purpose": purpose,
+    }
+
+
 def manifest_view(request):
     manifest_data = {
         "name": "فرابخش تهویه",
@@ -121,18 +131,9 @@ def manifest_view(request):
         "background_color": "#F6F7F9",
         "theme_color": "#1A4A8A",
         "icons": [
-            {
-                "src": static("icons/icon-192.png"),
-                "sizes": "192x192",
-                "type": "image/png",
-                "purpose": "any",
-            },
-            {
-                "src": static("icons/icon-512.png"),
-                "sizes": "512x512",
-                "type": "image/png",
-                "purpose": "any",
-            },
+            _pwa_icon("icon-192.png", "192x192", "any"),
+            _pwa_icon("icon-512.png", "512x512", "any"),
+            _pwa_icon("icon-maskable-512.png", "512x512", "maskable"),
         ],
     }
     return JsonResponse(manifest_data, content_type="application/manifest+json")
