@@ -1,9 +1,24 @@
+import os
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from core.models import TimeStampedModel
+
+
+class StageKind(models.TextChoices):
+    GENERIC = "generic", "عمومی"
+    VISIT = "visit", "بازدید"
+    PROFORMA = "proforma", "صدور پیش‌فاکتور"
+    DESIGN_INITIAL = "design_initial", "طراحی اولیه"
+    DESIGN_APPROVAL = "design_approval", "تایید طرح اولیه"
+    GCODE = "gcode", "جی‌کدگیری"
+    CUTTING = "cutting", "برش‌کاری"
+    SHIPPING = "shipping", "ارسال"
+    INSTALL = "install", "نصب"
+    FINAL_REVIEW = "final_review", "بازبینی نهایی"
+
 
 
 class Project(TimeStampedModel):
@@ -23,6 +38,7 @@ class Project(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="وضعیت")
     workflow_template = models.ForeignKey('WorkflowTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name="projects", verbose_name="قالب گردش‌کار")
 
+    visit_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان بازدید")
     contract_date = models.DateField(null=True, blank=True, verbose_name="تاریخ عقد قرارداد")
     actual_end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ دقیق اتمام")
 
@@ -45,16 +61,21 @@ class Project(TimeStampedModel):
         return self.name
 
     def save(self, *args, **kwargs):
-        if not self.code:
+        if self.code:
+            return super().save(*args, **kwargs)
+        for attempt in range(5):   # دو ثبت هم‌زمان ممکن است یک کد بگیرند؛ کد unique است
             self.code = self._generate_code()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                if attempt == 4:
+                    raise
+                self.code = ""
 
     def _generate_code(self):
-        import jdatetime
-        year = jdatetime.date.fromgregorian(date=timezone.localdate()).year
-        last = Project.objects.filter(code__startswith=f"P{year}-").order_by("-id").first()
-        seq = int(last.code.split("-")[-1]) + 1 if last else 1
-        return f"P{year}-{seq:04d}"
+        from utils.utils import monthly_prefix, next_monthly_code
+        return next_monthly_code(Project.objects.all(), "code", monthly_prefix("P"))
 
     @property
     def current_files(self):
@@ -80,6 +101,21 @@ class ProjectService(models.Model):
 
     def __str__(self):
         return f"{self.service.name} × {self.qty}"
+
+
+class ProjectServiceMaterial(models.Model):
+    """کالای مصرفی زیر یک خدمت. فقط برای محاسبه‌ی قیمت خدمت؛ در فاکتور دیده نمی‌شود."""
+    service_line = models.ForeignKey(ProjectService, on_delete=models.CASCADE, related_name="materials", verbose_name="خدمت پروژه")
+    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="service_line_usages", verbose_name="کالا")
+    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
+    cost_snapshot = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون (اسنپ‌شات)")
+    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات)")
+    line_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش (تومان)")
+
+    class Meta:
+        verbose_name = "کالای زیر خدمت"
+        verbose_name_plural = "کالاهای زیر خدمت"
+
 
 
 class ProjectMaterial(models.Model):
@@ -154,6 +190,8 @@ class WorkflowStepTemplate(models.Model):
     order = models.PositiveSmallIntegerField(verbose_name="ترتیب")
     title = models.CharField(max_length=150, verbose_name="عنوان داخلی مرحله")
     client_label = models.CharField(max_length=150, blank=True, verbose_name="عنوانی که کارفرما می‌بیند")
+    kind = models.CharField(max_length=30, choices=StageKind.choices, default=StageKind.GENERIC, verbose_name="نوع رفتاری مرحله")
+    assign_to_project_creator = models.BooleanField(default=False, verbose_name="مسئول = ثبت‌کننده‌ی پروژه")
     responsible_role = models.CharField(max_length=20, choices=[('manager', 'مدیر'), ('employee', 'تکنسین')], blank=True, verbose_name="نقش مسئول")
     responsible_specialty = models.ForeignKey('core.Specialty', null=True, blank=True, on_delete=models.SET_NULL, related_name="workflow_steps", verbose_name="تخصص مورد نیاز")
     approval_by = models.CharField(max_length=20, choices=ApprovalBy.choices, default=ApprovalBy.NONE, verbose_name="نیازمند تایید توسط")
@@ -194,6 +232,7 @@ class ProjectStage(TimeStampedModel):
     order = models.PositiveSmallIntegerField(verbose_name="ترتیب")
     title = models.CharField(max_length=150, verbose_name="عنوان مرحله (کپی‌شده)")
     client_label = models.CharField(max_length=150, blank=True, verbose_name="عنوان نمایشی برای کارفرما")
+    kind = models.CharField(max_length=30, choices=StageKind.choices, default=StageKind.GENERIC, verbose_name="نوع رفتاری")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="وضعیت")
     assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_stages", verbose_name="مسئول انجام")
     candidate_users = models.ManyToManyField(
@@ -271,11 +310,22 @@ class ProjectFile(TimeStampedModel):
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="files", verbose_name="مرحله")
     title = models.CharField(max_length=150, blank=True, verbose_name="عنوان فایل")
     file = models.FileField(upload_to=project_file_upload_path, verbose_name="فایل")
+    original_name = models.CharField(max_length=255, blank=True, verbose_name="نام اصلی فایل")
+    is_attachment = models.BooleanField(default=False, verbose_name="پیوست (بدون نسخه‌بندی)")
     kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="نوع فایل")
     version = models.PositiveSmallIntegerField(verbose_name="شماره نسخه", blank=True)
     is_current = models.BooleanField(default=True, verbose_name="آخرین نسخه")
     replaces = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name="replaced_by", verbose_name="جایگزین نسخه")
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="uploaded_project_files", verbose_name="آپلودکننده")
+    cut_count = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="تعداد برش (فقط جی‌کد)")
+
+    @property
+    def display_name(self):
+        return self.original_name or os.path.basename(self.file.name)
+
+    @property
+    def is_displayable_image(self):
+        return self.file.name.lower().rsplit(".", 1)[-1] in ("jpg", "jpeg", "png", "webp", "gif")
 
     class Meta:
         verbose_name = "فایل پروژه"
@@ -283,9 +333,145 @@ class ProjectFile(TimeStampedModel):
         ordering = ["stage", "-version"]
 
     def save(self, *args, **kwargs):
+        if self.is_attachment:   # پیوست‌های چندفایلی نسخه‌ی هم را کنار نمی‌زنند (پنل کامل فایل‌ها: فاز ۲)
+            self.version = self.version or 1
+            return super().save(*args, **kwargs)
         if not self.version:
             last = ProjectFile.objects.filter(stage=self.stage, kind=self.kind).order_by("-version").first()
             self.version = (last.version + 1) if last else 1
         if self.is_current:
             ProjectFile.objects.filter(stage=self.stage, kind=self.kind, is_current=True).exclude(pk=self.pk).update(is_current=False)
         super().save(*args, **kwargs)
+
+
+class CutDone(models.Model):
+    """تیک «این برش انجام شد» برای برش شماره‌ی index از یک فایل جی‌کد."""
+    file = models.ForeignKey(ProjectFile, on_delete=models.CASCADE, related_name="cuts_done", verbose_name="فایل")
+    index = models.PositiveSmallIntegerField(verbose_name="شماره‌ی برش")
+    done_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
+    done_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان")
+
+    class Meta:
+        verbose_name = "برش انجام‌شده"
+        verbose_name_plural = "برش‌های انجام‌شده"
+        constraints = [models.UniqueConstraint(fields=["file", "index"], name="unique_cut_per_file")]
+
+
+class ShipmentCheck(models.Model):
+    class Status(models.TextChoices):
+        SENT = "sent", "ارسال شد"
+        NOT_SENT = "not_sent", "ارسال نشد"
+
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="shipment_checks", verbose_name="مرحله")
+    file = models.ForeignKey(ProjectFile, on_delete=models.CASCADE, related_name="shipment_checks", verbose_name="فایل")
+    status = models.CharField(max_length=20, choices=Status.choices, verbose_name="وضعیت")
+    reason = models.TextField(blank=True, verbose_name="دلیل ارسال‌نشدن")
+    checked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
+    checked_at = models.DateTimeField(auto_now=True, verbose_name="زمان")
+
+    class Meta:
+        verbose_name = "چک ارسال"
+        verbose_name_plural = "چک‌های ارسال"
+        constraints = [models.UniqueConstraint(fields=["stage", "file"], name="unique_shipcheck_per_file")]
+
+
+class ExtraShipment(models.Model):
+    """کالای اضافه‌ی ارسال‌شده. فقط برای بازبینی؛ روی فاکتور نمی‌آید و موجودی را کم نمی‌کند."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="پروژه")
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="مرحله")
+    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="extra_shipments", verbose_name="کالا")
+    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
+    cost_snapshot = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون (اسنپ‌شات)")
+    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات)")
+    sale_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش (تومان)")
+    note = models.CharField(max_length=500, verbose_name="توضیح")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "کالای اضافه‌ی ارسال"
+        verbose_name_plural = "کالاهای اضافه‌ی ارسال"
+
+
+class InstallLine(models.Model):
+    class Kind(models.TextChoices):
+        SERVICE = "service", "خدمت"
+        MATERIAL = "material", "کالا"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "ثبت‌نشده"
+        OK = "ok", "نصب شد"
+        NOT_OK = "not_ok", "نصب نشد"
+
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="install_lines", verbose_name="مرحله")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    service_line = models.ForeignKey(ProjectService, null=True, blank=True, on_delete=models.SET_NULL, related_name="install_lines")
+    material_line = models.ForeignKey(ProjectServiceMaterial, null=True, blank=True, on_delete=models.SET_NULL, related_name="install_lines")
+    item = models.ForeignKey('catalog.Item', null=True, blank=True, on_delete=models.PROTECT, related_name="install_lines")
+    title = models.CharField(max_length=255, verbose_name="عنوان (اسنپ‌شات)")
+    unit = models.CharField(max_length=30, blank=True)
+    planned_qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار پیش‌فاکتور")
+    actual_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="مقدار واقعی")
+    unit_cost = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="بهای واحد (اسنپ‌شات پیش‌فاکتور)")
+    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات پیش‌فاکتور)")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    reason = models.TextField(blank=True, verbose_name="دلیل")
+    delta_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="اختلاف (+اضافه، −کسری)")
+    delta_sale = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="ارزش اختلاف (تومان)")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ردیف نصب"
+        verbose_name_plural = "ردیف‌های نصب"
+        ordering = ["service_line_id", "kind", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["stage", "service_line"], condition=models.Q(kind="service", service_line__isnull=False), name="uniq_install_service"),
+            models.UniqueConstraint(fields=["stage", "material_line"], condition=models.Q(kind="material", material_line__isnull=False), name="uniq_install_material"),
+        ]
+
+
+class PartRequest(models.Model):
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "در انتظار انباردار"
+        ISSUED = "issued", "تحویل شد"
+        REJECTED = "rejected", "رد شد"
+        CANCELLED = "cancelled", "لغو شد"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="part_requests", verbose_name="پروژه")
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="part_requests", verbose_name="مرحله")
+    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="part_requests", verbose_name="کالا")
+    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
+    note = models.CharField(max_length=500, verbose_name="دلیل درخواست")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REQUESTED)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="part_requests_made")
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="part_requests_decided")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.CharField(max_length=500, blank=True)
+    cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="بهای واقعی FIFO")
+    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    sale_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش")
+
+    class Meta:
+        verbose_name = "درخواست قطعه"
+        verbose_name_plural = "درخواست‌های قطعه"
+        ordering = ["-requested_at"]
+
+
+class ProjectCost(models.Model):
+    """هزینه‌ی ثبت‌شده‌ی پروژه (مثل ارسال قطعات جدید). روی فاکتور نمی‌آید."""
+    class Kind(models.TextChoices):
+        PART_SHIPPING = "part_shipping", "ارسال قطعات جدید"
+        OTHER = "other", "سایر"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="recorded_costs", verbose_name="پروژه")
+    kind = models.CharField(max_length=30, choices=Kind.choices, verbose_name="نوع")
+    title = models.CharField(max_length=255, verbose_name="شرح")
+    amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "هزینه‌ی ثبت‌شده"
+        verbose_name_plural = "هزینه‌های ثبت‌شده"

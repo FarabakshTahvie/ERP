@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% load custom_tags %}
+{% load static custom_tags %}
 {% block title %}ثبت پروژه جدید | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page">
     <div>
         <h1 class="fb-page-title">ثبت پروژه جدید</h1>
-        <p class="fb-page-sub">با ثبت پروژه، پیش‌فاکتور به‌صورت خودکار صادر می‌شود.</p>
+        <p class="fb-page-sub">بعد از ثبت، مرحله‌ی بازدید برای شما باز می‌شود؛ پیش‌فاکتور را بعد از بازدید صادر می‌کنید.</p>
     </div>
 
-    <form method="post" action="{% url 'projects:new_project_submit' %}" id="new-project-form" class="space-y-5">
+    <form method="post" action="{% url 'projects:new_project_submit' %}" enctype="multipart/form-data" id="new-project-form" class="space-y-5">
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
@@ -67,20 +67,32 @@
 
         {% include "projects/partials/location_picker.html" %}
 
-        {% include "projects/partials/lines_editor.html" %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">زمان بازدید</h2>
+            <div class="fb-field">
+                <label class="fb-label" for="visit-at">تاریخ و ساعت بازدید (اجباری)</label>
+                <input type="text" id="visit-at" name="visit_at" required dir="ltr" autocomplete="off"
+                       placeholder="۱۴۰۵/۰۷/۲۰ ۱۰:۳۰" class="input w-full font-technical">
+                <span class="fb-hint">مسئول بازدید از بین بازدیدکننده‌ها برداشته می‌شود؛ بعداً پیامک زمان بازدید برای طرف‌حساب ارسال می‌شود (فعلاً نه).</span>
+            </div>
+        </section>
 
-        {% include "projects/partials/project_costs.html" with costs=costs costs_locked=False participants_cost=0 %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">فایل‌ها و نقشه‌های مشتری (اختیاری)</h2>
+            <input type="file" name="project_files" multiple class="file-input w-full" aria-label="فایل‌های پروژه">
+            <span class="fb-hint">تا ۲۰ فایل؛ نام فایل‌ها همان‌طور که هست نگه داشته می‌شود.</span>
+        </section>
 
-        <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
-            <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
-        </label>
+        {% include "projects/partials/project_notes.html" with notes="" %}
+
+        <div id="upload-progress" class="hidden fb-card fb-pad flex flex-col gap-2">
+            <progress id="upload-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
+            <span id="upload-progress-text" class="text-xs fb-muted"></span>
+        </div>
+        <div id="upload-error" role="alert" class="hidden alert alert-soft alert-error text-sm"></div>
 
         <div class="fb-sticky-bar">
-            <div>
-                <div class="text-xs fb-muted">جمع برآوردی پیش‌فاکتور</div>
-                <div class="text-sm font-bold"><span id="grand-total" class="font-technical">۰</span> تومان</div>
-            </div>
+            <div></div>
             <button type="submit" id="submit-btn" class="btn btn-primary">ثبت نهایی پروژه</button>
         </div>
     </form>
@@ -208,4 +220,27 @@
 })();
 </script>
 {% endif %}
+
+<script src="{% static 'js/uploader.js' %}"></script>
+<script>
+(function () {
+    var form = document.getElementById('new-project-form'), btn = document.getElementById('submit-btn');
+    var files = form.querySelector('input[name=project_files]');
+    var ui = {
+        wrap: document.getElementById('upload-progress'), bar: document.getElementById('upload-progress-bar'),
+        text: document.getElementById('upload-progress-text'),
+        onError: function (msg) {
+            var box = document.getElementById('upload-error');
+            box.textContent = msg; box.classList.remove('hidden');
+            btn.disabled = false; var sp = btn.querySelector('.loading'); if (sp) sp.remove();
+        }
+    };
+    form.addEventListener('submit', function (e) {   // بعد از اعتبارسنجی‌های بالا ثبت شده؛ فقط اگر فایل هست
+        if (e.defaultPrevented || !files || !files.files.length) return;
+        e.preventDefault();
+        document.getElementById('upload-error').classList.add('hidden');
+        window.fbSubmitWithProgress(form, ui);
+    });
+})();
+</script>
 {% endblock %}

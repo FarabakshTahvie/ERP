@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}بازبینی نهایی: {{ project.name }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <!-- ۱. سرصفحه -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+                <a href="{% url 'projects:staff_project_overview' project.id %}" class="link link-hover text-xs fb-muted">بازگشت به نمای پروژه</a>
+                <h1 class="fb-page-title mt-1">بازبینی نهایی پروژه: {{ project.name }}</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="fb-badge fb-badge-neutral">کد: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
+                <span class="fb-badge {% if project.status == 'completed' %}fb-badge-success{% elif project.status == 'cancelled' %}fb-badge-error{% elif project.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ project.get_status_display }}</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-2 border-t border-base-300">
+            <div><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ project.owner|default:project.partner|default:"—" }}</span></div>
+            <div><span class="fb-muted">زمان بازدید:</span> <span class="font-technical">{{ project.visit_at|to_jalali|default:"—" }}</span></div>
+            <div><span class="fb-muted">تاریخ قرارداد:</span> <span class="font-technical">{{ project.contract_date|to_jalali|default:"—" }}</span></div>
+            <div><span class="fb-muted">مکان:</span> <span>{{ project.location|default:"—" }}</span></div>
+        </div>
+        {% if project.internal_notes %}
+        <div class="text-xs pt-2 border-t border-base-300">
+            <span class="fb-muted">یادداشت داخلی:</span>
+            <p class="mt-0.5 leading-relaxed">{{ project.internal_notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ۲. پیش‌فاکتور -->
+    {% if invoice %}
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+            <h2 class="font-bold text-sm">پیش‌فاکتور صادرشده (مشاهده‌شده توسط مشتری)</h2>
+            <span class="fb-badge fb-badge-neutral font-technical">{{ invoice.number|fa_digits }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full text-xs">
+                <thead>
+                    <tr class="border-b border-base-300">
+                        <th>شرح</th>
+                        <th class="text-center">مقدار</th>
+                        <th class="text-start">قیمت واحد (تومان)</th>
+                        <th class="text-start">جمع (تومان)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in invoice.lines.all %}
+                    <tr class="border-b border-base-200">
+                        <td>{{ l.title }}</td>
+                        <td class="text-center font-technical">{{ l.qty|floatformat:"-4"|fa_digits }}</td>
+                        <td class="text-start font-technical">{{ l.unit_price|intcomma_fa }}</td>
+                        <td class="text-start font-technical font-semibold">{{ l.total|intcomma_fa }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="fb-hint text-center">ردیفی وجود ندارد.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-end gap-6 text-xs pt-2 border-t border-base-300">
+            <div><span class="fb-muted">جمع کل:</span> <span class="font-technical font-bold text-sm">{{ invoice.total_amount|intcomma_fa }}</span> تومان</div>
+            <div><span class="fb-muted">پرداخت‌شده:</span> <span class="font-technical text-success">{{ invoice.paid_amount|intcomma_fa }}</span> تومان</div>
+            <div><span class="fb-muted">مانده:</span> <span class="font-technical text-error font-semibold">{{ invoice.balance_due|intcomma_fa }}</span> تومان</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ۳. فایل‌ها به تفکیک مرحله -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">فایل‌های ثبت‌شده در پروژه</h2>
+        <div class="space-y-3">
+            {% for st in data.stages %}
+                {% if st.files.all %}
+                <div class="border-b border-base-300 pb-2">
+                    <span class="text-xs font-semibold text-primary">{{ st.title }}</span>
+                    <div class="mt-1 flex flex-col gap-1">
+                        {% for f in st.files.all %}
+                        <div class="flex items-center justify-between text-xs gap-2">
+                            <span class="truncate" dir="auto">{% icon "file-text" "w-3.5 h-3.5 inline text-base-content/60" %} {{ f.display_name }}</span>
+                            <a href="{{ f.file.url }}" download class="btn btn-ghost btn-xs text-primary">دانلود</a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% empty %}
+            <p class="fb-hint">فایلی ثبت نشده است.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ۴. زمان‌خط مراحل -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">زمان‌خط و رویدادهای مراحل</h2>
+        <div class="space-y-3">
+            {% for st in data.stages %}
+            <div class="border-b border-base-300 pb-2 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-semibold">{{ st.order|fa_digits }}. {{ st.title }}</span>
+                    <span class="fb-badge fb-badge-sm {% if st.status == 'done' %}fb-badge-success{% elif st.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ st.get_status_display }}</span>
+                </div>
+                <div class="fb-muted mt-0.5">مسئول: {% if st.assigned_to %}{{ st.assigned_to.get_full_name|default:st.assigned_to.username }}{% else %}—{% endif %}</div>
+                {% if st.events.all %}
+                <div class="mt-1.5 ms-2 space-y-1 border-s-2 border-base-300 ps-2">
+                    {% for ev in st.events.all %}
+                    <div class="fb-muted">
+                        <span class="font-semibold text-base-content">{% if ev.actor %}{{ ev.actor.get_full_name|default:ev.actor.username }}{% else %}سیستم{% endif %}</span>:
+                        {{ ev.comment|default:"بدون توضیح" }}
+                        <span class="font-technical text-[10px] opacity-75">({{ ev.created_at|to_jalali }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ۵. ارسال -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">گزارش ارسال</h2>
+        {% if data.not_sent %}
+        <div class="text-xs">
+            <span class="font-semibold text-error">فایل‌های ارسال‌نشده:</span>
+            <ul class="list-disc list-inside mt-1 space-y-1">
+                {% for sc in data.not_sent %}
+                <li>{{ sc.file.display_name }} — <span class="fb-muted">دلیل:</span> {{ sc.reason }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <p class="text-xs text-success">تمام فایل‌های جی‌کد ارسال شده‌اند.</p>
+        {% endif %}
+
+        <div class="pt-2 border-t border-base-300">
+            <span class="font-semibold text-xs">کالاهای اضافه‌ی ارسال‌شده:</span>
+            {% if data.extras %}
+            <div class="mt-1 space-y-1 text-xs">
+                {% for ex in data.extras %}
+                <div class="flex justify-between items-center">
+                    <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
+                    <span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }} تومان</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="fb-hint text-xs mt-1">کالای اضافه‌ای در ارسال ثبت نشده است.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ۶. نصب -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">گزارش نصب</h2>
+        {% if data.not_installed %}
+        <div class="text-xs">
+            <span class="font-semibold text-error">موارد نصب‌نشده:</span>
+            <ul class="list-disc list-inside mt-1 space-y-1">
+                {% for ni in data.not_installed %}
+                <li>{{ ni.title }} — <span class="fb-muted">دلیل:</span> {{ ni.reason }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <p class="text-xs text-success">تمام خدمات و اقلام برنامه‌ریزی‌شده نصب شده‌اند.</p>
+        {% endif %}
+
+        <div class="pt-2 border-t border-base-300">
+            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه):</span>
+            {% if data.deltas %}
+            <div class="mt-1 space-y-1 text-xs">
+                {% for d in data.deltas %}
+                <div class="flex justify-between items-center">
+                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span> / واقعی <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> (اختلاف: <span class="font-technical {% if d.delta_qty > 0 %}text-warning{% else %}text-info{% endif %}">{{ d.delta_qty|floatformat:"-4"|fa_digits }}</span>)</span>
+                    <span class="font-technical font-semibold {% if d.delta_sale > 0 %}text-warning{% elif d.delta_sale < 0 %}text-info{% endif %}">{{ d.delta_sale|intcomma_fa }} تومان</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="fb-hint text-xs mt-1">اختلافی در مقادیر نصب وجود ندارد.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ۷. قطعات درخواستی -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">قطعات درخواستی از انبار</h2>
+        {% if data.parts %}
+        <div class="space-y-2 text-xs">
+            {% for p in data.parts %}
+            <div class="flex justify-between items-center border-b border-base-200 pb-1.5 flex-wrap gap-2">
+                <div>
+                    <span class="font-semibold">{{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>
+                    <span class="fb-badge fb-badge-xs {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
+                    <span class="fb-muted ms-1">({{ p.note }})</span>
+                </div>
+                {% if p.status == 'issued' %}
+                <div class="font-technical text-start">
+                    بهای FIFO: {{ p.cost_total|intcomma_fa }} | فروش: <span class="font-semibold">{{ p.sale_total|intcomma_fa }} تومان</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="fb-hint text-xs">هیچ قطعه‌ای درخواست نشده است.</p>
+        {% endif %}
+    </div>
+
+    <!-- ۸. هزینه‌های ثبت‌شده -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">هزینه‌های ثبت‌شده پروژه</h2>
+        {% if data.costs %}
+        <div class="space-y-1.5 text-xs">
+            {% for c in data.costs %}
+            <div class="flex justify-between items-center">
+                <span>{{ c.get_kind_display }} — {{ c.title }}</span>
+                <span class="font-technical font-semibold">{{ c.amount|intcomma_fa }} تومان</span>
+            </div>
+            {% endfor %}
+            <div class="pt-2 border-t border-base-300 flex justify-between font-bold">
+                <span>جمع کل هزینه‌ها:</span>
+                <span class="font-technical">{{ data.totals.costs_total|intcomma_fa }} تومان</span>
+            </div>
+        </div>
+        {% else %}
+        <p class="fb-hint text-xs">هزینه‌ای ثبت نشده است.</p>
+        {% endif %}
+    </div>
+
+    <!-- ۹. خلاصه‌ی مالی -->
+    <div class="fb-card fb-pad flex flex-col gap-3 bg-base-100 border-2 border-primary/20">
+        <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی اضافات و تغییرات</h2>
+        <div class="space-y-2 text-xs">
+            <div class="flex justify-between items-center">
+                <span class="fb-muted">اضافات قطعات ارسال‌شده:</span>
+                <span class="font-technical font-semibold">{{ data.totals.extras_sale|intcomma_fa }} تومان</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="fb-muted">ارزش اختلاف نصب (کسری/اضافه):</span>
+                <span class="font-technical font-semibold">{{ data.totals.delta_sale|intcomma_fa }} تومان</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="fb-muted">قطعات تحویل‌شده از انبار:</span>
+                <span class="font-technical font-semibold">{{ data.totals.parts_sale|intcomma_fa }} تومان</span>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t border-base-300 text-sm font-bold text-primary">
+                <span>جمع اضافات قابل مطالبه (برآوردی):</span>
+                <span class="font-technical text-base">{{ data.totals.claimable|intcomma_fa }} تومان</span>
+            </div>
+            <div class="flex justify-between items-center pt-1 fb-muted">
+                <span>هزینه‌های ثبت‌شده (سمت شرکت):</span>
+                <span class="font-technical">{{ data.totals.costs_total|intcomma_fa }} تومان</span>
+            </div>
+        </div>
+
+        <div class="alert alert-info text-xs mt-2">
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span>این مبالغ روی فاکتور نیامده‌اند. اگر باید از مشتری گرفته شود، مدیر از ادمین ← فاکتور ← «افزودن هزینه‌ی جدید» ثبت می‌کند.</span>
+        </div>
+    </div>
+
+    <!-- ۱۰. تایید -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">تایید نهایی و تکمیل پروژه</h2>
+        {% if data.pending_parts %}
+        <div class="alert alert-warning text-xs">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+            <span>{{ data.pending_parts|fa_digits }} درخواست قطعه‌ی بررسی‌نشده دارید؛ ابتدا تکلیف آنها در انبار روشن شود.</span>
+        </div>
+        <button type="button" disabled class="btn btn-disabled w-full">تایید نهایی غیرفعال است</button>
+        {% elif can_approve %}
+        <form method="post" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label">توضیحات پایانی بازبینی نهایی (اجباری)</label>
+                <textarea name="comment" required rows="3" class="textarea w-full" placeholder="نتیجه‌ی بازبینی نهایی، نکات تحویل به کارفرما و..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">{% icon "check-circle" "w-4 h-4" %} تایید نهایی و تکمیل پروژه</button>
+        </form>
+        {% else %}
+        <p class="text-xs text-success font-semibold">مرحله‌ی بازبینی نهایی قبلاً تکمیل شده یا پروژه در وضعیت تکمیل/لغوشده است.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

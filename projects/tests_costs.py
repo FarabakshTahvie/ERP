@@ -238,26 +238,23 @@ class ProjectCostsAndContractTests(TestCase):
         client.force_login(self.creator)
         resp = client.get(reverse("projects:new_project_form"))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("installation_fee", resp.content.decode("utf-8"))
+        self.assertIn("visit_at", resp.content.decode("utf-8"))
 
     def test_view_new_project_submit_success(self):
+        from projects.workflow_v2 import build_workflow_v2
+        build_workflow_v2(make_default=True)
         client = Client()
         client.force_login(self.creator)
         resp = client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "services_json": json.dumps([{"id": self.service1.id, "qty": "1", "unit_price": "1000000"}]),
-            "installation_fee": "200000",
-            "shipping_fee": "50000",
-            "extra_fee": "10000",
-            "contract_date": "1405/07/01",
+            "visit_at": "1405/07/20 10:30",
             "notes": "ثبت وب تست",
         })
         self.assertEqual(resp.status_code, 302)
         proj = Project.objects.filter(notes="ثبت وب تست").first()
         self.assertIsNotNone(proj)
-        self.assertEqual(proj.installation_fee, Decimal("200000"))
-        self.assertEqual(proj.invoice.total_amount, Decimal("1260000"))
+        self.assertIsNotNone(proj.visit_at)
 
     def test_view_new_project_submit_invalid_fee_redirects(self):
         client = Client()
@@ -266,8 +263,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "services_json": json.dumps([{"id": self.service1.id, "qty": "1", "unit_price": "1000000"}]),
-            "installation_fee": "خطا",
+            "visit_at": "",
         })
         self.assertEqual(Project.objects.count(), count_before)
 
@@ -278,8 +274,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "services_json": json.dumps([{"id": self.service1.id, "qty": "1", "unit_price": "1000000"}]),
-            "contract_date": "1405/13/01",
+            "visit_at": "1405/13/01 25:00",
         })
         self.assertEqual(Project.objects.count(), count_before)
 
@@ -289,25 +284,24 @@ class ProjectCostsAndContractTests(TestCase):
         resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
-        self.assertIn("installation_fee", content)
-        self.assertNotIn('name="installation_fee" data-fee value=""\n                   dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical" disabled', content)
-        self.assertIn('name="installation_fee"', content)
+        self.assertIn("proforma", content)
 
     def test_view_project_edit_get_locked_renders_disabled(self):
-        Payment.objects.create(
-            invoice=self.invoice,
-            amount=Decimal("100000"),
-            paid_at=timezone.now(),
-            method=Payment.Method.RECEIPT,
-            status=Payment.Status.APPROVED,
-            approved_by=self.admin_user,
-        )
+        self.project.visit_at = timezone.now()
+        self.project.save()
+        visit_st = self.project.stages.filter(kind="visit").first()
+        if not visit_st:
+            from projects.models import ProjectStage, WorkflowStepTemplate
+            st_tmpl, _ = WorkflowStepTemplate.objects.get_or_create(template=self.template, order=99, defaults={"title": "بازدید", "kind": "visit"})
+            visit_st = ProjectStage.objects.create(project=self.project, step_template=st_tmpl, order=99, title="بازدید", kind="visit")
+        visit_st.status = "done"
+        visit_st.save()
         client = Client()
         client.force_login(self.creator)
         resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
-        self.assertIn('name="installation_fee"', content)
+        self.assertIn('name="visit_at"', content)
         self.assertIn('disabled', content)
 
     def test_view_project_edit_post_success(self):

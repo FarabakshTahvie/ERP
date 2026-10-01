@@ -1,0 +1,23 @@
+{% load custom_tags %}
+<div class="fb-inset mt-3 ms-10 flex flex-col gap-3" data-cuts-box>
+    <div class="fb-label">برش‌های فایل‌های جی‌کد</div>
+    {% for row in cut_rows %}
+    <div class="flex flex-col gap-1.5" data-cut-row data-url="{% url 'projects:cut_set' row.file.id %}">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-xs break-all" dir="auto">{{ row.file.display_name }}</span>
+            <span class="text-xs fb-muted shrink-0"><span data-file-done>{{ row.done_count|fa_digits }}</span> از {{ row.file.cut_count|fa_digits }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% for c in row.cells %}
+            <label class="flex items-center gap-1 text-xs">
+                <input type="checkbox" class="checkbox checkbox-sm" data-cut="{{ c.n }}" {% if c.done %}checked{% endif %} {% if not s.can_upload %}disabled{% endif %}>
+                <span class="font-technical">{{ c.n|fa_digits }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% empty %}
+    <p class="fb-hint">فایل جی‌کدی با تعداد برش برای این پروژه ثبت نشده.</p>
+    {% endfor %}
+    <p class="fb-error hidden" data-cut-error></p>
+</div>

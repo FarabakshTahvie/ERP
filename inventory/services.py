@@ -380,6 +380,7 @@ def item_structure_locked(item):
     return (
         item.lots.exists() or item.purchase_lines.exists()
         or item.project_usages.exists() or item.used_in_services.exists()
+        or item.service_line_usages.exists()
     )
 
 

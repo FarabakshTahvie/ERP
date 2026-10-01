@@ -1,0 +1,38 @@
+{% load custom_tags %}
+<div class="collapse collapse-arrow bg-base-100 border border-base-300 mt-3 ms-10">
+    <input type="checkbox" {% if s.can_upload %}checked{% endif %} aria-label="فایل‌های مرحله">
+    <div class="collapse-title text-xs font-semibold">فایل‌های این مرحله ({{ s.file_list|length|fa_digits }})</div>
+    <div class="collapse-content flex flex-col gap-3">
+        {% if s.upload_req == 'image' %}<p class="fb-hint">برای تکمیل این مرحله حداقل یک <strong>عکس</strong> لازم است.</p>
+        {% elif s.upload_req == 'any' %}<p class="fb-hint">برای تکمیل این مرحله حداقل یک <strong>فایل</strong> لازم است.</p>{% endif %}
+
+        {% if s.file_list %}
+        <div class="flex gap-2 overflow-x-auto pb-2" role="list">
+            {% for f in s.file_list %}
+            <div role="listitem" class="fb-inset shrink-0 w-40 flex flex-col gap-2">
+                {% if f.is_displayable_image %}
+                <img src="{{ f.file.url }}" alt="{{ f.display_name }}" loading="lazy" class="w-full h-24 object-cover rounded-field bg-base-300">
+                {% else %}
+                <div class="w-full h-24 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>
+                {% endif %}
+                <span class="text-xs break-all line-clamp-2" dir="auto" title="{{ f.display_name }}">{{ f.display_name }}</span>
+                {% if f.cut_count %}<span class="fb-badge fb-badge-neutral self-start">{{ f.cut_count|fa_digits }} برش</span>{% endif %}
+                <div class="flex items-center gap-1">
+                    {% if f.is_displayable_image %}
+                    <button type="button" class="btn btn-ghost btn-xs" data-zoom="{{ f.file.url }}" data-zoom-name="{{ f.display_name }}" aria-label="بزرگ‌نمایی">{% icon "eye" "w-4 h-4" %}</button>
+                    {% endif %}
+                    <a href="{{ f.file.url }}" download="{{ f.display_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود">{% icon "download" "w-4 h-4" %}</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="fb-hint">هنوز فایلی ارسال نشده.</p>
+        {% endif %}
+
+        {% if s.can_upload %}
+        <div data-upload-panel data-url="{% url 'projects:stage_file_upload' s.id %}"
+             data-mode="{% if s.kind == 'gcode' %}gcode{% else %}plain{% endif %}" data-anchor="stage-{{ s.id }}"></div>
+        {% endif %}
+    </div>
+</div>

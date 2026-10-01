@@ -83,6 +83,9 @@
 @source "../../*.py";
 @source "../../**/*.py";
 @source "../js/item_picker.js";
+@source "../js/line_editor.js";
+@source "../js/uploader.js";
+@source "../js/checklist.js";
 
 @font-face {
   font-family: 'Vazirmatn';

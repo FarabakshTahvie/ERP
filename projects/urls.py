@@ -1,11 +1,26 @@
 from django.urls import path
-from . import views
+from . import views, views_ops
 
 app_name = "projects"
 
 urlpatterns = [
+    path("staff/stages/<int:stage_id>/ship-check/", views_ops.ship_check, name="ship_check"),
+    path("staff/stages/<int:stage_id>/install-line/", views_ops.install_line, name="install_line"),
+    path("staff/stages/<int:stage_id>/extras/add/", views_ops.extra_add, name="extra_add"),
+    path("staff/extras/<int:extra_id>/delete/", views_ops.extra_delete, name="extra_delete"),
+    path("staff/stages/<int:stage_id>/part-request/", views_ops.part_request_create, name="part_request_create"),
+    path("staff/part-requests/<int:req_id>/cancel/", views_ops.part_request_cancel, name="part_request_cancel"),
+    path("staff/part-requests/<int:req_id>/", views_ops.part_request_detail, name="part_request_detail"),
+    path("staff/part-requests/<int:req_id>/decide/", views_ops.part_request_decide, name="part_request_decide"),
+    path("dashboard/part-requests-table/", views_ops.part_requests_table, name="part_requests_table"),
+    path("staff/projects/<int:project_id>/costs/add/", views_ops.cost_add, name="cost_add"),
+    path("staff/costs/<int:cost_id>/delete/", views_ops.cost_delete, name="cost_delete"),
+    path("staff/projects/<int:project_id>/final-review/", views_ops.final_review, name="final_review"),
     path("staff/projects/<int:project_id>/edit/", views.project_edit, name="project_edit"),
+    path("staff/projects/<int:project_id>/proforma/", views.proforma_editor, name="proforma_editor"),
     path("staff/projects/<int:project_id>/overview/", views.staff_project_overview, name="staff_project_overview"),
+    path("staff/stages/<int:stage_id>/files/", views.stage_file_upload, name="stage_file_upload"),
+    path("staff/files/<int:file_id>/cut/", views.cut_set, name="cut_set"),
     path("portal/approvals/<int:approval_id>/", views.portal_stage_approval, name="portal_stage_approval"),
     path("portal/<int:project_id>/progress/", views.project_progress, name="portal_project_progress"),
     path("my-tasks/", views.my_tasks, name="my_tasks"),

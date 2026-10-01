@@ -52,6 +52,8 @@ class NewProjectIntakeTests(TestCase):
 
     @mock.patch("notifications.services.SMSService.send_invoice_issued")
     def test_submit_new_project_creates_project_invoice_and_notifies(self, mock_sms):
+        from projects.workflow_v2 import build_workflow_v2
+        build_workflow_v2(make_default=True)
         mock_sms.return_value = {"success": True, "message_id": "1001"}
         client = Client()
         client.force_login(self.tech)
@@ -64,9 +66,7 @@ class NewProjectIntakeTests(TestCase):
             "latitude": "35.689200",
             "longitude": "51.389000",
             "address_text": "تهران خیابان تست",
-            "services_json": json.dumps([{"id": self.service.id, "qty": 2, "unit_price": 500000}]),
-            "materials_json": json.dumps([{"id": self.item.id, "qty": 1, "unit_price": 200000}]),
-            "send_sms": "on",
+            "visit_at": "1405/07/20 10:30",
         }
         resp = client.post(reverse("projects:new_project_submit"), post_data)
         self.assertRedirects(resp, reverse("home"))
@@ -74,10 +74,9 @@ class NewProjectIntakeTests(TestCase):
         project = Project.objects.get(name="مشتری جدید تست")
         self.assertEqual(project.owner.phone_number, "09120000093")
         self.assertIsNotNone(project.location)
-
-        invoice = Invoice.objects.get(project=project)
-        self.assertEqual(invoice.total_amount, 1200000)
-        mock_sms.assert_called_once()
+        self.assertIsNotNone(project.visit_at)
+        self.assertFalse(hasattr(project, "invoice"))
+        mock_sms.assert_not_called()
 
 
 class PartySearchForPurchaseTests(TestCase):

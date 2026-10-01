@@ -14,6 +14,7 @@ from .forms import StageCommentForm, StageAssignForm
 from .models import (
     Project, ProjectService, ProjectMaterial, ProjectParticipant,
     WorkflowTemplate, WorkflowStepTemplate, ProjectStage, StageEvent, StageApproval, ProjectFile,
+    PartRequest, ProjectCost,
 )
 
 
@@ -246,3 +247,24 @@ class StageApprovalAdmin(JalaliAdminMixin, ModelAdmin):
 
     jalali_sent_at = jalali_column('sent_at', 'زمان ارسال')
     jalali_decided_at = jalali_column('decided_at', 'زمان تصمیم‌گیری')
+
+
+@admin.register(PartRequest)
+class PartRequestAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'project', 'item', 'qty', 'status', 'requested_by', 'jalali_requested_at')
+    list_filter = ('status', 'requested_at')
+    search_fields = ('project__name', 'item__name', 'note')
+    readonly_fields = ('jalali_requested_at', 'jalali_decided_at')
+
+    jalali_requested_at = jalali_column('requested_at', 'زمان درخواست')
+    jalali_decided_at = jalali_column('decided_at', 'زمان تصمیم‌گیری')
+
+
+@admin.register(ProjectCost)
+class ProjectCostAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'project', 'kind', 'title', 'amount', 'created_by', 'jalali_created_at')
+    list_filter = ('kind', 'created_at')
+    search_fields = ('project__name', 'title')
+    readonly_fields = ('jalali_created_at',)
+
+    jalali_created_at = jalali_column('created_at', 'زمان ثبت')

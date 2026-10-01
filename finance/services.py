@@ -1,11 +1,10 @@
-import jdatetime
 import uuid
 from datetime import timedelta
-from decimal import Decimal, InvalidOperation
-from django.db import models, transaction
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from utils.image_utils import optimize_receipt_image
-from utils.utils import separate_digits
+from utils.utils import separate_digits, monthly_prefix, next_monthly_code
 from .models import Invoice, InvoiceLine, Payment, LedgerEntry
 
 # روش‌هایی که مبلغشان را کارشناس از روی مدرک تایید می‌کند
@@ -119,10 +118,7 @@ def create_customer_payment(*, invoice, method, amount_raw="", reference_number=
 
 
 def _generate_invoice_number():
-    year = jdatetime.date.fromgregorian(date=timezone.localdate()).year
-    last = Invoice.objects.filter(number__startswith=f"INV-{year}-").order_by("-id").first()
-    seq = int(last.number.split("-")[-1]) + 1 if last else 1
-    return f"INV-{year}-{seq:04d}"
+    return next_monthly_code(Invoice.objects.all(), "number", monthly_prefix("INV"))
 
 
 def _make_line(invoice, line_type, title, qty, unit_price, cost_snapshot=None):
@@ -137,14 +133,26 @@ def _make_line(invoice, line_type, title, qty, unit_price, cost_snapshot=None):
     )
 
 
+def _service_line_title(ps):
+    qty = format(ps.qty.normalize(), "f")
+    unit = ps.service.get_unit_display() if ps.service.unit else ""
+    return f"{ps.service.name} ({qty} {unit})".replace(" )", ")")
+
+
 def _rebuild_lines(invoice, project):
-    lines = [
-        _make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price)
-        for ps in project.services.all()
-    ]
+    lines = []
+    for ps in project.services.select_related("service").prefetch_related("materials"):
+        mats = list(ps.materials.all())
+        if mats:   # کالاها فقط داخل جمع خدمت می‌روند؛ بهای واقعی در cost_snapshot برای گزارش سود
+            total = (ps.qty * ps.unit_price + sum((m.line_total for m in mats), Decimal(0))).quantize(
+                Decimal(1), rounding=ROUND_HALF_UP)
+            cost = sum((m.qty * m.cost_snapshot for m in mats), Decimal(0)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+            lines.append(_make_line(invoice, InvoiceLine.LineType.SERVICE, _service_line_title(ps), 1, total, cost))
+        else:
+            lines.append(_make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price))
     lines += [
         _make_line(invoice, InvoiceLine.LineType.MATERIAL, pm.item.name, pm.qty, pm.unit_price, pm.item.moving_average_cost)
-        for pm in project.extra_materials.all()
+        for pm in project.extra_materials.all()   # مسیر قدیمی (پروژه‌های پیش از نسخه‌ی ۲)
     ]
     if project.installation_fee:
         lines.append(_make_line(invoice, InvoiceLine.LineType.INSTALLATION, "هزینه نصب", 1, project.installation_fee))
@@ -173,15 +181,19 @@ def generate_invoice_for_project(project, issue_date=None, document_type=Invoice
         raise ValueError("این پروژه قبلاً فاکتور دارد (هر پروژه فقط یک فاکتور دارد).")
 
     from projects.services import resolve_billing_party
-    invoice = Invoice.objects.create(
-        project=project,
-        number=_generate_invoice_number(),
-        document_type=document_type,
-        billed_party=resolve_billing_party(project),
-        address_snapshot=project.location.address_text if project.location else "",
-        contract_date=project.contract_date,
-        issue_date=issue_date or timezone.localdate(),
-    )
+    for attempt in range(5):
+        try:
+            with transaction.atomic():
+                invoice = Invoice.objects.create(
+                    project=project, number=_generate_invoice_number(), document_type=document_type,
+                    billed_party=resolve_billing_party(project),
+                    address_snapshot=project.location.address_text if project.location else "",
+                    contract_date=project.contract_date, issue_date=issue_date or timezone.localdate(),
+                )
+            break
+        except IntegrityError:
+            if attempt == 4:
+                raise
     _rebuild_lines(invoice, project)
     return invoice
 

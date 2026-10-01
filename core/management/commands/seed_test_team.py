@@ -18,6 +18,7 @@ class Command(BaseCommand):
         credentials = []
 
         with transaction.atomic():
+            sp_visitor, _ = Specialty.objects.get_or_create(name="بازدیدکننده")
             sp_duct, _ = Specialty.objects.get_or_create(name="کانال‌کش")
             sp_design, _ = Specialty.objects.get_or_create(name="طراح اتوکد")
             sp_cnc, _ = Specialty.objects.get_or_create(name="اپراتور CNC")
@@ -51,6 +52,11 @@ class Command(BaseCommand):
             # مدیر
             upsert_user("manager_test", "سارا", "مدیری", User.Role.ADMIN,
                         "09300000001", is_superuser=True)
+
+            upsert_user("tech_visit_1", "سعید", "بازدیدکننده‌یک", User.Role.EMPLOYEE,
+                        "09300000121", specialties=[sp_visitor])
+            upsert_user("tech_visit_2", "حمید", "بازدیدکننده‌دو", User.Role.EMPLOYEE,
+                        "09300000122", specialties=[sp_visitor])
 
             # دو تکنسین برای هر تخصص (برای تست Claim و انتقال کار بین هم‌تخصص‌ها)
             upsert_user("tech_kanal_1", "رضا", "کانالکش‌یک", User.Role.EMPLOYEE,
