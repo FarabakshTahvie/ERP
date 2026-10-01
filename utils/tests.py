@@ -63,9 +63,11 @@ class JalaliAndUIWorkflowTests(TestCase):
             f_datetime.to_python("۱۴۰۵/۰۶/۳۰ ۲۵:۰۰")
 
     def test_project_and_invoice_shamsi_year(self):
-        # بررسی سال شمسی در کد پروژه و فاکتور
-        current_shamsi_year = jdatetime.date.fromgregorian(date=timezone.localdate()).year
-        
+        # بررسی پیشوند ماهانه در کد پروژه و فاکتور
+        d = jdatetime.date.fromgregorian(date=timezone.localdate())
+        expected_p_prefix = f"P{d.year % 100:02d}{d.month:02d}-"
+        expected_inv_prefix = f"INV{d.year % 100:02d}{d.month:02d}-"
+
         party = Party.objects.create(name="شرکت الف", is_client=True)
         template = WorkflowTemplate.objects.create(name="قالب ۱")
         project = Project.objects.create(
@@ -74,10 +76,10 @@ class JalaliAndUIWorkflowTests(TestCase):
             owner=party,
             workflow_template=template,
         )
-        self.assertTrue(project.code.startswith(f"P{current_shamsi_year}-"))
+        self.assertTrue(project.code.startswith(expected_p_prefix))
 
         inv_num = _generate_invoice_number()
-        self.assertTrue(inv_num.startswith(f"INV-{current_shamsi_year}-"))
+        self.assertTrue(inv_num.startswith(expected_inv_prefix))
 
     def test_login_page_antislop_and_content(self):
         client = Client()

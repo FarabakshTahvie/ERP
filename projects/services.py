@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Project, ProjectStage, StageEvent, ProjectService, ProjectMaterial, WorkflowStepTemplate
+from .models import Project, ProjectStage, StageEvent, ProjectService, ProjectMaterial, WorkflowStepTemplate, StageKind
 
 INTAKE_SPECIALTY_NAME = "پذیرش"
 NOT_SENT = object()   # برای تاریخ قرارداد در ویرایش: None یعنی «پاک کن»، NOT_SENT یعنی «دست نزن»
@@ -260,6 +260,7 @@ def create_project_stages_from_template(project):
             order=step.order,
             title=step.title,
             client_label=step.client_label,
+            kind=step.kind,
             client_visible=step.client_visible,
             status=ProjectStage.Status.PENDING,
         )
@@ -267,11 +268,12 @@ def create_project_stages_from_template(project):
     ]
     ProjectStage.objects.bulk_create(stages)
 
-    first_stage = project.stages.order_by("order").first()
+    first_stage = project.stages.select_related("step_template", "project").order_by("order").first()
     if first_stage:
         first_stage.status = ProjectStage.Status.IN_PROGRESS
         first_stage.started_at = timezone.now()
-        first_stage.save(update_fields=["status", "started_at"])
+        _assign_stage_responsible(first_stage)
+        first_stage.save()
 
     if project.status == Project.Status.DRAFT:
         project.status = Project.Status.IN_PROGRESS
@@ -288,6 +290,10 @@ def advance_stage(stage, actor, new_status, comment):
     from accounts.models import User
     if getattr(actor, "role", None) == User.Role.EMPLOYEE and stage.assigned_to_id and stage.assigned_to_id != actor.id:
         raise ValueError("فقط مسئول این مرحله می‌تواند وضعیتش را تغییر دهد.")
+
+    if (stage.kind == StageKind.PROFORMA and new_status == ProjectStage.Status.DONE
+            and not hasattr(stage.project, "invoice")):
+        raise ValueError("پیش‌فاکتور هنوز صادر نشده است.")
 
     old_status = stage.status
     if new_status == ProjectStage.Status.DONE:
@@ -326,6 +332,28 @@ def advance_stage(stage, actor, new_status, comment):
     return stage
 
 
+def _assign_stage_responsible(stage):
+    """مسئول مرحله را هنگام شروع تعیین می‌کند (قانون ۵). خروجی: کاربران برای اطلاع‌رسانی (فعلاً TODO)."""
+    from accounts.models import User
+    template = stage.step_template
+    if template.default_assignee_id:
+        stage.assigned_to = template.default_assignee
+        return [template.default_assignee]
+    if template.assign_to_project_creator and stage.project.created_by_id:
+        stage.assigned_to_id = stage.project.created_by_id
+        return [stage.project.created_by]
+    if template.responsible_specialty_id:
+        candidates = list(User.objects.filter(
+            role=User.Role.EMPLOYEE, specialties=template.responsible_specialty, is_active=True,
+        ))
+        stage.save()
+        stage.candidate_users.set(candidates)
+        return candidates
+    if template.responsible_role:
+        return list(User.objects.filter(role=template.responsible_role, is_active=True))
+    return []
+
+
 def _activate_next_stage(stage):
     next_stage = (
         stage.project.stages.filter(
@@ -359,21 +387,7 @@ def _activate_next_stage(stage):
     # تخصص کانال‌کش هم داره) رو از چرخه‌ی ارجاع تکنسین خارج کنه.
     next_stage.status = ProjectStage.Status.IN_PROGRESS
     next_stage.started_at = timezone.now()
-    notify_users = []
-    if template.default_assignee_id:
-        next_stage.assigned_to = template.default_assignee
-        notify_users = [template.default_assignee]
-    elif template.responsible_specialty_id:
-        from accounts.models import User
-        candidates = list(User.objects.filter(
-            role=User.Role.EMPLOYEE, specialties=template.responsible_specialty, is_active=True,
-        ))
-        next_stage.save()
-        next_stage.candidate_users.set(candidates)
-        notify_users = candidates
-    elif template.responsible_role:
-        from accounts.models import User
-        notify_users = list(User.objects.filter(role=template.responsible_role, is_active=True))
+    notify_users = _assign_stage_responsible(next_stage)   # noqa: F841
     next_stage.save()
     # TODO(نوتیفیکیشن ارجاع کار): طبق تصمیم قبلی کاربر، همچنان کامنت بمونه.
 
@@ -553,13 +567,50 @@ def transfer_stage(stage, from_user, to_user, comment=""):
     return stage
 
 
+MAX_INTAKE_FILES = 20
+
+
+def attach_project_files(project, stage, files, *, uploader):
+    files = [f for f in (files or []) if f]
+    if len(files) > MAX_INTAKE_FILES:
+        raise ValueError(f"حداکثر {MAX_INTAKE_FILES} فایل را می‌توان یک‌جا ارسال کرد.")
+    from .models import ProjectFile
+    from utils.utils import guess_file_kind
+    for f in files:
+        ProjectFile.objects.create(
+            stage=stage, file=f, kind=guess_file_kind(f.name),
+            original_name=(f.name or "")[:255], uploaded_by=uploader, is_attachment=True,
+        )
+
+
+def _require_v2_template(template):
+    first = template.steps.order_by("order").first()
+    if not first or first.kind != StageKind.VISIT:
+        raise ValueError("گردش‌کار پیش‌فرض نسخه‌ی جدید نیست؛ ابتدا دستور setup_workflow_v2 --make-default اجرا شود.")
+
+
+@transaction.atomic
+def update_visit_at(*, project, actor, visit_at):
+    if not can_edit_project(actor, project):
+        raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
+    if visit_at is None:
+        raise ValueError("زمان بازدید را مشخص کنید.")
+    visit_stage = project.stages.filter(kind=StageKind.VISIT).first()
+    if visit_stage and visit_stage.status == ProjectStage.Status.DONE:
+        raise ValueError("بازدید انجام شده و زمان آن قابل تغییر نیست.")
+    project.visit_at = visit_at
+    project.save(update_fields=["visit_at", "updated_at"])
+    # TODO(پیامک تغییر زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست.
+
+
 @transaction.atomic
 def create_project_from_technician_intake(*, created_by, party_id=None, party_data=None,
                                            owner_party_id=None, owner_party_data=None,
                                            location_lat=None, location_lng=None, location_address="",
                                            service_lines=None, material_lines=None,
                                            installation_fee_raw="", shipping_fee_raw="", extra_fee_raw="",
-                                           contract_date=None, notes="", send_sms=False):
+                                           contract_date=None, notes="", send_sms=False, visit_at=None,
+                                           uploaded_files=None, issue_proforma=True):
     from core.models import Party, Location
     from catalog.models import Service, Item
     service_lines = _clean_lines(service_lines, Service, "خدمات")
@@ -568,6 +619,8 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     shipping_fee = parse_fee(shipping_fee_raw, label="هزینه ارسال")
     extra_fee = parse_fee(extra_fee_raw, label="هزینه مازاد")
     notes = clean_project_notes(notes)
+    if not issue_proforma and visit_at is None:
+        raise ValueError("زمان بازدید را مشخص کنید.")
 
     if party_id:
         party = Party.objects.get(pk=party_id)
@@ -601,6 +654,8 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     template = WorkflowTemplate.objects.filter(is_default=True).first()
     if not template:
         raise ValueError("هیچ قالب گردش‌کار پیش‌فرضی تعریف نشده است.")
+    if not issue_proforma:
+        _require_v2_template(template)
 
     internal_party = Party.objects.filter(is_internal=True).first()
     if not internal_party:
@@ -613,7 +668,7 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
         name=proj_name, partner=partner, owner=owner, location=location,
         workflow_template=template, created_by=created_by, status=Project.Status.IN_PROGRESS,
         installation_fee=installation_fee, shipping_fee=shipping_fee, extra_fee=extra_fee,
-        contract_date=contract_date, notes=notes,
+        contract_date=contract_date, visit_at=visit_at, notes=notes,
     )
 
     for line in (service_lines or []):
@@ -626,6 +681,12 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
         )
 
     stages = create_project_stages_from_template(project)
+
+    if uploaded_files:
+        attach_project_files(project, stages[0], uploaded_files, uploader=created_by)
+    if not issue_proforma:
+        # TODO(پیامک زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست؛ فقط کامنت.
+        return project, None, False
 
     from finance.services import generate_invoice_for_project, ensure_billed_party_account, notify_invoice_issued
     invoice = generate_invoice_for_project(project)

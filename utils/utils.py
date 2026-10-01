@@ -3,6 +3,8 @@ import secrets
 import string
 import uuid
 import re
+import jdatetime
+from django.utils import timezone
 from pathlib import Path
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
@@ -148,7 +150,7 @@ FILE_KIND_EXTENSIONS = {
     "dwg": ("dwg", "dxf"),
     "gcode": ("nc", "gcode", "tap", "cnc"),
     "pdf": ("pdf",),
-    "image": ("jpg", "jpeg", "png", "webp", "gif", "bmp"),
+    "image": ("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif"),
 }
 
 
@@ -159,3 +161,20 @@ def guess_file_kind(filename):
         if ext in exts:
             return kind
     return "other"
+
+
+def monthly_prefix(letter, on_date=None):
+    """پیشوند ماهانه: حرف + دو رقم سال + دو رقم ماه شمسی + خط تیره؛ مثل P0507-"""
+    d = jdatetime.date.fromgregorian(date=on_date or timezone.localdate())
+    return f"{letter}{d.year % 100:02d}{d.month:02d}-"
+
+
+def next_monthly_code(queryset, field, prefix):
+    """شماره‌ی بعدی همان ماه. مقایسه عددی است (نه رشته‌ای)؛ دو رقمی، بعد از ۹۹ سه‌رقمی."""
+    highest = 0
+    for value in queryset.filter(**{f"{field}__startswith": prefix}).values_list(field, flat=True):
+        tail = value[len(prefix):]
+        if tail.isdigit():
+            highest = max(highest, int(tail))
+    return f"{prefix}{highest + 1:02d}"
+

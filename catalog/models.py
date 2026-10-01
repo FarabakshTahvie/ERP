@@ -100,7 +100,6 @@ class MarginRule(models.Model):
 
     class ValueType(models.TextChoices):
         PERCENT = "percent", "درصد"
-        FIXED = "fixed", "مبلغ ثابت (تومان)"
 
     class Scope(models.TextChoices):
         ITEM = "item", "کالای مشخص"
@@ -110,7 +109,7 @@ class MarginRule(models.Model):
     scope = models.CharField(max_length=20, choices=Scope.choices, verbose_name="محدوده اعمال")
     item = models.ForeignKey(Item, null=True, blank=True, on_delete=models.CASCADE, related_name="margin_rules", verbose_name="کالا")
     category = models.ForeignKey(ItemCategory, null=True, blank=True, on_delete=models.CASCADE, related_name="margin_rules", verbose_name="دسته‌بندی")
-    value_type = models.CharField(max_length=20, choices=ValueType.choices, verbose_name="نوع مقدار")
+    value_type = models.CharField(max_length=20, choices=ValueType.choices, default=ValueType.PERCENT, verbose_name="نوع مقدار", help_text="سود همیشه درصدی است")
     value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="مقدار")
     valid_from = models.DateTimeField(verbose_name="اعتبار از تاریخ")
     valid_to = models.DateTimeField(null=True, blank=True, verbose_name="اعتبار تا تاریخ (خالی=بدون انقضا)")

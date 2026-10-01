@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}درخواست قطعه #{{ req.id }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'home' %}" class="link link-hover text-sm fb-muted">بازگشت به داشبورد</a>
+        <h1 class="fb-page-title mt-2">درخواست قطعه #{{ req.id|fa_digits }}</h1>
+    </div>
+
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">پروژه</span>
+            <a href="{% url 'projects:staff_project_overview' req.project_id %}" class="font-semibold text-sm link link-hover text-primary">{{ req.project.name }}</a>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">مرحله</span>
+            <span class="text-sm">{{ req.stage.title }}</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">کالا</span>
+            <span class="font-semibold text-sm">{{ req.item.name }}</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">مقدار درخواستی</span>
+            <span class="font-technical text-sm font-semibold">{{ req.qty|floatformat:"-4"|fa_digits }} {{ req.item.get_unit_display }}</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">موجودی فعلی انبار</span>
+            <span class="font-technical text-sm {% if stock < req.qty %}text-error font-bold{% else %}text-success{% endif %}">{{ stock|floatformat:"-4"|fa_digits }} {{ req.item.get_unit_display }}</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">درخواست‌کننده</span>
+            <span class="text-sm">{{ req.requested_by.get_full_name|default:req.requested_by.username|default:"—" }}</span>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+            <span class="fb-muted text-sm">وضعیت</span>
+            <span class="fb-badge {% if req.status == 'issued' %}fb-badge-success{% elif req.status == 'requested' %}fb-badge-warning{% elif req.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ req.get_status_display }}</span>
+        </div>
+        <div class="flex flex-col gap-1 pt-2 border-t border-base-300">
+            <span class="fb-muted text-xs">دلیل درخواست:</span>
+            <p class="text-sm leading-relaxed" dir="auto">{{ req.note }}</p>
+        </div>
+
+        {% if req.status == 'issued' %}
+        <div class="flex flex-col gap-2 pt-2 border-t border-base-300 text-xs">
+            <div class="flex justify-between items-center"><span class="fb-muted">بهای تمام‌شده (FIFO):</span><span class="font-technical">{{ req.cost_total|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between items-center"><span class="fb-muted">جمع فروش:</span><span class="font-technical font-semibold">{{ req.sale_total|intcomma_fa }} تومان</span></div>
+            {% if req.decided_by %}<div class="flex justify-between items-center"><span class="fb-muted">تحویل‌دهنده:</span><span>{{ req.decided_by.get_full_name|default:req.decided_by.username }}</span></div>{% endif %}
+        </div>
+        {% elif req.status == 'rejected' %}
+        <div class="flex flex-col gap-1 pt-2 border-t border-base-300 text-xs text-error">
+            <span class="font-semibold">دلیل رد درخواست:</span>
+            <p class="leading-relaxed" dir="auto">{{ req.decision_note }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if req.status == 'requested' %}
+    <div class="fb-card fb-pad flex flex-col gap-4">
+        <h2 class="font-bold text-sm">تصمیم‌گیری انباردار</h2>
+        <form method="post" action="{% url 'projects:part_request_decide' req.id %}" data-fb-once class="flex flex-col gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="issue">
+            <p class="text-xs text-warning">توجه: با تایید تحویل، موجودی این کالا بر اساس روش FIFO بلافاصله از انبار کم خواهد شد.</p>
+            <button type="submit" class="btn btn-primary w-full">{% icon "check" "w-4 h-4" %} تایید و تحویل قطعه</button>
+        </form>
+
+        <div class="divider my-1 text-xs fb-muted">یا رد درخواست</div>
+
+        <form method="post" action="{% url 'projects:part_request_decide' req.id %}" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reject">
+            <div class="fb-field">
+                <label class="fb-label">دلیل رد (اجباری)</label>
+                <textarea name="reason" required rows="2" class="textarea w-full" placeholder="علت عدم تحویل قطعه..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-error btn-soft w-full">{% icon "x" "w-4 h-4" %} رد درخواست</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

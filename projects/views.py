@@ -1,7 +1,8 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db import transaction
-from django.http import Http404
+from django.http import Http404, JsonResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 import json
@@ -10,20 +11,24 @@ from django.template.loader import render_to_string
 from utils.generic_table import build_table_context, render_table
 from utils.tabs import build_tabs_context
 from django.core.exceptions import ValidationError
-from django.db.models import Sum
-from utils.jalali_forms import JalaliDateField
+from django.db.models import Sum, Prefetch
+from utils.jalali_forms import JalaliDateField, JalaliDateTimeField
 from utils.jalali import jalali_str, to_fa_digits
 from accounts.models import User
 from core.models import Party
 from catalog.models import Service, Item
-from .models import Project, ProjectStage, StageApproval
-from projects.services import (
+from catalog.services import has_global_margin, resolve_margin_percents
+from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile
+from .stage_ops import can_upload_to_stage, add_stage_file, upload_requirement, complete_stage, cut_files, cuts_summary, set_cut
+from .services import (
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
+    update_visit_at,
 )
+from .proforma import parse_service_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count
 
@@ -333,6 +338,14 @@ def technician_home_view(request, user):
             "container_id": "tab-panel-stock-table",
             "eager_render": _eager(_stock_table_context),
         })
+        from .views_ops import part_requests_table_context
+        from .models import PartRequest
+        tabs.append({
+            "key": "part_requests", "label": "درخواست قطعه",
+            "count_builder": lambda: PartRequest.objects.filter(status=PartRequest.Status.REQUESTED).count(),
+            "url": reverse("projects:part_requests_table"), "container_id": "tab-panel-part-requests",
+            "eager_render": _eager(part_requests_table_context),
+        })
 
     tabs_context = build_tabs_context(request, tabs)
 
@@ -364,12 +377,15 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
 
     stages = list(
         project.stages.select_related("assigned_to", "step_template")
-        .prefetch_related("events__actor", "candidate_users")
+        .prefetch_related("events__actor", "candidate_users",
+                          Prefetch("files", queryset=ProjectFile.objects.order_by("created_at", "pk"), to_attr="file_list"))
         .order_by("order")
     )
 
+    from . import ops
     my_stage_ids = set()
     for s in stages:
+        s.ops = ops.ops_context(user, s)
         candidate_ids = {u.id for u in s.candidate_users.all()}
         s.is_mine = s.assigned_to_id == user.id
         s.is_candidate = user.id in candidate_ids
@@ -377,13 +393,29 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         if s.is_mine or s.is_candidate:
             my_stage_ids.add(s.id)
         s.transfer_candidates = get_transfer_candidates(s) if s.is_mine else None
+        s.can_upload = s.status == ProjectStage.Status.IN_PROGRESS and can_upload_to_stage(user, s)
+        s.upload_req = upload_requirement(s)
+
+    cut_rows = []
+    if any(s.kind == StageKind.CUTTING for s in stages):
+        for f in cut_files(project):
+            done = {c.index for c in f.cuts_done.all() if 1 <= c.index <= f.cut_count}
+            cut_rows.append({"file": f, "done_count": len(done),
+                             "cells": [{"n": i, "done": i in done} for i in range(1, f.cut_count + 1)]})
 
     if not is_project_level_viewer and not my_stage_ids:
         raise Http404
 
+    ops_items = []
+    if any(getattr(s, "ops", None) and s.ops.get("can_edit") for s in stages):
+        ops_items = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)]
+
     return render(request, "projects/staff_project_overview.html", {
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
+        "cut_rows": cut_rows,
+        "can_final_review": ops.is_creator_or_manager(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
+        "ops_items": ops_items,
     })
 
 
@@ -523,29 +555,47 @@ def my_task_claim(request, stage_id):
 
 
 @login_required
+@require_POST
+def stage_file_upload(request, stage_id):
+    stage = get_object_or_404(ProjectStage.objects.select_related("project", "step_template"), pk=stage_id)
+    if not can_upload_to_stage(request.user, stage):
+        return JsonResponse({"ok": False, "error": "شما اجازه‌ی ارسال فایل در این مرحله را ندارید."}, status=403)
+    try:
+        f = add_stage_file(stage=stage, uploaded=request.FILES.get("file"), uploader=request.user,
+                           cut_count_raw=request.POST.get("cut_count"))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "id": f.id, "name": f.display_name})
+
+
+@login_required
+@require_POST
+def cut_set(request, file_id):
+    f = get_object_or_404(ProjectFile.objects.select_related("stage__project"), pk=file_id)
+    try:
+        set_cut(file=f, index=int(request.POST.get("index", "")), done=request.POST.get("done") == "1",
+                actor=request.user)
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e) if "int()" not in str(e) else "شماره‌ی برش نامعتبر است."}, status=400)
+    total, done = cuts_summary(f.stage.project)
+    file_done = f.cuts_done.filter(index__lte=f.cut_count).count()
+    return JsonResponse({"ok": True, "total": total, "done": done, "file_done": file_done})
+
+
+@login_required
 @user_passes_test(_is_technician)
 def my_task_complete(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     if request.method == "POST":
-        comment = request.POST.get("comment", "").strip()
-        if stage.step_template.allows_file_upload and not request.FILES.get("uploaded_file"):
-            messages.error(request, "برای این مرحله آپلود فایل الزامی است.")
-            return redirect("projects:my_task_detail", stage_id=stage.id)
+        needs_approval = {"1": True, "0": False}.get(request.POST.get("needs_approval"))
         try:
-            advance_stage(stage, actor=request.user, new_status=ProjectStage.Status.DONE, comment=comment)
-            uploaded_file = request.FILES.get("uploaded_file")
-            if uploaded_file:
-                from .models import ProjectFile
-                from utils.utils import guess_file_kind
-                ProjectFile.objects.create(
-                    stage=stage, file=uploaded_file,
-                    kind=guess_file_kind(uploaded_file.name),
-                    uploaded_by=request.user,
-                )
-            messages.success(request, "مرحله با موفقیت تکمیل شد.")
-            return redirect("home")
+            complete_stage(stage=stage, actor=request.user, comment=request.POST.get("comment", "").strip(),
+                           needs_approval=needs_approval)
         except ValueError as e:
             messages.error(request, str(e))
+            return redirect("projects:my_task_detail", stage_id=stage.id)
+        messages.success(request, "مرحله با موفقیت تکمیل شد.")
+        return redirect("home")
     return redirect("projects:my_task_detail", stage_id=stage.id)
 
 
@@ -571,12 +621,7 @@ def my_task_transfer(request, stage_id):
 @login_required
 @user_passes_test(user_can_create_projects)
 def new_project_form(request):
-    services = Service.objects.filter(is_active=True).exclude(children__isnull=False)
-    items = Item.objects.filter(is_active=True)
-    return render(request, "projects/technician_new_project.html", {
-        "services": services, "items": items,
-        "costs": {}, "participants_cost": 0,
-    })
+    return render(request, "projects/technician_new_project.html", {})
 
 
 @login_required
@@ -613,20 +658,30 @@ def project_edit(request, project_id):
                 messages.error(request, " ".join(e.messages))
                 return redirect("projects:project_edit", project.id)
 
+        raw_visit = (request.POST.get("visit_at") or "").strip()
         try:
-            project, rebuilt = update_project_from_technician_edit(
-                project=project, actor=request.user,
-                location_lat=request.POST.get("latitude") or None,
-                location_lng=request.POST.get("longitude") or None,
-                location_address=request.POST.get("address_text", ""),
-                service_lines=_parse_json_lines_strict(request.POST.get("services_json")),
-                material_lines=_parse_json_lines_strict(request.POST.get("materials_json")),
-                installation_fee_raw=request.POST.get("installation_fee"),
-                shipping_fee_raw=request.POST.get("shipping_fee"),
-                extra_fee_raw=request.POST.get("extra_fee"),
-                contract_date=contract_date,
-                notes=request.POST.get("notes"),
-            )
+            visit_at = JalaliDateTimeField().clean(raw_visit) if raw_visit else None
+        except ValidationError as e:
+            messages.error(request, " ".join(e.messages))
+            return redirect("projects:project_edit", project.id)
+
+        try:
+            with transaction.atomic():
+                project, rebuilt = update_project_from_technician_edit(
+                    project=project, actor=request.user,
+                    location_lat=request.POST.get("latitude") or None,
+                    location_lng=request.POST.get("longitude") or None,
+                    location_address=request.POST.get("address_text", ""),
+                    service_lines=_parse_json_lines_strict(request.POST.get("services_json")),
+                    material_lines=_parse_json_lines_strict(request.POST.get("materials_json")),
+                    installation_fee_raw=request.POST.get("installation_fee"),
+                    shipping_fee_raw=request.POST.get("shipping_fee"),
+                    extra_fee_raw=request.POST.get("extra_fee"),
+                    contract_date=contract_date,
+                    notes=request.POST.get("notes"),
+                )
+                if visit_at is not None:
+                    update_visit_at(project=project, actor=request.user, visit_at=visit_at)
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:project_edit", project.id)
@@ -634,13 +689,14 @@ def project_edit(request, project_id):
         return redirect("projects:staff_project_overview", project.id)
 
     location = project.location
-    services, items = _line_choices(project)
+    visit_stage = project.stages.filter(kind=StageKind.VISIT).first()
+    visit_editable = not (visit_stage and visit_stage.status == ProjectStage.Status.DONE)
+    visit_at_value = jalali_str(project.visit_at, fmt="%Y/%m/%d %H:%M") if project.visit_at else ""
     return render(request, "projects/technician_edit_project.html", {
         "project": project,
-        "prices_open": project_prices_editable(project),
-        "services": services, "items": items, "initial_lines": _initial_lines(project),
-        "costs": _cost_values(project),
-        "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,
+        "notes": project.notes or "",
+        "visit_at_value": visit_at_value,
+        "visit_editable": visit_editable,
         "lat": str(location.latitude) if location and location.latitude is not None else "",
         "lng": str(location.longitude) if location and location.longitude is not None else "",
         "address_text": location.address_text if location else "",
@@ -653,13 +709,23 @@ def new_project_submit(request):
     if request.method != "POST":
         return redirect("projects:new_project_form")
 
+    ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.META.get("HTTP_X_REQUESTED_WITH") == "XMLHttpRequest"
+
+    def fail(message):
+        if ajax:
+            return JsonResponse({"ok": False, "error": message})
+        messages.error(request, message)
+        return redirect("projects:new_project_form")
+
+    def done(url):
+        return JsonResponse({"ok": True, "redirect": url}) if ajax else redirect(url)
+
     party_id = request.POST.get("party_id") or None
     party_data = None
     if not party_id:
         roles = request.POST.getlist("roles")
         if not roles:
-            messages.error(request, "لطفاً حداقل یک نقش (کارفرما، شریک تجاری، پیمانکار یا تأمین‌کننده) را برای طرف‌حساب انتخاب کنید.")
-            return redirect("projects:new_project_form")
+            return fail("لطفاً حداقل یک نقش (کارفرما، شریک تجاری، پیمانکار یا تأمین‌کننده) را برای طرف‌حساب انتخاب کنید.")
         party_data = {
             "name": request.POST.get("party_name", "").strip(),
             "brand_name": request.POST.get("brand_name", "").strip(),
@@ -686,19 +752,15 @@ def new_project_submit(request):
                 "is_client": True,
             }
             if not owner_party_data["phone_number"]:
-                messages.error(request, "شماره‌ی صاحب ملک/کارفرما را وارد کنید یا تیک «صاحب ملک شخص دیگری است» را بردارید.")
-                return redirect("projects:new_project_form")
+                return fail("شماره‌ی صاحب ملک/کارفرما را وارد کنید یا تیک «صاحب ملک شخص دیگری است» را بردارید.")
 
-    service_lines = _parse_json_lines(request.POST.get("services_json"))
-    material_lines = _parse_json_lines(request.POST.get("materials_json"))
-    raw_date = (request.POST.get("contract_date") or "").strip()
-    contract_date = None
-    if raw_date:
-        try:
-            contract_date = JalaliDateField().clean(raw_date)
-        except ValidationError as e:
-            messages.error(request, " ".join(e.messages))
-            return redirect("projects:new_project_form")
+    raw_visit = (request.POST.get("visit_at") or "").strip()
+    if not raw_visit:
+        return fail("زمان بازدید را مشخص کنید.")
+    try:
+        visit_at = JalaliDateTimeField().clean(raw_visit)
+    except ValidationError as e:
+        return fail(" ".join(e.messages))
 
     try:
         project, invoice, account_conflict = create_project_from_technician_intake(
@@ -708,18 +770,113 @@ def new_project_submit(request):
             location_lat=request.POST.get("latitude") or None,
             location_lng=request.POST.get("longitude") or None,
             location_address=request.POST.get("address_text", ""),
-            service_lines=service_lines, material_lines=material_lines,
-            installation_fee_raw=request.POST.get("installation_fee", ""),
-            shipping_fee_raw=request.POST.get("shipping_fee", ""),
-            extra_fee_raw=request.POST.get("extra_fee", ""),
-            contract_date=contract_date,
             notes=request.POST.get("notes", ""),
-            send_sms=request.POST.get("send_sms") == "on",
+            visit_at=visit_at,
+            uploaded_files=request.FILES.getlist("project_files"),
+            issue_proforma=False,
         )
-        messages.success(request, f"پروژه «{project.name}» با موفقیت ثبت شد.")
-        if account_conflict:
-            messages.warning(request, "این شماره موبایل قبلاً برای یک حساب کاربری دیگر (مثلاً یکی از پرسنل) ثبت شده؛ برای این طرف‌حساب حساب ورود خودکار ساخته نشد. برای دسترسی به پرتال، از پنل ادمین دستی برایش حساب بسازید.")
-        return redirect("home")
+        messages.success(request, f"پروژه «{project.name}» با موفقیت ثبت شد. مرحله‌ی بازدید برای شما باز شد.")
+        return done(reverse("home"))
     except (ValueError, InvalidOperation) as e:
-        messages.error(request, str(e))
-        return redirect("projects:new_project_form")
+        return fail(str(e))
+
+
+def _proforma_initial_rows(project):
+    def qty_str(v):
+        return format(v.normalize(), "f")
+    return [
+        {"pk": l.pk, "service_id": l.service_id, "qty": qty_str(l.qty), "unit_price": str(int(l.unit_price)),
+         "materials": [{"pk": m.pk, "item_id": m.item_id, "qty": qty_str(m.qty)} for m in l.materials.all()]}
+        for l in project.services.prefetch_related("materials").order_by("pk")
+    ]
+
+
+@login_required
+def proforma_editor(request, project_id):
+    project = get_object_or_404(Project.objects.select_related("location", "partner", "owner"), pk=project_id)
+    if not can_edit_project(request.user, project):
+        raise Http404
+    if project.status not in EDITABLE_PROJECT_STATUSES:
+        messages.error(request, "پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
+        return redirect("projects:staff_project_overview", project.id)
+
+    error = None
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+        try:
+            raw_date = request.POST.get("contract_date")
+            if raw_date is None:
+                contract_date = NOT_SENT
+            elif not raw_date.strip():
+                contract_date = None
+            else:
+                try:
+                    contract_date = JalaliDateField().clean(raw_date.strip())
+                except ValidationError as e:
+                    raise ValueError(" ".join(e.messages))
+            rebuilt = save_proforma(
+                project=project, actor=request.user,
+                service_rows=parse_service_rows(request.POST.get("services_json")),
+                installation_fee_raw=request.POST.get("installation_fee"),
+                shipping_fee_raw=request.POST.get("shipping_fee"),
+                extra_fee_raw=request.POST.get("extra_fee"),
+                contract_date=contract_date,
+            )
+            if action == "issue":
+                invoice, conflict = issue_proforma(
+                    project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on")
+                messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
+                if conflict:
+                    messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
+                return redirect("projects:staff_project_overview", project.id)
+            messages.success(request, "ذخیره شد." + (" پیش‌فاکتور با مبلغ جدید بازتولید شد." if rebuilt else ""))
+            return redirect("projects:proforma_editor", project.id)
+        except ValueError as e:
+            error = str(e)
+            messages.error(request, error)
+
+    project.refresh_from_db()
+    invoice = getattr(project, "invoice", None)
+    prices_open = project_prices_editable(project)
+    stage = proforma_stage(project)
+    can_issue = bool(prices_open and invoice is None and stage
+                     and stage.status == ProjectStage.Status.IN_PROGRESS
+                     and can_issue_proforma(request.user, stage))
+
+    services, items = _line_choices(project)
+    margins = resolve_margin_percents(items)
+    initial_rows = _proforma_initial_rows(project)
+    costs = _cost_values(project)
+    if error:   # خطا = ورودی کاربر گم نشود
+        try:
+            posted = json.loads(request.POST.get("services_json") or "null")
+            if isinstance(posted, list):
+                initial_rows = posted
+        except (ValueError, TypeError):
+            pass
+        for key in ("installation_fee", "shipping_fee", "extra_fee", "contract_date"):
+            if key in request.POST:
+                costs[key] = request.POST.get(key, "")
+
+    stale = []
+    if prices_open:
+        mats = [m for l in project.services.prefetch_related("materials__item") for m in l.materials.all()]
+        now_margin = resolve_margin_percents({m.item for m in mats})
+        stale = sorted({
+            m.item.name for m in mats
+            if m.cost_snapshot != m.item.moving_average_cost
+            or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01"))
+        })
+
+    return render(request, "projects/proforma_editor.html", {
+        "project": project, "invoice": invoice, "stage": stage,
+        "prices_open": prices_open, "can_issue": can_issue,
+        "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""} for s in services],
+        "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
+                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk])} for i in items],
+        "initial_rows": initial_rows, "costs": costs,
+        "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,
+        "has_global_margin": has_global_margin(),
+        "lines": project.services.select_related("service").prefetch_related("materials__item"),
+        "stale_items": stale,
+    })

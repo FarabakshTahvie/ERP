@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load custom_tags %}
+{% load static custom_tags %}
 {% block title %}{{ project.name }} | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page">
@@ -13,6 +13,10 @@
             </span>
             {% if can_edit %}
             <a href="{% url 'projects:project_edit' project.id %}" class="btn btn-soft btn-xs">{% icon "pencil" "w-3.5 h-3.5" %} ویرایش پروژه</a>
+            <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-xs">پیش‌فاکتور</a>
+            {% endif %}
+            {% if can_final_review %}
+            <a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-xs">بازبینی نهایی</a>
             {% endif %}
         </div>
     </div>
@@ -42,6 +46,12 @@
                 <span class="fb-muted">ثبت نشده</span>
                 {% endif %}
             </div>
+            {% if project.visit_at %}
+            <div class="flex justify-between items-center gap-2">
+                <span class="fb-muted">زمان بازدید</span>
+                <span class="font-technical font-semibold">{{ project.visit_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+            </div>
+            {% endif %}
             {% if project.notes %}
             <div class="space-y-2">
                 <div class="fb-muted">یادداشت</div>
@@ -63,32 +73,6 @@
                 <span class="fb-muted text-xs">ثبت نشده</span>
                 {% endif %}
             </div>
-        </div>
-    </div>
-    {% endwith %}
-
-    {% with files=project.current_files %}
-    <div class="collapse collapse-arrow bg-base-100 border border-base-300">
-        <input type="checkbox" aria-label="فایل‌های پروژه" />
-        <div class="collapse-title text-sm font-semibold">فایل‌های پروژه ({{ files|length|fa_digits }})</div>
-        <div class="collapse-content space-y-2">
-            {% for f in files %}
-            <a href="{{ f.file.url }}" target="_blank" rel="noopener"
-               class="fb-inset flex items-center gap-3 text-xs hover:bg-base-300/60">
-                <span class="text-primary shrink-0">
-                    {% if f.kind == 'dwg' %}{% icon "pencil" "w-4 h-4" %}
-                    {% elif f.kind == 'gcode' %}{% icon "cpu" "w-4 h-4" %}
-                    {% elif f.kind == 'pdf' %}{% icon "file-text" "w-4 h-4" %}
-                    {% elif f.kind == 'image' %}{% icon "image" "w-4 h-4" %}
-                    {% else %}{% icon "paperclip" "w-4 h-4" %}{% endif %}
-                </span>
-                <span class="flex-1 min-w-0 truncate">{{ f.get_kind_display }} — {{ f.stage.title }}{% if f.title %} ({{ f.title }}){% endif %}</span>
-                <span class="fb-muted shrink-0">نسخه {{ f.version|fa_digits }}</span>
-                {% icon "download" "w-4 h-4 shrink-0" %}
-            </a>
-            {% empty %}
-            <p class="fb-hint">هنوز فایلی برای این پروژه آپلود نشده.</p>
-            {% endfor %}
         </div>
     </div>
     {% endwith %}
@@ -127,8 +111,11 @@
                         <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor.get_full_name|default:ev.actor.username }}</div>
                         {% endif %}
                     {% endfor %}
-                </div>
-            </div>
+                    {% include "projects/partials/stage_files.html" %}
+                    {% if s.ops %}{% include "projects/partials/stage_ops.html" %}{% endif %}
+                    {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
+                    </div>
+                    </div>
 
             {% if s.is_candidate and not s.is_mine %}
             <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3 ms-10">
@@ -139,13 +126,21 @@
 
             {% if s.is_mine %}
             <div class="mt-3 ms-10">
-                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" enctype="multipart/form-data" class="fb-inset space-y-3">
+                {% if s.kind == 'proforma' %}
+                <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-primary btn-sm">ورود به ویرایشگر پیش‌فاکتور</a>
+                {% elif s.kind == 'final_review' %}
+                <a href="{% url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
+                {% else %}
+                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3">
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
-                    {% if s.step_template.allows_file_upload %}
+                    {% if s.kind == 'design_initial' %}
                     <div class="fb-field">
-                        <input type="file" name="uploaded_file" class="file-input file-input-sm w-full" required>
-                        <span class="fb-hint">نوع فایل خودکار از روی پسوند تشخیص داده می‌شود.</span>
+                        <span class="fb-label">آیا این طرح نیاز به تایید مشتری دارد؟ (اجباری)</span>
+                        <div class="flex flex-wrap gap-2">
+                            <label class="fb-choice"><input type="radio" name="needs_approval" value="1" class="sr-only" required> بله، برای تایید ارسال شود</label>
+                            <label class="fb-choice"><input type="radio" name="needs_approval" value="0" class="sr-only"> نه، مستقیم به تکمیل طراحی برود</label>
+                        </div>
                     </div>
                     {% endif %}
                     <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>
@@ -156,9 +151,10 @@
                         {% endif %}
                     </div>
                 </form>
+                {% endif %}
             </div>
 
-            {% if s.transfer_candidates %}
+            {% if s.kind != 'proforma' and s.transfer_candidates %}
             <dialog id="fb_transfer_modal_{{ s.id }}" class="modal">
                 <div class="modal-box max-w-sm">
                     <h3 class="font-bold text-base mb-1">انتقال به همکار</h3>
@@ -197,4 +193,49 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endif %}
+
+<dialog id="img-zoom" class="modal">
+    <div class="modal-box max-w-4xl p-2">
+        <img id="img-zoom-el" alt="" class="w-full max-h-[80vh] object-contain">
+        <p id="img-zoom-name" class="text-xs fb-muted p-2" dir="auto"></p>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/uploader.js' %}"></script>
+<script src="{% static 'js/item_picker.js' %}"></script>
+<script src="{% static 'js/checklist.js' %}"></script>
+{{ ops_items|json_script:"ops-items" }}
+<script>
+(function () {
+    var csrf = "{{ csrf_token }}";
+    window.FB_CSRF = csrf;
+    document.querySelectorAll('[data-ops-root]').forEach(window.fbChecklistInit);
+    window.fbOpsPickers(JSON.parse(document.getElementById('ops-items').textContent || '[]'));
+    document.querySelectorAll('[data-upload-panel]').forEach(function (m) {
+        window.fbUploadPanel({ mount: m, url: m.dataset.url, csrf: csrf, withCuts: m.dataset.mode === 'gcode', anchor: m.dataset.anchor });
+    });
+    document.addEventListener('click', function (e) {
+        var z = e.target.closest('[data-zoom]');
+        if (!z) return;
+        document.getElementById('img-zoom-el').src = z.dataset.zoom;
+        document.getElementById('img-zoom-name').textContent = z.dataset.zoomName;
+        document.getElementById('img-zoom').showModal();
+    });
+    document.addEventListener('change', function (e) {
+        var cb = e.target.closest('[data-cut]');
+        if (!cb) return;
+        var row = cb.closest('[data-cut-row]'), err = document.querySelector('[data-cut-error]');
+        var fd = new FormData(); fd.append('index', cb.dataset.cut); fd.append('done', cb.checked ? '1' : '0');
+        cb.disabled = true;
+        window.fbSend(row.dataset.url, fd, csrf).then(function (res) {
+            cb.disabled = false;
+            if (res.ok) { err.classList.add('hidden'); row.querySelector('[data-file-done]').textContent = String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
+            else { cb.checked = !cb.checked; err.textContent = res.error; err.classList.remove('hidden'); }
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -1,0 +1,136 @@
+{% load custom_tags %}
+<div class="fb-inset mt-3 ms-10 flex flex-col gap-3" id="ops-{{ s.id }}" data-ops-root>
+{% if s.kind == 'shipping' %}
+    <div class="fb-label">چک‌لیست ارسال فایل‌ها</div>
+    {% for r in s.ops.rows %}
+    <div data-check-row data-url="{% url 'projects:ship_check' s.id %}" data-idname="file_id" data-id="{{ r.file.id }}" data-neg="not_sent"
+         class="flex flex-col gap-1.5 pb-2 border-b border-base-300">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <span class="text-xs break-all" dir="auto">{{ r.file.display_name }}</span>
+            <div class="flex gap-2">
+                <label class="fb-choice"><input type="radio" name="ship-{{ r.file.id }}" value="sent" class="sr-only" {% if r.status == 'sent' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "check" "w-4 h-4" %} ارسال شد</label>
+                <label class="fb-choice"><input type="radio" name="ship-{{ r.file.id }}" value="not_sent" class="sr-only" {% if r.status == 'not_sent' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "x" "w-4 h-4" %} ارسال نشد</label>
+            </div>
+        </div>
+        <div data-reason-box class="{% if r.status != 'not_sent' %}hidden{% endif %} flex flex-col gap-1">
+            <textarea data-reason rows="2" class="textarea textarea-sm w-full" placeholder="دلیل ارسال‌نشدن (اجباری)" {% if not s.ops.can_edit %}disabled{% endif %}>{{ r.reason }}</textarea>
+            {% if s.ops.can_edit %}<button type="button" data-save-reason class="btn btn-soft btn-sm self-start">ثبت دلیل</button>{% endif %}
+        </div>
+        <span data-msg class="text-xs"></span>
+    </div>
+    {% empty %}<p class="fb-hint">فایل جی‌کدی برای چک‌لیست وجود ندارد.</p>{% endfor %}
+
+    <div class="fb-label pt-2">کالاهای اضافه‌ی ارسال‌شده</div>
+    {% for e in s.ops.extras %}
+    <div class="flex items-center justify-between gap-2 text-xs">
+        <span>{{ e.item.name }} × <span class="font-technical">{{ e.qty|floatformat:"-4"|fa_digits }}</span> — {{ e.note }}</span>
+        <span class="flex items-center gap-2 shrink-0">
+            {% if s.ops.show_money %}<span class="font-technical fb-muted">{{ e.sale_total|intcomma_fa }}</span>{% endif %}
+            {% if s.ops.can_edit %}<form method="post" action="{% url 'projects:extra_delete' e.id %}" data-ops-form data-confirm="این مورد حذف شود؟">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-xs" aria-label="حذف">{% icon "trash-2" "w-4 h-4" %}</button></form>{% endif %}
+        </span>
+    </div>
+    {% empty %}<p class="fb-hint">موردی ثبت نشده.</p>{% endfor %}
+    {% if s.ops.can_edit %}<button type="button" class="btn btn-soft btn-sm self-start" data-open-dialog="extra-dialog-{{ s.id }}">{% icon "plus" "w-4 h-4" %} کالای اضافه</button>{% endif %}
+
+    {% if s.ops.costs is not None %}
+    <div class="fb-label pt-2">هزینه‌های ثبت‌شده (روی فاکتور نمی‌آید)</div>
+    {% for c in s.ops.costs %}
+    <div class="flex items-center justify-between gap-2 text-xs">
+        <span>{{ c.get_kind_display }} — {{ c.title }}</span>
+        <span class="flex items-center gap-2"><span class="font-technical">{{ c.amount|intcomma_fa }}</span>
+        {% if s.ops.can_edit %}<form method="post" action="{% url 'projects:cost_delete' c.id %}" data-ops-form data-confirm="این هزینه حذف شود؟">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-xs" aria-label="حذف">{% icon "trash-2" "w-4 h-4" %}</button></form>{% endif %}</span>
+    </div>
+    {% empty %}<p class="fb-hint">هزینه‌ای ثبت نشده.</p>{% endfor %}
+    {% if s.ops.can_edit %}<button type="button" class="btn btn-soft btn-sm self-start" data-open-dialog="cost-dialog-{{ s.id }}">{% icon "plus" "w-4 h-4" %} ثبت هزینه</button>{% endif %}
+    {% endif %}
+
+    {% if s.ops.can_edit %}
+    <dialog id="extra-dialog-{{ s.id }}" class="modal"><div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-3">کالای اضافه‌ی ارسال‌شده</h3>
+        <form method="post" action="{% url 'projects:extra_add' s.id %}" data-ops-form class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field"><span class="fb-label">کالا</span><div data-item-picker></div><input type="hidden" name="item_id"></div>
+            <div class="fb-field"><label class="fb-label">مقدار</label><input type="text" name="qty" dir="ltr" inputmode="decimal" class="input w-full font-technical"></div>
+            <div class="fb-field"><label class="fb-label">توضیح (اجباری)</label><textarea name="note" rows="2" class="textarea w-full"></textarea></div>
+            <span data-form-error class="fb-error hidden"></span>
+            <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">ثبت</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
+        </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
+    <dialog id="cost-dialog-{{ s.id }}" class="modal"><div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-3">ثبت هزینه</h3>
+        <form method="post" action="{% url 'projects:cost_add' s.project_id %}" data-ops-form class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field"><label class="fb-label">نوع</label><select name="kind" class="select w-full"><option value="part_shipping">ارسال قطعات جدید</option><option value="other">سایر</option></select></div>
+            <div class="fb-field"><label class="fb-label">شرح (اجباری)</label><input type="text" name="title" class="input w-full"></div>
+            <div class="fb-field"><label class="fb-label">مبلغ (تومان)</label><input type="text" name="amount" dir="ltr" inputmode="numeric" class="input w-full font-technical"></div>
+            <span data-form-error class="fb-error hidden"></span>
+            <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">ثبت</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
+        </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
+    {% endif %}
+
+{% elif s.kind == 'install' %}
+    <div class="fb-label">چک‌لیست نصب</div>
+    {% for g in s.ops.groups %}
+    <div class="flex flex-col gap-2 pb-3 border-b border-base-300">
+        {% with r=g.service %}
+        <div data-check-row data-url="{% url 'projects:install_line' s.id %}" data-idname="line_id" data-id="{{ r.id }}" data-neg="not_ok" class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-sm font-semibold">{{ r.title }} <span class="fb-muted text-xs font-technical">({{ r.planned_qty|floatformat:"-2"|fa_digits }} {{ r.unit }})</span></span>
+                <div class="flex gap-2">
+                    <label class="fb-choice"><input type="radio" name="ins-{{ r.id }}" value="ok" class="sr-only" {% if r.status == 'ok' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "check" "w-4 h-4" %} نصب شد</label>
+                    <label class="fb-choice"><input type="radio" name="ins-{{ r.id }}" value="not_ok" class="sr-only" {% if r.status == 'not_ok' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "x" "w-4 h-4" %} نصب نشد</label>
+                </div>
+            </div>
+            <div data-reason-box class="{% if r.status != 'not_ok' %}hidden{% endif %} flex flex-col gap-1">
+                <textarea data-reason rows="2" class="textarea textarea-sm w-full" placeholder="دلیل نصب‌نشدن (اجباری)" {% if not s.ops.can_edit %}disabled{% endif %}>{{ r.reason }}</textarea>
+                {% if s.ops.can_edit %}<button type="button" data-save-reason class="btn btn-soft btn-sm self-start">ثبت دلیل</button>{% endif %}
+            </div>
+            <span data-msg class="text-xs"></span>
+        </div>
+        {% endwith %}
+        {% for m in g.materials %}
+        <div data-check-row data-url="{% url 'projects:install_line' s.id %}" data-idname="line_id" data-id="{{ m.id }}" data-neg="not_ok" class="fb-card fb-pad flex flex-col gap-1.5 ms-4">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-xs">{{ m.title }} <span class="fb-muted">(پیش‌فاکتور: <span class="font-technical">{{ m.planned_qty|floatformat:"-4"|fa_digits }}</span> {{ m.unit }})</span></span>
+                <div class="flex items-center gap-2">
+                    <span data-qty-wrap class="{% if m.status == 'not_ok' %}hidden{% endif %}"><input type="text" data-qty dir="ltr" inputmode="decimal" aria-label="مقدار واقعی" value="{% if m.actual_qty is not None %}{{ m.actual_qty|floatformat:'-4' }}{% else %}{{ m.planned_qty|floatformat:'-4' }}{% endif %}" class="input input-sm w-24 font-technical" {% if not s.ops.can_edit %}disabled{% endif %}></span>
+                    <label class="fb-choice"><input type="radio" name="ins-{{ m.id }}" value="ok" class="sr-only" {% if m.status == 'ok' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "check" "w-4 h-4" %}</label>
+                    <label class="fb-choice"><input type="radio" name="ins-{{ m.id }}" value="not_ok" class="sr-only" {% if m.status == 'not_ok' %}checked{% endif %} {% if not s.ops.can_edit %}disabled{% endif %}>{% icon "x" "w-4 h-4" %}</label>
+                </div>
+            </div>
+            {% if m.delta_qty %}<span class="text-xs {% if m.delta_qty > 0 %}text-warning{% else %}text-info{% endif %}">{% if m.delta_qty > 0 %}اضافه{% else %}کسری{% endif %}: <span class="font-technical">{{ m.delta_qty|floatformat:"-4"|fa_digits }}</span></span>{% endif %}
+            <div data-reason-box class="{% if m.status != 'not_ok' %}hidden{% endif %} flex flex-col gap-1">
+                <textarea data-reason rows="2" class="textarea textarea-sm w-full" placeholder="دلیل نصب‌نشدن (اجباری)" {% if not s.ops.can_edit %}disabled{% endif %}>{{ m.reason }}</textarea>
+                {% if s.ops.can_edit %}<button type="button" data-save-reason class="btn btn-soft btn-sm self-start">ثبت دلیل</button>{% endif %}
+            </div>
+            <span data-msg class="text-xs"></span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="fb-label pt-2">درخواست قطعه</div>
+    {% for p in s.ops.requests %}
+    <div class="flex items-center justify-between gap-2 text-xs">
+        <span>{{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span> — {{ p.note }}</span>
+        <span class="flex items-center gap-2 shrink-0">
+            <span class="fb-badge {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
+            {% if p.status == 'requested' and s.ops.can_edit %}<form method="post" action="{% url 'projects:part_request_cancel' p.id %}" data-ops-form data-confirm="درخواست لغو شود؟">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-xs">لغو</button></form>{% endif %}
+        </span>
+    </div>
+    {% if p.status == 'rejected' and p.decision_note %}<p class="text-xs text-error">دلیل رد: {{ p.decision_note }}</p>{% endif %}
+    {% empty %}<p class="fb-hint">درخواستی ثبت نشده.</p>{% endfor %}
+    {% if s.ops.can_edit %}
+    <button type="button" class="btn btn-soft btn-sm self-start" data-open-dialog="part-dialog-{{ s.id }}">{% icon "package" "w-4 h-4" %} درخواست قطعه</button>
+    <dialog id="part-dialog-{{ s.id }}" class="modal"><div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-3">درخواست قطعه از انبار</h3>
+        <form method="post" action="{% url 'projects:part_request_create' s.id %}" data-ops-form class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field"><span class="fb-label">کالا</span><div data-item-picker></div><input type="hidden" name="item_id"></div>
+            <div class="fb-field"><label class="fb-label">مقدار</label><input type="text" name="qty" dir="ltr" inputmode="decimal" class="input w-full font-technical"></div>
+            <div class="fb-field"><label class="fb-label">دلیل درخواست (اجباری)</label><textarea name="note" rows="2" class="textarea w-full"></textarea></div>
+            <span data-form-error class="fb-error hidden"></span>
+            <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">ارسال درخواست</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
+        </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
+    {% endif %}
+{% endif %}
+</div>

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}پیش‌فاکتور | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'projects:staff_project_overview' project.id %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه</a>
+        <h1 class="fb-page-title mt-2">ویرایشگر پیش‌فاکتور</h1>
+        <p class="fb-page-sub">{{ project.name }} — <span class="font-technical">{{ project.code|fa_digits }}</span>
+            {% if invoice %}— <span class="font-technical">{{ invoice.number|fa_digits }}</span>{% endif %}</p>
+    </div>
+
+    {% if not has_global_margin %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">قانون سود عمومی (درصدی) تعریف نشده؛ سود همه‌ی کالاها صفر حساب می‌شود. از پنل مدیریت ← «قوانین سود» یک قانون سراسری بسازید.</span>
+    </div>
+    {% endif %}
+
+    {% if stale_items %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">قیمت یا سود این کالاها بعد از آخرین ذخیره تغییر کرده: {{ stale_items|join:"، " }}. برای به‌روزشدن «ذخیره» بزنید. تا آن موقع پیش‌فاکتور با همان عددی که قبلاً ذخیره شده صادر می‌شود.</span>
+    </div>
+    {% endif %}
+
+    {% if not prices_open %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "lock" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">قیمت‌ها قفل شده‌اند، چون پیش‌فاکتور تایید شده یا پرداختی ثبت شده است.</span>
+    </div>
+    {% for l in lines %}
+    <div class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2"><span class="font-semibold">{{ l.service.name }}</span>
+            <span class="font-technical fb-muted">{{ l.qty|floatformat:"-2"|fa_digits }} × {{ l.unit_price|intcomma_fa }}</span></div>
+        {% for m in l.materials.all %}
+        <div class="fb-inset flex justify-between gap-2 text-xs"><span>{{ m.item.name }}</span>
+            <span class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }} — {{ m.line_total|intcomma_fa }}</span></div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <form method="post" id="proforma-form" data-fb-once class="flex flex-col gap-5">
+        {% csrf_token %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">خدمات و متریال</h2>
+            <p class="fb-hint">برای هر خدمت «قیمت خود خدمت» را جدا بنویسید. کالاهای زیر خدمت با میانگین موزون به‌علاوه‌ی سود عمومی حساب می‌شوند و در پیش‌فاکتور فقط جمع همان خدمت دیده می‌شود. مبلغ‌های این صفحه برآوردی است؛ عدد رسمی را سرور هنگام ذخیره حساب می‌کند.</p>
+            <div id="proforma-editor"></div>
+            <input type="hidden" id="services_json" data-name="services_json">
+        </section>
+
+        {% include "projects/partials/proforma_fees.html" with costs_locked=False %}
+
+        {% if can_issue %}
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
+            <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
+        </label>
+        {% endif %}
+
+        <div class="fb-sticky-bar">
+            <div>
+                <div class="text-xs fb-muted">جمع برآوردی</div>
+                <div class="text-sm font-bold"><span id="grand-total" class="font-technical">۰</span> تومان</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" name="action" value="save" class="btn btn-soft">ذخیره</button>
+                {% if can_issue %}<button type="submit" name="action" value="issue" class="btn btn-primary">صدور پیش‌فاکتور</button>{% endif %}
+            </div>
+        </div>
+    </form>
+    {{ services_data|json_script:"services-data" }}
+    {{ items_data|json_script:"items-data" }}
+    {{ initial_rows|json_script:"initial-rows" }}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if prices_open %}
+<script src="{% static 'js/item_picker.js' %}"></script>
+<script src="{% static 'js/line_editor.js' %}"></script>
+<script>
+(function () {
+    function init() {
+        var E = window.fbLineEditor, num = E.num, fmt = E.fmt;
+        var services = JSON.parse(document.getElementById('services-data').textContent);
+        var items = JSON.parse(document.getElementById('items-data').textContent);
+        var initial = JSON.parse(document.getElementById('initial-rows').textContent);
+        var byId = {};
+        items.forEach(function (i) { byId[i.id] = i; });
+        function item(d) { return byId[parseInt(d.item_id, 10)]; }
+        function matTotal(d) {
+            var it = item(d);
+            return it ? Math.round(num(d.qty) * parseFloat(it.cost) * (100 + parseFloat(it.margin)) / 100) : 0;
+        }
+        function svcTotal(d) {
+            var t = num(d.qty) * num(d.unit_price);
+            (d.materials || []).forEach(function (m) { t += matTotal(m); });
+            return Math.round(t);
+        }
+        function feeTotal() {
+            var t = 0;
+            document.querySelectorAll('[data-fee]').forEach(function (e) { t += num(e.value); });
+            var box = document.getElementById('project-costs');
+            return t + (box ? parseFloat(box.dataset.participants) || 0 : 0);
+        }
+        var editor;
+        editor = E({
+            mount: document.getElementById('proforma-editor'),
+            hidden: document.getElementById('services_json'),
+            addLabel: 'افزودن خدمت', emptyText: 'هنوز خدمتی اضافه نشده.', initial: initial,
+            columns: [
+                { key: 'service_id', type: 'picker', label: 'خدمت', items: services, placeholder: 'جستجوی خدمت...', cls: 'flex-1 min-w-48' },
+                { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+                { key: 'unit_price', type: 'money', label: 'قیمت خود خدمت (تومان، هر واحد)', cls: 'w-44' }
+            ],
+            children: {
+                key: 'materials', title: 'متریال / قطعات / مصرفی این خدمت', addLabel: 'افزودن کالا',
+                columns: [
+                    { key: 'item_id', type: 'picker', label: 'کالا', items: items, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
+                    { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+                    { key: 'cost', type: 'readonly', label: 'بهای میانگین', cls: 'w-28',
+                      compute: function (d) { var it = item(d); return !it ? '—' : (parseFloat(it.cost) > 0 ? fmt(parseFloat(it.cost)) : 'بدون بها!'); } },
+                    { key: 'margin', type: 'readonly', label: 'سود ٪', cls: 'w-16',
+                      compute: function (d) { var it = item(d); return it ? fmt(parseFloat(it.margin)) : '—'; } },
+                    { key: 'line', type: 'readonly', label: 'جمع (تومان)', cls: 'w-28',
+                      compute: function (d) { return fmt(matTotal(d)); } }
+                ]
+            },
+            footer: function (d) { return 'جمع این خدمت (برآوردی): ' + fmt(svcTotal(d)) + ' تومان'; },
+            onChange: function (rows) {
+                var total = feeTotal();
+                rows.forEach(function (r) { total += svcTotal(r); });
+                document.getElementById('grand-total').textContent = fmt(total);
+            }
+        });
+        document.querySelectorAll('[data-fee]').forEach(function (e) { e.addEventListener('input', editor.notify); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+{% endif %}
+{% endblock %}
