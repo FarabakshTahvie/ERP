@@ -1,13 +1,15 @@
+import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, IntegerField, When, Prefetch
 from django.utils import timezone
 from accounts.models import User
 from catalog.models import Item
 from catalog.services import resolve_margin_percents
 from inventory.services import consume_stock, user_can_manage_inventory, parse_decimal_input
+from utils.image_utils import optimize_receipt_image
 from .models import (
-    ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectStage, ShipmentCheck, StageEvent, StageKind,
+    ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, ShipmentCheck, StageEvent, StageKind,
 )
 from .proforma import material_totals
 from .services import parse_fee
@@ -15,6 +17,17 @@ from .stage_ops import cut_files, _is_manager
 
 REASON_MAX = 1000
 _ACTIVE = (ProjectStage.Status.IN_PROGRESS, ProjectStage.Status.DONE)
+
+
+def prepare_part_photo(f):
+    ext = (f.name or "").lower().rsplit(".", 1)[-1]
+    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+        raise ValueError("فرمت عکس مجاز نیست؛ JPG، PNG یا WEBP بفرستید.")
+    if f.size > 10 * 1024 * 1024:
+        raise ValueError("حجم عکس بیشتر از ۱۰ مگابایت است.")
+    prepared, changed = optimize_receipt_image(f)
+    prepared.name = f"{uuid.uuid4().hex[:16]}.{'webp' if changed else ext}"
+    return prepared
 
 
 def _round0(v):
@@ -215,9 +228,12 @@ def create_part_request(*, stage, item_id, qty_raw, note, actor):
 
 
 @transaction.atomic
-def issue_part_request(*, req, actor):
+def issue_part_request(*, req, actor, shipping_cost_raw="", photo=None):
     if not user_can_manage_inventory(actor):
         raise ValueError("فقط انباردار می‌تواند قطعه تحویل دهد.")
+    amount = parse_fee(shipping_cost_raw, label="هزینه ارسال")
+    photo_file = prepare_part_photo(photo) if photo else None
+
     req = PartRequest.objects.select_for_update().select_related("item", "project").get(pk=req.pk)
     if req.status != PartRequest.Status.REQUESTED:
         raise ValueError("این درخواست قبلاً بررسی شده است.")
@@ -227,8 +243,20 @@ def issue_part_request(*, req, actor):
     margin = Decimal(resolve_margin_percents([req.item])[req.item.pk]).quantize(Decimal("0.01"))
     req.cost_total, req.margin_percent = cost, margin
     req.sale_total = _round0(cost * (Decimal(100) + margin) / Decimal(100))
+    if photo_file:
+        req.photo = photo_file
     req.status, req.decided_by, req.decided_at = PartRequest.Status.ISSUED, actor, timezone.now()
     req.save()
+
+    if amount > 0:
+        ProjectCost.objects.create(
+            project=req.project,
+            kind=ProjectCost.Kind.PART_SHIPPING,
+            title=f"ارسال «{req.item.name}»",
+            amount=amount,
+            created_by=actor,
+            part_request=req,
+        )
     return req
 
 
@@ -304,24 +332,27 @@ def ops_context(user, stage):
 
 
 def final_review_data(project):
-    stages = list(project.stages.prefetch_related("events__actor", "files").order_by("order"))
+    stages = list(project.stages.prefetch_related("events__actor", Prefetch("files", queryset=ProjectFile.objects.select_related("uploaded_by"))).order_by("order"))
     lines = list(InstallLine.objects.filter(stage__project=project).select_related("item"))
     extras = list(project.extra_shipments.select_related("item"))
     parts = list(project.part_requests.select_related("item", "requested_by"))
     costs = list(project.recorded_costs.all())
     issued = [p for p in parts if p.status == PartRequest.Status.ISSUED]
+    shortage = [l for l in lines if l.delta_qty and l.delta_qty > 0]
+    surplus = [l for l in lines if l.delta_qty and l.delta_qty < 0]
     t = {
         "extras_sale": sum((e.sale_total for e in extras), Decimal(0)),
-        "delta_sale": sum((l.delta_sale for l in lines), Decimal(0)),
         "parts_sale": sum((p.sale_total for p in issued), Decimal(0)),
         "parts_cost": sum((p.cost_total for p in issued), Decimal(0)),
         "costs_total": sum((c.amount for c in costs), Decimal(0)),
+        "shortage_sale": sum((l.delta_sale for l in shortage), Decimal(0)),
+        "surplus_sale": -sum((l.delta_sale for l in surplus), Decimal(0)),   # عدد مثبت
     }
-    t["claimable"] = t["extras_sale"] + t["delta_sale"] + t["parts_sale"]
     return {
         "stages": stages, "totals": t, "extras": extras, "parts": parts, "costs": costs,
         "not_sent": list(ShipmentCheck.objects.filter(stage__project=project, status=ShipmentCheck.Status.NOT_SENT).select_related("file")),
         "not_installed": [l for l in lines if l.status == InstallLine.Status.NOT_OK],
-        "deltas": [l for l in lines if l.delta_qty],
+        "shortage": shortage,
+        "surplus": surplus,
         "pending_parts": pending_part_requests(project).count(),
     }

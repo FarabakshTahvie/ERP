@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../js/jalali_picker.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

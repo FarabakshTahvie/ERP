@@ -12,7 +12,7 @@ from utils.generic_table import build_table_context, render_table
 from utils.tabs import build_tabs_context
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, Prefetch
-from utils.jalali_forms import JalaliDateField, JalaliDateTimeField
+from utils.jalali_forms import JalaliDateField
 from utils.jalali import jalali_str, to_fa_digits
 from accounts.models import User
 from core.models import Party
@@ -26,7 +26,7 @@ from .services import (
     decide_stage_approval, can_edit_project, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
-    update_visit_at,
+    update_visit_date,
 )
 from .proforma import parse_service_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
 from finance.services import create_customer_payment
@@ -378,7 +378,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
     stages = list(
         project.stages.select_related("assigned_to", "step_template")
         .prefetch_related("events__actor", "candidate_users",
-                          Prefetch("files", queryset=ProjectFile.objects.order_by("created_at", "pk"), to_attr="file_list"))
+                          Prefetch("files", queryset=ProjectFile.objects.select_related("uploaded_by").order_by("created_at", "pk"), to_attr="file_list"))
         .order_by("order")
     )
 
@@ -410,12 +410,25 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
     if any(getattr(s, "ops", None) and s.ops.get("can_edit") for s in stages):
         ops_items = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)]
 
+    from . import stage_move
+    can_move = stage_move.can_move_stages(user, project)
+    move_current, move_options = stage_move.move_options(project) if can_move else (None, [])
+
+    titles = {s.id: s.title for s in stages}
+    parked_ids = {s.return_to_id for s in stages if s.return_to_id}
+    for s in stages:
+        s.parked = s.id in parked_ids
+        s.return_title = titles.get(s.return_to_id)
+
     return render(request, "projects/staff_project_overview.html", {
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
         "cut_rows": cut_rows,
         "can_final_review": ops.is_creator_or_manager(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
         "ops_items": ops_items,
+        "can_move": can_move,
+        "move_current": move_current,
+        "move_options": move_options,
     })
 
 
@@ -658,9 +671,9 @@ def project_edit(request, project_id):
                 messages.error(request, " ".join(e.messages))
                 return redirect("projects:project_edit", project.id)
 
-        raw_visit = (request.POST.get("visit_at") or "").strip()
+        raw_visit = (request.POST.get("visit_date") or "").strip()
         try:
-            visit_at = JalaliDateTimeField().clean(raw_visit) if raw_visit else None
+            visit_date = JalaliDateField().clean(raw_visit) if raw_visit else None
         except ValidationError as e:
             messages.error(request, " ".join(e.messages))
             return redirect("projects:project_edit", project.id)
@@ -680,8 +693,8 @@ def project_edit(request, project_id):
                     contract_date=contract_date,
                     notes=request.POST.get("notes"),
                 )
-                if visit_at is not None:
-                    update_visit_at(project=project, actor=request.user, visit_at=visit_at)
+                if visit_date is not None:
+                    update_visit_date(project=project, actor=request.user, visit_date=visit_date)
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:project_edit", project.id)
@@ -691,11 +704,11 @@ def project_edit(request, project_id):
     location = project.location
     visit_stage = project.stages.filter(kind=StageKind.VISIT).first()
     visit_editable = not (visit_stage and visit_stage.status == ProjectStage.Status.DONE)
-    visit_at_value = jalali_str(project.visit_at, fmt="%Y/%m/%d %H:%M") if project.visit_at else ""
+    visit_date_value = jalali_str(project.visit_date, fmt="%Y/%m/%d") if project.visit_date else ""
     return render(request, "projects/technician_edit_project.html", {
         "project": project,
         "notes": project.notes or "",
-        "visit_at_value": visit_at_value,
+        "visit_date_value": visit_date_value,
         "visit_editable": visit_editable,
         "lat": str(location.latitude) if location and location.latitude is not None else "",
         "lng": str(location.longitude) if location and location.longitude is not None else "",
@@ -717,8 +730,10 @@ def new_project_submit(request):
         messages.error(request, message)
         return redirect("projects:new_project_form")
 
-    def done(url):
-        return JsonResponse({"ok": True, "redirect": url}) if ajax else redirect(url)
+    def done(url, upload_url="", project_url=""):
+        if ajax:
+            return JsonResponse({"ok": True, "redirect": url, "upload_url": upload_url, "project_url": project_url})
+        return redirect(url)
 
     party_id = request.POST.get("party_id") or None
     party_data = None
@@ -754,11 +769,11 @@ def new_project_submit(request):
             if not owner_party_data["phone_number"]:
                 return fail("شماره‌ی صاحب ملک/کارفرما را وارد کنید یا تیک «صاحب ملک شخص دیگری است» را بردارید.")
 
-    raw_visit = (request.POST.get("visit_at") or "").strip()
+    raw_visit = (request.POST.get("visit_date") or "").strip()
     if not raw_visit:
-        return fail("زمان بازدید را مشخص کنید.")
+        return fail("تاریخ بازدید را مشخص کنید.")
     try:
-        visit_at = JalaliDateTimeField().clean(raw_visit)
+        visit_date = JalaliDateField().clean(raw_visit)
     except ValidationError as e:
         return fail(" ".join(e.messages))
 
@@ -771,12 +786,17 @@ def new_project_submit(request):
             location_lng=request.POST.get("longitude") or None,
             location_address=request.POST.get("address_text", ""),
             notes=request.POST.get("notes", ""),
-            visit_at=visit_at,
+            visit_date=visit_date,
             uploaded_files=request.FILES.getlist("project_files"),
             issue_proforma=False,
         )
-        messages.success(request, f"پروژه «{project.name}» با موفقیت ثبت شد. مرحله‌ی بازدید برای شما باز شد.")
-        return done(reverse("home"))
+        messages.success(request, "پروژه ثبت شد.")
+        first = project.stages.order_by("order").first()
+        return done(
+            reverse("home"),
+            reverse("projects:stage_file_upload", args=[first.id]) if first else "",
+            reverse("projects:staff_project_overview", args=[project.id]),
+        )
     except (ValueError, InvalidOperation) as e:
         return fail(str(e))
 

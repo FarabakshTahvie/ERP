@@ -109,7 +109,7 @@ def stage_completion_problem(stage, *, needs_approval=None):
             return "فایل جی‌کدی با تعداد برش برای این پروژه ثبت نشده است."
         if done < total:
             return f"هنوز {total - done} برش از {total} برش علامت نخورده است."
-    if stage.kind == StageKind.DESIGN_INITIAL and needs_approval is None:
+    if stage.kind == StageKind.DESIGN_INITIAL and needs_approval is None and not stage.return_to_id:
         return "مشخص کنید این طرح نیاز به تایید مشتری دارد یا نه."
     from . import ops
     if stage.kind == StageKind.SHIPPING:
@@ -141,7 +141,7 @@ def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=Fal
         raise ValueError(problem)
 
     note = comment
-    if stage.kind == StageKind.DESIGN_INITIAL:
+    if stage.kind == StageKind.DESIGN_INITIAL and not stage.return_to_id:
         note = f"{comment}\n[{'نیاز به تایید مشتری دارد' if needs_approval else 'بدون نیاز به تایید مشتری'}]"
         if not needs_approval:
             approval = stage.project.stages.filter(

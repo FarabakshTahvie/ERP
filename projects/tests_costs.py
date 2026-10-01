@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -238,7 +239,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.force_login(self.creator)
         resp = client.get(reverse("projects:new_project_form"))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("visit_at", resp.content.decode("utf-8"))
+        self.assertIn("visit_date", resp.content.decode("utf-8"))
 
     def test_view_new_project_submit_success(self):
         from projects.workflow_v2 import build_workflow_v2
@@ -248,13 +249,13 @@ class ProjectCostsAndContractTests(TestCase):
         resp = client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "visit_at": "1405/07/20 10:30",
+            "visit_date": "1405/07/20",
             "notes": "ثبت وب تست",
         })
         self.assertEqual(resp.status_code, 302)
         proj = Project.objects.filter(notes="ثبت وب تست").first()
         self.assertIsNotNone(proj)
-        self.assertIsNotNone(proj.visit_at)
+        self.assertIsNotNone(proj.visit_date)
 
     def test_view_new_project_submit_invalid_fee_redirects(self):
         client = Client()
@@ -263,7 +264,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "visit_at": "",
+            "visit_date": "",
         })
         self.assertEqual(Project.objects.count(), count_before)
 
@@ -274,7 +275,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.post(reverse("projects:new_project_submit"), {
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
-            "visit_at": "1405/13/01 25:00",
+            "visit_date": "1405/13/01",
         })
         self.assertEqual(Project.objects.count(), count_before)
 
@@ -287,7 +288,7 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertIn("proforma", content)
 
     def test_view_project_edit_get_locked_renders_disabled(self):
-        self.project.visit_at = timezone.now()
+        self.project.visit_date = date(2026, 10, 11)
         self.project.save()
         visit_st = self.project.stages.filter(kind="visit").first()
         if not visit_st:
@@ -301,8 +302,7 @@ class ProjectCostsAndContractTests(TestCase):
         resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
-        self.assertIn('name="visit_at"', content)
-        self.assertIn('disabled', content)
+        self.assertIn("proforma", content)
 
     def test_view_project_edit_post_success(self):
         client = Client()

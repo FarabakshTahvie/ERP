@@ -32,8 +32,7 @@
         <div class="fb-field">
             <label class="fb-label" for="cost-contract-date">تاریخ قرارداد</label>
             <input type="text" id="cost-contract-date" name="contract_date" value="{{ costs.contract_date }}"
-                   dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
-            <span class="fb-hint">خالی یعنی ثبت نشود.</span>
+                   dir="ltr" inputmode="none" autocomplete="off" data-jalali-date data-clearable placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical" {% if costs_locked %}disabled{% endif %}>
         </div>
     </div>
 </section>

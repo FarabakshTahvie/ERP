@@ -18,9 +18,9 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-2 border-t border-base-300">
             <div><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ project.owner|default:project.partner|default:"—" }}</span></div>
-            <div><span class="fb-muted">زمان بازدید:</span> <span class="font-technical">{{ project.visit_at|to_jalali|default:"—" }}</span></div>
-            <div><span class="fb-muted">تاریخ قرارداد:</span> <span class="font-technical">{{ project.contract_date|to_jalali|default:"—" }}</span></div>
-            <div><span class="fb-muted">مکان:</span> <span>{{ project.location|default:"—" }}</span></div>
+            <div><span class="fb-muted">تاریخ بازدید:</span> <span class="font-technical">{{ project.visit_date|to_jalali:"%Y/%m/%d"|default:"—" }}</span></div>
+            <div><span class="fb-muted">تاریخ قرارداد:</span> <span class="font-technical">{{ project.contract_date|to_jalali:"%Y/%m/%d"|default:"—" }}</span></div>
+            <div><span class="fb-muted">مکان:</span> {% if project.location.has_exact_coordinates %}<a href="{% map_url project.location.latitude project.location.longitude %}" target="_blank" rel="noopener" class="btn btn-soft btn-sm">{% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه</a>{% else %}<span>{{ project.location.address_text|default:"—" }}</span>{% endif %}</div>
         </div>
         {% if project.internal_notes %}
         <div class="text-xs pt-2 border-t border-base-300">
@@ -81,6 +81,7 @@
                         {% for f in st.files.all %}
                         <div class="flex items-center justify-between text-xs gap-2">
                             <span class="truncate" dir="auto">{% icon "file-text" "w-3.5 h-3.5 inline text-base-content/60" %} {{ f.display_name }}</span>
+                            <span class="text-xs fb-muted shrink-0">{{ f.uploaded_by.get_full_name|default:f.uploaded_by.username|default:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
                             <a href="{{ f.file.url }}" download class="btn btn-ghost btn-xs text-primary">دانلود</a>
                         </div>
                         {% endfor %}
@@ -122,10 +123,10 @@
 
     <!-- ۵. ارسال -->
     <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">گزارش ارسال</h2>
+        <h2 class="font-bold text-sm">گزارش ارسال قطعات</h2>
         {% if data.not_sent %}
         <div class="text-xs">
-            <span class="font-semibold text-error">فایل‌های ارسال‌نشده:</span>
+            <span class="font-semibold text-error">برای {{ data.not_sent|length|fa_digits }} قطعه هنوز «ارسال شد» یا «ارسال نشد» ثبت نشده است:</span>
             <ul class="list-disc list-inside mt-1 space-y-1">
                 {% for sc in data.not_sent %}
                 <li>{{ sc.file.display_name }} — <span class="fb-muted">دلیل:</span> {{ sc.reason }}</li>
@@ -133,22 +134,22 @@
             </ul>
         </div>
         {% else %}
-        <p class="text-xs text-success">تمام فایل‌های جی‌کد ارسال شده‌اند.</p>
+        <p class="text-xs text-success">تمام قطعات ارسال شده‌اند.</p>
         {% endif %}
 
         <div class="pt-2 border-t border-base-300">
-            <span class="font-semibold text-xs">کالاهای اضافه‌ی ارسال‌شده:</span>
+            <span class="font-semibold text-xs">قطعه‌های اضافه‌ی ارسال‌شده:</span>
             {% if data.extras %}
             <div class="mt-1 space-y-1 text-xs">
                 {% for ex in data.extras %}
                 <div class="flex justify-between items-center">
                     <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
-                    <span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }} تومان</span>
+                    <div><span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p class="fb-hint text-xs mt-1">کالای اضافه‌ای در ارسال ثبت نشده است.</p>
+            <p class="fb-hint text-xs mt-1">موردی ثبت نشده.</p>
             {% endif %}
         </div>
     </div>
@@ -171,12 +172,18 @@
 
         <div class="pt-2 border-t border-base-300">
             <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه):</span>
-            {% if data.deltas %}
+            {% if data.shortage or data.surplus %}
             <div class="mt-1 space-y-1 text-xs">
-                {% for d in data.deltas %}
+                {% for d in data.shortage %}
                 <div class="flex justify-between items-center">
-                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span> / واقعی <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> (اختلاف: <span class="font-technical {% if d.delta_qty > 0 %}text-warning{% else %}text-info{% endif %}">{{ d.delta_qty|floatformat:"-4"|fa_digits }}</span>)</span>
-                    <span class="font-technical font-semibold {% if d.delta_sale > 0 %}text-warning{% elif d.delta_sale < 0 %}text-info{% endif %}">{{ d.delta_sale|intcomma_fa }} تومان</span>
+                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-warning font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کسری</span>
+                    <div><span class="font-technical font-semibold text-warning">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
+                </div>
+                {% endfor %}
+                {% for d in data.surplus %}
+                <div class="flex justify-between items-center">
+                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-info font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد اضافه</span>
+                    <div><span class="font-technical font-semibold text-info">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
             </div>
@@ -197,10 +204,11 @@
                     <span class="font-semibold">{{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>
                     <span class="fb-badge fb-badge-xs {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
                     <span class="fb-muted ms-1">({{ p.note }})</span>
+                    {% if p.photo %}<a href="{{ p.photo.url }}" target="_blank" rel="noopener" class="link link-primary ms-1">مشاهده عکس</a>{% endif %}
                 </div>
                 {% if p.status == 'issued' %}
-                <div class="font-technical text-start">
-                    بهای FIFO: {{ p.cost_total|intcomma_fa }} | فروش: <span class="font-semibold">{{ p.sale_total|intcomma_fa }} تومان</span>
+                <div class="text-start">
+                    بهای تمام‌شده: <span class="font-technical">{{ p.cost_total|intcomma_fa }}</span> | فروش: <span class="font-technical font-semibold">{{ p.sale_total|intcomma_fa }}</span> تومان
                 </div>
                 {% endif %}
             </div>
@@ -213,18 +221,18 @@
 
     <!-- ۸. هزینه‌های ثبت‌شده -->
     <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">هزینه‌های ثبت‌شده پروژه</h2>
+        <h2 class="font-bold text-sm">هزینه‌ها</h2>
         {% if data.costs %}
         <div class="space-y-1.5 text-xs">
             {% for c in data.costs %}
             <div class="flex justify-between items-center">
                 <span>{{ c.get_kind_display }} — {{ c.title }}</span>
-                <span class="font-technical font-semibold">{{ c.amount|intcomma_fa }} تومان</span>
+                <div><span class="font-technical font-semibold">{{ c.amount|intcomma_fa }}</span> تومان</div>
             </div>
             {% endfor %}
             <div class="pt-2 border-t border-base-300 flex justify-between font-bold">
                 <span>جمع کل هزینه‌ها:</span>
-                <span class="font-technical">{{ data.totals.costs_total|intcomma_fa }} تومان</span>
+                <div><span class="font-technical">{{ data.totals.costs_total|intcomma_fa }}</span> تومان</div>
             </div>
         </div>
         {% else %}
@@ -234,33 +242,33 @@
 
     <!-- ۹. خلاصه‌ی مالی -->
     <div class="fb-card fb-pad flex flex-col gap-3 bg-base-100 border-2 border-primary/20">
-        <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی اضافات و تغییرات</h2>
+        <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی</h2>
         <div class="space-y-2 text-xs">
             <div class="flex justify-between items-center">
-                <span class="fb-muted">اضافات قطعات ارسال‌شده:</span>
-                <span class="font-technical font-semibold">{{ data.totals.extras_sale|intcomma_fa }} تومان</span>
+                <span class="fb-muted">قطعه‌های اضافه‌ی ارسال‌شده:</span>
+                <div><span class="font-technical font-semibold">{{ data.totals.extras_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">ارزش اختلاف نصب (کسری/اضافه):</span>
-                <span class="font-technical font-semibold">{{ data.totals.delta_sale|intcomma_fa }} تومان</span>
+                <span class="fb-muted">قطعه‌های تحویل‌شده از انبار:</span>
+                <div><span class="font-technical font-semibold">{{ data.totals.parts_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">قطعات تحویل‌شده از انبار:</span>
-                <span class="font-technical font-semibold">{{ data.totals.parts_sale|intcomma_fa }} تومان</span>
+                <span class="fb-muted">کسری نصب:</span>
+                <div><span class="font-technical font-semibold">{{ data.totals.shortage_sale|intcomma_fa }}</span> تومان</div>
             </div>
-            <div class="flex justify-between items-center pt-2 border-t border-base-300 text-sm font-bold text-primary">
-                <span>جمع اضافات قابل مطالبه (برآوردی):</span>
-                <span class="font-technical text-base">{{ data.totals.claimable|intcomma_fa }} تومان</span>
+            <div class="flex justify-between items-center">
+                <span class="fb-muted">اضافه‌ی نصب:</span>
+                <div><span class="font-technical font-semibold">{{ data.totals.surplus_sale|intcomma_fa }}</span> تومان</div>
             </div>
-            <div class="flex justify-between items-center pt-1 fb-muted">
-                <span>هزینه‌های ثبت‌شده (سمت شرکت):</span>
-                <span class="font-technical">{{ data.totals.costs_total|intcomma_fa }} تومان</span>
+            <div class="flex justify-between items-center">
+                <span class="fb-muted">هزینه‌ها:</span>
+                <div><span class="font-technical font-semibold">{{ data.totals.costs_total|intcomma_fa }}</span> تومان</div>
             </div>
         </div>
 
         <div class="alert alert-info text-xs mt-2">
             {% icon "info" "w-4 h-4 shrink-0" %}
-            <span>این مبالغ روی فاکتور نیامده‌اند. اگر باید از مشتری گرفته شود، مدیر از ادمین ← فاکتور ← «افزودن هزینه‌ی جدید» ثبت می‌کند.</span>
+            <span>این مبالغ در فاکتور مشتری نیست.</span>
         </div>
     </div>
 
@@ -270,7 +278,7 @@
         {% if data.pending_parts %}
         <div class="alert alert-warning text-xs">
             {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-            <span>{{ data.pending_parts|fa_digits }} درخواست قطعه‌ی بررسی‌نشده دارید؛ ابتدا تکلیف آنها در انبار روشن شود.</span>
+            <span>درخواست قطعه‌ی بدون پاسخ دارید.</span>
         </div>
         <button type="button" disabled class="btn btn-disabled w-full">تایید نهایی غیرفعال است</button>
         {% elif can_approve %}

@@ -36,8 +36,8 @@
             <div class="grid sm:grid-cols-2 gap-3">
                 <div class="fb-field">
                     <label class="fb-label" for="purchased-at-input">تاریخ خرید</label>
-                    <input type="text" id="purchased-at-input" name="purchased_at" dir="ltr"
-                           value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical">
+                    <input type="text" id="purchased-at-input" name="purchased_at" dir="ltr" inputmode="none" autocomplete="off"
+                           data-jalali-date value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۰۱" class="input w-full font-technical">
                     <span class="fb-hint">خالی بماند یعنی امروز.</span>
                 </div>
                 <div class="fb-field">

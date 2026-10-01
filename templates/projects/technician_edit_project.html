@@ -33,12 +33,12 @@
             <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">ویرایشگر پیش‌فاکتور</a>
         </section>
 
-        {% if project.visit_at or visit_editable %}
+        {% if project.visit_date or visit_editable %}
         <section class="fb-card fb-pad flex flex-col gap-2">
-            <h2 class="fb-section-title">زمان بازدید</h2>
-            <input type="text" name="visit_at" value="{{ visit_at_value }}" dir="ltr" autocomplete="off"
-                   aria-label="زمان بازدید" class="input w-full font-technical" {% if not visit_editable %}disabled{% endif %}>
-            {% if not visit_editable %}<span class="fb-hint">بازدید انجام شده و زمان آن قابل تغییر نیست.</span>{% endif %}
+            <h2 class="fb-section-title">تاریخ بازدید</h2>
+            <input type="text" name="visit_date" value="{{ visit_date_value }}" dir="ltr" inputmode="none" autocomplete="off"
+                   data-jalali-date aria-label="تاریخ بازدید" class="input w-full font-technical" {% if not visit_editable %}disabled{% endif %}>
+            {% if not visit_editable %}<span class="fb-hint">بازدید انجام شده و تاریخ آن قابل تغییر نیست.</span>{% endif %}
         </section>
         {% endif %}
 

@@ -16,6 +16,7 @@ urlpatterns = [
     path("staff/projects/<int:project_id>/costs/add/", views_ops.cost_add, name="cost_add"),
     path("staff/costs/<int:cost_id>/delete/", views_ops.cost_delete, name="cost_delete"),
     path("staff/projects/<int:project_id>/final-review/", views_ops.final_review, name="final_review"),
+    path("staff/projects/<int:project_id>/move-stage/", views_ops.move_stage, name="move_stage"),
     path("staff/projects/<int:project_id>/edit/", views.project_edit, name="project_edit"),
     path("staff/projects/<int:project_id>/proforma/", views.proforma_editor, name="proforma_editor"),
     path("staff/projects/<int:project_id>/overview/", views.staff_project_overview, name="staff_project_overview"),

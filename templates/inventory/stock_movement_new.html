@@ -54,7 +54,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/item_picker.js' %}"></script>
+<script src="{% static_v 'js/item_picker.js' %}"></script>
 <script>
 (function () {
     var data = JSON.parse(document.getElementById('stock-items-data').textContent);

@@ -66,7 +66,7 @@ class NewProjectIntakeTests(TestCase):
             "latitude": "35.689200",
             "longitude": "51.389000",
             "address_text": "تهران خیابان تست",
-            "visit_at": "1405/07/20 10:30",
+            "visit_date": "1405/07/20",
         }
         resp = client.post(reverse("projects:new_project_submit"), post_data)
         self.assertRedirects(resp, reverse("home"))
@@ -74,7 +74,7 @@ class NewProjectIntakeTests(TestCase):
         project = Project.objects.get(name="مشتری جدید تست")
         self.assertEqual(project.owner.phone_number, "09120000093")
         self.assertIsNotNone(project.location)
-        self.assertIsNotNone(project.visit_at)
+        self.assertIsNotNone(project.visit_date)
         self.assertFalse(hasattr(project, "invoice"))
         mock_sms.assert_not_called()
 

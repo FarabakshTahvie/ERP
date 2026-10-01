@@ -78,8 +78,8 @@
 
 {% block extra_js %}
 {% if prices_open %}
-<script src="{% static 'js/item_picker.js' %}"></script>
-<script src="{% static 'js/line_editor.js' %}"></script>
+<script src="{% static_v 'js/item_picker.js' %}"></script>
+<script src="{% static_v 'js/line_editor.js' %}"></script>
 <script>
 (function () {
     function init() {

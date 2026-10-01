@@ -124,13 +124,13 @@ class WorkflowV2Tests(TestCase):
         project, invoice, conflict = create_project_from_technician_intake(
             created_by=self.tech,
             party_id=self.partner.id,
-            visit_at=now_dt,
+            visit_date=date(2026, 10, 11),
             uploaded_files=[f1, f2, f3],
             issue_proforma=False,
         )
         self.assertIsNone(invoice)
         self.assertFalse(conflict)
-        self.assertEqual(project.visit_at, now_dt)
+        self.assertEqual(project.visit_date, date(2026, 10, 11))
 
         stages = project.stages.order_by("order")
         first_stage = stages[0]
@@ -144,13 +144,13 @@ class WorkflowV2Tests(TestCase):
         self.assertTrue(all(f.is_current for f in files))
         self.assertEqual({f.original_name for f in files}, {"map1.dwg", "map2.dwg", "map3.dwg"})
 
-    def test_new_intake_without_visit_at_fails(self):
+    def test_new_intake_without_visit_date_fails(self):
         build_workflow_v2(make_default=True)
         with self.assertRaises(ValueError):
             create_project_from_technician_intake(
                 created_by=self.tech,
                 party_id=self.partner.id,
-                visit_at=None,
+                visit_date=None,
                 issue_proforma=False,
             )
 
@@ -159,26 +159,24 @@ class WorkflowV2Tests(TestCase):
         old_tmpl = WorkflowTemplate.objects.create(name="قالب قدیمی", is_default=True)
         WorkflowStepTemplate.objects.create(template=old_tmpl, order=1, title="قدیمی", kind=StageKind.GENERIC)
 
-        from django.utils import timezone
         with self.assertRaises(ValueError):
             create_project_from_technician_intake(
                 created_by=self.tech,
                 party_id=self.partner.id,
-                visit_at=timezone.now(),
+                visit_date=date(2026, 10, 11),
                 issue_proforma=False,
             )
 
-    def test_update_visit_at(self):
+    def test_update_visit_date(self):
         build_workflow_v2(make_default=True)
-        from django.utils import timezone
-        now_dt = timezone.now()
+        v_date = date(2026, 10, 11)
         project, _, _ = create_project_from_technician_intake(
-            created_by=self.tech, party_id=self.partner.id, visit_at=now_dt, issue_proforma=False,
+            created_by=self.tech, party_id=self.partner.id, visit_date=v_date, issue_proforma=False,
         )
-        new_dt = now_dt + timezone.timedelta(days=2)
-        update_visit_at(project=project, actor=self.tech, visit_at=new_dt)
+        new_date = date(2026, 10, 15)
+        update_visit_at(project=project, actor=self.tech, visit_date=new_date)
         project.refresh_from_db()
-        self.assertEqual(project.visit_at, new_dt)
+        self.assertEqual(project.visit_date, new_date)
 
         # Cannot update after visit stage is DONE
         visit_stage = project.stages.filter(kind=StageKind.VISIT).first()
@@ -186,4 +184,4 @@ class WorkflowV2Tests(TestCase):
         visit_stage.save()
 
         with self.assertRaises(ValueError):
-            update_visit_at(project=project, actor=self.tech, visit_at=now_dt)
+            update_visit_at(project=project, actor=self.tech, visit_date=v_date)

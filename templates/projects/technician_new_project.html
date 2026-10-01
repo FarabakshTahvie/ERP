@@ -8,7 +8,7 @@
         <p class="fb-page-sub">بعد از ثبت، مرحله‌ی بازدید برای شما باز می‌شود؛ پیش‌فاکتور را بعد از بازدید صادر می‌کنید.</p>
     </div>
 
-    <form method="post" action="{% url 'projects:new_project_submit' %}" enctype="multipart/form-data" id="new-project-form" class="space-y-5">
+    <form method="post" action="{% url 'projects:new_project_submit' %}" id="new-project-form" data-deferred-upload enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
@@ -68,28 +68,22 @@
         {% include "projects/partials/location_picker.html" %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
-            <h2 class="fb-section-title">زمان بازدید</h2>
+            <h2 class="fb-section-title">تاریخ بازدید</h2>
             <div class="fb-field">
-                <label class="fb-label" for="visit-at">تاریخ و ساعت بازدید (اجباری)</label>
-                <input type="text" id="visit-at" name="visit_at" required dir="ltr" autocomplete="off"
-                       placeholder="۱۴۰۵/۰۷/۲۰ ۱۰:۳۰" class="input w-full font-technical">
-                <span class="fb-hint">مسئول بازدید از بین بازدیدکننده‌ها برداشته می‌شود؛ بعداً پیامک زمان بازدید برای طرف‌حساب ارسال می‌شود (فعلاً نه).</span>
+                <label class="fb-label" for="visit-date">تاریخ بازدید (اجباری)</label>
+                <input type="text" id="visit-date" name="visit_date" required dir="ltr" inputmode="none" autocomplete="off"
+                       data-jalali-date placeholder="۱۴۰۵/۰۷/۲۰" class="input w-full font-technical">
             </div>
         </section>
 
         <section class="fb-card fb-pad flex flex-col gap-3">
-            <h2 class="fb-section-title">فایل‌ها و نقشه‌های مشتری (اختیاری)</h2>
-            <input type="file" name="project_files" multiple class="file-input w-full" aria-label="فایل‌های پروژه">
-            <span class="fb-hint">تا ۲۰ فایل؛ نام فایل‌ها همان‌طور که هست نگه داشته می‌شود.</span>
+            <h2 class="fb-section-title">فایل‌ها و نقشه‌ها</h2>
+            {% include "utils/partials/file_dropzone.html" with mode="deferred" %}
+            <div data-upload-error class="hidden alert alert-soft alert-error"></div>
+            <noscript><input type="file" name="project_files" multiple class="file-input w-full"></noscript>
         </section>
 
         {% include "projects/partials/project_notes.html" with notes="" %}
-
-        <div id="upload-progress" class="hidden fb-card fb-pad flex flex-col gap-2">
-            <progress id="upload-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
-            <span id="upload-progress-text" class="text-xs fb-muted"></span>
-        </div>
-        <div id="upload-error" role="alert" class="hidden alert alert-soft alert-error text-sm"></div>
 
         <div class="fb-sticky-bar">
             <div></div>
@@ -220,27 +214,4 @@
 })();
 </script>
 {% endif %}
-
-<script src="{% static 'js/uploader.js' %}"></script>
-<script>
-(function () {
-    var form = document.getElementById('new-project-form'), btn = document.getElementById('submit-btn');
-    var files = form.querySelector('input[name=project_files]');
-    var ui = {
-        wrap: document.getElementById('upload-progress'), bar: document.getElementById('upload-progress-bar'),
-        text: document.getElementById('upload-progress-text'),
-        onError: function (msg) {
-            var box = document.getElementById('upload-error');
-            box.textContent = msg; box.classList.remove('hidden');
-            btn.disabled = false; var sp = btn.querySelector('.loading'); if (sp) sp.remove();
-        }
-    };
-    form.addEventListener('submit', function (e) {   // بعد از اعتبارسنجی‌های بالا ثبت شده؛ فقط اگر فایل هست
-        if (e.defaultPrevented || !files || !files.files.length) return;
-        e.preventDefault();
-        document.getElementById('upload-error').classList.add('hidden');
-        window.fbSubmitWithProgress(form, ui);
-    });
-})();
-</script>
 {% endblock %}

@@ -38,7 +38,7 @@ class Project(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="وضعیت")
     workflow_template = models.ForeignKey('WorkflowTemplate', null=True, blank=True, on_delete=models.SET_NULL, related_name="projects", verbose_name="قالب گردش‌کار")
 
-    visit_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان بازدید")
+    visit_date = models.DateField(null=True, blank=True, verbose_name="تاریخ بازدید")
     contract_date = models.DateField(null=True, blank=True, verbose_name="تاریخ عقد قرارداد")
     actual_end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ دقیق اتمام")
 
@@ -244,6 +244,8 @@ class ProjectStage(TimeStampedModel):
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان اتمام")
     completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="completed_stages", verbose_name="انجام‌دهنده")
     rejection_count = models.PositiveSmallIntegerField(default=0, verbose_name="تعداد دفعات رد شدن")
+    return_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="reopened_stages", verbose_name="بعد از تکمیل برگرد به")
 
     class Meta:
         verbose_name = "مرحله پروژه"
@@ -281,6 +283,7 @@ class StageApproval(models.Model):
         PENDING = "pending", "در انتظار"
         APPROVED = "approved", "تایید شد"
         REJECTED = "rejected", "رد شد"
+        CANCELLED = "cancelled", "لغو شد"
 
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="approvals", verbose_name="مرحله")
     sent_to_party = models.ForeignKey('core.Party', on_delete=models.PROTECT, related_name="stage_approvals", verbose_name="ارسال‌شده برای")
@@ -416,7 +419,7 @@ class InstallLine(models.Model):
     margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات پیش‌فاکتور)")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     reason = models.TextField(blank=True, verbose_name="دلیل")
-    delta_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="اختلاف (+اضافه، −کسری)")
+    delta_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="اختلاف (+کسری، −اضافه)")
     delta_sale = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="ارزش اختلاف (تومان)")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     updated_at = models.DateTimeField(auto_now=True)
@@ -449,9 +452,10 @@ class PartRequest(models.Model):
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="part_requests_decided")
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.CharField(max_length=500, blank=True)
-    cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="بهای واقعی FIFO")
+    cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="بهای تمام‌شده")
     margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0)
     sale_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش")
+    photo = models.FileField(upload_to="projects/parts/", blank=True, verbose_name="عکس")
 
     class Meta:
         verbose_name = "درخواست قطعه"
@@ -469,6 +473,7 @@ class ProjectCost(models.Model):
     kind = models.CharField(max_length=30, choices=Kind.choices, verbose_name="نوع")
     title = models.CharField(max_length=255, verbose_name="شرح")
     amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
+    part_request = models.ForeignKey(PartRequest, null=True, blank=True, on_delete=models.SET_NULL, related_name="costs")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
 

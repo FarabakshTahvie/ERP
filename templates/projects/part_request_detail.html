@@ -44,8 +44,14 @@
 
         {% if req.status == 'issued' %}
         <div class="flex flex-col gap-2 pt-2 border-t border-base-300 text-xs">
-            <div class="flex justify-between items-center"><span class="fb-muted">بهای تمام‌شده (FIFO):</span><span class="font-technical">{{ req.cost_total|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between items-center"><span class="fb-muted">بهای تمام‌شده:</span><span class="font-technical">{{ req.cost_total|intcomma_fa }} تومان</span></div>
             <div class="flex justify-between items-center"><span class="fb-muted">جمع فروش:</span><span class="font-technical font-semibold">{{ req.sale_total|intcomma_fa }} تومان</span></div>
+            {% for c in req.costs.all %}
+            <div class="flex justify-between items-center"><span class="fb-muted">هزینه‌ی ارسال ثبت‌شده:</span><span class="font-technical font-semibold">{{ c.amount|intcomma_fa }} تومان</span></div>
+            {% endfor %}
+            {% if req.photo %}
+            <div class="flex justify-between items-center"><span class="fb-muted">عکس:</span><a href="{{ req.photo.url }}" target="_blank" rel="noopener" class="link link-primary">مشاهده عکس</a></div>
+            {% endif %}
             {% if req.decided_by %}<div class="flex justify-between items-center"><span class="fb-muted">تحویل‌دهنده:</span><span>{{ req.decided_by.get_full_name|default:req.decided_by.username }}</span></div>{% endif %}
         </div>
         {% elif req.status == 'rejected' %}
@@ -59,10 +65,18 @@
     {% if req.status == 'requested' %}
     <div class="fb-card fb-pad flex flex-col gap-4">
         <h2 class="font-bold text-sm">تصمیم‌گیری انباردار</h2>
-        <form method="post" action="{% url 'projects:part_request_decide' req.id %}" data-fb-once class="flex flex-col gap-2">
+        <form method="post" action="{% url 'projects:part_request_decide' req.id %}" enctype="multipart/form-data" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
             <input type="hidden" name="action" value="issue">
-            <p class="text-xs text-warning">توجه: با تایید تحویل، موجودی این کالا بر اساس روش FIFO بلافاصله از انبار کم خواهد شد.</p>
+            <p class="text-xs text-warning">با تحویل، موجودی انبار کم می‌شود.</p>
+            <div class="fb-field">
+                <label class="fb-label">هزینه‌ی ارسال (تومان)</label>
+                <input type="text" name="shipping_cost" inputmode="numeric" dir="ltr" class="input w-full font-technical" placeholder="۰">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label">عکس</label>
+                <input type="file" name="photo" accept="image/*" class="file-input w-full">
+            </div>
             <button type="submit" class="btn btn-primary w-full">{% icon "check" "w-4 h-4" %} تایید و تحویل قطعه</button>
         </form>
 

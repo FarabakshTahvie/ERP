@@ -11,12 +11,17 @@
             <span class="fb-badge {% if project.status == 'completed' %}fb-badge-success{% elif project.status == 'cancelled' %}fb-badge-error{% elif project.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">
                 {{ project.get_status_display }}
             </span>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-2">
             {% if can_edit %}
-            <a href="{% url 'projects:project_edit' project.id %}" class="btn btn-soft btn-xs">{% icon "pencil" "w-3.5 h-3.5" %} ویرایش پروژه</a>
-            <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-xs">پیش‌فاکتور</a>
+            <a href="{% url 'projects:project_edit' project.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش پروژه</a>
+            <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور</a>
             {% endif %}
             {% if can_final_review %}
-            <a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-xs">بازبینی نهایی</a>
+            <a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>
+            {% endif %}
+            {% if can_move %}
+            <button type="button" class="btn btn-soft btn-sm" {% if not move_current %}disabled{% endif %} onclick="document.getElementById('move-dialog').showModal()">انتقال مرحله</button>
             {% endif %}
         </div>
     </div>
@@ -46,10 +51,10 @@
                 <span class="fb-muted">ثبت نشده</span>
                 {% endif %}
             </div>
-            {% if project.visit_at %}
+            {% if project.visit_date %}
             <div class="flex justify-between items-center gap-2">
-                <span class="fb-muted">زمان بازدید</span>
-                <span class="font-technical font-semibold">{{ project.visit_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+                <span class="fb-muted">تاریخ بازدید</span>
+                <span class="font-technical font-semibold">{{ project.visit_date|to_jalali:"%Y/%m/%d" }}</span>
             </div>
             {% endif %}
             {% if project.notes %}
@@ -97,6 +102,8 @@
                             {{ s.get_status_display }}
                         </span>
                     </div>
+                    {% if s.return_title %}<div class="text-xs text-info mt-0.5">بعد از تکمیل به «{{ s.return_title }}» برمی‌گردد.</div>{% endif %}
+                    {% if s.parked %}<div class="text-xs fb-muted mt-0.5">متوقف تا برگشت</div>{% endif %}
                     <div class="text-xs fb-muted mt-0.5">
                         {% if s.assigned_to %}
                             مسئول: {{ s.assigned_to.get_full_name|default:s.assigned_to.username }}
@@ -117,14 +124,14 @@
                     </div>
                     </div>
 
-            {% if s.is_candidate and not s.is_mine %}
+            {% if s.is_candidate and not s.is_mine and s.status == 'in_progress' %}
             <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3 ms-10">
                 {% csrf_token %}
                 <button class="btn btn-primary btn-sm">پذیرفتن این وظیفه</button>
             </form>
             {% endif %}
 
-            {% if s.is_mine %}
+            {% if s.is_mine and s.status == 'in_progress' %}
             <div class="mt-3 ms-10">
                 {% if s.kind == 'proforma' %}
                 <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-primary btn-sm">ورود به ویرایشگر پیش‌فاکتور</a>
@@ -134,7 +141,7 @@
                 <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3">
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
-                    {% if s.kind == 'design_initial' %}
+                    {% if s.kind == 'design_initial' and not s.return_to_id %}
                     <div class="fb-field">
                         <span class="fb-label">آیا این طرح نیاز به تایید مشتری دارد؟ (اجباری)</span>
                         <div class="flex flex-wrap gap-2">
@@ -147,7 +154,7 @@
                     <div class="flex gap-2">
                         <button class="btn btn-primary btn-sm flex-1">تکمیل شد</button>
                         {% if s.transfer_candidates %}
-                        <button type="button" class="btn btn-soft btn-sm flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">انتقال به همکار</button>
+                        <button type="button" class="btn btn-soft btn-sm flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
                         {% endif %}
                     </div>
                 </form>
@@ -157,8 +164,8 @@
             {% if s.kind != 'proforma' and s.transfer_candidates %}
             <dialog id="fb_transfer_modal_{{ s.id }}" class="modal">
                 <div class="modal-box max-w-sm">
-                    <h3 class="font-bold text-base mb-1">انتقال به همکار</h3>
-                    <p class="text-xs fb-muted mb-4">این کار به یک تکنسین هم‌تخصص دیگر منتقل می‌شود و دیگر جزو کارهای شما نخواهد بود.</p>
+                    <h3 class="font-bold text-base mb-1">واگذاری به همکار</h3>
+                    <p class="text-xs fb-muted mb-4">این کار به یک تکنسین هم‌تخصص دیگر واگذار می‌شود و دیگر جزو کارهای شما نخواهد بود.</p>
                     <form method="post" action="{% url 'projects:my_task_transfer' s.id %}" class="space-y-3">
                         {% csrf_token %}
                         <select name="target_user" required class="select w-full">
@@ -169,7 +176,7 @@
                         </select>
                         <textarea name="comment" class="textarea w-full" rows="2" placeholder="توضیح (اختیاری)"></textarea>
                         <div class="flex gap-2 pt-1">
-                            <button type="submit" class="btn btn-primary flex-1">انتقال بده</button>
+                            <button type="submit" class="btn btn-primary flex-1">واگذار کن</button>
                             <button type="button" class="btn btn-ghost flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').close()">انصراف</button>
                         </div>
                     </form>
@@ -201,22 +208,35 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
+
+{% if can_move and move_current %}
+<dialog id="move-dialog" class="modal"><div class="modal-box max-w-sm">
+    <h3 class="font-bold text-base mb-1">انتقال مرحله</h3>
+    <p class="text-xs fb-muted mb-3">مرحله‌ی فعلی: {{ move_current.title }}</p>
+    <form method="post" action="{% url 'projects:move_stage' project.id %}" data-fb-once class="flex flex-col gap-3">
+        {% csrf_token %}
+        <div class="fb-field"><label class="fb-label" for="move-target">انتقال به</label>
+            <select id="move-target" name="target" required class="select w-full">
+                <option value="">انتخاب کنید...</option>
+                {% for o in move_options %}<option value="{{ o.stage.id }}" {% if not o.allowed %}disabled{% endif %}>{{ o.stage.order|fa_digits }}. {{ o.stage.title }} — {{ o.stage.get_status_display }}</option>{% endfor %}
+            </select></div>
+        <div class="fb-field"><label class="fb-label" for="move-comment">توضیح (اجباری)</label>
+            <textarea id="move-comment" name="comment" rows="3" required class="textarea w-full"></textarea></div>
+        <p class="fb-hint">بعد از تکمیل مرحله‌ی انتخابی، پروژه به مرحله‌ی فعلی برمی‌گردد.</p>
+        <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">انتقال</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
+    </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/uploader.js' %}"></script>
-<script src="{% static 'js/item_picker.js' %}"></script>
-<script src="{% static 'js/checklist.js' %}"></script>
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/item_picker.js' %}"></script>
+<script src="{% static_v 'js/checklist.js' %}"></script>
 {{ ops_items|json_script:"ops-items" }}
 <script>
 (function () {
-    var csrf = "{{ csrf_token }}";
-    window.FB_CSRF = csrf;
     document.querySelectorAll('[data-ops-root]').forEach(window.fbChecklistInit);
     window.fbOpsPickers(JSON.parse(document.getElementById('ops-items').textContent || '[]'));
-    document.querySelectorAll('[data-upload-panel]').forEach(function (m) {
-        window.fbUploadPanel({ mount: m, url: m.dataset.url, csrf: csrf, withCuts: m.dataset.mode === 'gcode', anchor: m.dataset.anchor });
-    });
     document.addEventListener('click', function (e) {
         var z = e.target.closest('[data-zoom]');
         if (!z) return;

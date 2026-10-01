@@ -80,6 +80,21 @@ def icon(name, css_class="w-5 h-5"):
 
 
 @register.simple_tag
+def static_v(path):
+    """آدرس استاتیک + نسخه‌ی فایل؛ بعد از هر دیپلوی کش مرورگر خودکار عوض می‌شود."""
+    import os
+    from django.contrib.staticfiles import finders
+    from django.templatetags.static import static
+    url = static(path)
+    found = finders.find(path)
+    if isinstance(found, (list, tuple)):
+        found = found[0] if found else None
+    if found and os.path.isfile(found):
+        return f"{url}?v={int(os.path.getmtime(found))}"
+    return url
+
+
+@register.simple_tag
 def map_url(lat, lng):
     from django.conf import settings
     template = getattr(settings, "MAP_LINK_TEMPLATE", "https://www.google.com/maps?q={lat},{lng}")

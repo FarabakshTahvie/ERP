@@ -10,10 +10,16 @@
     </div>
 
     {% if already_decided %}
+    {% if approval.decision == 'cancelled' %}
+    <div role="alert" class="alert alert-soft alert-neutral">
+        <span>این درخواست دیگر معتبر نیست.</span>
+    </div>
+    {% else %}
     <div role="alert" class="alert alert-soft {% if approval.decision == 'approved' %}alert-success{% else %}alert-error{% endif %}">
         {% if approval.decision == 'approved' %}{% icon "check-circle" "w-4 h-4 shrink-0" %}{% else %}{% icon "x-circle" "w-4 h-4 shrink-0" %}{% endif %}
         <span>این درخواست قبلاً {% if approval.decision == 'approved' %}تایید{% else %}رد{% endif %} شده است.</span>
     </div>
+    {% endif %}
     {% if invoice %}
     <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm self-start">مشاهده فاکتور</a>
     {% endif %}

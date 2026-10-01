@@ -89,7 +89,7 @@ class StageFilesAndViewsTests(TestCase):
         # Validation error without XHR header (standard redirect to new_project_form)
         resp_no_xhr = self.client.post(url, {
             "party_id": self.partner.id,
-            "visit_at": "",
+            "visit_date": "",
         })
         self.assertEqual(resp_no_xhr.status_code, 302)
         self.assertRedirects(resp_no_xhr, reverse("projects:new_project_form"))
@@ -97,7 +97,7 @@ class StageFilesAndViewsTests(TestCase):
         # Validation error via AJAX
         resp = self.client.post(url, {
             "party_id": self.partner.id,
-            "visit_at": "",
+            "visit_date": "",
         }, **{"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"})
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.json()["ok"])
@@ -106,7 +106,7 @@ class StageFilesAndViewsTests(TestCase):
         # Success via AJAX
         resp = self.client.post(url, {
             "party_id": self.partner.id,
-            "visit_at": "1405/07/20 10:30",
+            "visit_date": "1405/07/20",
             "notes": "پروژه ایجکس",
         }, **{"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"})
         self.assertEqual(resp.status_code, 200)

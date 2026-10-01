@@ -12,6 +12,7 @@ from utils.jalali import jalali_str, to_fa_digits
 from . import ops
 from .models import ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, StageKind
 from .stage_ops import complete_stage
+from .stage_move import move_to_stage
 
 
 def _json(action):
@@ -147,7 +148,12 @@ def part_request_decide(request, req_id):
     req = _obj(PartRequest, req_id)
     try:
         if request.POST.get("action") == "issue":
-            ops.issue_part_request(req=req, actor=request.user)
+            ops.issue_part_request(
+                req=req,
+                actor=request.user,
+                shipping_cost_raw=request.POST.get("shipping_cost", ""),
+                photo=request.FILES.get("photo"),
+            )
             messages.success(request, "قطعه تحویل و از انبار کم شد.")
         elif request.POST.get("action") == "reject":
             ops.reject_part_request(req=req, actor=request.user, reason=request.POST.get("reason"))
@@ -181,3 +187,17 @@ def final_review(request, project_id):
         "project": project, "stage": stage, "can_approve": stage.status == ProjectStage.Status.IN_PROGRESS,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
     })
+
+
+@login_required
+@require_POST
+def move_stage(request, project_id):
+    project = _obj(Project, project_id)
+    try:
+        target = move_to_stage(project=project, target_id=request.POST.get("target"),
+                               actor=request.user, comment=request.POST.get("comment"))
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"مرحله‌ی «{target.title}» باز شد.")
+    return redirect("projects:staff_project_overview", project.id)

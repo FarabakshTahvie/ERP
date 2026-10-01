@@ -327,7 +327,10 @@ def advance_stage(stage, actor, new_status, comment):
     )
 
     if new_status == ProjectStage.Status.DONE:
-        _activate_next_stage(stage)
+        if stage.return_to_id:
+            _resume_parked(stage)
+        else:
+            _activate_next_stage(stage)
 
     return stage
 
@@ -354,6 +357,31 @@ def _assign_stage_responsible(stage):
     return []
 
 
+EXTERNAL_APPROVAL_TYPES = (
+    WorkflowStepTemplate.ApprovalBy.PARTNER,
+    WorkflowStepTemplate.ApprovalBy.OWNER,
+    WorkflowStepTemplate.ApprovalBy.CHOOSE_AT_RUNTIME,
+)
+
+
+def _resume_parked(stage):
+    """مرحله‌ی بازشده با انتقال تمام شد؛ پروژه به مرحله‌ی متوقف برمی‌گردد."""
+    parked = ProjectStage.objects.select_related("step_template", "project").get(pk=stage.return_to_id)
+    ProjectStage.objects.filter(pk=stage.pk).update(return_to=None)
+    if parked.status != ProjectStage.Status.PENDING:
+        return
+    StageEvent.objects.create(stage=parked, actor=None, from_status=parked.status,
+                              to_status=ProjectStage.Status.IN_PROGRESS,
+                              comment=f"بعد از تکمیل «{stage.title}» به این مرحله برگشت.")
+    if parked.step_template.approval_by in EXTERNAL_APPROVAL_TYPES:
+        send_stage_for_approval(parked)   # درخواست قبلی لغو شده بود؛ دوباره برای مشتری می‌رود
+        return
+    parked.status = ProjectStage.Status.IN_PROGRESS
+    if not parked.assigned_to_id and not parked.candidate_users.exists():
+        _assign_stage_responsible(parked)
+    parked.save()
+
+
 def _activate_next_stage(stage):
     next_stage = (
         stage.project.stages.filter(
@@ -370,12 +398,6 @@ def _activate_next_stage(stage):
         return
 
     template = next_stage.step_template
-
-    EXTERNAL_APPROVAL_TYPES = (
-        WorkflowStepTemplate.ApprovalBy.PARTNER,
-        WorkflowStepTemplate.ApprovalBy.OWNER,
-        WorkflowStepTemplate.ApprovalBy.CHOOSE_AT_RUNTIME,
-    )
     if template.approval_by in EXTERNAL_APPROVAL_TYPES:
         next_stage.save()
         send_stage_for_approval(next_stage)
@@ -396,6 +418,9 @@ def _activate_next_stage(stage):
 def claim_stage(stage, user):
     """کاربری که در candidate_users هست (یا ادمین) این کار را رسماً برمی‌دارد."""
     from accounts.models import User
+    from .models import ProjectStage
+    if stage.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id:
         raise ValueError("این مرحله قبلاً به شخص دیگری اختصاص یافته است.")
     if user.role != User.Role.ADMIN and not stage.candidate_users.filter(pk=user.pk).exists():
@@ -403,7 +428,7 @@ def claim_stage(stage, user):
     stage.assigned_to = user
     stage.candidate_users.clear()
     stage.save(update_fields=["assigned_to"])
-    StageEvent.objects.create(stage=stage, actor=user, from_status=stage.status, to_status=stage.status, comment="کار توسط این شخص برداشته شد (Claim).")
+    StageEvent.objects.create(stage=stage, actor=user, from_status=stage.status, to_status=stage.status, comment="کار را برداشت.")
     return stage
 
 
@@ -542,6 +567,9 @@ def transfer_stage(stage, from_user, to_user, comment=""):
     فقط کسی که همین الان assigned_to هست می‌تواند انتقال بدهد.
     """
     from accounts.models import User
+    from .models import ProjectStage
+    if stage.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id != from_user.id:
         raise ValueError("فقط مسئول فعلی این مرحله می‌تواند آن را انتقال دهد.")
     if to_user.role != User.Role.EMPLOYEE:
@@ -590,17 +618,21 @@ def _require_v2_template(template):
 
 
 @transaction.atomic
-def update_visit_at(*, project, actor, visit_at):
+def update_visit_date(*, project, actor, visit_date):
     if not can_edit_project(actor, project):
         raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
-    if visit_at is None:
-        raise ValueError("زمان بازدید را مشخص کنید.")
+    if visit_date is None:
+        raise ValueError("تاریخ بازدید را مشخص کنید.")
     visit_stage = project.stages.filter(kind=StageKind.VISIT).first()
     if visit_stage and visit_stage.status == ProjectStage.Status.DONE:
-        raise ValueError("بازدید انجام شده و زمان آن قابل تغییر نیست.")
-    project.visit_at = visit_at
-    project.save(update_fields=["visit_at", "updated_at"])
+        raise ValueError("بازدید انجام شده و تاریخ آن قابل تغییر نیست.")
+    project.visit_date = visit_date
+    project.save(update_fields=["visit_date", "updated_at"])
     # TODO(پیامک تغییر زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست.
+
+
+# نام قدیمی برای سازگاری موقت
+update_visit_at = update_visit_date
 
 
 @transaction.atomic
@@ -609,18 +641,20 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
                                            location_lat=None, location_lng=None, location_address="",
                                            service_lines=None, material_lines=None,
                                            installation_fee_raw="", shipping_fee_raw="", extra_fee_raw="",
-                                           contract_date=None, notes="", send_sms=False, visit_at=None,
+                                           contract_date=None, notes="", send_sms=False, visit_date=None, visit_at=None,
                                            uploaded_files=None, issue_proforma=True):
     from core.models import Party, Location
     from catalog.models import Service, Item
+    if visit_date is None and visit_at is not None:
+        visit_date = visit_at.date() if hasattr(visit_at, "date") else visit_at
     service_lines = _clean_lines(service_lines, Service, "خدمات")
     material_lines = _clean_lines(material_lines, Item, "متریال")
     installation_fee = parse_fee(installation_fee_raw, label="هزینه نصب")
     shipping_fee = parse_fee(shipping_fee_raw, label="هزینه ارسال")
     extra_fee = parse_fee(extra_fee_raw, label="هزینه مازاد")
     notes = clean_project_notes(notes)
-    if not issue_proforma and visit_at is None:
-        raise ValueError("زمان بازدید را مشخص کنید.")
+    if not issue_proforma and visit_date is None:
+        raise ValueError("تاریخ بازدید را مشخص کنید.")
 
     if party_id:
         party = Party.objects.get(pk=party_id)
@@ -668,7 +702,7 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
         name=proj_name, partner=partner, owner=owner, location=location,
         workflow_template=template, created_by=created_by, status=Project.Status.IN_PROGRESS,
         installation_fee=installation_fee, shipping_fee=shipping_fee, extra_fee=extra_fee,
-        contract_date=contract_date, visit_at=visit_at, notes=notes,
+        contract_date=contract_date, visit_date=visit_date, notes=notes,
     )
 
     for line in (service_lines or []):

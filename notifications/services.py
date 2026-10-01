@@ -79,7 +79,7 @@ def send_sms_channel(notification) -> bool:
             name=name,
             number=data.get("invoice_number", ""),
             username=data.get("username", ""),
-            password=data.get("password", ""),
+            password=data.get("password") or "رمز فعلی شما",
             link=notification.short_path,          # فقط مسیر، مثل s/abcde
         )
     else:

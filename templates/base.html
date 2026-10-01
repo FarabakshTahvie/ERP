@@ -28,8 +28,9 @@
     </script>
 
     <link rel="preload" href="{% static 'fonts/Vazirmatn[wght].woff2' %}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{% static 'dist/output.css' %}">
-    <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    <link rel="stylesheet" href="{% static_v 'dist/output.css' %}">
+    <script src="{% static_v 'js/htmx.min.js' %}" defer></script>
+    <script>window.FB_CSRF = "{{ csrf_token }}";</script>
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -232,6 +233,7 @@
             if (e.persisted) document.querySelectorAll('form[data-fb-once] button[type=submit]').forEach(function (b) { b.disabled = false; });
         });
     </script>
+    <script src="{% static_v 'js/jalali_picker.js' %}"></script>
     {% block extra_js %}{% endblock %}
 
     {% if request.user.is_authenticated and NAJVA_ENABLED %}
