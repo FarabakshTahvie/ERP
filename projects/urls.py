@@ -8,6 +8,7 @@ urlpatterns = [
     path("staff/stages/<int:stage_id>/install-line/", views_ops.install_line, name="install_line"),
     path("staff/stages/<int:stage_id>/extras/add/", views_ops.extra_add, name="extra_add"),
     path("staff/extras/<int:extra_id>/delete/", views_ops.extra_delete, name="extra_delete"),
+    path("staff/extras/<int:extra_id>/dispose/", views_ops.extra_dispose, name="extra_dispose"),
     path("staff/stages/<int:stage_id>/part-request/", views_ops.part_request_create, name="part_request_create"),
     path("staff/part-requests/<int:req_id>/cancel/", views_ops.part_request_cancel, name="part_request_cancel"),
     path("staff/part-requests/<int:req_id>/", views_ops.part_request_detail, name="part_request_detail"),

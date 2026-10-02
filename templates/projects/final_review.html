@@ -164,11 +164,29 @@
         <div class="pt-2 border-t border-base-300">
             <span class="font-semibold text-xs">قطعه‌های اضافه‌ی ارسال‌شده:</span>
             {% if data.extras %}
-            <div class="mt-1 space-y-1 text-xs">
+            <div class="mt-1 space-y-2 text-xs">
                 {% for ex in data.extras %}
-                <div class="flex justify-between items-center">
-                    <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
-                    <div><span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }}</span> تومان</div>
+                <div class="flex justify-between items-center gap-2 flex-wrap border-b border-base-200 pb-1.5 last:border-0 last:pb-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
+                        {% if ex.disposition == 'consumed' %}
+                        <span class="fb-badge fb-badge-warning">مصرف شد (از موجودی کم شد)</span>
+                        {% elif ex.disposition == 'returned' %}
+                        <span class="fb-badge fb-badge-neutral">برگشت به انبار</span>
+                        {% else %}
+                        <span class="fb-badge fb-badge-error">در انتظار تعیین تکلیف</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }} تومان</span>
+                        {% if ex.disposition == 'pending' %}
+                        <form method="post" action="{% url 'projects:extra_dispose' ex.id %}" data-fb-once class="inline-flex gap-1">
+                            {% csrf_token %}
+                            <button type="submit" name="disposition" value="consumed" class="btn btn-warning btn-xs">مصرف شد</button>
+                            <button type="submit" name="disposition" value="returned" class="btn btn-soft btn-xs">برگشت به انبار</button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>

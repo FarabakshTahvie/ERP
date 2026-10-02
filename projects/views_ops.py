@@ -69,6 +69,20 @@ def extra_delete(request, extra_id):
 
 @login_required
 @require_POST
+def extra_dispose(request, extra_id):
+    extra = _obj(ExtraShipment.objects.select_related("project", "item"), extra_id)
+    disposition = request.POST.get("disposition")
+    try:
+        ops.resolve_extra_shipment_disposition(extra=extra, disposition=disposition, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "تعیین تکلیف قطعه‌ی اضافه انجام شد.")
+    return redirect("projects:final_review", extra.project_id)
+
+
+@login_required
+@require_POST
 def part_request_create(request, stage_id):
     stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
     return _json(lambda: ops.create_part_request(stage=stage, item_id=request.POST.get("item_id"),

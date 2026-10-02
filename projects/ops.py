@@ -147,6 +147,25 @@ def delete_extra_shipment(*, extra, actor):
     extra.delete()
 
 
+@transaction.atomic
+def resolve_extra_shipment_disposition(*, extra, disposition, actor):
+    if not (is_creator_or_manager(actor, extra.project) or user_is_accountant(actor)):
+        raise ValueError("شما اجازه‌ی تعیین تکلیف ندارید.")
+    extra = ExtraShipment.objects.select_for_update().select_related("item", "project").get(pk=extra.pk)
+    if extra.disposition != ExtraShipment.Disposition.PENDING:
+        raise ValueError("تکلیف این قطعه قبلاً تعیین شده است.")
+    if disposition not in (ExtraShipment.Disposition.CONSUMED, ExtraShipment.Disposition.RETURNED):
+        raise ValueError("گزینه‌ی معتبر انتخاب کنید.")
+    if disposition == ExtraShipment.Disposition.CONSUMED:
+        consume_stock(item=extra.item, qty=extra.qty, user=actor, related_object=extra.project,
+                      notes=f"تعیین‌تکلیف قطعه‌ی اضافه‌ی ارسال‌شده در بازبینی نهایی — {extra.note}")
+    extra.disposition = disposition
+    extra.disposed_by = actor
+    extra.disposed_at = timezone.now()
+    extra.save(update_fields=["disposition", "disposed_by", "disposed_at"])
+    return extra
+
+
 # ---------------- نصب ----------------
 def ensure_install_lines(stage):
     """idempotent؛ مقدار و قیمت را از پیش‌فاکتور (که بعد از تایید قفل است) اسنپ‌شات می‌کند."""
