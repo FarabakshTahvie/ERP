@@ -12,7 +12,7 @@ from .models import (
     ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, ShipmentCheck, StageEvent, StageKind,
 )
 from .proforma import material_totals
-from .services import parse_fee
+from .services import parse_fee, user_is_accountant
 from .stage_ops import cut_files, _is_manager
 
 REASON_MAX = 1000
@@ -45,6 +45,11 @@ def _reason(raw, *, required, label="دلیل"):
 
 def is_creator_or_manager(user, project):
     return user.is_authenticated and (_is_manager(user) or project.created_by_id == user.id)
+
+
+def can_view_final_review(user, project):
+    """بازبینی نهایی همیشه برای مدیر، حسابدار و ثبت‌کننده‌ی پروژه در دسترس است."""
+    return is_creator_or_manager(user, project) or user_is_accountant(user)
 
 
 def review_open(project):
@@ -206,8 +211,9 @@ def install_problem(stage):
     pending = stage.install_lines.filter(status=InstallLine.Status.PENDING).count()
     if pending:
         return f"برای {pending} مورد هنوز «نصب شد» یا «نصب نشد» ثبت نشده است."
-    if pending_part_requests(stage.project).exists():
-        return "درخواست قطعه‌ی بررسی‌نشده دارید؛ ابتدا تکلیفش روشن شود."
+    # درخواست قطعه‌ی بدون‌پاسخ دیگر مانع تکمیل مرحله‌ی نصب نیست؛ نصاب می‌تواند کارش را تمام کند
+    # و درخواست سرجای خودش برای انباردار باقی می‌ماند. فقط بازبینی نهایی همچنان تا پاسخ‌دادن
+    # به آن بسته می‌ماند (در stage_completion_problem، بدون تغییر).
     return None
 
 
@@ -314,11 +320,11 @@ def delete_project_cost(*, cost, actor):
 
 # ---------------- نمایش ----------------
 def ops_context(user, stage):
-    """کانتکست کشوی عملیات هر مرحله؛ مبلغ‌ها فقط برای ثبت‌کننده/مدیر."""
+    """کانتکست کشوی عملیات هر مرحله؛ مبلغ‌ها فقط برای ثبت‌کننده/مدیر/حسابدار (حسابدار فقط می‌بیند، ویرایش نمی‌کند)."""
     if stage.kind not in (StageKind.SHIPPING, StageKind.INSTALL):
         return None
     project = stage.project
-    money = is_creator_or_manager(user, project)
+    money = is_creator_or_manager(user, project) or user_is_accountant(user)
     ctx = {"can_edit": can_edit_ops(user, stage), "show_money": money}
     if stage.kind == StageKind.SHIPPING:
         ctx["rows"] = shipment_rows(stage)

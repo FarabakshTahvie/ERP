@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from catalog.models import Item
-from inventory.services import user_can_manage_inventory
+from inventory.services import user_can_manage_inventory, record_manual_stock_change
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from . import ops
@@ -170,7 +170,7 @@ def part_request_decide(request, req_id):
 @login_required
 def final_review(request, project_id):
     project = _obj(Project.objects.select_related("owner", "partner", "location"), project_id)
-    if not ops.is_creator_or_manager(request.user, project):
+    if not ops.can_view_final_review(request.user, project):
         raise Http404
     stage = project.stages.filter(kind=StageKind.FINAL_REVIEW).first()
     if stage is None:
@@ -183,10 +183,32 @@ def final_review(request, project_id):
             return redirect("projects:final_review", project.id)
         messages.success(request, "بازبینی نهایی تایید و پروژه تکمیل شد.")
         return redirect("home")
+    can_manage_stock = user_can_manage_inventory(request.user)
     return render(request, "projects/final_review.html", {
         "project": project, "stage": stage, "can_approve": stage.status == ProjectStage.Status.IN_PROGRESS,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
+        "can_manage_stock": can_manage_stock,
+        "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)] if can_manage_stock else [],
     })
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+@require_POST
+def final_review_consume(request, project_id):
+    project = _obj(Project, project_id)
+    item = _obj(Item, request.POST.get("item_id"), is_active=True)
+    try:
+        record_manual_stock_change(
+            item=item, kind=request.POST.get("kind"), qty_raw=request.POST.get("qty"),
+            notes=request.POST.get("notes", ""), user=request.user,
+            unit_cost_raw=request.POST.get("unit_cost"), related_object=project,
+        )
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "تغییر موجودی ثبت شد.")
+    return redirect("projects:final_review", project.id)
 
 
 @login_required
@@ -194,8 +216,11 @@ def final_review(request, project_id):
 def move_stage(request, project_id):
     project = _obj(Project, project_id)
     try:
-        target = move_to_stage(project=project, target_id=request.POST.get("target"),
-                               actor=request.user, comment=request.POST.get("comment"))
+        target = move_to_stage(
+            project=project, target_id=request.POST.get("target"),
+            actor=request.user, comment=request.POST.get("comment"),
+            return_to_current=request.POST.get("return_mode") != "continue",
+        )
     except ValueError as e:
         messages.error(request, str(e))
     else:

@@ -222,7 +222,13 @@ document.addEventListener('DOMContentLoaded', function() {
             </select></div>
         <div class="fb-field"><label class="fb-label" for="move-comment">توضیح (اجباری)</label>
             <textarea id="move-comment" name="comment" rows="3" required class="textarea w-full"></textarea></div>
-        <p class="fb-hint">بعد از تکمیل مرحله‌ی انتخابی، پروژه به مرحله‌ی فعلی برمی‌گردد.</p>
+        <div class="fb-field">
+            <span class="fb-label">بعد از تکمیل مرحله‌ی انتخابی</span>
+            <div class="flex flex-col gap-2">
+                <label class="fb-choice justify-start"><input type="radio" name="return_mode" value="return" class="sr-only" checked> برگردد به مرحله‌ی فعلی ({{ move_current.title }})</label>
+                <label class="fb-choice justify-start"><input type="radio" name="return_mode" value="continue" class="sr-only"> ادامه‌ی عادی پروژه از همین‌جا (بدون برگشت)</label>
+            </div>
+        </div>
         <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">انتقال</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
     </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
 {% endif %}

@@ -538,4 +538,14 @@ class TestEnvironmentIsolationTests(TestCase):
         self.assertFalse(settings.NAJVA_ENABLED)
 
 
+class JalaliPickerMousedownRegressionTests(TestCase):
+    def test_mousedown_preventdefault_removed_from_popup(self):
+        from django.contrib.staticfiles import finders
+        path = finders.find("js/jalali_picker.js")
+        self.assertIsNotNone(path)
+        content = open(path, "r", encoding="utf-8").read()
+        self.assertNotIn("pop.addEventListener('mousedown'", content)
+
+
+
 

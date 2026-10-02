@@ -46,7 +46,13 @@ def _event(stage, actor, old_status, text):
 
 
 @transaction.atomic
-def move_to_stage(*, project, target_id, actor, comment):
+def move_to_stage(*, project, target_id, actor, comment, return_to_current=True):
+    """
+    return_to_current=True (پیش‌فرض، رفتار قبلی بدون تغییر): بعد از تکمیل مرحله‌ی مقصد،
+    پروژه به مرحله‌ی فعلی (که متوقف شده) برمی‌گردد.
+    return_to_current=False: بعد از تکمیل مرحله‌ی مقصد، پروژه عادی جلو می‌رود (بدون برگشت)؛
+    مرحله‌ی متوقف‌شده در وضعیت «در انتظار» می‌ماند و بعداً قابل انتخاب دوباره یا رسیدن طبیعی است.
+    """
     comment = (comment or "").strip()
     if not comment:
         raise ValueError("نوشتن توضیح اجباری است.")
@@ -78,7 +84,7 @@ def move_to_stage(*, project, target_id, actor, comment):
     target.status = ProjectStage.Status.IN_PROGRESS
     target.completed_at = target.completed_by = None
     target.started_at = target.started_at or now
-    target.return_to = origin
+    target.return_to = origin if return_to_current else None
     keep = bool(target.assigned_to_id and target.assigned_to.is_active)
     if not keep:
         target.assigned_to = None
@@ -86,6 +92,7 @@ def move_to_stage(*, project, target_id, actor, comment):
         target.candidate_users.clear()
         _assign_stage_responsible(target)
     target.save()
-    _event(target, actor, old, f"از مرحله‌ی «{origin.title}» منتقل شد: {comment}")
+    mode_note = "بعد از تکمیل، به همین مرحله برمی‌گردد." if return_to_current else "بعد از تکمیل، ادامه‌ی عادی پروژه از همان‌جا جلو می‌رود (بدون برگشت)."
+    _event(target, actor, old, f"از مرحله‌ی «{origin.title}» منتقل شد: {comment} — {mode_note}")
     # TODO(اطلاع‌رسانی به مسئول مرحله‌ی بازشده): قالب پیام هنوز آماده نیست.
     return target

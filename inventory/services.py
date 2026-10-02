@@ -8,6 +8,7 @@ from core.models import Party
 from .models import StockLot, StockMovement, Purchase, PurchaseLine, Warehouse
 
 WAREHOUSE_KEEPER_SPECIALTY_NAME = "انباردار"
+ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
 
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
@@ -27,11 +28,11 @@ def parse_decimal_input(raw, *, label="مقدار"):
 
 @transaction.atomic
 def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line=None,
-                   movement_type=StockMovement.MovementType.IN, notes="", created_by=None):
+                   movement_type=StockMovement.MovementType.IN, notes="", created_by=None, related_object=None):
     """
     ثبت لات جدید ورودی و به‌روزرسانی میانگین موزون قیمت کالا.
     movement_type پیش‌فرض IN (خرید) است؛ برای تعدیل افزایشی دستی (W3)، ADJUST پاس داده می‌شود.
-    notes/created_by اختیاری‌اند تا خرید عادی (W2) دست‌نخورده بماند.
+    notes/created_by/related_object اختیاری‌اند تا خرید عادی (W2) دست‌نخورده بماند.
     """
     qty = Decimal(qty)
     unit_cost = Decimal(unit_cost)
@@ -53,6 +54,7 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
         unit_cost=unit_cost,
         notes=notes,
         created_by=created_by,
+        related_object=related_object,
     )
 
     item_locked = item.__class__.objects.select_for_update().get(pk=item.pk)
@@ -113,13 +115,13 @@ def _check_reorder_point(item):
 def user_can_manage_inventory(user):
     """
     دسترسی به بخش انبارداری: دقیقاً هم‌الگوی projects.services.user_can_create_projects.
-    کاربر باید role=employee باشد و تخصص «انباردار» داشته باشد. مدیر استثنا نیست —
+    کاربر باید role=employee باشد و تخصص «انباردار» یا «حسابدار» داشته باشد. مدیر استثنا نیست —
     مدیر از پنل ادمین (Item/StockLot/Purchase/Warehouse) استفاده می‌کند.
     """
     return (
         user.is_authenticated
         and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name=WAREHOUSE_KEEPER_SPECIALTY_NAME).exists()
+        and user.specialties.filter(name__in=[WAREHOUSE_KEEPER_SPECIALTY_NAME, ACCOUNTANT_SPECIALTY_NAME]).exists()
     )
 
 
@@ -236,7 +238,7 @@ CHANGE_KIND_CHOICES = (CHANGE_KIND_CONSUME, CHANGE_KIND_ADJUST_DECREASE, CHANGE_
 
 
 @transaction.atomic
-def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None):
+def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None):
     """
     تنها مسیر ثبت مصرف/تعدیل دستی موجودی (بدون پنل ادمین).
     - consume: مصرف واقعی -> consume_stock با movement_type=OUT.
@@ -244,6 +246,8 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     - adjust_increase: تعدیل افزایشی (کشف موجودی) -> receive_stock با movement_type=ADJUST،
       در انبار پیش‌فرض، با بهای واحد وارد‌شده یا میانگین موزون فعلی کالا.
     دلیل (notes) همیشه اجباری است، دقیقاً هم‌الگوی advance_stage/reject_payment.
+    related_object اختیاری است (مثلاً یک پروژه)؛ وقتی از صفحه‌ی بازبینی نهایی صدا زده می‌شود،
+    حرکت انبار به همان پروژه مرتبط می‌شود (هم‌الگوی issue_part_request).
     """
     notes = (notes or "").strip()
     if not notes:
@@ -254,11 +258,13 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     qty = parse_decimal_input(qty_raw, label="مقدار")
 
     if kind == CHANGE_KIND_CONSUME:
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT)
+        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
+                      related_object=related_object)
         return
 
     if kind == CHANGE_KIND_ADJUST_DECREASE:
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST)
+        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
+                      related_object=related_object)
         return
 
     # CHANGE_KIND_ADJUST_INCREASE
@@ -275,7 +281,7 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     receive_stock(
         item=item, warehouse=warehouse, qty=qty, unit_cost=unit_cost,
         received_at=timezone.now(), movement_type=StockMovement.MovementType.ADJUST,
-        notes=notes, created_by=user,
+        notes=notes, created_by=user, related_object=related_object,
     )
 
 

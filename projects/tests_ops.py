@@ -169,7 +169,9 @@ class PartRequestIssueTests(TestCase):
             issue_part_request(req=req, actor=self.keeper)
         self.assertEqual(self.item.current_stock, Decimal("4"))   # دوباره کم نشده
 
-    def test_only_keeper_decides_reject_needs_reason_and_pending_blocks_install_completion(self):
+    def test_only_keeper_decides_reject_and_install_completes_even_with_pending_part_request(self):
+        """نصب دیگر با درخواست قطعه‌ی بدون‌پاسخ مسدود نمی‌شود؛ نصاب می‌تواند تمام کند و درخواست سرجایش می‌ماند.
+        فقط بازبینی نهایی همچنان تا تکلیف‌روشن‌شدن درخواست بسته می‌ماند."""
         ensure_install_lines(self.stage)
         for line in self.stage.install_lines.all():
             set_install_line(line=line, status="ok", actual_qty_raw="", reason="", actor=self.installer)
@@ -178,6 +180,14 @@ class PartRequestIssueTests(TestCase):
             issue_part_request(req=req, actor=self.installer)
         with self.assertRaises(ValueError):
             reject_part_request(req=req, actor=self.keeper, reason=" ")
-        self.assertIn("درخواست قطعه", stage_completion_problem(self.stage))
+
+        self.assertIsNone(stage_completion_problem(self.stage))
+        complete_stage(stage=self.stage, actor=self.installer, comment="تمام شد؛ قطعه هنوز نرسیده.")
+        self.stage.refresh_from_db()
+        self.assertEqual(self.stage.status, ProjectStage.Status.DONE)
+        self.assertEqual(req.status, "requested")   # درخواست دست‌نخورده باقی مانده
+
+        review_stage = self.project.stages.get(kind=StageKind.FINAL_REVIEW)
+        self.assertIn("درخواست قطعه", stage_completion_problem(review_stage))
         reject_part_request(req=req, actor=self.keeper, reason="موجود نیست")
-        self.assertNotIn("درخواست قطعه", stage_completion_problem(self.stage) or "")
+        self.assertNotIn("درخواست قطعه", stage_completion_problem(review_stage) or "")

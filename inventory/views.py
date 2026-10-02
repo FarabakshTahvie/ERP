@@ -5,7 +5,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
-from django.db.models import Case, DecimalField, F, IntegerField, Sum, Value, When
+from django.db.models import Case, DecimalField, F, IntegerField, Prefetch, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -17,6 +17,7 @@ from utils.jalali import to_fa_digits, jalali_str
 from utils.jalali_forms import JalaliDateField
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from .models import StockLot
 from .services import (
     user_can_manage_inventory, create_purchase_from_form, record_manual_stock_change,
     create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError,
@@ -35,6 +36,10 @@ def _stock_queryset(include_inactive=False):
     qs = Item.objects.all() if include_inactive else Item.objects.filter(is_active=True)
     return (
         qs.select_related("category")
+        .prefetch_related(
+            Prefetch("lots", queryset=StockLot.objects.filter(qty_remaining__gt=0).select_related("warehouse"),
+                    to_attr="stocked_lots")
+        )
         .annotate(
             stock=Coalesce(
                 Sum("lots__qty_remaining"),
@@ -62,12 +67,15 @@ def _stock_table_context(request):
             status_cell = {"type": "badge", "value": "غیرفعال", "variant": "neutral"}
         else:
             status_cell = {"type": "badge", "value": "کمبود" if low else "عادی", "variant": "warning" if low else "success"}
+        warehouse_names = sorted({lot.warehouse.name for lot in item.stocked_lots})
+        warehouse_display = "، ".join(warehouse_names) if warehouse_names else "—"
         return {
             "url": reverse("inventory:item_edit", args=[item.id]),
             "cells": [
                 {"type": "text", "value": item.name},
                 {"type": "muted", "value": item.get_item_type_display()},
                 {"type": "muted", "value": item.category.name if item.category_id else "—"},
+                {"type": "muted", "value": warehouse_display},
                 {"type": "muted", "value": item.get_unit_display()},
                 {"type": "text", "value": to_fa_digits(_format_qty(item.stock))},
                 {"type": "muted", "value": to_fa_digits(_format_qty(item.reorder_point)) if item.reorder_point else "—"},
@@ -86,6 +94,7 @@ def _stock_table_context(request):
              "choices": Item.ItemType.choices},
             {"label": "دسته‌بندی", "sort_field": "category__name", "filter_key": "category", "filter_type": "select",
              "filter_field": "category_id", "choices": category_choices},
+            {"label": "انبار"},
             {"label": "واحد", "sort_field": "unit"},
             {"label": "موجودی فعلی", "sort_field": "stock"},
             {"label": "حد هشدار", "sort_field": "reorder_point"},

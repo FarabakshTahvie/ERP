@@ -166,3 +166,28 @@ class OpsViewsTests(TestCase):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.total_amount, invoice_total_before)
         self.assertEqual(self.invoice.lines.count(), lines_count_before)
+
+
+class StockTableWarehouseColumnTests(TestCase):
+    def setUp(self):
+        from core.models import Specialty
+        from inventory.models import Warehouse
+        from catalog.models import Item
+        from inventory.services import receive_stock
+        from django.utils import timezone as tz
+        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
+        self.wh_user = User.objects.create_user(username="wh_col_user", password="pw", role=User.Role.EMPLOYEE)
+        self.wh_user.specialties.add(self.sp_warehouse)
+        self.wh1 = Warehouse.objects.create(name="انبار اول تست ستون", is_default=True)
+        self.wh2 = Warehouse.objects.create(name="انبار دوم تست ستون")
+        self.item = Item.objects.create(name="کالای تست ستون انبار", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
+        receive_stock(item=self.item, warehouse=self.wh1, qty=5, unit_cost=1000, received_at=tz.now())
+        receive_stock(item=self.item, warehouse=self.wh2, qty=3, unit_cost=1000, received_at=tz.now())
+
+    def test_stock_table_shows_warehouse_names(self):
+        client = Client()
+        client.force_login(self.wh_user)
+        resp = client.get(reverse("inventory:stock_table"))
+        content = resp.content.decode("utf-8")
+        self.assertIn("انبار اول تست ستون", content)
+        self.assertIn("انبار دوم تست ستون", content)

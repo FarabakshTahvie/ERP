@@ -43,6 +43,31 @@
     </div>
     {% endif %}
 
+    {% if can_view_financial %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ financial_summary.purchases_total|intcomma_fa }}</div>
+            <div class="fb-stat-label">جمع خرید کالا (تومان)</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ financial_summary.consumption_total|intcomma_fa }}</div>
+            <div class="fb-stat-label">جمع مصرف از انبار (تومان)</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical">{{ financial_summary.invoiced_total|intcomma_fa }}</div>
+            <div class="fb-stat-label">جمع فاکتورهای صادرشده (تومان)</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <div class="fb-stat-value font-technical {% if financial_summary.rough_estimate < 0 %}text-error{% else %}text-success{% endif %}">{{ financial_summary.rough_estimate|intcomma_fa }}</div>
+            <div class="fb-stat-label">برآورد خام سود (فاکتور منهای خرید کالا)</div>
+        </div>
+    </div>
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">برآورد سود بالا خام است و هزینه‌هایی مثل حقوق، اجاره و سایر هزینه‌های جاری در آن نیست؛ فقط «فاکتور منهای خرید کالا» است.</span>
+    </div>
+    {% endif %}
+
     <div class="overflow-x-auto">
         <div role="tablist" class="tabs tabs-border">
             {% for tab in tabs.tabs %}

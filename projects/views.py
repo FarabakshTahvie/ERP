@@ -11,7 +11,9 @@ from django.template.loader import render_to_string
 from utils.generic_table import build_table_context, render_table
 from utils.tabs import build_tabs_context
 from django.core.exceptions import ValidationError
-from django.db.models import Sum, Prefetch
+from django.db.models import Sum, Prefetch, F, Value, DecimalField, ExpressionWrapper
+from django.db.models.functions import Coalesce
+from utils.utils import separate_digits
 from utils.jalali_forms import JalaliDateField
 from utils.jalali import jalali_str, to_fa_digits
 from accounts.models import User
@@ -26,7 +28,7 @@ from .services import (
     decide_stage_approval, can_edit_project, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
-    update_visit_date,
+    update_visit_date, user_is_accountant,
 )
 from .proforma import parse_service_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
 from finance.services import create_customer_payment
@@ -278,9 +280,82 @@ def dashboard_my_projects_table(request):
     return render_table(request, _my_projects_table_context(request))
 
 
+def _can_view_financial_stats(user):
+    return user.is_superuser or getattr(user, "role", None) == User.Role.ADMIN or user_is_accountant(user)
+
+
+def _financial_stats_summary():
+    from inventory.models import StockMovement
+    from finance.models import Invoice
+    value_expr = ExpressionWrapper(F("qty") * F("unit_cost"), output_field=DecimalField(max_digits=20, decimal_places=2))
+    purchases = StockMovement.objects.filter(movement_type=StockMovement.MovementType.IN).aggregate(
+        total=Coalesce(Sum(value_expr), Value(Decimal("0")), output_field=DecimalField(max_digits=20, decimal_places=2))
+    )["total"]
+    consumption = StockMovement.objects.filter(movement_type=StockMovement.MovementType.OUT).aggregate(
+        total=Coalesce(Sum(value_expr), Value(Decimal("0")), output_field=DecimalField(max_digits=20, decimal_places=2))
+    )["total"]
+    invoiced = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).aggregate(
+        total=Coalesce(Sum("total_amount"), Value(Decimal("0")))
+    )["total"]
+    return {
+        "purchases_total": purchases,
+        "consumption_total": consumption,
+        "invoiced_total": invoiced,
+        "rough_estimate": invoiced - purchases,
+    }
+
+
+def _financial_ledger_table_context(request):
+    from inventory.models import StockMovement
+    qs = StockMovement.objects.select_related("item", "created_by").order_by("-created_at")
+
+    def row_builder(m):
+        value = (m.qty or Decimal(0)) * (m.unit_cost or Decimal(0))
+        variant = {"in": "success", "out": "warning", "return": "info", "adjust": "neutral", "transfer": "neutral"}
+        return {
+            "url": None,
+            "cells": [
+                {"type": "muted", "value": jalali_str(m.created_at, fmt="%Y/%m/%d %H:%M")},
+                {"type": "text", "value": m.item.name},
+                {"type": "badge", "value": m.get_movement_type_display(), "variant": variant.get(m.movement_type, "neutral")},
+                {"type": "muted", "value": to_fa_digits(format(m.qty.normalize(), "f"))},
+                {"type": "muted", "value": to_fa_digits(separate_digits(m.unit_cost))},
+                {"type": "text", "value": to_fa_digits(separate_digits(value))},
+                {"type": "muted", "value": (m.created_by.get_full_name() or m.created_by.username) if m.created_by else "—"},
+            ],
+        }
+
+    return build_table_context(
+        request, qs,
+        columns=[
+            {"label": "تاریخ", "sort_field": "created_at"},
+            {"label": "کالا", "sort_field": "item__name"},
+            {"label": "نوع حرکت", "sort_field": "movement_type", "filter_key": "type", "filter_type": "select",
+             "choices": StockMovement.MovementType.choices},
+            {"label": "مقدار"},
+            {"label": "بهای واحد (تومان)"},
+            {"label": "جمع ارزش (تومان)"},
+            {"label": "ثبت‌کننده"},
+        ],
+        row_builder=row_builder,
+        container_id="table-financial-ledger",
+        param_prefix="fl_",
+        empty_icon="bar-chart-3", empty_text="هنوز حرکتی در انبار ثبت نشده.",
+        list_url=reverse("projects:dashboard_financial_ledger_table"),
+        search_fields=["item__name"],
+    )
+
+
+@login_required
+@user_passes_test(_can_view_financial_stats)
+def dashboard_financial_ledger_table(request):
+    return render_table(request, _financial_ledger_table_context(request))
+
+
 def technician_home_view(request, user):
     can_create = user_can_create_projects(user)
     can_manage_inventory = user_can_manage_inventory(user)
+    can_view_financial = _can_view_financial_stats(user)
     can_review = can_create or user.is_superuser or user.role == User.Role.ADMIN
 
     from finance.models import Payment
@@ -292,6 +367,7 @@ def technician_home_view(request, user):
         pending_payments_count = pending_qs.count()
 
     low_stock_count = low_stock_items_count() if can_manage_inventory else 0
+    financial_summary = _financial_stats_summary() if can_view_financial else None
 
     def _eager(context_builder):
         return lambda: render_to_string(
@@ -346,6 +422,13 @@ def technician_home_view(request, user):
             "url": reverse("projects:part_requests_table"), "container_id": "tab-panel-part-requests",
             "eager_render": _eager(part_requests_table_context),
         })
+    if can_view_financial:
+        tabs.append({
+            "key": "financial", "label": "آمار مالی",
+            "url": reverse("projects:dashboard_financial_ledger_table"),
+            "container_id": "tab-panel-financial",
+            "eager_render": _eager(_financial_ledger_table_context),
+        })
 
     tabs_context = build_tabs_context(request, tabs)
 
@@ -353,8 +436,10 @@ def technician_home_view(request, user):
         "can_create_projects": can_create,
         "can_review_payments": can_review,
         "can_manage_inventory": can_manage_inventory,
+        "can_view_financial": can_view_financial,
         "pending_payments_count": pending_payments_count,
         "low_stock_count": low_stock_count,
+        "financial_summary": financial_summary,
         "tabs": tabs_context,
     })
 
@@ -373,6 +458,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         or project.created_by_id == user.id
         or project.assigned_technicians.filter(pk=user.id).exists()
         or project.participants.filter(user=user).exists()
+        or user_is_accountant(user)
     )
 
     stages = list(
@@ -395,6 +481,9 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         s.transfer_candidates = get_transfer_candidates(s) if s.is_mine else None
         s.can_upload = s.status == ProjectStage.Status.IN_PROGRESS and can_upload_to_stage(user, s)
         s.upload_req = upload_requirement(s)
+        s.file_upload_url = reverse("projects:stage_file_upload", args=[s.id])
+        s.is_gcode = s.kind == StageKind.GCODE
+        s.anchor = f"stage-{s.id}"
 
     cut_rows = []
     if any(s.kind == StageKind.CUTTING for s in stages):
@@ -424,7 +513,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
         "cut_rows": cut_rows,
-        "can_final_review": ops.is_creator_or_manager(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
+        "can_final_review": ops.can_view_final_review(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
         "ops_items": ops_items,
         "can_move": can_move,
         "move_current": move_current,

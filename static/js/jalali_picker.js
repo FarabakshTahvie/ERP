@@ -92,7 +92,8 @@
     if (!pop) {
       pop = el('div', 'absolute z-50 bg-base-100 border border-base-300 rounded-box shadow-lg p-3 w-72 hidden');
       pop.dir = 'rtl';
-      pop.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      // اینجا عمداً mousedown.preventDefault() گذاشته نشود؛ روی select های سال/ماه
+      // باعث می‌شود مرورگر لیست کشویی را باز نکند (باگ شناخته‌شده‌ی مرورگرها).
       pop.addEventListener('click', function (e) { e.stopPropagation(); });   // رندر دوباره دکمه را از DOM برمی‌دارد؛ بیرون‌کلیک حساب نشود
       document.body.appendChild(pop);
     }

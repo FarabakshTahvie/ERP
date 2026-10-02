@@ -6,6 +6,7 @@ from django.utils import timezone
 from .models import Project, ProjectStage, StageEvent, ProjectService, ProjectMaterial, WorkflowStepTemplate, StageKind
 
 INTAKE_SPECIALTY_NAME = "پذیرش"
+ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
 NOT_SENT = object()   # برای تاریخ قرارداد در ویرایش: None یعنی «پاک کن»، NOT_SENT یعنی «دست نزن»
 FEE_MAX = Decimal(10) ** 12
 NOTES_MAX = 2000
@@ -40,7 +41,16 @@ def user_can_create_projects(user):
     return (
         user.is_authenticated
         and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name=INTAKE_SPECIALTY_NAME).exists()
+        and user.specialties.filter(name__in=[INTAKE_SPECIALTY_NAME, ACCOUNTANT_SPECIALTY_NAME]).exists()
+    )
+
+
+def user_is_accountant(user):
+    """فقط تخصص «حسابدار»؛ برای دسترسی‌های اختصاصی حسابدار (بازبینی نهایی، آمار مالی) که انباردار/پذیرش آن‌ها را ندارند."""
+    return (
+        user.is_authenticated
+        and getattr(user, "role", None) == "employee"
+        and user.specialties.filter(name=ACCOUNTANT_SPECIALTY_NAME).exists()
     )
 
 
@@ -288,7 +298,9 @@ def advance_stage(stage, actor, new_status, comment):
         raise ValueError("ثبت توضیح برای این مرحله اجباری است.")
 
     from accounts.models import User
-    if getattr(actor, "role", None) == User.Role.EMPLOYEE and stage.assigned_to_id and stage.assigned_to_id != actor.id:
+    is_accountant_on_final_review = stage.kind == StageKind.FINAL_REVIEW and user_is_accountant(actor)
+    if (getattr(actor, "role", None) == User.Role.EMPLOYEE and stage.assigned_to_id
+            and stage.assigned_to_id != actor.id and not is_accountant_on_final_review):
         raise ValueError("فقط مسئول این مرحله می‌تواند وضعیتش را تغییر دهد.")
 
     if (stage.kind == StageKind.PROFORMA and new_status == ProjectStage.Status.DONE

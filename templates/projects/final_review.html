@@ -64,8 +64,32 @@
         <div class="flex justify-end gap-6 text-xs pt-2 border-t border-base-300">
             <div><span class="fb-muted">جمع کل:</span> <span class="font-technical font-bold text-sm">{{ invoice.total_amount|intcomma_fa }}</span> تومان</div>
             <div><span class="fb-muted">پرداخت‌شده:</span> <span class="font-technical text-success">{{ invoice.paid_amount|intcomma_fa }}</span> تومان</div>
-            <div><span class="fb-muted">مانده:</span> <span class="font-technical text-error font-semibold">{{ invoice.balance_due|intcomma_fa }}</span> تومان</div>
+            <div><span class="fb-muted">مانده:</span> <span class="font-technical text-error font-semibold">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</div>
         </div>
+
+        {% if invoice.payments.all %}
+        <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+            <input type="checkbox" aria-label="گزارش پرداخت‌ها">
+            <div class="collapse-title text-xs font-semibold">گزارش کامل پرداخت‌ها ({{ invoice.payments.count|fa_digits }})</div>
+            <div class="collapse-content flex flex-col gap-2">
+                {% for p in invoice.payments.all %}
+                <div class="flex items-center justify-between gap-2 text-xs border-b border-base-200 pb-1.5">
+                    <div>
+                        <span class="font-semibold">{{ p.get_method_display }}</span>
+                        <span class="fb-muted font-technical block">{{ p.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+                    </div>
+                    <div class="text-end">
+                        <div><span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span> تومان</div>
+                        <span class="fb-badge {% if p.status == 'approved' %}fb-badge-success{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-warning{% endif %}">{{ p.get_status_display }}</span>
+                    </div>
+                </div>
+                {% if p.status == 'rejected' and p.rejection_reason %}
+                <p class="text-xs text-error -mt-1">دلیل رد: {{ p.rejection_reason }}</p>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -176,14 +200,14 @@
             <div class="mt-1 space-y-1 text-xs">
                 {% for d in data.shortage %}
                 <div class="flex justify-between items-center">
-                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-warning font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کسری</span>
-                    <div><span class="font-technical font-semibold text-warning">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
+                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-error font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کسری (بیشتر از فاکتور مصرف شده)</span>
+                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-error">زیان</span><span class="font-technical font-semibold text-error">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
                 {% for d in data.surplus %}
                 <div class="flex justify-between items-center">
-                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-info font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد اضافه</span>
-                    <div><span class="font-technical font-semibold text-info">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
+                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-success font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد اضافه (کمتر از فاکتور مصرف شده)</span>
+                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-success">سود</span><span class="font-technical font-semibold text-success">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
             </div>
@@ -240,35 +264,73 @@
         {% endif %}
     </div>
 
+    {% if can_manage_stock %}
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="font-bold text-sm">ثبت مصرف یا تعدیل موجودی مرتبط با این پروژه</h2>
+        <p class="fb-hint">مشابه «ثبت مصرف/تعدیل» در داشبورد انبار؛ هر سه حالت بلافاصله در موجودی کالا اثر می‌گذارند و به همین پروژه مرتبط ثبت می‌شوند.</p>
+        <form method="post" action="{% url 'projects:final_review_consume' project.id %}" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <span class="fb-label">کالا</span>
+                <div id="fr-stock-item-picker"></div>
+                <input type="hidden" name="item_id" id="fr-stock-item-id">
+            </div>
+            <div class="fb-field">
+                <span class="fb-label">نوع تغییر</span>
+                <div class="flex flex-col gap-2">
+                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در همین کار)</label>
+                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات)</label>
+                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی/برگشت)</label>
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="fr-stock-qty">مقدار</label>
+                <input type="text" id="fr-stock-qty" name="qty" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+            </div>
+            <div class="fb-field hidden" id="fr-stock-cost-field">
+                <label class="fb-label" for="fr-stock-cost">بهای واحد (تومان)</label>
+                <input type="text" id="fr-stock-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+                <span class="fb-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="fr-stock-notes">دلیل (اجباری)</label>
+                <textarea id="fr-stock-notes" name="notes" required rows="2" class="textarea w-full"></textarea>
+            </div>
+            <button type="submit" class="btn btn-soft btn-sm self-start">ثبت</button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- ۹. خلاصه‌ی مالی -->
     <div class="fb-card fb-pad flex flex-col gap-3 bg-base-100 border-2 border-primary/20">
         <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی</h2>
         <div class="space-y-2 text-xs">
             <div class="flex justify-between items-center">
-                <span class="fb-muted">قطعه‌های اضافه‌ی ارسال‌شده:</span>
-                <div><span class="font-technical font-semibold">{{ data.totals.extras_sale|intcomma_fa }}</span> تومان</div>
+                <span class="fb-muted">قطعه‌های اضافه‌ی ارسال‌شده (زیان):</span>
+                <div><span class="font-technical font-semibold text-error">{{ data.totals.extras_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">قطعه‌های تحویل‌شده از انبار:</span>
-                <div><span class="font-technical font-semibold">{{ data.totals.parts_sale|intcomma_fa }}</span> تومان</div>
+                <span class="fb-muted">قطعه‌های تحویل‌شده از انبار (زیان):</span>
+                <div><span class="font-technical font-semibold text-error">{{ data.totals.parts_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">کسری نصب:</span>
-                <div><span class="font-technical font-semibold">{{ data.totals.shortage_sale|intcomma_fa }}</span> تومان</div>
+                <span class="fb-muted">کسری نصب (زیان):</span>
+                <div><span class="font-technical font-semibold text-error">{{ data.totals.shortage_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">اضافه‌ی نصب:</span>
-                <div><span class="font-technical font-semibold">{{ data.totals.surplus_sale|intcomma_fa }}</span> تومان</div>
+                <span class="fb-muted">اضافه‌ی نصب (سود):</span>
+                <div><span class="font-technical font-semibold text-success">{{ data.totals.surplus_sale|intcomma_fa }}</span> تومان</div>
             </div>
             <div class="flex justify-between items-center">
-                <span class="fb-muted">هزینه‌ها:</span>
-                <div><span class="font-technical font-semibold">{{ data.totals.costs_total|intcomma_fa }}</span> تومان</div>
+                <span class="fb-muted">هزینه‌های ثبت‌شده (زیان):</span>
+                <div><span class="font-technical font-semibold text-error">{{ data.totals.costs_total|intcomma_fa }}</span> تومان</div>
             </div>
         </div>
 
-        <div class="alert alert-info text-xs mt-2">
+        <div class="alert alert-info text-xs mt-2 flex flex-col items-start gap-1">
             {% icon "info" "w-4 h-4 shrink-0" %}
-            <span>این مبالغ در فاکتور مشتری نیست.</span>
+            <span>این مبالغ در فاکتور مشتری نیست و خودکار به آن اضافه یا کم نمی‌شود.</span>
+            <span>برای تغییر مبلغ فاکتور یا افزودن/کسر هزینه، باید از پنل مدیریت (فاکتور ← «افزودن هزینه‌ی جدید» یا ویرایش ردیف‌ها) اقدام شود.</span>
         </div>
     </div>
 
@@ -295,4 +357,24 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_v 'js/item_picker.js' %}"></script>
+{{ stock_items|json_script:"fr-stock-items-data" }}
+<script>
+(function () {
+    var mount = document.getElementById('fr-stock-item-picker');
+    if (!mount) return;
+    var items = JSON.parse(document.getElementById('fr-stock-items-data').textContent || '[]');
+    var hidden = document.getElementById('fr-stock-item-id');
+    var picker = fbItemPicker({ items: items, ariaLabel: 'انتخاب کالا', onSelect: function (it) { hidden.value = it ? it.id : ''; } });
+    mount.appendChild(picker.el);
+    document.querySelectorAll('input[name="kind"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+            document.getElementById('fr-stock-cost-field').classList.toggle('hidden', this.value !== 'adjust_increase');
+        });
+    });
+})();
+</script>
 {% endblock %}

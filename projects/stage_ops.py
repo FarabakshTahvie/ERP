@@ -4,7 +4,7 @@ from django.utils import timezone
 from accounts.models import User
 from utils.utils import guess_file_kind
 from .models import CutDone, ProjectFile, ProjectStage, StageEvent, StageKind
-from .services import advance_stage
+from .services import advance_stage, user_is_accountant
 
 MAX_STAGE_FILES = 200
 MAX_FILE_BYTES = 25 * 1024 * 1024   # هم‌سقف nginx
@@ -134,7 +134,8 @@ def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=Fal
         raise ValueError("بازبینی نهایی فقط از صفحه‌ی «بازبینی نهایی» تایید می‌شود.")
     if stage.status != ProjectStage.Status.IN_PROGRESS:
         raise ValueError("این مرحله در حال انجام نیست.")
-    if actor.role == User.Role.EMPLOYEE and stage.assigned_to_id != actor.id:
+    if (actor.role == User.Role.EMPLOYEE and stage.assigned_to_id != actor.id
+            and not (stage.kind == StageKind.FINAL_REVIEW and user_is_accountant(actor))):
         raise ValueError("ابتدا این کار را برای خودتان بردارید.")
     problem = stage_completion_problem(stage, needs_approval=needs_approval)
     if problem:
