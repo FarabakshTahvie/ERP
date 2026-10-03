@@ -1,0 +1,8 @@
+{% load custom_tags %}
+<nav class="flex flex-wrap gap-2" aria-label="بخش‌های حسابداری">
+    <a href="{% url 'finance:accounting_overview' %}" class="btn btn-sm {% if nav_active == 'overview' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "bar-chart-3" "w-4 h-4" %} نمای کلی</a>
+    <a href="{% url 'finance:accounting_projects' %}" class="btn btn-sm {% if nav_active == 'projects' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "folder-kanban" "w-4 h-4" %} پروژه‌ها</a>
+    <a href="{% url 'finance:payments_review' %}" class="btn btn-sm btn-soft">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها</a>
+    <a href="{% url 'finance:accounting_stock' %}" class="btn btn-sm {% if nav_active == 'stock' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "arrow-left-right" "w-4 h-4" %} حرکات انبار</a>
+    <a href="{% url 'finance:accounting_purchases' %}" class="btn btn-sm {% if nav_active == 'purchases' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "receipt" "w-4 h-4" %} خریدها</a>
+</nav>

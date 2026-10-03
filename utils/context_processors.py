@@ -14,6 +14,10 @@ def site_info(request):
         "NESHAN_API_KEY": getattr(settings, "NESHAN_API_KEY", ""),
     }
     user = getattr(request, "user", None)
-    if user is not None and user.is_authenticated and (user.is_superuser or getattr(user, "role", None) == "manager"):
-        ctx["pending_payments_nav_count"] = SimpleLazyObject(_pending_payments_count)
+    if user is not None and user.is_authenticated:
+        from projects.services import user_can_access_accounting
+        allowed = user_can_access_accounting(user)
+        ctx["can_access_accounting"] = allowed
+        if allowed:
+            ctx["pending_payments_nav_count"] = SimpleLazyObject(_pending_payments_count)
     return ctx

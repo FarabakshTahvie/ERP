@@ -218,7 +218,7 @@
   .fb-choice:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
   /* --- آمار و حالت خالی --- */
-  .fb-stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; text-align: right; }
+  .fb-stat-value { font-size: clamp(1.05rem, 4.6vw, 1.5rem); font-weight: 700; line-height: 1.3; text-align: right; overflow-wrap: anywhere; min-width: 0; }
   .fb-stat-label { font-size: .75rem; margin-top: .25rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
   .fb-empty { text-align: center; padding: 2rem 1rem; font-size: .8125rem; color: color-mix(in oklab, var(--color-base-content) 55%, transparent); }
 

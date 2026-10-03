@@ -91,7 +91,8 @@ def _can_review_payments(user):
 
 def _is_payment_manager(user):
     from accounts.models import User
-    return user.is_superuser or getattr(user, "role", None) == User.Role.ADMIN
+    from projects.services import user_is_accountant
+    return user.is_superuser or getattr(user, "role", None) == User.Role.ADMIN or user_is_accountant(user)
 
 
 def _visible_payments(user):

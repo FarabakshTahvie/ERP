@@ -201,15 +201,35 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         self.assertIn(">زیان<", content)
 
 
-class FinancialStatsDashboardRenderTests(TestCase):
+class AccountantHomeLinksToAccountingCenterTests(TestCase):
     def setUp(self):
         self.sp_accountant, _ = Specialty.objects.get_or_create(name="حسابدار")
         self.accountant = User.objects.create_user(username="dash_acc", password="pw", role=User.Role.EMPLOYEE)
         self.accountant.specialties.add(self.sp_accountant)
+        self.manager = User.objects.create_superuser(username="dash_mgr", password="pw")
+        self.client_user = User.objects.create_user(username="dash_client", password="pw", role=User.Role.CLIENT)
 
-    def test_dashboard_renders_financial_estimate_for_accountant(self):
+    def test_dashboard_renders_accounting_center_link_for_accountant_and_manager(self):
         client = Client()
         client.force_login(self.accountant)
         resp = client.get(reverse("home"))
-        self.assertContains(resp, "برآورد خام سود")
-        self.assertContains(resp, "آمار مالی")
+        self.assertContains(resp, reverse("finance:accounting_overview"))
+        self.assertNotContains(resp, "برآورد خام سود")
+        self.assertContains(resp, "flex flex-wrap items-center gap-2")
+
+        client.force_login(self.manager)
+        resp_mgr = client.get(reverse("home"))
+        self.assertContains(resp_mgr, reverse("finance:accounting_overview"))
+
+        client.force_login(self.client_user)
+        resp_cli = client.get(reverse("home"))
+        self.assertNotContains(resp_cli, reverse("finance:accounting_overview"))
+
+    def test_input_css_contains_overflow_wrap(self):
+        from django.conf import settings
+        import os
+        css_path = os.path.join(settings.BASE_DIR, "static", "src", "input.css")
+        with open(css_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn(".fb-stat-value", content)
+        self.assertIn("overflow-wrap: anywhere", content)

@@ -81,10 +81,13 @@
                     <a href="{% url 'home' %}" class="btn btn-ghost btn-sm">
                         {% icon "layout-dashboard" "w-4 h-4" %} صفحه اصلی
                     </a>
-                    {% if request.user.is_superuser or request.user.role == 'manager' %}
+                    {% if can_access_accounting %}
                     <a href="{% url 'finance:payments_review' %}" class="btn btn-ghost btn-sm">
                         {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
                         {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}
+                    </a>
+                    <a href="{% url 'finance:accounting_overview' %}" class="btn btn-ghost btn-sm">
+                        {% icon "bar-chart-3" "w-4 h-4" %} حسابداری
                     </a>
                     {% endif %}
                     {% if request.user.is_staff %}
@@ -121,8 +124,9 @@
                                     <span class="text-xs fb-muted font-technical" dir="ltr">{{ request.user.phone_number|default:request.user.email }}</span>
                                 </div>
                             </li>
-                            {% if request.user.is_superuser or request.user.role == 'manager' %}
+                            {% if can_access_accounting %}
                             <li><a href="{% url 'finance:payments_review' %}">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}</a></li>
+                            <li><a href="{% url 'finance:accounting_overview' %}">{% icon "bar-chart-3" "w-4 h-4" %} حسابداری</a></li>
                             {% endif %}
                             {% if request.user.is_staff %}
                             <li>

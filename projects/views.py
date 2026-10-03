@@ -280,94 +280,23 @@ def dashboard_my_projects_table(request):
     return render_table(request, _my_projects_table_context(request))
 
 
-def _can_view_financial_stats(user):
-    return user.is_superuser or getattr(user, "role", None) == User.Role.ADMIN or user_is_accountant(user)
-
-
-def _financial_stats_summary():
-    from inventory.models import StockMovement
-    from finance.models import Invoice
-    value_expr = ExpressionWrapper(F("qty") * F("unit_cost"), output_field=DecimalField(max_digits=20, decimal_places=2))
-    purchases = StockMovement.objects.filter(movement_type=StockMovement.MovementType.IN).aggregate(
-        total=Coalesce(Sum(value_expr), Value(Decimal("0")), output_field=DecimalField(max_digits=20, decimal_places=2))
-    )["total"]
-    consumption = StockMovement.objects.filter(movement_type=StockMovement.MovementType.OUT).aggregate(
-        total=Coalesce(Sum(value_expr), Value(Decimal("0")), output_field=DecimalField(max_digits=20, decimal_places=2))
-    )["total"]
-    invoiced = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).aggregate(
-        total=Coalesce(Sum("total_amount"), Value(Decimal("0")))
-    )["total"]
-    return {
-        "purchases_total": purchases,
-        "consumption_total": consumption,
-        "invoiced_total": invoiced,
-        "rough_estimate": invoiced - purchases,
-    }
-
-
-def _financial_ledger_table_context(request):
-    from inventory.models import StockMovement
-    qs = StockMovement.objects.select_related("item", "created_by").order_by("-created_at")
-
-    def row_builder(m):
-        value = (m.qty or Decimal(0)) * (m.unit_cost or Decimal(0))
-        variant = {"in": "success", "out": "warning", "return": "info", "adjust": "neutral", "transfer": "neutral"}
-        return {
-            "url": None,
-            "cells": [
-                {"type": "muted", "value": jalali_str(m.created_at, fmt="%Y/%m/%d %H:%M")},
-                {"type": "text", "value": m.item.name},
-                {"type": "badge", "value": m.get_movement_type_display(), "variant": variant.get(m.movement_type, "neutral")},
-                {"type": "muted", "value": to_fa_digits(format(m.qty.normalize(), "f"))},
-                {"type": "muted", "value": to_fa_digits(separate_digits(m.unit_cost))},
-                {"type": "text", "value": to_fa_digits(separate_digits(value))},
-                {"type": "muted", "value": (m.created_by.get_full_name() or m.created_by.username) if m.created_by else "—"},
-            ],
-        }
-
-    return build_table_context(
-        request, qs,
-        columns=[
-            {"label": "تاریخ", "sort_field": "created_at"},
-            {"label": "کالا", "sort_field": "item__name"},
-            {"label": "نوع حرکت", "sort_field": "movement_type", "filter_key": "type", "filter_type": "select",
-             "choices": StockMovement.MovementType.choices},
-            {"label": "مقدار"},
-            {"label": "بهای واحد (تومان)"},
-            {"label": "جمع ارزش (تومان)"},
-            {"label": "ثبت‌کننده"},
-        ],
-        row_builder=row_builder,
-        container_id="table-financial-ledger",
-        param_prefix="fl_",
-        empty_icon="bar-chart-3", empty_text="هنوز حرکتی در انبار ثبت نشده.",
-        list_url=reverse("projects:dashboard_financial_ledger_table"),
-        search_fields=["item__name"],
-    )
-
-
-@login_required
-@user_passes_test(_can_view_financial_stats)
-def dashboard_financial_ledger_table(request):
-    return render_table(request, _financial_ledger_table_context(request))
+# Remove _can_view_financial_stats, _financial_stats_summary, _financial_ledger_table_context, dashboard_financial_ledger_table
 
 
 def technician_home_view(request, user):
     can_create = user_can_create_projects(user)
     can_manage_inventory = user_can_manage_inventory(user)
-    can_view_financial = _can_view_financial_stats(user)
-    can_review = can_create or user.is_superuser or user.role == User.Role.ADMIN
+    can_review = can_create or user.is_superuser or user.role == User.Role.ADMIN or user_is_accountant(user)
 
     from finance.models import Payment
     pending_payments_count = 0
     if can_review:
         pending_qs = Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY)
-        if not (user.is_superuser or user.role == User.Role.ADMIN):
+        if not (user.is_superuser or user.role == User.Role.ADMIN or user_is_accountant(user)):
             pending_qs = pending_qs.filter(invoice__project__created_by=user)
         pending_payments_count = pending_qs.count()
 
     low_stock_count = low_stock_items_count() if can_manage_inventory else 0
-    financial_summary = _financial_stats_summary() if can_view_financial else None
 
     def _eager(context_builder):
         return lambda: render_to_string(
@@ -422,13 +351,6 @@ def technician_home_view(request, user):
             "url": reverse("projects:part_requests_table"), "container_id": "tab-panel-part-requests",
             "eager_render": _eager(part_requests_table_context),
         })
-    if can_view_financial:
-        tabs.append({
-            "key": "financial", "label": "آمار مالی",
-            "url": reverse("projects:dashboard_financial_ledger_table"),
-            "container_id": "tab-panel-financial",
-            "eager_render": _eager(_financial_ledger_table_context),
-        })
 
     tabs_context = build_tabs_context(request, tabs)
 
@@ -436,10 +358,8 @@ def technician_home_view(request, user):
         "can_create_projects": can_create,
         "can_review_payments": can_review,
         "can_manage_inventory": can_manage_inventory,
-        "can_view_financial": can_view_financial,
         "pending_payments_count": pending_payments_count,
         "low_stock_count": low_stock_count,
-        "financial_summary": financial_summary,
         "tabs": tabs_context,
     })
 

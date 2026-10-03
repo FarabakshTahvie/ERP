@@ -1,0 +1,6 @@
+{% load custom_tags %}
+<div class="fb-card fb-pad min-w-0">
+    <div class="fb-stat-value font-technical {{ tone }}">{{ value|intcomma_fa }}</div>
+    <div class="fb-stat-label">{{ label }}</div>
+    {% if hint %}<div class="fb-hint mt-1">{{ hint }}</div>{% endif %}
+</div>

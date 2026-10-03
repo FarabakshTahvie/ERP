@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}مرکز حسابداری | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">مرکز حسابداری</h1>
+        <p class="fb-page-sub">پروژه‌ها، پرداخت‌ها و حرکات انبار در یک‌جا.</p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs fb-muted">بازه‌ی گزارش:</span>
+        {% for key, label in periods %}
+        <a href="?period={{ key }}" class="btn btn-xs {% if period == key %}btn-primary{% else %}btn-soft{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">فروش و دریافت</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
+        </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">خرید و انبار</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {% include "finance/partials/stat_card.html" with label="خرید کالا" value=stats.purchases tone="" hint="فقط خریدهای ثبت‌شده." %}
+            {% include "finance/partials/stat_card.html" with label="موجودی اولیه" value=stats.opening tone="" hint="خرید حساب نمی‌شود." %}
+            {% include "finance/partials/stat_card.html" with label="مصرف از انبار" value=stats.consumption tone="" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="مصرف بدون پروژه" value=stats.consumption_unlinked tone="text-warning" hint="به هیچ پروژه‌ای وصل نیست." %}
+            {% include "finance/partials/stat_card.html" with label="کسری انبار (تعدیل کاهشی)" value=stats.adjust_loss tone="text-error" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="اضافه‌ی انبار (تعدیل افزایشی)" value=stats.adjust_gain tone="text-success" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="ارزش فعلی موجودی انبار" value=stats.stock_value tone="" hint="کل زمان؛ به بازه وابسته نیست." %}
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">نیازمند اقدام</h2>
+        {% for a in attention %}
+        <a href="{{ a.url }}" class="fb-inset flex items-center justify-between gap-2 text-sm hover:bg-base-300">
+            <span>{{ a.label }}</span>
+            <span class="fb-badge fb-badge-{{ a.level }}">{{ a.count|fa_digits }}</span>
+        </a>
+        {% empty %}
+        <p class="fb-hint">موردی منتظر اقدام نیست.</p>
+        {% endfor %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پروژه‌های منتظر بازبینی نهایی</h2>
+        {% for r in review_queue %}
+        <a href="{% url 'finance:accounting_project' r.project.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-sm hover:bg-base-300">
+            <span class="font-semibold">{{ r.project.name }}</span>
+            <span class="flex flex-wrap items-center gap-1.5">
+                {% if r.pending_parts %}<span class="fb-badge fb-badge-warning">درخواست قطعه: {{ r.pending_parts|fa_digits }}</span>{% endif %}
+                {% if r.pending_extras %}<span class="fb-badge fb-badge-error">قطعه‌ی بی‌تکلیف: {{ r.pending_extras|fa_digits }}</span>{% endif %}
+                {% if r.unsettled %}<span class="fb-badge fb-badge-info">اقلام ناهم‌خوان: {{ r.unsettled|fa_digits }}</span>{% endif %}
+            </span>
+        </a>
+        {% empty %}
+        <p class="fb-hint">پروژه‌ای در مرحله‌ی بازبینی نهایی نیست.</p>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}
