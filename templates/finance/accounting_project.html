@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}پرونده‌ی مالی {{ project.name }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'finance:accounting_projects' %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه‌ها</a>
+        <h1 class="fb-page-title mt-2">پرونده‌ی مالی: {{ project.name }}</h1>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            <span class="fb-badge fb-badge-neutral">کد: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
+            <span class="fb-badge {% if project.status == 'completed' %}fb-badge-success{% elif project.status == 'cancelled' %}fb-badge-error{% elif project.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ project.get_status_display }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
+            <a href="{% url 'projects:staff_project_overview' project.id %}" class="btn btn-soft btn-sm">نمای پروژه</a>
+            {% if has_final_review %}<a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>{% endif %}
+            {% if invoice %}<a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">فاکتور</a>{% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {% include "finance/partials/stat_card.html" with label="فروش (فاکتور)" value=project.revenue tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="دریافت‌شده" value=project.paid tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="مانده‌ی فاکتور" value=project.remaining tone="text-warning" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="هزینه‌ی انبار (خالص)" value=stock_net tone="" hint=planned_hint %}
+        {% include "finance/partials/stat_card.html" with label="هزینه‌های ثبت‌شده" value=project.rec_costs tone="" hint="" %}
+        {% if project.profit < 0 %}
+        {% include "finance/partials/stat_card.html" with label="سود ثبت‌شده" value=project.profit tone="text-error" hint="فروش منهای هزینه‌ی انبار و هزینه‌های ثبت‌شده." %}
+        {% else %}
+        {% include "finance/partials/stat_card.html" with label="سود ثبت‌شده" value=project.profit tone="text-success" hint="فروش منهای هزینه‌ی انبار و هزینه‌های ثبت‌شده." %}
+        {% endif %}
+    </div>
+
+    {% if unsettled_count %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">مصرف {{ unsettled_count|fa_digits }} قلم با نصب یا پیش‌فاکتور هم‌خوان نیست؛ تا وقتی درست نشود سود بالا دقیق نیست. برای اصلاح از فرم «ثبت مصرف یا تعدیل» در صفحه‌ی بازبینی نهایی استفاده کنید.</span>
+    </div>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">مغایرت مواد</h2>
+        <p class="fb-hint">«نصب‌شده» شامل قطعه‌های تحویلی از انبار هم هست. «مانده‌ی تسویه‌نشده» = مقدار انتظار منهای خالص کسرشده از انبار.</p>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead>
+                    <tr class="fb-muted">
+                        <th>کالا</th><th>پیش‌فاکتور</th><th>نصب‌شده</th><th>قطعه‌ی تحویلی</th>
+                        <th>اضافه‌ی ارسالی (مصرف / برگشت / منتظر)</th><th>کسر از انبار (خالص)</th>
+                        <th>ارزش (تومان)</th><th>مانده‌ی تسویه‌نشده</th><th>وضعیت</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in recon %}
+                    <tr>
+                        <td class="font-semibold">{{ r.item.name }}</td>
+                        <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{% if r.basis == 'install' %}{{ r.installed|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
+                        <td class="font-technical">{{ r.parts_issued|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.extra_consumed|floatformat:"-4"|fa_digits }} / {{ r.extra_returned|floatformat:"-4"|fa_digits }} / {{ r.extra_pending|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.value|intcomma_fa }}</td>
+                        <td class="font-technical">{{ r.unsettled|floatformat:"-4"|fa_digits }}</td>
+                        <td>
+                            {% if r.status == 'ok' %}<span class="fb-badge fb-badge-success">هم‌خوان</span>
+                            {% elif r.status == 'short' %}<span class="fb-badge fb-badge-warning">مصرف ثبت‌نشده</span>
+                            {% else %}<span class="fb-badge fb-badge-error">بیش از انتظار</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9" class="fb-empty">کالایی برای این پروژه ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if invoice %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2">
+            <h2 class="fb-section-title">فاکتور و پرداخت‌ها</h2>
+            <span class="fb-badge fb-badge-neutral font-technical">{{ invoice.number|fa_digits }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>شرح</th><th>مقدار</th><th>قیمت واحد</th><th>جمع (تومان)</th></tr></thead>
+                <tbody>
+                    {% for l in invoice.lines.all %}
+                    <tr><td>{{ l.title }}</td><td class="font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td><td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% for p in payments %}
+        <a href="{% url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
+            <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.created_at|to_jalali:"%Y/%m/%d" }}</span></span>
+            <span class="flex items-center gap-2">
+                <span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>
+                <span class="fb-badge {% if p.status == 'approved' %}fb-badge-success{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-warning{% endif %}">{{ p.get_status_display }}</span>
+            </span>
+        </a>
+        {% empty %}
+        <p class="fb-hint">پرداختی ثبت نشده است.</p>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">قطعه‌ها و هزینه‌ها</h2>
+        {% for ex in data.extras %}
+        <div class="flex items-center justify-between gap-2 flex-wrap"><span>اضافه‌ی ارسالی: {{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span></span>
+            <span class="fb-badge {% if ex.disposition == 'pending' %}fb-badge-error{% elif ex.disposition == 'consumed' %}fb-badge-warning{% else %}fb-badge-neutral{% endif %}">{{ ex.get_disposition_display }}</span></div>
+        {% endfor %}
+        {% for p in data.parts %}
+        <div class="flex items-center justify-between gap-2 flex-wrap"><span>درخواست قطعه: {{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>
+            <span class="fb-badge {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span></div>
+        {% endfor %}
+        {% for c in data.costs %}
+        <div class="flex items-center justify-between gap-2"><span>{{ c.get_kind_display }} — {{ c.title }}</span><span class="font-technical font-semibold">{{ c.amount|intcomma_fa }}</span></div>
+        {% endfor %}
+        {% if not data.extras and not data.parts and not data.costs %}<p class="fb-hint">موردی ثبت نشده است.</p>{% endif %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">حرکات انبار این پروژه</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>تاریخ</th><th>کالا</th><th>نوع</th><th>اثر</th><th>مقدار</th><th>ارزش (تومان)</th><th>ثبت‌کننده</th><th>دلیل</th></tr></thead>
+                <tbody>
+                    {% for m in moves %}
+                    <tr>
+                        <td class="font-technical">{{ m.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</td>
+                        <td>{{ m.item.name }}</td>
+                        <td>{{ m.get_movement_type_display }}</td>
+                        <td><span class="fb-badge {% if m.direction == 'in' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ m.get_direction_display }}</span></td>
+                        <td class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ m.line_total|intcomma_fa }}</td>
+                        <td>{{ m.created_by.get_full_name|default:m.created_by.username|default:"—" }}</td>
+                        <td class="fb-muted">{{ m.notes|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="fb-empty">حرکتی برای این پروژه ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

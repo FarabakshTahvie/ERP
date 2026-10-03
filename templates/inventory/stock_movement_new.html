@@ -5,7 +5,7 @@
 <div class="fb-page fb-page--sm">
     <div>
         <h1 class="fb-page-title">ثبت مصرف یا تعدیل موجودی</h1>
-        <p class="fb-page-sub">هر سه حالت زیر بلافاصله در موجودی کالا اثر می‌گذارند و برگشت‌پذیر نیستند؛ دلیل را دقیق بنویسید.</p>
+        <p class="fb-page-sub">همه‌ی حالت‌های زیر بلافاصله در موجودی کالا اثر می‌گذارند و برگشت‌پذیر نیستند؛ دلیل را دقیق بنویسید.</p>
     </div>
 
     <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4" id="stock-movement-form">
@@ -25,6 +25,7 @@
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در کار)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات/اشتباه شمارش)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی جا افتاده)</label>
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="opening" class="sr-only"> موجودی اولیه (کالایی که از قبل در انبار بوده؛ خرید حساب نمی‌شود)</label>
             </div>
         </div>
 
@@ -36,7 +37,7 @@
         <div class="fb-field hidden" id="unit-cost-field">
             <label class="fb-label" for="movement-cost">بهای واحد (تومان)</label>
             <input type="text" id="movement-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
-            <span class="fb-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
+            <span class="fb-hint" id="unit-cost-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
         </div>
 
         <div class="fb-field">
@@ -77,9 +78,13 @@
             current ? ('موجودی فعلی: ' + current.stock + ' ' + current.unit) : '';
     }
     function toggleCostField() {
-        var isIncrease = document.querySelector('input[name="kind"]:checked').value === 'adjust_increase';
-        document.getElementById('unit-cost-field').classList.toggle('hidden', !isIncrease);
-        if (isIncrease && current) document.getElementById('movement-cost').placeholder = 'مثلاً ' + current.avg_cost;
+        var kind = document.querySelector('input[name="kind"]:checked').value;
+        var needsCost = kind === 'adjust_increase' || kind === 'opening';
+        document.getElementById('unit-cost-field').classList.toggle('hidden', !needsCost);
+        document.getElementById('movement-cost').required = kind === 'opening';
+        document.getElementById('unit-cost-hint').textContent = kind === 'opening'
+            ? 'برای موجودی اولیه بهای واحد را بنویسید.' : 'خالی بماند یعنی میانگین موزون فعلی کالا.';
+        if (needsCost && current) document.getElementById('movement-cost').placeholder = 'مثلاً ' + current.avg_cost;
     }
     document.querySelectorAll('input[name="kind"]').forEach(function (r) { r.addEventListener('change', toggleCostField); });
     document.getElementById('stock-movement-form').addEventListener('submit', function (e) {

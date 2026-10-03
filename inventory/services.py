@@ -28,7 +28,8 @@ def parse_decimal_input(raw, *, label="مقدار"):
 
 @transaction.atomic
 def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line=None,
-                   movement_type=StockMovement.MovementType.IN, notes="", created_by=None, related_object=None):
+                   movement_type=StockMovement.MovementType.IN, notes="", created_by=None, related_object=None,
+                   direction=StockMovement.Direction.IN):
     """
     ثبت لات جدید ورودی و به‌روزرسانی میانگین موزون قیمت کالا.
     movement_type پیش‌فرض IN (خرید) است؛ برای تعدیل افزایشی دستی (W3)، ADJUST پاس داده می‌شود.
@@ -50,6 +51,7 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
         item=item,
         lot=lot,
         movement_type=movement_type,
+        direction=direction,
         qty=qty,
         unit_cost=unit_cost,
         notes=notes,
@@ -70,7 +72,8 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
 
 @transaction.atomic
 def consume_stock(*, item, qty, user=None, related_object=None, notes="",
-                   movement_type=StockMovement.MovementType.OUT):
+                   movement_type=StockMovement.MovementType.OUT,
+                   direction=StockMovement.Direction.OUT):
     """
     مصرف به روش FIFO از قدیمی‌ترین لات. اگر موجودی کافی نبود، خطا می‌دهد.
     movement_type پیش‌فرض OUT (مصرف واقعی) است؛ برای تعدیل کاهشی دستی (W3)، ADJUST پاس داده می‌شود.
@@ -90,6 +93,7 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
             item=item,
             lot=lot,
             movement_type=movement_type,
+            direction=direction,
             qty=take,
             unit_cost=lot.unit_cost,
             related_object=related_object,
@@ -234,20 +238,19 @@ def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=Non
 CHANGE_KIND_CONSUME = "consume"
 CHANGE_KIND_ADJUST_DECREASE = "adjust_decrease"
 CHANGE_KIND_ADJUST_INCREASE = "adjust_increase"
-CHANGE_KIND_CHOICES = (CHANGE_KIND_CONSUME, CHANGE_KIND_ADJUST_DECREASE, CHANGE_KIND_ADJUST_INCREASE)
+CHANGE_KIND_OPENING = "opening"
+CHANGE_KIND_CHOICES = (CHANGE_KIND_CONSUME, CHANGE_KIND_ADJUST_DECREASE, CHANGE_KIND_ADJUST_INCREASE, CHANGE_KIND_OPENING)
 
 
 @transaction.atomic
 def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None):
     """
-    تنها مسیر ثبت مصرف/تعدیل دستی موجودی (بدون پنل ادمین).
-    - consume: مصرف واقعی -> consume_stock با movement_type=OUT.
-    - adjust_decrease: تعدیل کاهشی (کسری/ضایعات) -> consume_stock با movement_type=ADJUST.
-    - adjust_increase: تعدیل افزایشی (کشف موجودی) -> receive_stock با movement_type=ADJUST،
-      در انبار پیش‌فرض، با بهای واحد وارد‌شده یا میانگین موزون فعلی کالا.
-    دلیل (notes) همیشه اجباری است، دقیقاً هم‌الگوی advance_stage/reject_payment.
-    related_object اختیاری است (مثلاً یک پروژه)؛ وقتی از صفحه‌ی بازبینی نهایی صدا زده می‌شود،
-    حرکت انبار به همان پروژه مرتبط می‌شود (هم‌الگوی issue_part_request).
+    تنها مسیر ثبت مصرف/تعدیل/موجودی اولیه‌ی دستی.
+    - consume: مصرف واقعی (OUT).
+    - adjust_decrease: کسری/ضایعات (ADJUST، جهت کاهش).
+    - adjust_increase: کشف موجودی (ADJUST، جهت افزایش؛ بها اختیاری = میانگین موزون).
+    - opening: موجودی اولیه (OPENING، جهت افزایش؛ بها اجباری). خرید حساب نمی‌شود.
+    دلیل همیشه اجباری است.
     """
     notes = (notes or "").strip()
     if not notes:
@@ -261,17 +264,22 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
                       related_object=related_object)
         return
-
     if kind == CHANGE_KIND_ADJUST_DECREASE:
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
                       related_object=related_object)
         return
 
-    # CHANGE_KIND_ADJUST_INCREASE
     warehouse = Warehouse.objects.filter(is_default=True).first()
     if not warehouse:
         raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
-    if str(unit_cost_raw or "").strip():
+    has_cost = bool(str(unit_cost_raw or "").strip())
+    if kind == CHANGE_KIND_OPENING:
+        if not has_cost:
+            raise ValueError("برای موجودی اولیه، بهای واحد را وارد کنید.")
+        movement_type = StockMovement.MovementType.OPENING
+    else:
+        movement_type = StockMovement.MovementType.ADJUST
+    if has_cost:
         unit_cost = parse_decimal_input(unit_cost_raw, label="بهای واحد")
     else:
         item.refresh_from_db()
@@ -280,7 +288,7 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
             raise ValueError("چون این کالا هنوز میانگین موزون قیمتی ندارد، بهای واحد را دستی وارد کنید.")
     receive_stock(
         item=item, warehouse=warehouse, qty=qty, unit_cost=unit_cost,
-        received_at=timezone.now(), movement_type=StockMovement.MovementType.ADJUST,
+        received_at=timezone.now(), movement_type=movement_type,
         notes=notes, created_by=user, related_object=related_object,
     )
 

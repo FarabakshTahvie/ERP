@@ -65,15 +65,21 @@ class StockMovement(TimeStampedModel):
     """رکورد append-only. هیچ رکوردی ویرایش/حذف نمی‌شود؛ اصلاح = حرکت معکوس جدید."""
 
     class MovementType(models.TextChoices):
-        IN = "in", "ورود"
+        IN = "in", "ورود (خرید)"
         OUT = "out", "خروج (مصرف)"
         RETURN = "return", "برگشت به انبار"
         ADJUST = "adjust", "اصلاح دستی"
         TRANSFER = "transfer", "انتقال بین انبارها"
+        OPENING = "opening", "موجودی اولیه"
+
+    class Direction(models.TextChoices):
+        IN = "in", "افزایش موجودی"
+        OUT = "out", "کاهش موجودی"
 
     item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="movements", verbose_name="کالا")
     lot = models.ForeignKey(StockLot, on_delete=models.PROTECT, related_name="movements", verbose_name="لات")
     movement_type = models.CharField(max_length=20, choices=MovementType.choices, verbose_name="نوع حرکت")
+    direction = models.CharField(max_length=3, choices=Direction.choices, default=Direction.IN, verbose_name="جهت اثر روی موجودی")
     qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
     unit_cost = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="بهای واحد در لحظه حرکت (تومان)")
 

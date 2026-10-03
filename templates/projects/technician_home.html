@@ -8,7 +8,7 @@
             <h1 class="fb-page-title">سلام، {{ request.user.get_full_name|default:request.user.username }}</h1>
             <p class="fb-page-sub">خلاصه‌ی کارها و پروژه‌های شما</p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             {% if can_review_payments %}
             <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
                 {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
@@ -34,37 +34,25 @@
         </div>
     </div>
 
-    {% if can_manage_inventory %}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical {% if low_stock_count %}text-warning{% endif %}">{{ low_stock_count|fa_digits }}</div>
-            <div class="fb-stat-label">کالای رو به اتمام</div>
+    {% if can_access_accounting %}
+    <div class="fb-card fb-pad flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+            <h2 class="fb-section-title">مرکز حسابداری</h2>
+            <p class="fb-hint">وضعیت مالی پروژه‌ها، پرداخت‌ها، انبار و مغایرت‌ها.</p>
         </div>
+        <a href="{% url 'finance:accounting_overview' %}" class="btn btn-primary btn-sm">
+            {% icon "bar-chart-3" "w-4 h-4" %} ورود به مرکز حسابداری
+            {% if pending_payments_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_count|fa_digits }}</span>{% endif %}
+        </a>
     </div>
     {% endif %}
 
-    {% if can_view_financial %}
+    {% if can_manage_inventory %}
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical">{{ financial_summary.purchases_total|intcomma_fa }}</div>
-            <div class="fb-stat-label">جمع خرید کالا (تومان)</div>
+        <div class="fb-card fb-pad min-w-0">
+            <div class="fb-stat-value font-technical {% if low_stock_count %}text-warning{% endif %}">{{ low_stock_count|fa_digits }}</div>
+            <div class="fb-stat-label">کالای رو به اتمام</div>
         </div>
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical">{{ financial_summary.consumption_total|intcomma_fa }}</div>
-            <div class="fb-stat-label">جمع مصرف از انبار (تومان)</div>
-        </div>
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical">{{ financial_summary.invoiced_total|intcomma_fa }}</div>
-            <div class="fb-stat-label">جمع فاکتورهای صادرشده (تومان)</div>
-        </div>
-        <div class="fb-card fb-pad">
-            <div class="fb-stat-value font-technical {% if financial_summary.rough_estimate < 0 %}text-error{% else %}text-success{% endif %}">{{ financial_summary.rough_estimate|intcomma_fa }}</div>
-            <div class="fb-stat-label">برآورد خام سود (فاکتور منهای خرید کالا)</div>
-        </div>
-    </div>
-    <div role="alert" class="alert alert-soft alert-info">
-        {% icon "info" "w-4 h-4 shrink-0" %}
-        <span class="text-xs">برآورد سود بالا خام است و هزینه‌هایی مثل حقوق، اجاره و سایر هزینه‌های جاری در آن نیست؛ فقط «فاکتور منهای خرید کالا» است.</span>
     </div>
     {% endif %}
 
