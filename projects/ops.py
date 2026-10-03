@@ -48,8 +48,8 @@ def is_creator_or_manager(user, project):
 
 
 def can_view_final_review(user, project):
-    """بازبینی نهایی همیشه برای مدیر، حسابدار و ثبت‌کننده‌ی پروژه در دسترس است."""
-    return is_creator_or_manager(user, project) or user_is_accountant(user)
+    """بازبینی نهایی: فقط مدیر یا حسابدار."""
+    return user.is_authenticated and (_is_manager(user) or user_is_accountant(user))
 
 
 def review_open(project):
@@ -149,7 +149,7 @@ def delete_extra_shipment(*, extra, actor):
 
 @transaction.atomic
 def resolve_extra_shipment_disposition(*, extra, disposition, actor):
-    if not (is_creator_or_manager(actor, extra.project) or user_is_accountant(actor)):
+    if not (_is_manager(actor) or user_is_accountant(actor)):
         raise ValueError("شما اجازه‌ی تعیین تکلیف ندارید.")
     extra = ExtraShipment.objects.select_for_update().select_related("item", "project").get(pk=extra.pk)
     if extra.disposition != ExtraShipment.Disposition.PENDING:
@@ -314,9 +314,14 @@ def _is_ops_actor(user, project):
         kind__in=(StageKind.SHIPPING, StageKind.INSTALL), assigned_to=user).exists()
 
 
+def can_manage_costs(user, project):
+    """حسابدار و مدیر همیشه؛ بقیه فقط تا قبل از تایید نهایی."""
+    return user_is_accountant(user) or _is_manager(user) or (_is_ops_actor(user, project) and review_open(project))
+
+
 @transaction.atomic
 def add_project_cost(*, project, kind, title, amount_raw, actor):
-    if not _is_ops_actor(actor, project) or not review_open(project):
+    if not can_manage_costs(actor, project):
         raise ValueError("شما اجازه‌ی ثبت هزینه ندارید.")
     if kind not in ProjectCost.Kind.values:
         raise ValueError("نوع هزینه معتبر نیست.")
@@ -329,7 +334,7 @@ def add_project_cost(*, project, kind, title, amount_raw, actor):
 
 @transaction.atomic
 def delete_project_cost(*, cost, actor):
-    if not _is_ops_actor(actor, cost.project) or not review_open(cost.project):
+    if not can_manage_costs(actor, cost.project):
         raise ValueError("شما اجازه‌ی حذف ندارید.")
     stage = cost.project.stages.order_by("order").first()
     if stage:
@@ -365,6 +370,10 @@ def final_review_data(project):
     issued = [p for p in parts if p.status == PartRequest.Status.ISSUED]
     shortage = [l for l in lines if l.delta_qty and l.delta_qty > 0]
     surplus = [l for l in lines if l.delta_qty and l.delta_qty < 0]
+    for l in shortage + surplus:
+        l.cost_impact = _round0(abs(l.delta_qty) * l.unit_cost)
+    for e in extras:
+        e.cost_total = _round0(e.qty * e.cost_snapshot)
     t = {
         "extras_sale": sum((e.sale_total for e in extras), Decimal(0)),
         "parts_sale": sum((p.sale_total for p in issued), Decimal(0)),
@@ -380,4 +389,5 @@ def final_review_data(project):
         "shortage": shortage,
         "surplus": surplus,
         "pending_parts": pending_part_requests(project).count(),
+        "pending_extras": sum(1 for e in extras if e.disposition == ExtraShipment.Disposition.PENDING),
     }

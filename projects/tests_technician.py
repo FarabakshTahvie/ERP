@@ -102,7 +102,14 @@ class TechnicianPaymentCounterTests(TestCase):
             password="Password123", role=User.Role.EMPLOYEE,
         )
         self.sp_reception, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.sp_accountant, _ = Specialty.objects.get_or_create(name="حسابدار")
         self.tech_reception.specialties.add(self.sp_reception)
+
+        self.accountant = User.objects.create_user(
+            username="acc_rec_badge", phone_number="09122220005",
+            password="Password123", role=User.Role.EMPLOYEE,
+        )
+        self.accountant.specialties.add(self.sp_accountant)
 
         self.tech_other = User.objects.create_user(
             username="tech_other_badge", phone_number="09122220002",
@@ -143,17 +150,20 @@ class TechnicianPaymentCounterTests(TestCase):
             amount=200000, claimed_amount=200000, reference_number="REF-B2", status=Payment.Status.PENDING,
         )
 
-    # ۸. تکنسین «پذیرش» با ۲ پرداخت در انتظار بج ۲ را می‌بیند و هشدار زرد جدا نیست
+    # ۸. حسابدار با ۲ پرداخت در انتظار بج ۲ را در کارت مرکز حسابداری می‌بیند و پذیرش لینک حسابداری را ندارد
     def test_technician_badge_and_no_separate_alert(self):
         client = Client()
-        client.force_login(self.tech_reception)
+        client.force_login(self.accountant)
         resp = client.get(reverse("home"))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
-        self.assertIn("پرداخت‌ها", content)
+        self.assertIn("مرکز حسابداری", content)
         self.assertIn("fb-badge-warning", content)
         self.assertIn("۲", content)
-        self.assertNotIn("پرداخت در انتظار تایید شماست", content)
+
+        client.force_login(self.tech_reception)
+        resp2 = client.get(reverse("home"))
+        self.assertNotIn("مرکز حسابداری", resp2.content.decode("utf-8"))
 
     # ۹. مدیر بج را در منوی بالا می‌بیند، مشتری متغیر و لینک را ندارد
     def test_manager_and_client_nav_counter(self):

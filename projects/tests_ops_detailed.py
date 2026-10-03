@@ -29,9 +29,12 @@ class ShippingCheckTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک ۳", is_partner=True, phone_number="09121112255")
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
         self.shipping_spec = Specialty.objects.get_or_create(name="راننده")[0]
         self.creator = User.objects.create_user(username="creator_sh", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_sh", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.driver = User.objects.create_user(username="driver_sh", password="pw", role=User.Role.EMPLOYEE)
         self.driver.specialties.add(self.shipping_spec)
         self.wh = Warehouse.objects.create(name="انبار ۳")
@@ -51,8 +54,8 @@ class ShippingCheckTests(TestCase):
 
         # PROFORMA
         rows = parse_service_rows(json.dumps([{"service_id": self.service.id, "qty": "10", "unit_price": "5000", "materials": []}]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        issue_proforma(project=self.project, actor=self.accountant)
 
         self.gcode_stage = self.project.stages.get(kind=StageKind.GCODE)
         self.gcode_file = ProjectFile.objects.create(
@@ -128,9 +131,12 @@ class InstallLinesTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک ۴", is_partner=True, phone_number="09121112266")
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
         self.install_spec = Specialty.objects.get_or_create(name="نصاب")[0]
         self.creator = User.objects.create_user(username="creator_ins", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_ins", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.installer = User.objects.create_user(username="installer_ins", password="pw", role=User.Role.EMPLOYEE)
         self.installer.specialties.add(self.install_spec)
         self.wh = Warehouse.objects.create(name="انبار ۴")
@@ -151,8 +157,8 @@ class InstallLinesTests(TestCase):
             "service_id": self.service.id, "qty": "5", "unit_price": "2000",
             "materials": [{"item_id": self.item.id, "qty": "10"}],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        issue_proforma(project=self.project, actor=self.accountant)
 
         self.stage = self.project.stages.get(kind=StageKind.INSTALL)
         self.stage.assigned_to = self.installer

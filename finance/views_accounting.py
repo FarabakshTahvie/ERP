@@ -1,6 +1,9 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
+from django.views.decorators.http import require_POST
+from projects.services import project_prices_editable
 
 from inventory.models import PurchaseLine, StockMovement
 from projects import ops
@@ -39,6 +42,7 @@ def overview(request):
         "stats": accounting.accounting_overview(period),
         "attention": accounting.attention_items(),
         "review_queue": accounting.final_review_queue(),
+        "proforma_queue": accounting.proforma_queue(),
     })
 
 
@@ -53,15 +57,17 @@ def _projects_ctx(request):
     qs = accounting.projects_financial_queryset().order_by("-created_at")
 
     def row_builder(p):
-        profit_variant = "success" if p.profit > 0 else ("error" if p.profit < 0 else "neutral")
+        variant = "success" if p.profit > 0 else ("error" if p.profit < 0 else "neutral")
         return {"url": reverse("finance:accounting_project", args=[p.id]), "cells": [
             {"type": "text", "value": p.name},
             {"type": "muted", "value": to_fa_digits(p.code)},
             {"type": "badge", "value": p.get_status_display(), "variant": PROJECT_STATUS_VARIANT.get(p.status, "neutral")},
             {"type": "text", "value": _m(p.revenue)},
+            {"type": "text", "value": _m(p.paid)},
             {"type": "text", "value": _m(p.remaining)},
             {"type": "text", "value": _m(p.actual_cost)},
-            {"type": "badge", "value": _m(p.profit), "variant": profit_variant},
+            {"type": "badge", "value": _m(p.profit), "variant": variant},
+            {"type": "badge", "value": "قطعی" if p.final_done else "موقت", "variant": "success" if p.final_done else "neutral"},
         ]}
 
     return build_table_context(
@@ -72,9 +78,12 @@ def _projects_ctx(request):
             {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
              "choices": Project.Status.choices},
             {"label": "فروش (تومان)", "sort_field": "revenue", "filter_key": "revenue", "filter_type": "number_range"},
+            {"label": "دریافتی (تومان)", "sort_field": "paid"},
             {"label": "مانده‌ی فاکتور (تومان)", "sort_field": "remaining", "filter_key": "remaining", "filter_type": "number_range"},
             {"label": "هزینه‌ی ثبت‌شده (تومان)", "sort_field": "actual_cost"},
-            {"label": "سود ثبت‌شده (تومان)", "sort_field": "profit", "filter_key": "profit", "filter_type": "number_range"},
+            {"label": "سود طبق فاکتور (تومان)", "sort_field": "profit", "filter_key": "profit", "filter_type": "number_range"},
+            {"label": "حساب", "sort_field": "final_done", "filter_key": "final", "filter_type": "boolean",
+             "filter_field": "final_done", "true_label": "قطعی", "false_label": "موقت"},
         ],
         row_builder=row_builder, container_id="table-acc-projects", param_prefix="ap_",
         empty_icon="folder-kanban", empty_text="هنوز پروژه‌ای ثبت نشده.",
@@ -207,6 +216,81 @@ def purchases_table(request):
 # ---------- پرونده‌ی مالی پروژه ----------
 @login_required
 @user_passes_test(_can)
+@require_POST
+def project_add_cost(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    try:
+        cost = ops.add_project_cost(project=project, kind=request.POST.get("kind"), title=request.POST.get("title"),
+                                    amount_raw=request.POST.get("amount"), actor=request.user)
+        accounting.log_event(kind="cost", project=project, actor=request.user, amount=cost.amount,
+                             text=f"هزینه ثبت شد: {cost.title}")
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "هزینه ثبت شد.")
+    return redirect("finance:accounting_project", project.id)
+
+
+@login_required
+@user_passes_test(_can)
+@require_POST
+def project_delete_cost(request, cost_id):
+    from projects.models import ProjectCost
+    cost = get_object_or_404(ProjectCost.objects.select_related("project"), pk=cost_id)
+    reason = (request.POST.get("reason") or "").strip()
+    try:
+        if not reason:
+            raise ValueError("دلیل حذف را بنویسید.")
+        title, amount, project = cost.title, cost.amount, cost.project
+        ops.delete_project_cost(cost=cost, actor=request.user)
+        accounting.log_event(kind="cost", project=project, actor=request.user, amount=-amount,
+                             text=f"هزینه حذف شد: {title} — {reason}")
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect("finance:accounting_project", cost.project_id)
+    messages.success(request, "هزینه حذف شد.")
+    return redirect("finance:accounting_project", project.id)
+
+
+@login_required
+@user_passes_test(_can)
+@require_POST
+def project_adjust_invoice(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    invoice = getattr(project, "invoice", None)
+    try:
+        if invoice is None:
+            raise ValueError("این پروژه فاکتور ندارد.")
+        accounting.add_invoice_adjustment(
+            invoice=invoice, title=request.POST.get("title"), amount_raw=request.POST.get("amount"),
+            kind=request.POST.get("kind"), reason=request.POST.get("reason"), actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "ردیف به فاکتور اضافه شد.")
+    return redirect("finance:accounting_project", project.id)
+
+
+@login_required
+@user_passes_test(_can)
+@require_POST
+def credit_settle(request, payment_id):
+    from .models import Payment
+    credit = get_object_or_404(Payment, pk=payment_id)
+    try:
+        accounting.settle_credit_payment(
+            credit=credit, method=request.POST.get("method"), amount_raw=request.POST.get("amount"),
+            reference_number=request.POST.get("reference_number"), receipt_file=request.FILES.get("receipt_file"),
+            actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "وصول اعتباری ثبت شد.")
+    return redirect("finance:payment_detail", credit.id)
+
+
+@login_required
+@user_passes_test(_can)
 def project_detail(request, project_id):
     project = get_object_or_404(accounting.projects_financial_queryset(), pk=project_id)
     invoice = getattr(project, "invoice", None)
@@ -215,9 +299,10 @@ def project_detail(request, project_id):
         "nav_active": "projects", "project": project, "invoice": invoice,
         "payments": invoice.payments.order_by("-created_at") if invoice else [],
         "recon": recon, "unsettled_count": sum(1 for r in recon if r["status"] != "ok"),
+        "pnl": accounting.project_pnl(project, recon),
         "data": ops.final_review_data(project),
         "moves": accounting.project_movements(project),
-        "stock_net": project.stock_out - project.stock_back,
-        "planned_hint": f"طبق پیش‌فاکتور: {_m(project.planned_cost)} تومان",
+        "events": project.accounting_events.select_related("actor")[:50],
+        "can_adjust_invoice": bool(invoice and not project_prices_editable(project)),
         "has_final_review": project.stages.filter(kind=StageKind.FINAL_REVIEW).exists(),
     })

@@ -25,12 +25,14 @@ from .stage_ops import can_upload_to_stage, add_stage_file, upload_requirement, 
 from .services import (
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
-    decide_stage_approval, can_edit_project, project_prices_editable,
+    decide_stage_approval, can_edit_project, can_edit_pricing, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
-    update_visit_date, user_is_accountant,
+    update_visit_date, user_is_accountant, user_can_access_accounting,
 )
-from .proforma import parse_service_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
+from .proforma import (
+    parse_service_rows, parse_extra_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
+)
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count
 
@@ -286,14 +288,12 @@ def dashboard_my_projects_table(request):
 def technician_home_view(request, user):
     can_create = user_can_create_projects(user)
     can_manage_inventory = user_can_manage_inventory(user)
-    can_review = can_create or user.is_superuser or user.role == User.Role.ADMIN or user_is_accountant(user)
+    can_review = user_can_access_accounting(user)
 
     from finance.models import Payment
     pending_payments_count = 0
     if can_review:
         pending_qs = Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY)
-        if not (user.is_superuser or user.role == User.Role.ADMIN or user_is_accountant(user)):
-            pending_qs = pending_qs.filter(invoice__project__created_by=user)
         pending_payments_count = pending_qs.count()
 
     low_stock_count = low_stock_items_count() if can_manage_inventory else 0
@@ -432,6 +432,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
     return render(request, "projects/staff_project_overview.html", {
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
+        "can_price": can_edit_pricing(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
         "cut_rows": cut_rows,
         "can_final_review": ops.can_view_final_review(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
         "ops_items": ops_items,
@@ -716,6 +717,7 @@ def project_edit(request, project_id):
     visit_date_value = jalali_str(project.visit_date, fmt="%Y/%m/%d") if project.visit_date else ""
     return render(request, "projects/technician_edit_project.html", {
         "project": project,
+        "can_price": can_edit_pricing(request.user, project),
         "notes": project.notes or "",
         "visit_date_value": visit_date_value,
         "visit_editable": visit_editable,
@@ -810,6 +812,11 @@ def new_project_submit(request):
         return fail(str(e))
 
 
+def _proforma_extra_rows(project):
+    return [{"pk": l.pk, "title": l.title, "kind": l.kind, "qty": format(l.qty.normalize(), "f"),
+             "unit_price": str(int(l.unit_price))} for l in project.extra_lines.all()]
+
+
 def _proforma_initial_rows(project):
     def qty_str(v):
         return format(v.normalize(), "f")
@@ -823,7 +830,7 @@ def _proforma_initial_rows(project):
 @login_required
 def proforma_editor(request, project_id):
     project = get_object_or_404(Project.objects.select_related("location", "partner", "owner"), pk=project_id)
-    if not can_edit_project(request.user, project):
+    if not can_edit_pricing(request.user, project):
         raise Http404
     if project.status not in EDITABLE_PROJECT_STATUSES:
         messages.error(request, "پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
@@ -846,6 +853,7 @@ def proforma_editor(request, project_id):
             rebuilt = save_proforma(
                 project=project, actor=request.user,
                 service_rows=parse_service_rows(request.POST.get("services_json")),
+                extra_rows=parse_extra_rows(request.POST.get("extras_json")),
                 installation_fee_raw=request.POST.get("installation_fee"),
                 shipping_fee_raw=request.POST.get("shipping_fee"),
                 extra_fee_raw=request.POST.get("extra_fee"),
@@ -875,12 +883,19 @@ def proforma_editor(request, project_id):
     services, items = _line_choices(project)
     margins = resolve_margin_percents(items)
     initial_rows = _proforma_initial_rows(project)
+    initial_extras = _proforma_extra_rows(project)
     costs = _cost_values(project)
     if error:   # خطا = ورودی کاربر گم نشود
         try:
             posted = json.loads(request.POST.get("services_json") or "null")
             if isinstance(posted, list):
                 initial_rows = posted
+        except (ValueError, TypeError):
+            pass
+        try:
+            posted_ex = json.loads(request.POST.get("extras_json") or "null")
+            if isinstance(posted_ex, list):
+                initial_extras = posted_ex
         except (ValueError, TypeError):
             pass
         for key in ("installation_fee", "shipping_fee", "extra_fee", "contract_date"):
@@ -903,7 +918,8 @@ def proforma_editor(request, project_id):
         "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""} for s in services],
         "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
                         "cost": str(i.moving_average_cost), "margin": str(margins[i.pk])} for i in items],
-        "initial_rows": initial_rows, "costs": costs,
+        "initial_rows": initial_rows, "initial_extras": initial_extras, "costs": costs,
+        "extra_lines": project.extra_lines.all(),
         "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,
         "has_global_margin": has_global_margin(),
         "lines": project.services.select_related("service").prefetch_related("materials__item"),

@@ -60,7 +60,7 @@ class FinalReviewThreePersonAccessTests(TestCase):
         url = reverse("projects:final_review", args=[self.project.id])
         client = Client()
         for user, expected in (
-            (self.manager, 200), (self.accountant, 200), (self.creator, 200), (self.other_tech, 404),
+            (self.manager, 200), (self.accountant, 200), (self.creator, 404), (self.other_tech, 404),
         ):
             client.force_login(user)
             resp = client.get(url)
@@ -121,7 +121,7 @@ class FinalReviewManualConsumeTests(TestCase):
         client.force_login(other)
         resp = client.post(reverse("projects:final_review_consume", args=[self.project.id]),
                             {"item_id": self.item.id, "kind": "consume", "qty": "1", "notes": "تست"})
-        self.assertEqual(resp.status_code, 302)   # user_passes_test به لاگین ریدایرکت می‌کند
+        self.assertEqual(resp.status_code, 404)
         self.item.refresh_from_db()
         self.assertEqual(self.item.current_stock, Decimal("10"))
 
@@ -136,15 +136,18 @@ class FinalReviewManualConsumeTests(TestCase):
         self.project.save()
         client.force_login(plain)
         resp2 = client.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertNotContains(resp2, "ثبت مصرف یا تعدیل موجودی")
+        self.assertEqual(resp2.status_code, 404)
 
 
 class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک تست پرداخت نهایی", is_partner=True, phone_number="09121150003")
         self.sp_intake, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.sp_accountant, _ = Specialty.objects.get_or_create(name="حسابدار")
         self.creator = User.objects.create_user(username="ph_creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.sp_intake)
+        self.accountant = User.objects.create_user(username="ph_accountant", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.sp_accountant)
         self.service = Service.objects.create(name="خدمت تست پرداخت نهایی")
 
         build_workflow_v2(make_default=True)
@@ -156,8 +159,8 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         st1.save()
         advance_stage(st1, actor=self.creator, new_status=ProjectStage.Status.DONE, comment="بازدید شد.")
         rows = parse_service_rows('[{"service_id": %d, "qty": "1", "unit_price": "1000000", "materials": []}]' % self.service.id)
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        self.invoice, _ = issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        self.invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
 
         from finance.models import Payment
         Payment.objects.create(invoice=self.invoice, method=Payment.Method.CARD_TO_CARD,
@@ -166,7 +169,7 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
 
     def test_payment_history_and_remaining_amount_render_correctly(self):
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.accountant)
         resp = client.get(reverse("projects:final_review", args=[self.project.id]))
         content = resp.content.decode("utf-8")
         self.assertIn("گزارش کامل پرداخت‌ها", content)
@@ -195,7 +198,7 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         set_install_line(line=mat_line, status="ok", actual_qty_raw="2", reason="", actor=self.creator)
 
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.accountant)
         resp = client.get(reverse("projects:final_review", args=[self.project.id]))
         content = resp.content.decode("utf-8")
         self.assertIn(">زیان<", content)

@@ -61,6 +61,13 @@ def user_can_access_accounting(user):
     )
 
 
+def can_edit_pricing(user, project=None):
+    """قیمت‌گذاری و صدور پیش‌فاکتور: فقط مدیر یا حسابدار."""
+    return user.is_authenticated and (
+        user.is_superuser or getattr(user, "role", None) == "manager" or user_is_accountant(user)
+    )
+
+
 def can_search_parties_for_purchase(user):
     """
     جستجوی طرف‌حساب (new_project_party_search) هم برای «پذیرش» و هم برای «انباردار» باز است،

@@ -22,15 +22,27 @@
             {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
             {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
             {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
+            {% include "finance/partials/stat_card.html" with label="اعتباری وصول‌نشده" value=stats.credit_open tone="text-warning" hint="پولی که هنوز نرسیده." %}
+            {% include "finance/partials/stat_card.html" with label="سود پروژه‌های قطعی" value=stats.final_profit tone="text-success" hint="فقط پروژه‌های تایید‌شده؛ تعداد: "|add:stats.final_count|fa_digits %}
         </div>
     </section>
 
     <section class="flex flex-col gap-3">
         <h2 class="fb-section-title">خرید و انبار</h2>
+        {% if stats.integrity.diff != 0 or stats.integrity.unclassified_in != 0 %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">موجودی انبار با حرکت‌ها هم‌خوان نیست
+            {% if stats.integrity.unclassified_in %} (ورودی بدون سند خرید: {{ stats.integrity.unclassified_in|intcomma_fa }} تومان){% endif %}
+            {% if stats.integrity.diff %} (اختلاف: {{ stats.integrity.diff|intcomma_fa }} تومان){% endif %}.
+            گزارش دقیق: دستور audit_accounting.</span>
+        </div>
+        {% endif %}
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {% include "finance/partials/stat_card.html" with label="خرید کالا" value=stats.purchases tone="" hint="فقط خریدهای ثبت‌شده." %}
             {% include "finance/partials/stat_card.html" with label="موجودی اولیه" value=stats.opening tone="" hint="خرید حساب نمی‌شود." %}
             {% include "finance/partials/stat_card.html" with label="مصرف از انبار" value=stats.consumption tone="" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="برگشت از پروژه" value=stats.returns tone="text-success" hint="" %}
             {% include "finance/partials/stat_card.html" with label="مصرف بدون پروژه" value=stats.consumption_unlinked tone="text-warning" hint="به هیچ پروژه‌ای وصل نیست." %}
             {% include "finance/partials/stat_card.html" with label="کسری انبار (تعدیل کاهشی)" value=stats.adjust_loss tone="text-error" hint="" %}
             {% include "finance/partials/stat_card.html" with label="اضافه‌ی انبار (تعدیل افزایشی)" value=stats.adjust_gain tone="text-success" hint="" %}
@@ -45,9 +57,16 @@
             <span>{{ a.label }}</span>
             <span class="fb-badge fb-badge-{{ a.level }}">{{ a.count|fa_digits }}</span>
         </a>
-        {% empty %}
-        <p class="fb-hint">موردی منتظر اقدام نیست.</p>
-        {% endfor %}
+        {% empty %}<p class="fb-hint">موردی منتظر اقدام نیست.</p>{% endfor %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پروژه‌های منتظر صدور پیش‌فاکتور</h2>
+        {% for st in proforma_queue %}
+        <a href="{% url 'projects:proforma_editor' st.project.id %}" class="fb-inset flex items-center justify-between gap-2 text-sm hover:bg-base-300">
+            <span class="font-semibold">{{ st.project.name }}</span><span class="fb-hint">ورود به ویرایشگر</span>
+        </a>
+        {% empty %}<p class="fb-hint">پروژه‌ای منتظر پیش‌فاکتور نیست.</p>{% endfor %}
     </section>
 
     <section class="fb-card fb-pad flex flex-col gap-2">

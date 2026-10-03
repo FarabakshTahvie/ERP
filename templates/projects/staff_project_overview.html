@@ -15,6 +15,8 @@
         <div class="flex flex-wrap gap-2 mt-2">
             {% if can_edit %}
             <a href="{% url 'projects:project_edit' project.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش پروژه</a>
+            {% endif %}
+            {% if can_price %}
             <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور</a>
             {% endif %}
             {% if can_final_review %}

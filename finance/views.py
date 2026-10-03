@@ -85,29 +85,12 @@ def add_payment(request, invoice_uuid):
 
 
 def _can_review_payments(user):
-    from accounts.models import User
-    return user.is_authenticated and (user.is_superuser or getattr(user, "role", None) in (User.Role.ADMIN, User.Role.EMPLOYEE))
-
-
-def _is_payment_manager(user):
-    from accounts.models import User
-    from projects.services import user_is_accountant
-    return user.is_superuser or getattr(user, "role", None) == User.Role.ADMIN or user_is_accountant(user)
+    from projects.services import user_can_access_accounting
+    return user_can_access_accounting(user)
 
 
 def _visible_payments(user):
-    """مدیر همه را می‌بیند؛ تکنسین فقط پرداخت‌های پروژه‌هایی که خودش ثبت کرده."""
-    qs = Payment.objects.select_related("invoice__project", "invoice__billed_party", "approved_by")
-    if not _is_payment_manager(user):
-        qs = qs.filter(invoice__project__created_by=user)
-    return qs
-
-
-PAYMENT_STATUS_VARIANT = {
-    Payment.Status.PENDING: "warning",
-    Payment.Status.APPROVED: "success",
-    Payment.Status.REJECTED: "error",
-}
+    return Payment.objects.select_related("invoice__project", "invoice__billed_party", "approved_by")
 
 
 def _payments_table_context(request):
@@ -124,8 +107,7 @@ def _payments_table_context(request):
                 {"type": "badge", "value": p.get_method_display(), "variant": "neutral"},
                 {"type": "text", "value": to_fa_digits(separate_digits(p.amount))},
                 {"type": "muted", "value": jalali_str(p.created_at, fmt="%Y/%m/%d %H:%M")},
-                {"type": "badge", "value": p.get_status_display(),
-                 "variant": PAYMENT_STATUS_VARIANT.get(p.status, "neutral")},
+                {"type": "badge", "value": p.status_label, "variant": p.status_variant},
             ],
         }
 

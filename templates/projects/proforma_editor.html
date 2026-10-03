@@ -39,6 +39,12 @@
         {% endfor %}
     </div>
     {% endfor %}
+    {% for x in extra_lines %}
+    <div class="fb-card fb-pad flex justify-between gap-2 text-sm">
+        <span>{{ x.title }} <span class="fb-badge {% if x.kind == 'discount' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ x.get_kind_display }}</span></span>
+        <span class="font-technical fb-muted">{{ x.qty|floatformat:"-2"|fa_digits }} × {{ x.unit_price|intcomma_fa }}</span>
+    </div>
+    {% endfor %}
     {% else %}
     <form method="post" id="proforma-form" data-fb-once class="flex flex-col gap-5">
         {% csrf_token %}
@@ -47,6 +53,13 @@
             <p class="fb-hint">برای هر خدمت «قیمت خود خدمت» را جدا بنویسید. کالاهای زیر خدمت با میانگین موزون به‌علاوه‌ی سود عمومی حساب می‌شوند و در پیش‌فاکتور فقط جمع همان خدمت دیده می‌شود. مبلغ‌های این صفحه برآوردی است؛ عدد رسمی را سرور هنگام ذخیره حساب می‌کند.</p>
             <div id="proforma-editor"></div>
             <input type="hidden" id="services_json" data-name="services_json">
+        </section>
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">ردیف‌های اضافه و تخفیف</h2>
+            <p class="fb-hint">هر مورد خارج از خدمات (مثل خسارت به قطعه، سختی کار یا تخفیف) یک ردیف است. با همین شرح روی پیش‌فاکتور مشتری دیده می‌شود.</p>
+            <div id="proforma-extras"></div>
+            <input type="hidden" id="extras_json" data-name="extras_json">
         </section>
 
         {% include "projects/partials/proforma_fees.html" with costs_locked=False %}
@@ -72,6 +85,7 @@
     {{ services_data|json_script:"services-data" }}
     {{ items_data|json_script:"items-data" }}
     {{ initial_rows|json_script:"initial-rows" }}
+    {{ initial_extras|json_script:"initial-extras" }}
     {% endif %}
 </div>
 {% endblock %}
@@ -105,8 +119,18 @@
             var box = document.getElementById('project-costs');
             return t + (box ? parseFloat(box.dataset.participants) || 0 : 0);
         }
-        var editor;
-        editor = E({
+        var svcRows = [], extraRows = [];
+        function recalc() {
+            var total = feeTotal();
+            svcRows.forEach(function (r) { total += svcTotal(r); });
+            extraRows.forEach(function (r) {
+                var t = num(r.qty) * num(r.unit_price);
+                total += r.kind === 'discount' ? -t : t;
+            });
+            document.getElementById('grand-total').textContent = fmt(total);
+        }
+
+        var editor = E({
             mount: document.getElementById('proforma-editor'),
             hidden: document.getElementById('services_json'),
             addLabel: 'افزودن خدمت', emptyText: 'هنوز خدمتی اضافه نشده.', initial: initial,
@@ -129,13 +153,24 @@
                 ]
             },
             footer: function (d) { return 'جمع این خدمت (برآوردی): ' + fmt(svcTotal(d)) + ' تومان'; },
-            onChange: function (rows) {
-                var total = feeTotal();
-                rows.forEach(function (r) { total += svcTotal(r); });
-                document.getElementById('grand-total').textContent = fmt(total);
-            }
+            onChange: function (rows) { svcRows = rows; recalc(); }
         });
-        document.querySelectorAll('[data-fee]').forEach(function (e) { e.addEventListener('input', editor.notify); });
+
+        var extrasEditor = E({
+            mount: document.getElementById('proforma-extras'),
+            hidden: document.getElementById('extras_json'),
+            addLabel: 'افزودن ردیف', emptyText: 'ردیف اضافه‌ای ثبت نشده.',
+            initial: JSON.parse(document.getElementById('initial-extras').textContent),
+            columns: [
+                { key: 'title', type: 'text', label: 'شرح', cls: 'flex-1 min-w-48' },
+                { key: 'kind', type: 'select', label: 'نوع', cls: 'w-36',
+                  options: [['extra', 'هزینه‌ی اضافه'], ['discount', 'تخفیف']] },
+                { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+                { key: 'unit_price', type: 'money', label: 'مبلغ واحد (تومان)', cls: 'w-40' }
+            ],
+            onChange: function (rows) { extraRows = rows; recalc(); }
+        });
+        document.querySelectorAll('[data-fee]').forEach(function (e) { e.addEventListener('input', recalc); });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

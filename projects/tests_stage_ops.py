@@ -23,8 +23,11 @@ class DesignApprovalDecisionTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.create(name="پذیرش")
+        self.acc_spec = Specialty.objects.create(name="حسابدار")
         self.creator = User.objects.create_user(username="creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_stage_ops", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
 
         self.design_spec = Specialty.objects.get_or_create(name="طراح اتوکد")[0]
         self.designer = User.objects.create_user(username="designer", password="pw", role=User.Role.EMPLOYEE)
@@ -46,10 +49,10 @@ class DesignApprovalDecisionTests(TestCase):
         srv = Service.objects.first()
         rows = parse_service_rows(json.dumps([{"service_id": srv.id, "qty": "1", "unit_price": "1000", "materials": []}]))
         save_proforma(
-            project=self.project, actor=self.creator,
+            project=self.project, actor=self.accountant,
             service_rows=rows
         )
-        issue_proforma(project=self.project, actor=self.creator)
+        issue_proforma(project=self.project, actor=self.accountant)
 
         st3 = self.project.stages.get(order=3)
         st3.assigned_to = self.creator
@@ -241,8 +244,11 @@ class SnapshotImmutabilityTests(TestCase):
         self.internal = Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.create(name="پذیرش")
+        self.acc_spec, _ = Specialty.objects.get_or_create(name="حسابدار")
         self.creator = User.objects.create_user(username="creator2", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_stage_ops2", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.wh = Warehouse.objects.create(name="انبار مرکزی")
 
         self.service = Service.objects.create(name="کانال‌کشی")
@@ -263,10 +269,10 @@ class SnapshotImmutabilityTests(TestCase):
             "materials": [{"item_id": self.item.id, "qty": "10"}],
         }]))
         save_proforma(
-            project=self.project, actor=self.creator,
+            project=self.project, actor=self.accountant,
             service_rows=rows
         )
-        self.invoice, _ = issue_proforma(project=self.project, actor=self.creator)
+        self.invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
 
     def test_changes_after_issue_do_not_touch_invoice_or_snapshots(self):
         before = list(self.invoice.lines.values_list("title", "qty", "unit_price", "total", "cost_snapshot"))

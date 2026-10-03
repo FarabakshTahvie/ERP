@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import F, Sum, Value, DecimalField
+from django.db.models import F, Sum, Value, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from catalog.models import Item, ItemCategory
@@ -239,7 +240,22 @@ CHANGE_KIND_CONSUME = "consume"
 CHANGE_KIND_ADJUST_DECREASE = "adjust_decrease"
 CHANGE_KIND_ADJUST_INCREASE = "adjust_increase"
 CHANGE_KIND_OPENING = "opening"
-CHANGE_KIND_CHOICES = (CHANGE_KIND_CONSUME, CHANGE_KIND_ADJUST_DECREASE, CHANGE_KIND_ADJUST_INCREASE, CHANGE_KIND_OPENING)
+CHANGE_KIND_RETURN = "return"
+CHANGE_KIND_CHOICES = (CHANGE_KIND_CONSUME, CHANGE_KIND_ADJUST_DECREASE, CHANGE_KIND_ADJUST_INCREASE,
+                       CHANGE_KIND_OPENING, CHANGE_KIND_RETURN)
+
+
+def project_unit_cost(item, project):
+    """میانگین موزون بهای خروج‌های همین پروژه برای این کالا؛ اگر نبود، میانگین موزون فعلی کالا."""
+    ct = ContentType.objects.get_for_model(project)
+    rows = StockMovement.objects.filter(item=item, related_content_type=ct, related_object_id=project.pk,
+                                        direction=StockMovement.Direction.OUT)
+    qty = rows.aggregate(t=Sum("qty"))["t"] or Decimal("0")
+    if qty > 0:
+        value = rows.aggregate(t=Sum(ExpressionWrapper(
+            F("qty") * F("unit_cost"), output_field=DecimalField(max_digits=24, decimal_places=4))))["t"]
+        return (value / qty).quantize(Decimal("0.01"))
+    return item.moving_average_cost
 
 
 @transaction.atomic
@@ -273,7 +289,11 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     if not warehouse:
         raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
     has_cost = bool(str(unit_cost_raw or "").strip())
-    if kind == CHANGE_KIND_OPENING:
+    if kind == CHANGE_KIND_RETURN:
+        if related_object is None:
+            raise ValueError("برگشت به انبار فقط برای یک پروژه ثبت می‌شود.")
+        movement_type = StockMovement.MovementType.RETURN
+    elif kind == CHANGE_KIND_OPENING:
         if not has_cost:
             raise ValueError("برای موجودی اولیه، بهای واحد را وارد کنید.")
         movement_type = StockMovement.MovementType.OPENING
@@ -281,11 +301,13 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         movement_type = StockMovement.MovementType.ADJUST
     if has_cost:
         unit_cost = parse_decimal_input(unit_cost_raw, label="بهای واحد")
+    elif kind == CHANGE_KIND_RETURN:
+        unit_cost = project_unit_cost(item, related_object)
     else:
         item.refresh_from_db()
         unit_cost = item.moving_average_cost
-        if not unit_cost or unit_cost <= 0:
-            raise ValueError("چون این کالا هنوز میانگین موزون قیمتی ندارد، بهای واحد را دستی وارد کنید.")
+    if not unit_cost or unit_cost <= 0:
+        raise ValueError("چون این کالا هنوز میانگین موزون قیمتی ندارد، بهای واحد را دستی وارد کنید.")
     receive_stock(
         item=item, warehouse=warehouse, qty=qty, unit_cost=unit_cost,
         received_at=timezone.now(), movement_type=movement_type,

@@ -117,6 +117,26 @@ class ProjectServiceMaterial(models.Model):
         verbose_name_plural = "کالاهای زیر خدمت"
 
 
+class ProjectExtraLine(models.Model):
+    """ردیف دستی پیش‌فاکتور (هزینه‌ی اضافه یا تخفیف). مبلغ همیشه مثبت؛ علامت از kind."""
+
+    class Kind(models.TextChoices):
+        EXTRA = "extra", "هزینه‌ی اضافه"
+        DISCOUNT = "discount", "تخفیف"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="extra_lines", verbose_name="پروژه")
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.EXTRA, verbose_name="نوع")
+    title = models.CharField(max_length=200, verbose_name="شرح (روی پیش‌فاکتور)")
+    qty = models.DecimalField(max_digits=12, decimal_places=2, default=1, verbose_name="مقدار")
+    unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ واحد (تومان)")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        verbose_name = "ردیف دستی پیش‌فاکتور"
+        verbose_name_plural = "ردیف‌های دستی پیش‌فاکتور"
+        ordering = ["pk"]
+
+
 
 class ProjectMaterial(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="extra_materials", verbose_name="پروژه")

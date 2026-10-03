@@ -38,8 +38,14 @@ class PaymentTests(TestCase):
             password="ClientPassword123", role=User.Role.CLIENT,
         )
         self.sp_reception, _ = Specialty.objects.get_or_create(name="پذیرش")
+        self.sp_accountant, _ = Specialty.objects.get_or_create(name="حسابدار")
         self.tech_creator.specialties.add(self.sp_reception)
         self.other_tech.specialties.add(self.sp_reception)
+        self.accountant = User.objects.create_user(
+            username="acc_user_pay", phone_number="09120000095",
+            password="AccPassword123", role=User.Role.EMPLOYEE,
+        )
+        self.accountant.specialties.add(self.sp_accountant)
 
         self.party = Party.objects.create(name="کارفرمای تست پرداخت", phone_number="09120000094", is_client=True)
         self.client_user.party = self.party
@@ -273,15 +279,19 @@ class PaymentTests(TestCase):
         detail_url = reverse("finance:payment_detail", args=[pay.id])
         decide_url = reverse("finance:payment_decide", args=[pay.id])
 
-        # تکنسین ثبت‌کننده‌ی پروژه: جزئیات را می‌بیند
+        # تکنسین ثبت‌کننده‌ی پروژه (دیگر دسترسی پرداخت ندارد و ۳۰۲ می‌گیرد)
         client.force_login(self.tech_creator)
+        self.assertEqual(client.get(detail_url).status_code, 302)
+
+        # حسابدار: جزئیات را می‌بیند
+        client.force_login(self.accountant)
         self.assertEqual(client.get(detail_url).status_code, 200)
 
         # تکنسین دیگر (ثبت‌کننده نیست): نه جزئیات، نه تصمیم
         client.force_login(self.other_tech)
-        self.assertEqual(client.get(detail_url).status_code, 404)
+        self.assertEqual(client.get(detail_url).status_code, 302)
         resp_decide = client.post(decide_url, {"action": "approve", "verified_amount": "200000"})
-        self.assertEqual(resp_decide.status_code, 404)
+        self.assertEqual(resp_decide.status_code, 302)
         pay.refresh_from_db()
         self.assertEqual(pay.status, Payment.Status.PENDING)
 

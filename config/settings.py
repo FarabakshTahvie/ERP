@@ -129,6 +129,7 @@ CACHES = {
 }
 
 if 'test' in sys.argv:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': ':memory:',
@@ -193,7 +194,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Media Files & Storage configuration (Local or ArvanCloud Object Storage)
 # https://django-storages.readthedocs.io/
 
-USE_ARVANCLOUD_MEDIA = env.bool('USE_ARVANCLOUD_MEDIA', default=False)
+USE_ARVANCLOUD_MEDIA = env.bool('USE_ARVANCLOUD_MEDIA', default=False) and 'test' not in sys.argv
 
 if USE_ARVANCLOUD_MEDIA:
     AWS_ACCESS_KEY_ID = env('ARVANCLOUD_ACCESS_KEY_ID')

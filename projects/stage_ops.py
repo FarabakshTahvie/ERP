@@ -122,6 +122,8 @@ def stage_completion_problem(stage, *, needs_approval=None):
             return problem
     if stage.kind == StageKind.FINAL_REVIEW and ops.pending_part_requests(stage.project).exists():
         return "درخواست قطعه‌ی بررسی‌نشده دارید؛ ابتدا تکلیفش روشن شود."
+    if stage.kind == StageKind.FINAL_REVIEW and stage.project.extra_shipments.filter(disposition="pending").exists():
+        return "قطعه‌ی اضافه‌ی ارسال‌شده‌ای هنوز تعیین تکلیف نشده است."
     return None
 
 

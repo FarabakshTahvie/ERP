@@ -28,8 +28,11 @@ class ProformaPricingTests(TestCase):
         self.internal = Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.create(name="پذیرش")
+        self.acc_spec = Specialty.objects.create(name="حسابدار")
         self.creator = User.objects.create_user(username="creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="accountant", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
 
         self.service = Service.objects.create(name="کانال‌کشی گالوانیزه", unit=Item.Unit.METER)
         self.item = Item.objects.create(
@@ -60,8 +63,8 @@ class ProformaPricingTests(TestCase):
             "service_id": self.service.id, "qty": "40", "unit_price": "850000",
             "materials": [{"item_id": self.item.id, "qty": "10"}],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        invoice, _ = issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
         # 40×850000 + 10×200000×1.2 = 34,000,000 + 2,400,000
         self.assertEqual(invoice.total_amount, Decimal("36400000"))
         line = invoice.lines.get()
@@ -80,8 +83,8 @@ class ProformaPricingTests(TestCase):
             "service_id": self.service.id, "qty": "5", "unit_price": "500000",
             "materials": [],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        invoice, _ = issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
         line = invoice.lines.get()
         self.assertEqual((line.line_type, line.qty, line.unit_price), ("service", Decimal("5"), Decimal("500000")))
 
@@ -89,11 +92,11 @@ class ProformaPricingTests(TestCase):
         proforma_st = self.project.stages.filter(kind=StageKind.PROFORMA).first()
         self.assertEqual(proforma_st.status, ProjectStage.Status.IN_PROGRESS)
         with self.assertRaises(ValueError):
-            advance_stage(proforma_st, actor=self.creator, new_status=ProjectStage.Status.DONE, comment="تکمیل دستی")
+            advance_stage(proforma_st, actor=self.accountant, new_status=ProjectStage.Status.DONE, comment="تکمیل دستی")
 
     def test_issue_proforma_without_services_fails(self):
         with self.assertRaises(ValueError):
-            issue_proforma(project=self.project, actor=self.creator)
+            issue_proforma(project=self.project, actor=self.accountant)
 
     def test_stale_items_warning_and_cleared_on_save(self):
         # 1. Initially create proforma
@@ -101,10 +104,10 @@ class ProformaPricingTests(TestCase):
             "service_id": self.service.id, "qty": "10", "unit_price": "100000",
             "materials": [{"item_id": self.item.id, "qty": "5"}],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
 
         # 2. Check editor page - initially no stale items
-        self.client.force_login(self.creator)
+        self.client.force_login(self.accountant)
         url = reverse("projects:proforma_editor", args=[self.project.id])
         resp = self.client.get(url)
         self.assertEqual(resp.context["stale_items"], [])
@@ -118,7 +121,7 @@ class ProformaPricingTests(TestCase):
         self.assertIn(self.item.name, resp.context["stale_items"])
 
         # 4. Save proforma again - should update snapshot and clear stale warning
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
         resp = self.client.get(url)
         self.assertEqual(resp.context["stale_items"], [])
 
@@ -134,7 +137,7 @@ class ProformaPricingTests(TestCase):
             "service_id": self.service.id, "qty": "1", "unit_price": "1000",
             "materials": [{"pk": m1.pk, "item_id": self.item.id, "qty": "5"}],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
         # m1 on p2 must not be modified or moved
         m1.refresh_from_db()
         self.assertEqual(m1.service_line_id, s1.pk)
@@ -147,8 +150,11 @@ class ProformaViewTests(TestCase):
         self.internal = Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.create(name="پذیرش")
+        self.acc_spec = Specialty.objects.create(name="حسابدار")
         self.creator = User.objects.create_user(username="creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="accountant", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.other_tech = User.objects.create_user(username="other_tech", password="pw", role=User.Role.EMPLOYEE)
         self.admin = User.objects.create_user(username="admin_u", password="pw", role=User.Role.ADMIN, is_staff=True)
 
@@ -167,8 +173,13 @@ class ProformaViewTests(TestCase):
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 404)
 
-        # Creator -> 200
+        # Creator (no longer can edit pricing) -> 404
         self.client.force_login(self.creator)
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+        # Accountant -> 200
+        self.client.force_login(self.accountant)
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
 
@@ -178,7 +189,7 @@ class ProformaViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_validation_error_keeps_user_input(self):
-        self.client.force_login(self.creator)
+        self.client.force_login(self.accountant)
         url = reverse("projects:proforma_editor", args=[self.project.id])
         invalid_json = json.dumps([{"service_id": 99999, "qty": "1", "unit_price": "100", "materials": []}])
         resp = self.client.post(url, {"services_json": invalid_json, "action": "save"})

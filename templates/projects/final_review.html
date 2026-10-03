@@ -80,7 +80,7 @@
                     </div>
                     <div class="text-end">
                         <div><span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span> تومان</div>
-                        <span class="fb-badge {% if p.status == 'approved' %}fb-badge-success{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-warning{% endif %}">{{ p.get_status_display }}</span>
+                        <span class="fb-badge fb-badge-{{ p.status_variant }}">{{ p.status_label }}</span>
                     </div>
                 </div>
                 {% if p.status == 'rejected' and p.rejection_reason %}
@@ -178,7 +178,7 @@
                         {% endif %}
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="font-technical font-semibold">{{ ex.sale_total|intcomma_fa }} تومان</span>
+                        <span class="font-technical font-semibold">{{ ex.cost_total|intcomma_fa }} تومان</span>
                         {% if ex.disposition == 'pending' %}
                         <form method="post" action="{% url 'projects:extra_dispose' ex.id %}" data-fb-once class="inline-flex gap-1">
                             {% csrf_token %}
@@ -213,19 +213,19 @@
         {% endif %}
 
         <div class="pt-2 border-t border-base-300">
-            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه):</span>
+            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه)</span> <span class="fb-hint">(اثر روی سود، به بهای تمام‌شده):</span>
             {% if data.shortage or data.surplus %}
             <div class="mt-1 space-y-1 text-xs">
                 {% for d in data.shortage %}
                 <div class="flex justify-between items-center">
                     <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-error font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کسری (بیشتر از فاکتور مصرف شده)</span>
-                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-error">زیان</span><span class="font-technical font-semibold text-error">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
+                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-error">زیان</span><span class="font-technical font-semibold text-error">{{ d.cost_impact|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
                 {% for d in data.surplus %}
                 <div class="flex justify-between items-center">
                     <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-success font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد اضافه (کمتر از فاکتور مصرف شده)</span>
-                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-success">سود</span><span class="font-technical font-semibold text-success">{{ d.delta_sale|intcomma_fa }}</span> تومان</div>
+                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-success">سود</span><span class="font-technical font-semibold text-success">{{ d.cost_impact|intcomma_fa }}</span> تومان</div>
                 </div>
                 {% endfor %}
             </div>
@@ -298,7 +298,8 @@
                 <div class="flex flex-col gap-2">
                     <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در همین کار)</label>
                     <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات)</label>
-                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی/برگشت)</label>
+                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی)</label>
+                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="return" class="sr-only"> برگشت از پروژه به انبار (با بهای مصرف همین پروژه)</label>
                 </div>
             </div>
             <div class="fb-field">
@@ -320,55 +321,73 @@
     {% endif %}
 
     <!-- ۹. خلاصه‌ی مالی -->
-    <div class="fb-card fb-pad flex flex-col gap-3 bg-base-100 border-2 border-primary/20">
-        <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی</h2>
-        <div class="space-y-2 text-xs">
-            <div class="flex justify-between items-center">
-                <span class="fb-muted">قطعه‌های اضافه‌ی ارسال‌شده (زیان):</span>
-                <div><span class="font-technical font-semibold text-error">{{ data.totals.extras_sale|intcomma_fa }}</span> تومان</div>
-            </div>
-            <div class="flex justify-between items-center">
-                <span class="fb-muted">قطعه‌های تحویل‌شده از انبار (زیان):</span>
-                <div><span class="font-technical font-semibold text-error">{{ data.totals.parts_sale|intcomma_fa }}</span> تومان</div>
-            </div>
-            <div class="flex justify-between items-center">
-                <span class="fb-muted">کسری نصب (زیان):</span>
-                <div><span class="font-technical font-semibold text-error">{{ data.totals.shortage_sale|intcomma_fa }}</span> تومان</div>
-            </div>
-            <div class="flex justify-between items-center">
-                <span class="fb-muted">اضافه‌ی نصب (سود):</span>
-                <div><span class="font-technical font-semibold text-success">{{ data.totals.surplus_sale|intcomma_fa }}</span> تومان</div>
-            </div>
-            <div class="flex justify-between items-center">
-                <span class="fb-muted">هزینه‌های ثبت‌شده (زیان):</span>
-                <div><span class="font-technical font-semibold text-error">{{ data.totals.costs_total|intcomma_fa }}</span> تومان</div>
-            </div>
+    <div class="fb-card fb-pad flex flex-col gap-3 border-2 border-primary/20">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی پروژه</h2>
+            <span class="fb-badge {% if pnl.state == 'final' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">حساب {{ pnl.state_label }}</span>
         </div>
-
-        <div class="alert alert-info text-xs mt-2 flex flex-col items-start gap-1">
+        <div class="space-y-2 text-xs">
+            <div class="flex justify-between"><span class="fb-muted">فروش (طبق فاکتور)</span><span class="font-technical font-semibold">{{ pnl.revenue|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between"><span class="fb-muted">دریافت‌شده</span><span class="font-technical">{{ pnl.collected|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between"><span class="fb-muted">هزینه‌ی انبار ثبت‌شده تا الان</span><span class="font-technical">{{ pnl.stock_cost|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between"><span class="fb-muted">هزینه‌ی تسویه‌نشده (تخمینی؛ با تایید نهایی ثبت می‌شود)</span><span class="font-technical text-warning">{{ pnl.pending_cost|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between"><span class="fb-muted">هزینه‌های ثبت‌شده</span><span class="font-technical">{{ pnl.recorded_costs|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between border-t border-base-300 pt-2 font-bold"><span>سود پیش‌بینی بعد از تسویه (طبق فاکتور)</span><span class="font-technical {{ pnl.profit_tone }}">{{ pnl.profit_projected|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between"><span class="fb-muted">وضعیت نقدی (دریافتی منهای هزینه‌ها)</span><span class="font-technical {{ pnl.cash_tone }}">{{ pnl.cash_position|intcomma_fa }} تومان</span></div>
+        </div>
+        <div class="alert alert-info text-xs flex flex-col items-start gap-1">
             {% icon "info" "w-4 h-4 shrink-0" %}
-            <span>این مبالغ در فاکتور مشتری نیست و خودکار به آن اضافه یا کم نمی‌شود.</span>
-            <span>برای تغییر مبلغ فاکتور یا افزودن/کسر هزینه، باید از پنل مدیریت (فاکتور ← «افزودن هزینه‌ی جدید» یا ویرایش ردیف‌ها) اقدام شود.</span>
+            <span>سود طبق فاکتور است، نه پول دریافتی. مبلغ فاکتور مشتری با این صفحه تغییر نمی‌کند؛ برای تغییر فاکتور به «پرونده‌ی مالی» در مرکز حسابداری بروید.</span>
         </div>
     </div>
 
     <!-- ۱۰. تایید -->
     <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">تایید نهایی و تکمیل پروژه</h2>
-        {% if data.pending_parts %}
+        <h2 class="font-bold text-sm">تسویه‌ی مصرف مواد و تایید نهایی</h2>
+        {% if data.pending_parts or data.pending_extras %}
         <div class="alert alert-warning text-xs">
             {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-            <span>درخواست قطعه‌ی بدون پاسخ دارید.</span>
+            <span>{% if data.pending_parts %}درخواست قطعه‌ی بدون پاسخ دارید. {% endif %}{% if data.pending_extras %}قطعه‌ی اضافه‌ی بی‌تکلیف دارید (در بخش «گزارش ارسال قطعات» تعیین تکلیف کنید).{% endif %}</span>
         </div>
         <button type="button" disabled class="btn btn-disabled w-full">تایید نهایی غیرفعال است</button>
         {% elif can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
+            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم از نصب‌شده‌ها و قطعه‌های تحویلی ساخته شده. اگر عدد را عوض کنید، دلیل لازم است. کالایی که اینجا نیست را قبل از تایید با فرم «ثبت مصرف» بالا اضافه کنید.</p>
+            {% if recon %}
+            <div class="overflow-x-auto">
+                <table class="table table-sm text-xs">
+                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>کسر‌شده تاکنون</th><th>پیشنهاد سیستم</th><th>مصرف نهایی</th><th>اختلاف بها با پیش‌فاکتور</th></tr></thead>
+                    <tbody>
+                    {% for r in recon %}
+                        <tr>
+                            <td class="font-semibold">{{ r.item.name }}</td>
+                            <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ r.expected|floatformat:"-4"|fa_digits }}</td>
+                            <td>
+                                <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" data-settle-qty data-item="{{ r.item.id }}"
+                                       data-suggested="{{ r.expected_input }}" dir="ltr" inputmode="decimal" aria-label="مصرف نهایی {{ r.item.name }}"
+                                       class="input input-xs w-24 font-technical">
+                                <input type="text" name="reason_{{ r.item.id }}" data-settle-reason="{{ r.item.id }}" placeholder="دلیل تغییر (اجباری)"
+                                       class="input input-xs w-full mt-1 hidden">
+                            </td>
+                            <td>
+                                {% if r.variance > 0 %}<span class="fb-badge fb-badge-error">زیان {{ r.variance|intcomma_fa }}</span>
+                                {% elif r.variance < 0 %}<span class="fb-badge fb-badge-success">سود {{ r.variance|cut:"-"|intcomma_fa }}</span>
+                                {% else %}—{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
             <div class="fb-field">
                 <label class="fb-label">توضیحات پایانی بازبینی نهایی (اجباری)</label>
-                <textarea name="comment" required rows="3" class="textarea w-full" placeholder="نتیجه‌ی بازبینی نهایی، نکات تحویل به کارفرما و..."></textarea>
+                <textarea name="comment" required rows="3" class="textarea w-full" placeholder="نتیجه‌ی بازبینی نهایی، نکات تحویل و..."></textarea>
             </div>
-            <button type="submit" class="btn btn-primary w-full">{% icon "check-circle" "w-4 h-4" %} تایید نهایی و تکمیل پروژه</button>
+            <button type="submit" class="btn btn-primary w-full">{% icon "check-circle" "w-4 h-4" %} تایید نهایی، ثبت مصرف و تکمیل پروژه</button>
         </form>
         {% else %}
         <p class="text-xs text-success font-semibold">مرحله‌ی بازبینی نهایی قبلاً تکمیل شده یا پروژه در وضعیت تکمیل/لغوشده است.</p>
@@ -390,8 +409,25 @@
     mount.appendChild(picker.el);
     document.querySelectorAll('input[name="kind"]').forEach(function (r) {
         r.addEventListener('change', function () {
-            document.getElementById('fr-stock-cost-field').classList.toggle('hidden', this.value !== 'adjust_increase');
+            document.getElementById('fr-stock-cost-field').classList.toggle('hidden', this.value !== 'adjust_increase' && this.value !== 'return');
         });
+    });
+})();
+(function () {
+    var FA = '۰۱۲۳۴۵۶۷۸۹';
+    function norm(s) { return String(s || '').replace(/[۰-۹]/g, function (d) { return FA.indexOf(d); }).replace(/[,٬\s]/g, '').replace(/٫/g, '.'); }
+    document.querySelectorAll('[data-settle-qty]').forEach(function (inp) {
+        var reason = document.querySelector('[data-settle-reason="' + inp.dataset.item + '"]');
+        function sync() {
+            var v = norm(inp.value);
+            var changed = v !== '' && parseFloat(v) !== parseFloat(inp.dataset.suggested);
+            if (reason) {
+                reason.classList.toggle('hidden', !changed);
+                reason.required = changed;
+            }
+        }
+        inp.addEventListener('input', sync);
+        sync();
     });
 })();
 </script>

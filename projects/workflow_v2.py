@@ -5,11 +5,13 @@ TEMPLATE_NAME = "گردش‌کار v2"
 VISITOR_SPECIALTY_NAME = "بازدیدکننده"
 A = WorkflowStepTemplate.ApprovalBy
 
+ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
+
 STEPS = [
     dict(title="بازدید کارگاهی", client_label="بازدید و اندازه‌گیری", kind=StageKind.VISIT,
          specialty=VISITOR_SPECIALTY_NAME, estimated_duration_hours=4),
     dict(title="صدور پیش‌فاکتور", client_label="صدور پیش‌فاکتور", kind=StageKind.PROFORMA,
-         assign_to_project_creator=True, estimated_duration_hours=4),
+         specialty=ACCOUNTANT_SPECIALTY_NAME, estimated_duration_hours=4),
     dict(title="تایید پیش‌فاکتور و انتخاب روش پرداخت", client_label="تایید پیش‌فاکتور",
          approval_by=A.CHOOSE_AT_RUNTIME, requires_payment_selection=True),
     dict(title="طراحی اولیه اتوکد", client_label="طراحی اولیه", kind=StageKind.DESIGN_INITIAL,
@@ -28,7 +30,7 @@ STEPS = [
     dict(title="نصب", client_label="نصب نهایی", kind=StageKind.INSTALL, specialty="نصاب",
          estimated_duration_hours=8),
     dict(title="بازبینی نهایی", client_label="بازبینی نهایی", kind=StageKind.FINAL_REVIEW,
-         assign_to_project_creator=True, client_visible=False),
+         specialty=ACCOUNTANT_SPECIALTY_NAME, client_visible=False),
 ]
 
 BASE = dict(kind=StageKind.GENERIC, assign_to_project_creator=False, approval_by=A.NONE,

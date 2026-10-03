@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db import transaction
 from django.db.models import Case, IntegerField, When
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -71,9 +72,12 @@ def extra_delete(request, extra_id):
 @require_POST
 def extra_dispose(request, extra_id):
     extra = _obj(ExtraShipment.objects.select_related("project", "item"), extra_id)
-    disposition = request.POST.get("disposition")
+    disp = request.POST.get("disposition")
     try:
-        ops.resolve_extra_shipment_disposition(extra=extra, disposition=disposition, actor=request.user)
+        ops.resolve_extra_shipment_disposition(extra=extra, disposition=disp, actor=request.user)
+        from finance import accounting
+        accounting.log_event(kind="disposition", project=extra.project, actor=request.user,
+                             text=f"{extra.item.name} × {extra.qty}: {extra.get_disposition_display()}")
     except ValueError as e:
         messages.error(request, str(e))
     else:
@@ -180,7 +184,21 @@ def part_request_decide(request, req_id):
     return redirect("home")
 
 
-# ----- بازبینی نهایی -----
+def _settlement_input(post):
+    from finance import accounting
+    qtys, reasons = {}, {}
+    for key, value in post.items():
+        try:
+            if key.startswith("final_qty_") and value.strip():
+                qtys[int(key[len("final_qty_"):])] = accounting.parse_qty(value, label="مصرف نهایی")
+            elif key.startswith("reason_"):
+                reasons[int(key[len("reason_"):])] = value
+        except ValueError as e:
+            if "مصرف نهایی" in str(e):
+                raise
+    return qtys, reasons
+
+
 @login_required
 def final_review(request, project_id):
     project = _obj(Project.objects.select_related("owner", "partner", "location"), project_id)
@@ -189,28 +207,34 @@ def final_review(request, project_id):
     stage = project.stages.filter(kind=StageKind.FINAL_REVIEW).first()
     if stage is None:
         raise Http404
+    from finance import accounting
     if request.method == "POST":
         try:
-            complete_stage(stage=stage, actor=request.user, comment=(request.POST.get("comment") or "").strip(), via_review=True)
+            with transaction.atomic():
+                qtys, reasons = _settlement_input(request.POST)
+                complete_stage(stage=stage, actor=request.user, comment=(request.POST.get("comment") or "").strip(), via_review=True)
+                accounting.settle_project_materials(project=project, final_qtys=qtys, reasons=reasons, actor=request.user)
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:final_review", project.id)
-        messages.success(request, "بازبینی نهایی تایید و پروژه تکمیل شد.")
+        messages.success(request, "بازبینی نهایی تایید، مصرف مواد ثبت و پروژه تکمیل شد.")
         return redirect("home")
-    can_manage_stock = user_can_manage_inventory(request.user)
+    fin = accounting.projects_financial_queryset().get(pk=project.pk)
+    recon = accounting.project_reconciliation(project)
     return render(request, "projects/final_review.html", {
         "project": project, "stage": stage, "can_approve": stage.status == ProjectStage.Status.IN_PROGRESS,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
-        "can_manage_stock": can_manage_stock,
-        "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)] if can_manage_stock else [],
+        "can_manage_stock": True, "recon": recon, "pnl": accounting.project_pnl(fin, recon),
+        "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],
     })
 
 
 @login_required
-@user_passes_test(user_can_manage_inventory)
 @require_POST
 def final_review_consume(request, project_id):
     project = _obj(Project, project_id)
+    if not ops.can_view_final_review(request.user, project):
+        raise Http404
     item = _obj(Item, request.POST.get("item_id"), is_active=True)
     try:
         record_manual_stock_change(
@@ -218,6 +242,9 @@ def final_review_consume(request, project_id):
             notes=request.POST.get("notes", ""), user=request.user,
             unit_cost_raw=request.POST.get("unit_cost"), related_object=project,
         )
+        from finance import accounting
+        accounting.log_event(kind="stock_fix", project=project, actor=request.user,
+                             text=f"{item.name}: {request.POST.get('kind')} × {request.POST.get('qty')} — {request.POST.get('notes', '')}")
     except ValueError as e:
         messages.error(request, str(e))
     else:

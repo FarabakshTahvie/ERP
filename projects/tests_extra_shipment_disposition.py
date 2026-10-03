@@ -82,14 +82,18 @@ class ExtraShipmentDispositionTests(TestCase):
 
     def test_cannot_resolve_twice(self):
         resolve_extra_shipment_disposition(
-            extra=self.extra, disposition=ExtraShipment.Disposition.RETURNED, actor=self.creator
+            extra=self.extra, disposition=ExtraShipment.Disposition.RETURNED, actor=self.accountant
         )
+        with self.assertRaises(ValueError):
+            resolve_extra_shipment_disposition(
+                extra=self.extra, disposition=ExtraShipment.Disposition.CONSUMED, actor=self.accountant
+            )
+
+    def test_unauthorized_user_cannot_resolve(self):
         with self.assertRaises(ValueError):
             resolve_extra_shipment_disposition(
                 extra=self.extra, disposition=ExtraShipment.Disposition.CONSUMED, actor=self.creator
             )
-
-    def test_unauthorized_user_cannot_resolve(self):
         with self.assertRaises(ValueError):
             resolve_extra_shipment_disposition(
                 extra=self.extra, disposition=ExtraShipment.Disposition.CONSUMED, actor=self.other_tech

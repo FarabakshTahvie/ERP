@@ -24,12 +24,16 @@ class OpsViewsTests(TestCase):
         self.client = Client()
         self.partner = Party.objects.create(name="شریک ویو", is_partner=True, phone_number="09121112288")
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
         self.shipping_spec = Specialty.objects.get_or_create(name="راننده")[0]
         self.install_spec = Specialty.objects.get_or_create(name="نصاب")[0]
         self.keeper_spec = Specialty.objects.get_or_create(name="انباردار")[0]
 
         self.creator = User.objects.create_user(username="creator_view", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+
+        self.accountant = User.objects.create_user(username="acc_view", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
 
         self.driver = User.objects.create_user(username="driver_view", password="pw", role=User.Role.EMPLOYEE)
         self.driver.specialties.add(self.shipping_spec)
@@ -60,8 +64,8 @@ class OpsViewsTests(TestCase):
 
         self.service = Service.objects.create(name="لوازم", unit=Item.Unit.METER)
         rows = parse_service_rows(json.dumps([{"service_id": self.service.id, "qty": "5", "unit_price": "10000", "materials": [{"item_id": self.item.id, "qty": "2"}]}]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        self.invoice, _ = issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        self.invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
 
         self.gcode_stage = self.project.stages.get(kind=StageKind.GCODE)
         self.gcode_file = ProjectFile.objects.create(
@@ -128,8 +132,13 @@ class OpsViewsTests(TestCase):
         self.client.force_login(self.other_user)
         self.assertEqual(self.client.get(url).status_code, 404)
 
-        # Creator gets 200
+        # Creator gets 404 (only accountant or manager can view final review)
         self.client.force_login(self.creator)
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+        # Accountant gets 200
+        self.client.force_login(self.accountant)
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
         self.assertTemplateUsed(resp, "projects/final_review.html")
@@ -143,7 +152,7 @@ class OpsViewsTests(TestCase):
         # Final review stage
         rev_stage = self.project.stages.get(kind=StageKind.FINAL_REVIEW)
         rev_stage.status = ProjectStage.Status.IN_PROGRESS
-        rev_stage.assigned_to = self.creator
+        rev_stage.assigned_to = self.accountant
         rev_stage.save()
 
         # Approve final review

@@ -30,9 +30,12 @@ class InstallShortageExcessTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
         self.install_spec = Specialty.objects.get_or_create(name="نصاب")[0]
         self.creator = User.objects.create_user(username="creator_ph3", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_ph3", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.installer = User.objects.create_user(username="installer_ph3", password="pw", role=User.Role.EMPLOYEE)
         self.installer.specialties.add(self.install_spec)
         self.wh = Warehouse.objects.create(name="انبار مرکزی")
@@ -72,8 +75,8 @@ class InstallShortageExcessTests(TestCase):
             "service_id": self.service.id, "qty": "40", "unit_price": "850000",
             "materials": [{"item_id": self.item.id, "qty": "10"}],
         }]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        issue_proforma(project=self.project, actor=self.accountant)
 
         self.stage = self.project.stages.get(kind=StageKind.INSTALL)
         self.stage.assigned_to = self.installer
@@ -109,10 +112,13 @@ class PartRequestIssueTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک آزمایشی ۲", is_partner=True, phone_number="09121112244")
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
         self.install_spec = Specialty.objects.get_or_create(name="نصاب")[0]
         self.keeper_spec = Specialty.objects.get_or_create(name="انباردار")[0]
         self.creator = User.objects.create_user(username="creator_pr", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.accountant = User.objects.create_user(username="acc_pr", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.installer = User.objects.create_user(username="installer_pr", password="pw", role=User.Role.EMPLOYEE)
         self.installer.specialties.add(self.install_spec)
         self.keeper = User.objects.create_user(username="keeper_pr", password="pw", role=User.Role.EMPLOYEE)
@@ -147,8 +153,8 @@ class PartRequestIssueTests(TestCase):
         advance_stage(st1, actor=self.creator, new_status=ProjectStage.Status.DONE, comment="بازدید.")
 
         rows = parse_service_rows(json.dumps([{"service_id": self.service.id, "qty": "10", "unit_price": "500000", "materials": []}]))
-        save_proforma(project=self.project, actor=self.creator, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.creator)
+        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
+        issue_proforma(project=self.project, actor=self.accountant)
 
         self.stage = self.project.stages.get(kind=StageKind.INSTALL)
         self.stage.assigned_to = self.installer

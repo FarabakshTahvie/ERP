@@ -39,6 +39,13 @@
       box.addEventListener('change', notify);
       wrap.appendChild(box);
       cell.get = function () { return box.checked; };
+    } else if (col.type === 'select') {
+      var sel = el('select', 'select select-sm w-full');
+      (col.options || []).forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; sel.appendChild(op); });
+      if (value) sel.value = value;
+      sel.addEventListener('change', notify);
+      wrap.appendChild(sel);
+      cell.get = function () { return sel.value; };
     } else {
       var input = el('input', 'input input-sm w-full' + (col.type === 'text' ? '' : ' font-technical'));
       input.type = 'text';
@@ -127,7 +134,7 @@
       var d = values(row, spec), filled = !!row.pk;
       if (row.pk) d.pk = row.pk;
       spec.columns.forEach(function (c) {
-        if (c.type === 'readonly' || c.type === 'checkbox') return;
+        if (c.type === 'readonly' || c.type === 'checkbox' || c.type === 'select') return;
         var v = d[c.key];
         if (v !== null && v !== undefined && String(v).trim() !== '') filled = true;
       });

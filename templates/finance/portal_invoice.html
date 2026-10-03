@@ -104,7 +104,7 @@
                     </div>
                     <div class="text-left flex flex-col items-end gap-1">
                         <div class="text-sm font-bold"><span class="font-technical">{{ p.amount|intcomma_fa }}</span> تومان</div>
-                        <span class="fb-badge {% if p.status == 'approved' %}fb-badge-success{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-warning{% endif %}">{{ p.get_status_display }}</span>
+                        <span class="fb-badge fb-badge-{{ p.status_variant }}">{{ p.status_label }}</span>
                     </div>
                 </div>
                 {% if p.status == 'rejected' and p.rejection_reason %}

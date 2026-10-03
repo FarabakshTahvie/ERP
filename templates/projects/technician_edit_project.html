@@ -25,6 +25,7 @@
 
         {% include "projects/partials/location_picker.html" %}
 
+        {% if can_price %}
         <section class="fb-card fb-pad flex items-center justify-between gap-3">
             <div>
                 <h2 class="fb-section-title">خدمات، متریال و قیمت‌ها</h2>
@@ -32,6 +33,9 @@
             </div>
             <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">ویرایشگر پیش‌فاکتور</a>
         </section>
+        {% else %}
+        <p class="fb-hint">قیمت‌گذاری فقط با حسابدار است.</p>
+        {% endif %}
 
         {% if project.visit_date or visit_editable %}
         <section class="fb-card fb-pad flex flex-col gap-2">

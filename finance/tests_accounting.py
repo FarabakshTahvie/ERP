@@ -373,7 +373,7 @@ class AccountantPaymentVisibilityTests(BaseAccountingTestCase):
 
         self.client.force_login(self.tech)
         other_detail = self.client.get(reverse("finance:payment_detail", args=[payment.id]))
-        self.assertEqual(other_detail.status_code, 404)
+        self.assertEqual(other_detail.status_code, 302)
 
 
 class MovementDecimalDisplayTests(BaseAccountingTestCase):

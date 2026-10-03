@@ -154,6 +154,11 @@ def _rebuild_lines(invoice, project):
         _make_line(invoice, InvoiceLine.LineType.MATERIAL, pm.item.name, pm.qty, pm.unit_price, pm.item.moving_average_cost)
         for pm in project.extra_materials.all()   # مسیر قدیمی (پروژه‌های پیش از نسخه‌ی ۲)
     ]
+    for xl in project.extra_lines.all():
+        if xl.kind == "discount":
+            lines.append(_make_line(invoice, InvoiceLine.LineType.DISCOUNT, xl.title, xl.qty, -xl.unit_price))
+        else:
+            lines.append(_make_line(invoice, InvoiceLine.LineType.EXTRA, xl.title, xl.qty, xl.unit_price))
     if project.installation_fee:
         lines.append(_make_line(invoice, InvoiceLine.LineType.INSTALLATION, "هزینه نصب", 1, project.installation_fee))
     if project.shipping_fee:
@@ -280,6 +285,7 @@ def recalculate_invoice_paid_amount(invoice):
             invoice.settled_at = timezone.now()
     elif invoice.paid_amount > 0:
         invoice.status = Invoice.Status.PARTIALLY_PAID
+        invoice.settled_at = None
     invoice.save(update_fields=["paid_amount", "status", "settled_at"])
 
 

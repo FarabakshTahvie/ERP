@@ -4,9 +4,9 @@ from accounts.models import User
 from catalog.models import Service, Item
 from catalog.services import resolve_margin_percents
 from utils.line_editor import Col, parse_rows
-from .models import ProjectService, ProjectServiceMaterial, ProjectStage, StageKind
+from .models import ProjectService, ProjectServiceMaterial, ProjectExtraLine, ProjectStage, StageKind
 from .services import (
-    can_edit_project, project_prices_editable, parse_fee, advance_stage,
+    can_edit_project, can_edit_pricing, project_prices_editable, parse_fee, advance_stage,
     NOT_SENT, EDITABLE_PROJECT_STATUSES,
 )
 
@@ -19,11 +19,22 @@ SERVICE_COLS = (
     Col("qty", "مقدار خدمت", "number", positive=True),
     Col("unit_price", "قیمت خود خدمت (تومان)", "money"),
 )
+EXTRA_COLS = (
+    Col("title", "شرح", "text", max_len=200),
+    Col("kind", "نوع", "select", choices=("extra", "discount")),
+    Col("qty", "مقدار", "number", positive=True),
+    Col("unit_price", "مبلغ واحد (تومان)", "money", positive=True),
+)
 
 
 def parse_service_rows(raw_json):
     """None = ارسال نشده."""
     return parse_rows(raw_json, SERVICE_COLS, children_key="materials", children_columns=MATERIAL_COLS)
+
+
+def parse_extra_rows(raw_json):
+    """None = ارسال نشده."""
+    return parse_rows(raw_json, EXTRA_COLS)
 
 
 def _round0(value):
@@ -46,7 +57,9 @@ def proforma_stage(project):
 
 
 def can_issue_proforma(user, stage):
-    return user.is_superuser or user.role == User.Role.ADMIN or stage.assigned_to_id in (None, user.id)
+    from .services import can_edit_pricing
+    return can_edit_pricing(user, stage.project) and (
+        user.is_superuser or user.role == User.Role.ADMIN or stage.assigned_to_id in (None, user.id))
 
 
 def _sync_materials(line, rows, items, margins):
@@ -66,6 +79,22 @@ def _sync_materials(line, rows, items, margins):
         m.save()
         keep.add(m.pk)
     line.materials.exclude(pk__in=keep).delete()
+
+
+def _sync_extra_rows(project, rows, actor):
+    existing = {l.pk: l for l in project.extra_lines.all()}
+    keep = set()
+    for row in rows:
+        line = existing.get(row["pk"]) if row["pk"] not in keep else None
+        if line is None:
+            line = ProjectExtraLine(project=project, created_by=actor)
+        qty = row["qty"].quantize(Decimal("0.01"))
+        if qty <= 0:
+            raise ValueError("مقدار ردیف اضافه خیلی کوچک است.")
+        line.kind, line.title, line.qty, line.unit_price = row["kind"], row["title"], qty, row["unit_price"]
+        line.save()
+        keep.add(line.pk)
+    project.extra_lines.exclude(pk__in=keep).delete()
 
 
 def _sync_service_rows(project, rows):
@@ -101,10 +130,10 @@ def _sync_service_rows(project, rows):
 
 
 @transaction.atomic
-def save_proforma(*, project, actor, service_rows=None, installation_fee_raw=None, shipping_fee_raw=None,
+def save_proforma(*, project, actor, service_rows=None, extra_rows=None, installation_fee_raw=None, shipping_fee_raw=None,
                   extra_fee_raw=None, contract_date=NOT_SENT):
     """service_rows=None یعنی دست نزن. خروجی: آیا پیش‌فاکتور بازتولید شد؟"""
-    if not can_edit_project(actor, project):
+    if not can_edit_pricing(actor, project):
         raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
     if project.status not in EDITABLE_PROJECT_STATUSES:
         raise ValueError("پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
@@ -122,6 +151,8 @@ def save_proforma(*, project, actor, service_rows=None, installation_fee_raw=Non
 
     if service_rows is not None:
         _sync_service_rows(project, service_rows)
+    if extra_rows is not None:
+        _sync_extra_rows(project, extra_rows, actor)
 
     for field, value in fees.items():
         setattr(project, field, value)
@@ -133,7 +164,7 @@ def save_proforma(*, project, actor, service_rows=None, installation_fee_raw=Non
         project.save(update_fields=fields)
 
     invoice = getattr(project, "invoice", None)
-    if invoice is not None and (service_rows is not None or fees or date_changed):
+    if invoice is not None and (service_rows is not None or extra_rows is not None or fees or date_changed):
         if date_changed:
             invoice.contract_date = project.contract_date
             invoice.save(update_fields=["contract_date"])
@@ -147,7 +178,7 @@ def save_proforma(*, project, actor, service_rows=None, installation_fee_raw=Non
 def issue_proforma(*, project, actor, send_sms=False):
     """صدور پیش‌فاکتور + حساب طرف‌حساب + تکمیل مرحله. خروجی: (invoice, account_conflict)"""
     from finance.services import generate_invoice_for_project, ensure_billed_party_account, notify_invoice_issued
-    if not can_edit_project(actor, project):
+    if not can_edit_pricing(actor, project):
         raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
     stage = proforma_stage(project)
     if stage is None or stage.status != ProjectStage.Status.IN_PROGRESS:
@@ -162,6 +193,8 @@ def issue_proforma(*, project, actor, send_sms=False):
         raise ValueError("جمع قیمت این خدمت‌ها صفر است: " + "، ".join(zero))
 
     invoice = generate_invoice_for_project(project)
+    if invoice.total_amount <= 0:
+        raise ValueError("جمع پیش‌فاکتور باید بیشتر از صفر باشد.")
     user, raw_password = ensure_billed_party_account(invoice)   # قبل از پیشروی؛ مرحله‌ی بعد به این حساب اطلاع می‌دهد
     advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment="پیش‌فاکتور صادر شد.")
     if send_sms and user:

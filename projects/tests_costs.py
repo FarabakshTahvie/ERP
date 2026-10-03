@@ -281,7 +281,7 @@ class ProjectCostsAndContractTests(TestCase):
 
     def test_view_project_edit_get_renders_fees(self):
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
         resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
@@ -298,7 +298,7 @@ class ProjectCostsAndContractTests(TestCase):
         visit_st.status = "done"
         visit_st.save()
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
         resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode("utf-8")
