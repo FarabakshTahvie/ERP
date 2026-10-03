@@ -129,7 +129,7 @@ class FinalReviewManualConsumeTests(TestCase):
         client = Client()
         client.force_login(self.accountant)
         resp = client.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertContains(resp, "ثبت مصرف یا تعدیل موجودی")
+        self.assertContains(resp, "مصرف کالای دیگر")
 
         plain = User.objects.create_user(username="mc_plain", password="pw", role=User.Role.EMPLOYEE)
         self.project.created_by = plain
@@ -200,8 +200,9 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         client = Client()
         client.force_login(self.accountant)
         resp = client.get(reverse("projects:final_review", args=[self.project.id]))
-        content = resp.content.decode("utf-8")
-        self.assertIn(">زیان<", content)
+        # قانون طلایی: عدم قضاوت سود و زیان
+        self.assertNotContains(resp, ">زیان<")
+        self.assertContains(resp, "بیشتر از پیش‌فاکتور")
 
 
 class AccountantHomeLinksToAccountingCenterTests(TestCase):

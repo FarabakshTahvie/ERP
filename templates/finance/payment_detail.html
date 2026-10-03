@@ -138,51 +138,11 @@
                 {% if payment.approved_at %} — <span class="font-technical">{{ payment.approved_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% endif %}
             </span>
         </div>
-
-        {% if payment.method == 'credit' and payment.credit_open_amount > 0 %}
-        <section class="fb-card fb-pad flex flex-col gap-3">
-            <h2 class="fb-section-title">ثبت وصول اعتباری</h2>
-            <p class="fb-hint">مانده‌ی اعتباری وصول‌نشده: <span class="font-technical font-bold">{{ payment.credit_open_amount|intcomma_fa }}</span> تومان</p>
-            <form method="post" action="{% url 'finance:payment_settle_credit' payment.id %}" enctype="multipart/form-data" data-fb-once class="flex flex-col gap-3">
-                {% csrf_token %}
-                <div class="fb-field">
-                    <label class="fb-label">روش وصول</label>
-                    <select name="method" class="select select-sm w-full">
-                        <option value="card_to_card">کارت به کارت</option>
-                        <option value="receipt">رسید واریز مستقیم</option>
-                        <option value="cheque">چک صیادی</option>
-                    </select>
-                </div>
-                <div class="fb-field">
-                    <label class="fb-label">مبلغ وصولی (تومان — خالی = کل مانده)</label>
-                    <input type="text" name="amount" dir="ltr" inputmode="numeric" placeholder="{{ payment.credit_open_amount|intcomma_fa }}" class="input input-sm w-full font-technical">
-                </div>
-                <div class="fb-field">
-                    <label class="fb-label">شماره پیگیری / شماره چک</label>
-                    <input type="text" name="reference_number" dir="ltr" class="input input-sm w-full font-technical">
-                </div>
-                <div class="fb-field">
-                    <label class="fb-label">تصویر رسید / چک</label>
-                    <input type="file" name="receipt_file" class="file-input file-input-sm w-full">
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm">ثبت وصول</button>
-            </form>
-        </section>
-        {% endif %}
-
-        {% if payment.settlements.all %}
-        <section class="fb-card fb-pad flex flex-col gap-2">
-            <h2 class="fb-section-title">وصول‌های ثبت‌شده برای این پرداخت اعتباری</h2>
-            {% for s in payment.settlements.all %}
-            <div class="fb-inset flex items-center justify-between gap-2 text-xs">
-                <span>{{ s.get_method_display }} — <span class="font-technical">{{ s.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
-                <span class="flex items-center gap-2">
-                    <span class="font-technical font-bold">{{ s.amount|intcomma_fa }} تومان</span>
-                    <span class="fb-badge fb-badge-{{ s.status_variant }}">{{ s.status_label }}</span>
-                </span>
-            </div>
-            {% endfor %}
-        </section>
+        {% if payment.method == 'credit' %}
+        <div role="alert" class="alert alert-soft alert-info text-xs">
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span>پرداخت اعتباری فقط اجازه‌ی ادامه‌ی کار است. پرداخت واقعی را از صفحه‌ی فاکتور یا «پرونده‌ی مالی» ثبت کنید.</span>
+        </div>
         {% endif %}
         {% if needs_amount and payment.amount != claimed_amount %}
         <div role="alert" class="alert alert-soft alert-warning">

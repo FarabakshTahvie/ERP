@@ -5,4 +5,5 @@
     <a href="{% url 'finance:payments_review' %}" class="btn btn-sm btn-soft">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها</a>
     <a href="{% url 'finance:accounting_stock' %}" class="btn btn-sm {% if nav_active == 'stock' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "arrow-left-right" "w-4 h-4" %} حرکات انبار</a>
     <a href="{% url 'finance:accounting_purchases' %}" class="btn btn-sm {% if nav_active == 'purchases' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "receipt" "w-4 h-4" %} خریدها</a>
+    <a href="{% url 'finance:accounting_suppliers' %}" class="btn btn-sm {% if nav_active == 'suppliers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "users" "w-4 h-4" %} تأمین‌کننده‌ها</a>
 </nav>

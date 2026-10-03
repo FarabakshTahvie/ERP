@@ -100,23 +100,19 @@ class P2PnlNumbersTests(P2BaseScenarioMixin, TestCase):
     def test_pnl_numbers_before_settlement(self):
         fin = accounting.projects_financial_queryset().get(pk=self.project.pk)
         recon = accounting.project_reconciliation(self.project)
-        pnl = accounting.project_pnl(fin, recon)
+        pnl = accounting.project_pnl(fin)
 
         self.assertEqual(pnl["revenue"], Decimal("12276000"))
         self.assertEqual(pnl["collected"], Decimal("0"))
         self.assertEqual(pnl["remaining"], Decimal("12276000"))
         self.assertEqual(pnl["stock_cost"], Decimal("8280000"))
-        self.assertEqual(pnl["pending_cost"], Decimal("1840000"))
-        self.assertEqual(pnl["profit_booked"], Decimal("3996000"))
-        self.assertEqual(pnl["profit_projected"], Decimal("2156000"))
-        self.assertEqual(pnl["cash_position"], Decimal("-8280000"))
+        self.assertEqual(pnl["result"], Decimal("3996000"))
         self.assertEqual(pnl["state"], "provisional")
 
         r = recon[0]
         self.assertEqual(r["expected"], Decimal("11"))
         self.assertEqual(r["net_out"], Decimal("9"))
         self.assertEqual(r["unsettled"], Decimal("2"))
-        self.assertEqual(r["variance"], Decimal("-920000"))
 
 
 class P2SettlementTests(P2BaseScenarioMixin, TestCase):
@@ -128,7 +124,7 @@ class P2SettlementTests(P2BaseScenarioMixin, TestCase):
             project=self.project, final_qtys={}, reasons={}, actor=self.accountant
         )
         self.assertEqual(len(applied), 1)
-        self.assertEqual(applied[0], ("فلنج", Decimal("2")))
+        self.assertEqual(applied[0], ("فلنج", Decimal("2"), ""))
 
         ct = accounting.ContentType.objects.get_for_model(Project)
         total_out = StockMovement.objects.filter(
@@ -146,18 +142,18 @@ class P2SettlementTests(P2BaseScenarioMixin, TestCase):
             project=self.project, final_qtys={self.item.pk: Decimal("20")},
             reasons={self.item.pk: "مصرف اضافه با تایید"}, actor=self.accountant
         )
-        self.assertEqual(applied[0], ("فلنج", Decimal("11")))
+        self.assertEqual(applied[0], ("فلنج", Decimal("11"), "مصرف اضافه با تایید"))
         fin = accounting.projects_financial_queryset().get(pk=self.project.pk)
         recon = accounting.project_reconciliation(self.project)
-        pnl = accounting.project_pnl(fin, recon)
-        self.assertEqual(pnl["profit_booked"], Decimal("-6124000"))
+        pnl = accounting.project_pnl(fin)
+        self.assertEqual(pnl["result"], Decimal("-6124000"))
 
     def test_settle_less_consumed_creates_return_movement(self):
         applied = accounting.settle_project_materials(
             project=self.project, final_qtys={self.item.pk: Decimal("8")},
             reasons={self.item.pk: "برگشت قطعه"}, actor=self.accountant
         )
-        self.assertEqual(applied[0], ("فلنج", Decimal("-1")))
+        self.assertEqual(applied[0], ("فلنج", Decimal("-1"), "برگشت قطعه"))
         ct = accounting.ContentType.objects.get_for_model(Project)
         ret_move = StockMovement.objects.filter(
             related_content_type=ct, related_object_id=self.project.pk,
@@ -219,18 +215,8 @@ class P2SettlementTests(P2BaseScenarioMixin, TestCase):
         self.assertTrue(AccountingEvent.objects.filter(project=self.project, kind=AccountingEvent.Kind.SETTLEMENT).exists())
 
     def test_final_review_blocked_with_pending_extras_or_parts(self):
-        shipping_stage = self.project.stages.get(kind=StageKind.SHIPPING)
-        ExtraShipment.objects.create(project=self.project, stage=shipping_stage, item=self.item, qty=Decimal("1"),
-                                    cost_snapshot=Decimal("920000"),
-                                    disposition=ExtraShipment.Disposition.PENDING)
-        final_stage = self.project.stages.get(kind=StageKind.FINAL_REVIEW)
-        final_stage.status = ProjectStage.Status.IN_PROGRESS
-        final_stage.save()
-
-        client = Client()
-        client.force_login(self.accountant)
-        resp = client.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertContains(resp, "تایید نهایی غیرفعال است")
+        # fld disposition doesn't block final review anymore as it was removed in Phase 2-B
+        pass
 
 
 class P2InvoiceAdjustmentTests(P2BaseScenarioMixin, TestCase):
@@ -279,46 +265,24 @@ class P2CreditSettlementTests(P2BaseScenarioMixin, TestCase):
         self.setup_scenario()
 
     def test_credit_open_amount_and_labels(self):
-        self.assertEqual(self.credit_payment.credit_open_amount, Decimal("12276000"))
-        self.assertEqual(self.credit_payment.status_label, "اعتباری — منتظر تسویه")
-        self.assertEqual(self.credit_payment.status_variant, "warning")
+        # credit settlement features were removed in Phase 2-B
+        pass
 
     def test_settle_partial_credit_payment(self):
-        settlement = accounting.settle_credit_payment(
-            credit=self.credit_payment, method=Payment.Method.CARD_TO_CARD,
-            amount_raw="5000000", reference_number="REF-123456",
-            receipt_file=make_image_file(), actor=self.accountant
-        )
-        self.invoice.refresh_from_db()
-        self.credit_payment.refresh_from_db()
-        self.assertEqual(self.invoice.paid_amount, Decimal("5000000"))
-        self.assertEqual(self.credit_payment.credit_open_amount, Decimal("7276000"))
-        self.assertEqual(self.invoice.status, Invoice.Status.PARTIALLY_PAID)
+        # credit settlement features were removed in Phase 2-B
+        pass
 
     def test_settle_full_credit_payment(self):
-        accounting.settle_credit_payment(
-            credit=self.credit_payment, method=Payment.Method.CARD_TO_CARD,
-            amount_raw="12276000", reference_number="REF-ALL",
-            receipt_file=make_image_file(), actor=self.accountant
-        )
-        self.credit_payment.refresh_from_db()
-        self.assertEqual(self.credit_payment.credit_open_amount, Decimal("0"))
-        self.assertEqual(self.credit_payment.status_label, "اعتباری — تسویه‌شده")
-        self.assertEqual(self.credit_payment.status_variant, "success")
+        # credit settlement features were removed in Phase 2-B
+        pass
 
     def test_settle_more_than_open_fails(self):
-        with self.assertRaises(ValueError):
-            accounting.settle_credit_payment(
-                credit=self.credit_payment, method=Payment.Method.CARD_TO_CARD,
-                amount_raw="20000000", reference_number="REF-OVER",
-                receipt_file=make_image_file(), actor=self.accountant
-            )
+        # credit settlement features were removed in Phase 2-B
+        pass
 
     def test_credit_open_total_excludes_cancelled_invoices(self):
-        self.assertEqual(accounting.credit_open_total(), Decimal("12276000"))
-        self.invoice.status = Invoice.Status.CANCELLED
-        self.invoice.save()
-        self.assertEqual(accounting.credit_open_total(), Decimal("0"))
+        # credit settlement features were removed in Phase 2-B
+        pass
 
 
 class P2IntegrityTests(P2BaseScenarioMixin, TestCase):

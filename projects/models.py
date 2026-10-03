@@ -399,12 +399,7 @@ class ShipmentCheck(models.Model):
 
 
 class ExtraShipment(models.Model):
-    """کالای اضافه‌ی ارسال‌شده. فقط برای بازبینی؛ روی فاکتور نمی‌آید. تا تعیین‌تکلیف در بازبینی نهایی، موجودی را کم نمی‌کند."""
-
-    class Disposition(models.TextChoices):
-        PENDING = "pending", "در انتظار تعیین تکلیف"
-        CONSUMED = "consumed", "مصرف شد (از موجودی کم شد)"
-        RETURNED = "returned", "برگشت به انبار (بدون اثر بر موجودی)"
+    """کالای اضافه‌ی ارسال‌شده. فقط برای بازبینی؛ روی فاکتور نمی‌آید و موجودی را کم نمی‌کند. مصرف واقعی‌اش در جدول تسویه‌ی بازبینی نهایی تعیین می‌شود."""
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="پروژه")
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="مرحله")
@@ -416,9 +411,6 @@ class ExtraShipment(models.Model):
     note = models.CharField(max_length=500, verbose_name="توضیح")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
     created_at = models.DateTimeField(auto_now_add=True)
-    disposition = models.CharField(max_length=20, choices=Disposition.choices, default=Disposition.PENDING, verbose_name="تعیین تکلیف")
-    disposed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+", verbose_name="تعیین‌کننده‌ی تکلیف")
-    disposed_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تعیین تکلیف")
 
     class Meta:
         verbose_name = "کالای اضافه‌ی ارسال"
@@ -495,6 +487,9 @@ class PartRequest(models.Model):
 class ProjectCost(models.Model):
     """هزینه‌ی ثبت‌شده‌ی پروژه (مثل ارسال قطعات جدید). روی فاکتور نمی‌آید."""
     class Kind(models.TextChoices):
+        LABOR = "labor", "دستمزد"
+        TRANSPORT = "transport", "حمل و ایاب‌ذهاب"
+        DAMAGE = "damage", "خسارت"
         PART_SHIPPING = "part_shipping", "ارسال قطعات جدید"
         OTHER = "other", "سایر"
 

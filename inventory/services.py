@@ -14,6 +14,13 @@ ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
+def get_active_item(raw):
+    try:
+        return Item.objects.get(pk=int(raw), is_active=True)
+    except (TypeError, ValueError, Item.DoesNotExist):
+        raise ValueError("کالا را از فهرست انتخاب کنید.")
+
+
 def parse_decimal_input(raw, *, label="مقدار"):
     """رشته‌ی اعشاری (با ارقام فارسی/انگلیسی و جداکننده) را به Decimal مثبت تبدیل می‌کند؛ هر ایرادی ValueError فارسی می‌دهد."""
     text = str(raw if raw is not None else "").strip().translate(_FA_TO_EN)

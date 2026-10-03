@@ -184,8 +184,9 @@ def purchase_new(request):
 @user_passes_test(user_can_manage_inventory)
 def stock_movement_new(request):
     if request.method == "POST":
-        item = get_object_or_404(Item, pk=request.POST.get("item_id"), is_active=True)
         try:
+            from .services import get_active_item
+            item = get_active_item(request.POST.get("item_id"))
             record_manual_stock_change(
                 item=item,
                 kind=request.POST.get("kind"),

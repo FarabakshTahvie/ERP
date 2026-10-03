@@ -11,7 +11,7 @@ from inventory.services import user_can_manage_inventory, record_manual_stock_ch
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from . import ops
-from .models import ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, StageKind
+from .models import ExtraShipment, InstallLine, PartRequest, Project, ProjectFile, ProjectStage, StageKind
 from .stage_ops import complete_stage
 from .stage_move import move_to_stage
 
@@ -70,23 +70,6 @@ def extra_delete(request, extra_id):
 
 @login_required
 @require_POST
-def extra_dispose(request, extra_id):
-    extra = _obj(ExtraShipment.objects.select_related("project", "item"), extra_id)
-    disp = request.POST.get("disposition")
-    try:
-        ops.resolve_extra_shipment_disposition(extra=extra, disposition=disp, actor=request.user)
-        from finance import accounting
-        accounting.log_event(kind="disposition", project=extra.project, actor=request.user,
-                             text=f"{extra.item.name} × {extra.qty}: {extra.get_disposition_display()}")
-    except ValueError as e:
-        messages.error(request, str(e))
-    else:
-        messages.success(request, "تعیین تکلیف قطعه‌ی اضافه انجام شد.")
-    return redirect("projects:final_review", extra.project_id)
-
-
-@login_required
-@require_POST
 def part_request_create(request, stage_id):
     stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
     return _json(lambda: ops.create_part_request(stage=stage, item_id=request.POST.get("item_id"),
@@ -98,21 +81,6 @@ def part_request_create(request, stage_id):
 def part_request_cancel(request, req_id):
     req = _obj(PartRequest, req_id)
     return _json(lambda: ops.cancel_part_request(req=req, actor=request.user))
-
-
-@login_required
-@require_POST
-def cost_add(request, project_id):
-    project = _obj(Project, project_id)
-    return _json(lambda: ops.add_project_cost(project=project, kind=request.POST.get("kind"), title=request.POST.get("title"),
-                                              amount_raw=request.POST.get("amount"), actor=request.user) and None)
-
-
-@login_required
-@require_POST
-def cost_delete(request, cost_id):
-    cost = _obj(ProjectCost.objects.select_related("project"), cost_id)
-    return _json(lambda: ops.delete_project_cost(cost=cost, actor=request.user))
 
 
 # ----- انباردار -----
@@ -224,7 +192,7 @@ def final_review(request, project_id):
     return render(request, "projects/final_review.html", {
         "project": project, "stage": stage, "can_approve": stage.status == ProjectStage.Status.IN_PROGRESS,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
-        "can_manage_stock": True, "recon": recon, "pnl": accounting.project_pnl(fin, recon),
+        "recon": recon, "pnl": accounting.project_pnl(fin),
         "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],
     })
 
@@ -235,20 +203,22 @@ def final_review_consume(request, project_id):
     project = _obj(Project, project_id)
     if not ops.can_view_final_review(request.user, project):
         raise Http404
-    item = _obj(Item, request.POST.get("item_id"), is_active=True)
+    from finance import accounting
+    from inventory.services import get_active_item
     try:
-        record_manual_stock_change(
-            item=item, kind=request.POST.get("kind"), qty_raw=request.POST.get("qty"),
-            notes=request.POST.get("notes", ""), user=request.user,
-            unit_cost_raw=request.POST.get("unit_cost"), related_object=project,
-        )
-        from finance import accounting
-        accounting.log_event(kind="stock_fix", project=project, actor=request.user,
-                             text=f"{item.name}: {request.POST.get('kind')} × {request.POST.get('qty')} — {request.POST.get('notes', '')}")
+        item = get_active_item(request.POST.get("item_id"))
+        if item.pk in {r["item"].pk for r in accounting.project_reconciliation(project)}:
+            raise ValueError("این کالا در جدول تسویه هست؛ مقدارش را همان‌جا تغییر دهید.")
+        qty = request.POST.get("qty")
+        notes = (request.POST.get("notes") or "").strip()
+        record_manual_stock_change(item=item, kind="consume", qty_raw=qty, notes=notes,
+                                   user=request.user, related_object=project)
     except ValueError as e:
         messages.error(request, str(e))
     else:
-        messages.success(request, "تغییر موجودی ثبت شد.")
+        accounting.log_event(kind="stock_fix", project=project, actor=request.user,
+                             text=f"مصرف کالای دیگر: {item.name} × {qty} — {notes}")
+        messages.success(request, "مصرف ثبت شد؛ کالا به جدول تسویه اضافه شد.")
     return redirect("projects:final_review", project.id)
 
 

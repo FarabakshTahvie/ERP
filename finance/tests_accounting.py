@@ -226,7 +226,7 @@ class OverviewNumbersTests(BaseAccountingTestCase):
 
 class ProjectFinancialsTests(BaseAccountingTestCase):
     def test_project_financials_calculations(self):
-        Invoice.objects.create(
+        inv = Invoice.objects.create(
             project=self.project, number="INV-PRJ-1", billed_party=self.client_party,
             total_amount=Decimal("1000000"), issue_date=timezone.localdate(),
         )
@@ -255,7 +255,7 @@ class ProjectFinancialsTests(BaseAccountingTestCase):
         self.assertEqual(p.stock_back, Decimal("1000"))
         self.assertEqual(p.rec_costs, Decimal("500"))
         self.assertEqual(p.actual_cost, Decimal("2500"))
-        self.assertEqual(p.profit, Decimal("997500"))
+        self.assertEqual(p.net_result, Decimal("997500"))
 
         p.invoice.status = Invoice.Status.CANCELLED
         p.invoice.save()
@@ -320,15 +320,15 @@ class ReconciliationTests(BaseAccountingTestCase):
         consume_stock(item=self.item, qty=Decimal("10"), user=self.accountant, notes="مصرف ۱۰", related_object=self.project)
         recon = accounting.project_reconciliation(self.project)
         r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["basis"], "plan")
+        self.assertEqual(r["basis"], "sources")
         self.assertEqual(r["status"], "ok")
 
         line = InstallLine.objects.create(
             stage=self.stage, kind=InstallLine.Kind.MATERIAL, item=self.item, title="لوله مسی",
-            planned_qty=Decimal("10"), actual_qty=Decimal("10"), status=InstallLine.Status.OK,
+            planned_qty=Decimal("10"), actual_qty=Decimal("13"), status=InstallLine.Status.OK,
         )
         ExtraShipment.objects.create(
-            project=self.project, stage=self.stage, item=self.item, qty=Decimal("3"), disposition=ExtraShipment.Disposition.CONSUMED,
+            project=self.project, stage=self.stage, item=self.item, qty=Decimal("3"),
         )
         StockMovement.objects.filter(related_object_id=self.project.pk).delete()
         consume_stock(item=self.item, qty=Decimal("13"), user=self.accountant, notes="مصرف ۱۳", related_object=self.project)

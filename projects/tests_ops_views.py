@@ -170,7 +170,7 @@ class OpsViewsTests(TestCase):
         mat_line = self.install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
         set_install_line(line=mat_line, status="ok", actual_qty_raw="5", reason="", actor=self.installer) # delta +3
         req = create_part_request(stage=self.install_stage, item_id=self.item.id, qty_raw="2", note="نیاز به قطعه", actor=self.installer)
-        add_project_cost(project=self.project, kind="part_shipping", title="ارسال قطعه", amount_raw="50000", actor=self.creator)
+        add_project_cost(project=self.project, kind="part_shipping", title="ارسال قطعه", amount_raw="50000", actor=self.accountant)
 
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.total_amount, invoice_total_before)

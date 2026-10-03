@@ -9,7 +9,7 @@
         <div class="flex flex-wrap items-center gap-2 mt-2">
             <span class="fb-badge fb-badge-neutral">کد: <span dir="ltr" class="font-technical">{{ project.code|fa_digits }}</span></span>
             <span class="fb-badge {% if project.status == 'completed' %}fb-badge-success{% elif project.status == 'cancelled' %}fb-badge-error{% elif project.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ project.get_status_display }}</span>
-            <span class="fb-badge {% if pnl.state == 'final' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">حساب {{ pnl.state_label }}</span>
+            <span class="fb-badge fb-badge-neutral">{{ pnl.state_label }}</span>
         </div>
         <div class="flex flex-wrap gap-2 mt-3">
             <a href="{% url 'projects:staff_project_overview' project.id %}" class="btn btn-soft btn-sm">نمای پروژه</a>
@@ -19,32 +19,34 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {% include "finance/partials/stat_card.html" with label="فروش (فاکتور)" value=pnl.revenue tone="" hint="" %}
         {% include "finance/partials/stat_card.html" with label="دریافت‌شده" value=pnl.collected tone="text-success" hint="" %}
         {% include "finance/partials/stat_card.html" with label="مانده‌ی فاکتور" value=pnl.remaining tone="text-warning" hint="" %}
         {% include "finance/partials/stat_card.html" with label="هزینه‌ی انبار ثبت‌شده" value=pnl.stock_cost tone="" hint="" %}
-        {% include "finance/partials/stat_card.html" with label="هزینه‌ی تسویه‌نشده (تخمینی)" value=pnl.pending_cost tone="text-warning" hint="با تایید نهایی ثبت می‌شود." %}
         {% include "finance/partials/stat_card.html" with label="هزینه‌های ثبت‌شده" value=pnl.recorded_costs tone="" hint="" %}
-        {% include "finance/partials/stat_card.html" with label="سود طبق فاکتور (بعد از تسویه)" value=pnl.profit_projected tone=pnl.profit_tone hint="فروش منهای همه‌ی هزینه‌ها؛ پول دریافتی نیست." %}
-        {% include "finance/partials/stat_card.html" with label="وضعیت نقدی" value=pnl.cash_position tone=pnl.cash_tone hint="دریافتی منهای هزینه‌ها." %}
+        {% include "finance/partials/stat_card.html" with label="فروش منهای هزینه‌های ثبت‌شده" value=pnl.result tone="" hint=pnl.state_label %}
+    </div>
+
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">«فروش منهای هزینه‌های ثبت‌شده» فقط هزینه‌ی انبار و هزینه‌هایی را دارد که در سیستم ثبت شده. دستمزد، ایاب‌ذهاب و هر هزینه‌ی ثبت‌نشده در آن نیست؛ قضاوت درباره‌ی سود با حسابدار است.{% if pnl.state == 'provisional' %} تا تایید نهایی این عدد موقت است.{% endif %}</span>
     </div>
 
     {% if unsettled_count and pnl.state != 'final' %}
     <div role="alert" class="alert alert-soft alert-warning">
         {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-        <span class="text-xs">مصرف {{ unsettled_count|fa_digits }} قلم هنوز با نصب یا پیش‌فاکتور هم‌خوان نیست. تسویه‌ی مصرف هنگام تایید نهایی انجام می‌شود، پس سود بالا موقت است.</span>
+        <span class="text-xs">مصرف {{ unsettled_count|fa_digits }} قلم هنوز با پیشنهاد سیستم هم‌خوان نیست؛ هنگام تایید نهایی تسویه می‌شود.</span>
     </div>
     {% endif %}
 
     <section class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="fb-section-title">مغایرت مواد</h2>
-        <p class="fb-hint">«نصب‌شده» شامل قطعه‌های تحویلی از انبار هم هست. «اختلاف بها» پیش‌بینی بهای نهایی منهای بهای پیش‌فاکتور است.</p>
         <div class="overflow-x-auto">
             <table class="table table-sm text-xs">
                 <thead><tr class="fb-muted">
-                    <th>کالا</th><th>پیش‌فاکتور</th><th>نصب‌شده</th><th>قطعه‌ی تحویلی</th><th>اضافه‌ی ارسالی (مصرف / برگشت / منتظر)</th>
-                    <th>کسر از انبار (خالص)</th><th>تسویه‌نشده</th><th>اختلاف بها (تومان)</th><th>وضعیت</th>
+                    <th>کالا</th><th>پیش‌فاکتور</th><th>نصب‌شده</th><th>قطعه‌ی تحویلی</th><th>اضافه‌ی ارسالی</th>
+                    <th>کسر از انبار (خالص)</th><th>مصرف نهایی پیشنهادی</th><th>تسویه‌نشده</th><th>وضعیت</th>
                 </tr></thead>
                 <tbody>
                     {% for r in recon %}
@@ -53,18 +55,14 @@
                         <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{% if r.basis == 'install' %}{{ r.installed|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                         <td class="font-technical">{{ r.parts_issued|floatformat:"-4"|fa_digits }}</td>
-                        <td class="font-technical">{{ r.extra_consumed|floatformat:"-4"|fa_digits }} / {{ r.extra_returned|floatformat:"-4"|fa_digits }} / {{ r.extra_pending|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.extras_shipped|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.expected|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{{ r.unsettled|floatformat:"-4"|fa_digits }}</td>
-                        <td>
-                            {% if r.variance > 0 %}<span class="fb-badge fb-badge-error">زیان {{ r.variance|intcomma_fa }}</span>
-                            {% elif r.variance < 0 %}<span class="fb-badge fb-badge-success">سود {{ r.variance|cut:"-"|intcomma_fa }}</span>
-                            {% else %}—{% endif %}
-                        </td>
                         <td>
                             {% if r.status == 'ok' %}<span class="fb-badge fb-badge-success">هم‌خوان</span>
                             {% elif r.status == 'short' %}<span class="fb-badge fb-badge-warning">مصرف ثبت‌نشده</span>
-                            {% else %}<span class="fb-badge fb-badge-error">بیش از انتظار</span>{% endif %}
+                            {% else %}<span class="fb-badge fb-badge-error">بیش از پیشنهاد</span>{% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -109,8 +107,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
         <h2 class="fb-section-title">قطعه‌ها و هزینه‌ها</h2>
         {% for ex in data.extras %}
-        <div class="flex items-center justify-between gap-2 flex-wrap"><span>اضافه‌ی ارسالی: {{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span></span>
-            <span class="fb-badge {% if ex.disposition == 'pending' %}fb-badge-error{% elif ex.disposition == 'consumed' %}fb-badge-warning{% else %}fb-badge-neutral{% endif %}">{{ ex.get_disposition_display }}</span></div>
+        <div class="flex items-center justify-between gap-2 flex-wrap"><span>اضافه‌ی ارسالی: {{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span></span></div>
         {% endfor %}
         {% for p in data.parts %}
         <div class="flex items-center justify-between gap-2 flex-wrap"><span>درخواست قطعه: {{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>

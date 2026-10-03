@@ -35,18 +35,6 @@
     {% empty %}<p class="fb-hint">موردی ثبت نشده.</p>{% endfor %}
     {% if s.ops.can_edit %}<button type="button" class="btn btn-soft btn-sm self-start" data-open-dialog="extra-dialog-{{ s.id }}">{% icon "plus" "w-4 h-4" %} قطعه‌ی اضافه</button>{% endif %}
 
-    {% if s.ops.costs is not None %}
-    <div class="fb-label pt-2">هزینه‌ها</div>
-    {% for c in s.ops.costs %}
-    <div class="flex items-center justify-between gap-2 text-xs">
-        <span>{{ c.get_kind_display }} — {{ c.title }}</span>
-        <span class="flex items-center gap-2"><span class="font-technical">{{ c.amount|intcomma_fa }}</span>
-        {% if s.ops.can_edit %}<form method="post" action="{% url 'projects:cost_delete' c.id %}" data-ops-form data-confirm="این هزینه حذف شود؟">{% csrf_token %}<button type="submit" class="btn btn-ghost btn-xs" aria-label="حذف">{% icon "trash-2" "w-4 h-4" %}</button></form>{% endif %}</span>
-    </div>
-    {% empty %}<p class="fb-hint">هزینه‌ای ثبت نشده.</p>{% endfor %}
-    {% if s.ops.can_edit %}<button type="button" class="btn btn-soft btn-sm self-start" data-open-dialog="cost-dialog-{{ s.id }}">{% icon "plus" "w-4 h-4" %} ثبت هزینه</button>{% endif %}
-    {% endif %}
-
     {% if s.ops.can_edit %}
     <dialog id="extra-dialog-{{ s.id }}" class="modal"><div class="modal-box max-w-sm">
         <h3 class="font-bold text-base mb-3">قطعه‌ی اضافه‌ی ارسال‌شده</h3>
@@ -55,16 +43,6 @@
             <div class="fb-field"><span class="fb-label">کالا</span><div data-item-picker></div><input type="hidden" name="item_id"></div>
             <div class="fb-field"><label class="fb-label">مقدار</label><input type="text" name="qty" dir="ltr" inputmode="decimal" class="input w-full font-technical"></div>
             <div class="fb-field"><label class="fb-label">توضیح (اجباری)</label><textarea name="note" rows="2" class="textarea w-full"></textarea></div>
-            <span data-form-error class="fb-error hidden"></span>
-            <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">ثبت</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
-        </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>
-    <dialog id="cost-dialog-{{ s.id }}" class="modal"><div class="modal-box max-w-sm">
-        <h3 class="font-bold text-base mb-3">ثبت هزینه</h3>
-        <form method="post" action="{% url 'projects:cost_add' s.project_id %}" data-ops-form class="flex flex-col gap-3">
-            {% csrf_token %}
-            <div class="fb-field"><label class="fb-label">نوع</label><select name="kind" class="select w-full"><option value="part_shipping">ارسال قطعات جدید</option><option value="other">سایر</option></select></div>
-            <div class="fb-field"><label class="fb-label">شرح (اجباری)</label><input type="text" name="title" class="input w-full"></div>
-            <div class="fb-field"><label class="fb-label">مبلغ (تومان)</label><input type="text" name="amount" dir="ltr" inputmode="numeric" class="input w-full font-technical"></div>
             <span data-form-error class="fb-error hidden"></span>
             <div class="flex gap-2"><button type="submit" class="btn btn-primary flex-1">ثبت</button><button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button></div>
         </form></div><form method="dialog" class="modal-backdrop"><button>close</button></form></dialog>

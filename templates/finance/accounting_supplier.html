@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ party.name }} | تأمین‌کننده{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'finance:accounting_suppliers' %}" class="link link-hover text-sm fb-muted">بازگشت به تأمین‌کننده‌ها</a>
+        <h1 class="fb-page-title mt-2">{{ party.name }}</h1>
+        {% if party.phone_number %}<p class="fb-page-sub"><span dir="ltr" class="font-technical">{{ party.phone_number|fa_digits }}</span></p>{% endif %}
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+    <div class="grid grid-cols-2 gap-3">
+        {% include "finance/partials/stat_card.html" with label="تعداد خرید" value=purchases_count tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="جمع خرید (تومان)" value=total tone="" hint="" %}
+    </div>
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">چه چیزی از او خریده‌ایم</h2>
+            <a href="{% url 'finance:accounting_purchases' %}?au_f_supplier={{ party.id }}" class="btn btn-soft btn-sm">همه‌ی ردیف‌های خرید</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>کالا</th><th>مقدار کل</th><th>تعداد خرید</th><th>جمع (تومان)</th><th>آخرین خرید</th></tr></thead>
+                <tbody>
+                {% for r in items %}
+                    <tr><td class="font-semibold">{{ r.item__name }}</td>
+                        <td class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }} {{ r.unit_label }}</td>
+                        <td class="font-technical">{{ r.n|fa_digits }}</td>
+                        <td class="font-technical">{{ r.total|intcomma_fa }}</td>
+                        <td class="font-technical">{{ r.last_at|to_jalali:"%Y/%m/%d" }}</td></tr>
+                {% empty %}<tr><td colspan="5" class="fb-empty">خریدی ثبت نشده است.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

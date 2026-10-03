@@ -5,7 +5,7 @@ import jdatetime
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import (
-    Case, DecimalField, Exists, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum, Value, When
+    Case, Count, DecimalField, Exists, ExpressionWrapper, F, Max, OuterRef, Q, Subquery, Sum, Value, When
 )
 from django.db.models.functions import Coalesce
 from django.urls import reverse
@@ -34,6 +34,21 @@ QTY_Q = Decimal("0.0001")
 MONEY = DecimalField(max_digits=24, decimal_places=2)
 VALUE = ExpressionWrapper(F("qty") * F("unit_cost"), output_field=MONEY)
 LOT_VALUE = ExpressionWrapper(F("qty_remaining") * F("unit_cost"), output_field=MONEY)
+SUPPLIER_VALUE = ExpressionWrapper(F("purchases__lines__qty") * F("purchases__lines__unit_cost"), output_field=MONEY)
+
+
+def supplier_items(party):
+    """چه چیزی از این تأمین‌کننده خریده‌ایم."""
+    from catalog.models import Item
+    labels = dict(Item.Unit.choices)
+    rows = list(PurchaseLine.objects.filter(purchase__supplier=party)
+                .values("item_id", "item__name", "item__unit")
+                .annotate(qty=Sum("qty"), total=Sum(VALUE), last_at=Max("purchase__purchased_at"),
+                          n=Count("purchase", distinct=True))
+                .order_by("-total"))
+    for r in rows:
+        r["unit_label"] = labels.get(r["item__unit"], "")
+    return rows
 MT, DIR = StockMovement.MovementType, StockMovement.Direction
 
 PERIODS = (
@@ -103,8 +118,7 @@ def accounting_overview(period_key="all", today=None):
         "adjust_loss": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.OUT), VALUE),
         "adjust_gain": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.IN), VALUE),
         "returns": _sum(moves.filter(movement_type=MT.RETURN), VALUE),
-        "credit_open": credit_open_total(),
-        "final_profit": sum((p.profit for p in final_rows), ZERO),
+        "final_result": sum((p.net_result for p in final_rows), ZERO),
         "final_count": len(final_rows),
         "stock_value": _sum(StockLot.objects.all(), LOT_VALUE),
         "integrity": stock_integrity(),
@@ -122,13 +136,8 @@ def attention_items():
     add("پرداخت منتظر تایید",
         Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY).count(),
         reverse("finance:payments_review"))
-    add("پرداخت اعتباری وصول‌نشده", len(credit_open_payments()),
-        reverse("finance:payments_review") + "?py_f_method=credit&py_f_status=approved")
     add("درخواست قطعه‌ی بی‌پاسخ",
         PartRequest.objects.filter(status=PartRequest.Status.REQUESTED).count(), reverse("home") + "?tab=part_requests")
-    add("قطعه‌ی اضافه‌ی ارسال‌شده بدون تعیین تکلیف",
-        ExtraShipment.objects.filter(disposition=ExtraShipment.Disposition.PENDING).count(),
-        reverse("finance:accounting_projects"), "error")
     add("پروژه‌ی تکمیل‌شده‌ی دارای مانده‌ی فاکتور",
         Invoice.objects.exclude(status=Invoice.Status.CANCELLED).filter(project__status=Project.Status.COMPLETED)
         .annotate(rem=ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
@@ -148,7 +157,6 @@ def final_review_queue(limit=20):
         rows.append({
             "project": p,
             "pending_parts": PartRequest.objects.filter(project=p, status=PartRequest.Status.REQUESTED).count(),
-            "pending_extras": ExtraShipment.objects.filter(project=p, disposition=ExtraShipment.Disposition.PENDING).count(),
             "unsettled": sum(1 for r in project_reconciliation(p) if r["status"] != "ok"),
         })
     return rows
@@ -170,9 +178,6 @@ def projects_financial_queryset():
 
     cost_qs = (ProjectCost.objects.filter(project=OuterRef("pk")).order_by().values("project")
                .annotate(t=Sum("amount")).values("t"))
-    plan_qs = (ProjectServiceMaterial.objects.filter(service_line__project=OuterRef("pk")).order_by()
-               .values("service_line__project")
-               .annotate(t=Sum(ExpressionWrapper(F("qty") * F("cost_snapshot"), output_field=MONEY))).values("t"))
     final_qs = ProjectStage.objects.filter(project=OuterRef("pk"), kind=StageKind.FINAL_REVIEW, status=ProjectStage.Status.DONE)
 
     return (
@@ -186,7 +191,6 @@ def projects_financial_queryset():
             stock_out=moves_sum(Q(movement_type=MT.OUT) | Q(movement_type=MT.ADJUST, direction=DIR.OUT)),
             stock_back=moves_sum(Q(movement_type__in=(MT.ADJUST, MT.RETURN), direction=DIR.IN)),
             rec_costs=Coalesce(Subquery(cost_qs, output_field=MONEY), Value(ZERO), output_field=MONEY),
-            planned_cost=Coalesce(Subquery(plan_qs, output_field=MONEY), Value(ZERO), output_field=MONEY),
             final_done=Exists(final_qs),
             final_at=Subquery(final_qs.values("completed_at")[:1]),
         )
@@ -194,7 +198,7 @@ def projects_financial_queryset():
             remaining=ExpressionWrapper(F("revenue") - F("paid"), output_field=MONEY),
             actual_cost=ExpressionWrapper(F("stock_out") - F("stock_back") + F("rec_costs"), output_field=MONEY),
         )
-        .annotate(profit=ExpressionWrapper(F("revenue") - F("actual_cost"), output_field=MONEY))
+        .annotate(net_result=ExpressionWrapper(F("revenue") - F("actual_cost"), output_field=MONEY))
     )
 
 
@@ -210,26 +214,28 @@ def project_movements(project, limit=200):
 
 def project_reconciliation(project):
     """
-    مغایرت مواد هر پروژه. قرارداد: «مقدار نصب‌شده» شامل قطعه‌های تحویلی از انبار هم هست.
-    expected = (نصب‌شده؛ یا پیش‌فاکتور اگر نصب هنوز کامل ثبت نشده) + قطعه‌ی اضافه‌ی «مصرف شد»
-    unsettled = expected − (خالص کسرشده از انبار برای این پروژه)
-    variance = (بهای پیش‌بینی‌شده‌ی نهایی) − (بهای پیش‌فاکتور)؛ مثبت = زیان، منفی = سود
+    مغایرت مواد هر پروژه (فقط مقدار؛ بدون قضاوت مالی).
+    «نصب‌شده» یعنی آنچه نصاب گفته واقعاً روی ساختمان رفته، از هر منبعی.
+    expected (مصرف نهایی پیشنهادی):
+      ۱) کالا ردیف نصب دارد و همه‌ی ردیف‌هایش ثبت شده ← جمع نصب‌شده؛
+      ۲) وگرنه اگر پیش‌فاکتور، قطعه‌ی تحویلی یا اضافه‌ی ارسالی دارد ← مجموع این سه؛
+      ۳) وگرنه (فقط دستی مصرف شده) ← همان خالص کسرشده، یعنی دست‌نخورده.
+    unsettled = expected − net_out
     """
     ct = ContentType.objects.get_for_model(Project)
     rows = {}
 
     def row(item):
         return rows.setdefault(item.pk, {
-            "item": item, "planned": ZERO, "planned_cost": ZERO, "installed": ZERO, "install_lines": 0,
-            "install_pending": 0, "parts_issued": ZERO, "extra_consumed": ZERO, "extra_pending": ZERO,
-            "extra_returned": ZERO, "out_qty": ZERO, "back_qty": ZERO, "value": ZERO,
+            "item": item, "planned": ZERO, "installed": ZERO, "install_lines": 0, "install_pending": 0,
+            "parts_issued": ZERO, "extras_shipped": ZERO, "extras": [],
+            "out_qty": ZERO, "back_qty": ZERO, "value": ZERO,
         })
 
     for m in ProjectServiceMaterial.objects.filter(service_line__project=project).select_related("item"):
-        r = row(m.item)
-        r["planned"] += m.qty
-        r["planned_cost"] += m.qty * m.cost_snapshot
-    for l in InstallLine.objects.filter(stage__project=project, kind=InstallLine.Kind.MATERIAL, item__isnull=False).select_related("item"):
+        row(m.item)["planned"] += m.qty
+    for l in InstallLine.objects.filter(stage__project=project, kind=InstallLine.Kind.MATERIAL,
+                                        item__isnull=False).select_related("item"):
         r = row(l.item)
         r["install_lines"] += 1
         if l.status == InstallLine.Status.PENDING:
@@ -238,10 +244,10 @@ def project_reconciliation(project):
             r["installed"] += l.actual_qty or ZERO
     for p in PartRequest.objects.filter(project=project, status=PartRequest.Status.ISSUED).select_related("item"):
         row(p.item)["parts_issued"] += p.qty
-    key = {ExtraShipment.Disposition.CONSUMED: "extra_consumed", ExtraShipment.Disposition.PENDING: "extra_pending",
-           ExtraShipment.Disposition.RETURNED: "extra_returned"}
     for e in ExtraShipment.objects.filter(project=project).select_related("item"):
-        row(e.item)[key[e.disposition]] += e.qty
+        r = row(e.item)
+        r["extras_shipped"] += e.qty
+        r["extras"].append(e)
     for mv in StockMovement.objects.filter(related_content_type=ct, related_object_id=project.pk).select_related("item"):
         r, val = row(mv.item), mv.qty * mv.unit_cost
         if mv.direction == DIR.OUT and mv.movement_type in (MT.OUT, MT.ADJUST):
@@ -254,53 +260,36 @@ def project_reconciliation(project):
     result = []
     for r in rows.values():
         install_done = r["install_lines"] > 0 and r["install_pending"] == 0
-        if install_done:
-            target = r["installed"]
-        elif r["planned"] == 0 and r["install_lines"] == 0:
-            target = r["parts_issued"]
-        else:
-            target = r["planned"]
-        r["basis"] = "install" if install_done else "plan"
+        sources = r["planned"] + r["parts_issued"] + r["extras_shipped"]
         r["net_out"] = r["out_qty"] - r["back_qty"]
-        r["expected"] = target + r["extra_consumed"]
+        if install_done:
+            r["basis"], r["expected"] = "install", r["installed"]
+        elif sources > 0:
+            r["basis"], r["expected"] = "sources", sources
+        else:
+            r["basis"], r["expected"] = "manual", r["net_out"]
         r["unsettled"] = r["expected"] - r["net_out"]
         r["status"] = "ok" if abs(r["unsettled"]) <= QTY_EPS else ("short" if r["unsettled"] > 0 else "over")
         r["unit"] = (r["value"] / r["net_out"]) if r["net_out"] > 0 else Decimal(r["item"].moving_average_cost or 0)
-        r["projected_value"] = r["value"] + r["unsettled"] * r["unit"]
-        r["variance"] = r["projected_value"] - r["planned_cost"]
         r["expected_input"] = format(r["expected"].quantize(QTY_Q).normalize(), "f")
+        r["net_str"] = format(r["net_out"].quantize(QTY_Q).normalize(), "f")
+        r["unit_str"] = format(Decimal(r["unit"]).quantize(Decimal("1")), "f")
         result.append(r)
     result.sort(key=lambda r: r["item"].name)
     return result
 
 
-def project_pnl(p, recon):
-    """p: ردیف projects_financial_queryset. سود موقت تا وقتی بازبینی نهایی تایید و همه‌ی اقلام تسویه نشده."""
-    pending = sum((r["unsettled"] * r["unit"] for r in recon), ZERO).quantize(Decimal("1"))
+def project_pnl(p):
+    """فقط اعداد؛ هیچ پیش‌بینی یا قضاوتی ندارد. «موقت» تا تایید نهایی."""
     stock_cost = p.stock_out - p.stock_back
-    settled = all(r["status"] == "ok" for r in recon)
-    final = bool(p.final_done) and settled
-    profit_booked = p.revenue - stock_cost - p.rec_costs
-    profit_projected = p.revenue - stock_cost - pending - p.rec_costs
-    cash = p.paid - stock_cost - p.rec_costs
+    final = bool(p.final_done)
     return {
         "revenue": p.revenue, "collected": p.paid, "remaining": p.remaining,
-        "stock_cost": stock_cost, "recorded_costs": p.rec_costs, "pending_cost": pending,
-        "profit_booked": profit_booked, "profit_projected": profit_projected, "cash_position": cash,
-        "state": "final" if final else "provisional", "state_label": "قطعی" if final else "موقت",
-        "profit_tone": "text-success" if profit_projected > 0 else ("text-error" if profit_projected < 0 else ""),
-        "cash_tone": "text-success" if cash > 0 else ("text-error" if cash < 0 else ""),
+        "stock_cost": stock_cost, "recorded_costs": p.rec_costs,
+        "result": p.revenue - stock_cost - p.rec_costs,
+        "state": "final" if final else "provisional",
+        "state_label": "بعد از تسویه" if final else "موقت",
     }
-
-
-def credit_open_payments():
-    qs = (Payment.objects.filter(method=Payment.Method.CREDIT, status=Payment.Status.APPROVED)
-          .exclude(invoice__status=Invoice.Status.CANCELLED).select_related("invoice__project"))
-    return [p for p in qs if p.credit_open_amount > 0]
-
-
-def credit_open_total():
-    return sum((p.credit_open_amount for p in credit_open_payments()), ZERO)
 
 
 def stock_integrity():
@@ -365,11 +354,12 @@ def settle_project_materials(*, project, final_qtys, reasons, actor):
             record_manual_stock_change(item=item, kind=CHANGE_KIND_RETURN, qty_raw=str(-delta), notes=note,
                                        user=actor, related_object=project)
             total -= (-delta) * r["unit"]
-        applied.append((item.name, delta))
+        applied.append((item.name, delta, reason))
     if applied:
         log_event(kind=AccountingEvent.Kind.SETTLEMENT, project=project, actor=actor,
                   amount=total.quantize(Decimal("1")),
-                  text="تسویه‌ی مصرف: " + "، ".join(f"{n} ({d:+f})" for n, d in applied))
+                  text="تسویه‌ی مصرف: " + "؛ ".join(
+                      f"{n} ({d:+f}{('، ' + rs) if rs else ''})" for n, d, rs in applied))
     return applied
 
 
@@ -400,33 +390,46 @@ def add_invoice_adjustment(*, invoice, title, amount_raw, kind, reason, actor):
               text=f"{title} — {reason}")
 
 
+ACCOUNTANT_PAYMENT_METHODS = (
+    Payment.Method.CARD_TO_CARD, Payment.Method.RECEIPT, Payment.Method.CHEQUE, Payment.Method.CASH,
+)
+
+
 @transaction.atomic
-def settle_credit_payment(*, credit, method, amount_raw, reference_number, receipt_file, actor):
-    """وصول (کامل یا بخشی) یک پرداخت اعتباری با ثبت پرداخت واقعی."""
+def record_accountant_payment(*, invoice, method, amount_raw, paid_date, reference_number, note,
+                              receipt_file, cheque_number="", cheque_bank="", actor):
+    """پرداخت واقعی توسط حسابدار؛ چون خودش تاییدکننده است مستقیم «تاییدشده» ثبت می‌شود."""
     if not user_can_access_accounting(actor):
-        raise ValueError("فقط حسابدار یا مدیر می‌تواند وصول اعتباری را ثبت کند.")
-    credit = Payment.objects.select_for_update().get(pk=credit.pk)
-    if credit.method != Payment.Method.CREDIT or credit.status != Payment.Status.APPROVED:
-        raise ValueError("این پرداخت، اعتباری تاییدشده نیست.")
-    if method not in PROOF_METHODS:
-        raise ValueError("روش وصول معتبر انتخاب کنید.")
-    reference_number = (reference_number or "").strip()
-    error = proof_error(method, has_file=bool(receipt_file), reference=reference_number)
-    if error:
-        raise ValueError(error)
-    open_amount = credit.credit_open_amount
-    amount = parse_amount(amount_raw) if str(amount_raw or "").strip() else open_amount
-    if amount <= 0 or amount > open_amount:
-        raise ValueError(f"مبلغ باید بین صفر و مانده‌ی اعتباری ({separate_digits(open_amount)} تومان) باشد.")
-    invoice = Invoice.objects.select_for_update().get(pk=credit.invoice_id)
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند پرداخت ثبت کند.")
+    if method not in ACCOUNTANT_PAYMENT_METHODS:
+        raise ValueError("روش پرداخت معتبر انتخاب کنید.")
+    invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("فاکتور لغوشده است.")
+    amount = parse_amount(amount_raw)
     if amount > invoice.remaining_amount:
         raise ValueError(f"مبلغ از مانده‌ی فاکتور ({separate_digits(invoice.remaining_amount)} تومان) بیشتر است.")
-    kwargs = dict(invoice=invoice, method=method, amount=amount, claimed_amount=amount,
-                  status=Payment.Status.APPROVED, approved_by=actor, approved_at=timezone.now(),
-                  reference_number=reference_number, settles=credit, note=f"وصول اعتباری #{credit.pk}")
+    reference_number, note = (reference_number or "").strip(), (note or "").strip()
+    if method == Payment.Method.CASH:
+        if not note:
+            raise ValueError("برای پرداخت نقدی، توضیح بنویسید.")
+    else:
+        error = proof_error(method, has_file=bool(receipt_file), reference=reference_number)
+        if error:
+            raise ValueError(error)
+    if Payment.objects.filter(invoice=invoice, method=method, amount=amount, reference_number=reference_number,
+                              created_at__gte=timezone.now() - timezone.timedelta(seconds=60)).exists():
+        raise ValueError("همین پرداخت لحظاتی پیش ثبت شده است.")
+    kwargs = dict(
+        invoice=invoice, method=method, amount=amount, claimed_amount=amount, status=Payment.Status.APPROVED,
+        approved_by=actor, approved_at=timezone.now(), paid_at=_dt(paid_date) if paid_date else timezone.now(),
+        reference_number=reference_number, note=note,
+    )
     if receipt_file:
         kwargs["receipt_file"] = prepare_receipt_file(receipt_file)
+    if method == Payment.Method.CHEQUE:
+        kwargs["cheque_number"], kwargs["cheque_bank"] = (cheque_number or "").strip(), (cheque_bank or "").strip()
     payment = Payment.objects.create(**kwargs)
-    log_event(kind=AccountingEvent.Kind.CREDIT, project=invoice.project, actor=actor, amount=amount,
-              text=f"وصول اعتباری #{credit.pk} با {payment.get_method_display()}")
+    log_event(kind=AccountingEvent.Kind.PAYMENT, project=invoice.project, actor=actor, amount=amount,
+              text=f"پرداخت {payment.get_method_display()} ثبت شد")
     return payment

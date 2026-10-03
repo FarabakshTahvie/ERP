@@ -203,6 +203,9 @@ class ProjectCostAndReviewTests(TestCase):
         self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
         self.creator = User.objects.create_user(username="creator_rev", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.intake_spec)
+        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
+        self.accountant = User.objects.create_user(username="acc_rev", password="pw", role=User.Role.EMPLOYEE)
+        self.accountant.specialties.add(self.acc_spec)
         self.other_user = User.objects.create_user(username="other_rev", password="pw", role=User.Role.EMPLOYEE)
 
         build_workflow_v2(make_default=True)
@@ -219,14 +222,21 @@ class ProjectCostAndReviewTests(TestCase):
 
     def test_cost_addition_and_deletion(self):
         with self.assertRaises(ValueError):
-            add_project_cost(project=self.project, kind="other", title="هزینه ۱", amount_raw="-1000", actor=self.creator)
+            add_project_cost(project=self.project, kind="other", title="هزینه ۱", amount_raw="-1000", actor=self.accountant)
 
-        cost = add_project_cost(project=self.project, kind="other", title="هزینه ۱", amount_raw="15000", actor=self.creator)
+        # creator cannot add cost
+        with self.assertRaises(ValueError):
+            add_project_cost(project=self.project, kind="other", title="هزینه ۱", amount_raw="15000", actor=self.creator)
+
+        cost = add_project_cost(project=self.project, kind="other", title="هزینه ۱", amount_raw="15000", actor=self.accountant)
         self.assertEqual(self.project.recorded_costs.count(), 1)
         self.assertEqual(cost.amount, Decimal("15000"))
 
         with self.assertRaises(ValueError):
             delete_project_cost(cost=cost, actor=self.other_user)
 
-        delete_project_cost(cost=cost, actor=self.creator)
+        with self.assertRaises(ValueError):
+            delete_project_cost(cost=cost, actor=self.creator)
+
+        delete_project_cost(cost=cost, actor=self.accountant)
         self.assertEqual(self.project.recorded_costs.count(), 0)

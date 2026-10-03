@@ -93,6 +93,7 @@ class Payment(TimeStampedModel):
         RECEIPT = "receipt", "رسید واریز"
         CHEQUE = "cheque", "چک"
         CREDIT = "credit", "اعتباری"
+        CASH = "cash", "نقدی"
 
     class Status(models.TextChoices):
         PENDING = "pending", "در انتظار تایید"
@@ -119,8 +120,6 @@ class Payment(TimeStampedModel):
 
     approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="approved_payments", verbose_name="تاییدکننده")
     approved_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تایید")
-    settles = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name="settlements",
-                                verbose_name="اعتباری که این پرداخت وصول می‌کند")
 
     class Meta:
         verbose_name = "پرداخت"
@@ -128,22 +127,15 @@ class Payment(TimeStampedModel):
         ordering = ["-created_at"]
 
     @property
-    def credit_open_amount(self):
-        if self.method != self.Method.CREDIT or self.status != self.Status.APPROVED:
-            return Decimal("0")
-        settled = self.settlements.filter(status=self.Status.APPROVED).aggregate(t=models.Sum("amount"))["t"] or 0
-        return max(self.amount - settled, Decimal("0"))
-
-    @property
     def status_label(self):
         if self.method == self.Method.CREDIT and self.status == self.Status.APPROVED:
-            return "اعتباری — منتظر تسویه" if self.credit_open_amount > 0 else "اعتباری — تسویه‌شده"
+            return "اعتباری — کار ادامه می‌یابد"
         return self.get_status_display()
 
     @property
     def status_variant(self):
         if self.method == self.Method.CREDIT and self.status == self.Status.APPROVED:
-            return "warning" if self.credit_open_amount > 0 else "success"
+            return "info"
         return {"pending": "warning", "approved": "success", "rejected": "error"}.get(self.status, "neutral")
 
     @property
@@ -197,8 +189,7 @@ class AccountingEvent(models.Model):
         STOCK_FIX = "stock_fix", "اصلاح موجودی"
         INVOICE_LINE = "invoice_line", "اصلاح فاکتور"
         COST = "cost", "هزینه"
-        CREDIT = "credit", "وصول اعتباری"
-        DISPOSITION = "disposition", "تعیین تکلیف قطعه‌ی اضافه"
+        PAYMENT = "payment", "ثبت پرداخت"
 
     project = models.ForeignKey('projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name="accounting_events", verbose_name="پروژه")

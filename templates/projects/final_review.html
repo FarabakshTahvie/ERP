@@ -167,29 +167,13 @@
             <div class="mt-1 space-y-2 text-xs">
                 {% for ex in data.extras %}
                 <div class="flex justify-between items-center gap-2 flex-wrap border-b border-base-200 pb-1.5 last:border-0 last:pb-0">
-                    <div class="flex items-center gap-2 flex-wrap">
+                    <div>
                         <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
-                        {% if ex.disposition == 'consumed' %}
-                        <span class="fb-badge fb-badge-warning">مصرف شد (از موجودی کم شد)</span>
-                        {% elif ex.disposition == 'returned' %}
-                        <span class="fb-badge fb-badge-neutral">برگشت به انبار</span>
-                        {% else %}
-                        <span class="fb-badge fb-badge-error">در انتظار تعیین تکلیف</span>
-                        {% endif %}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="font-technical font-semibold">{{ ex.cost_total|intcomma_fa }} تومان</span>
-                        {% if ex.disposition == 'pending' %}
-                        <form method="post" action="{% url 'projects:extra_dispose' ex.id %}" data-fb-once class="inline-flex gap-1">
-                            {% csrf_token %}
-                            <button type="submit" name="disposition" value="consumed" class="btn btn-warning btn-xs">مصرف شد</button>
-                            <button type="submit" name="disposition" value="returned" class="btn btn-soft btn-xs">برگشت به انبار</button>
-                        </form>
-                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
             </div>
+            <p class="fb-hint text-xs mt-1">مصرف واقعی این اقلام در جدول تسویه‌ی پایین صفحه تعیین می‌شود.</p>
             {% else %}
             <p class="fb-hint text-xs mt-1">موردی ثبت نشده.</p>
             {% endif %}
@@ -213,20 +197,14 @@
         {% endif %}
 
         <div class="pt-2 border-t border-base-300">
-            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه)</span> <span class="fb-hint">(اثر روی سود، به بهای تمام‌شده):</span>
+            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه):</span>
             {% if data.shortage or data.surplus %}
             <div class="mt-1 space-y-1 text-xs">
                 {% for d in data.shortage %}
-                <div class="flex justify-between items-center">
-                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-error font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کسری (بیشتر از فاکتور مصرف شده)</span>
-                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-error">زیان</span><span class="font-technical font-semibold text-error">{{ d.cost_impact|intcomma_fa }}</span> تومان</div>
-                </div>
+                <div>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد بیشتر از پیش‌فاکتور</div>
                 {% endfor %}
                 {% for d in data.surplus %}
-                <div class="flex justify-between items-center">
-                    <span>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="text-success font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد اضافه (کمتر از فاکتور مصرف شده)</span>
-                    <div class="flex items-center gap-1.5 shrink-0"><span class="fb-badge fb-badge-success">سود</span><span class="font-technical font-semibold text-success">{{ d.cost_impact|intcomma_fa }}</span> تومان</div>
-                </div>
+                <div>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کمتر از پیش‌فاکتور</div>
                 {% endfor %}
             </div>
             {% else %}
@@ -250,7 +228,7 @@
                 </div>
                 {% if p.status == 'issued' %}
                 <div class="text-start">
-                    بهای تمام‌شده: <span class="font-technical">{{ p.cost_total|intcomma_fa }}</span> | فروش: <span class="font-technical font-semibold">{{ p.sale_total|intcomma_fa }}</span> تومان
+                    بهای تمام‌شده: <span class="font-technical">{{ p.cost_total|intcomma_fa }}</span> تومان
                 </div>
                 {% endif %}
             </div>
@@ -282,107 +260,91 @@
         {% endif %}
     </div>
 
-    {% if can_manage_stock %}
     <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">ثبت مصرف یا تعدیل موجودی مرتبط با این پروژه</h2>
-        <p class="fb-hint">مشابه «ثبت مصرف/تعدیل» در داشبورد انبار؛ هر سه حالت بلافاصله در موجودی کالا اثر می‌گذارند و به همین پروژه مرتبط ثبت می‌شوند.</p>
-        <form method="post" action="{% url 'projects:final_review_consume' project.id %}" data-fb-once class="flex flex-col gap-3">
+        <h2 class="font-bold text-sm">مصرف کالای دیگر (که در جدول تسویه نیست)</h2>
+        <p class="fb-hint">مثلاً کالایی که مصرف شده ولی نه در پیش‌فاکتور بوده نه نصب یا درخواست قطعه. بعد از ثبت، به جدول تسویه می‌آید. کالاهای جدول را همان‌جا تغییر دهید.</p>
+        <form method="post" action="{% url 'projects:final_review_consume' project.id %}" id="fr-consume-form" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
             <div class="fb-field">
                 <span class="fb-label">کالا</span>
                 <div id="fr-stock-item-picker"></div>
                 <input type="hidden" name="item_id" id="fr-stock-item-id">
-            </div>
-            <div class="fb-field">
-                <span class="fb-label">نوع تغییر</span>
-                <div class="flex flex-col gap-2">
-                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در همین کار)</label>
-                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات)</label>
-                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی)</label>
-                    <label class="fb-choice justify-start"><input type="radio" name="kind" value="return" class="sr-only"> برگشت از پروژه به انبار (با بهای مصرف همین پروژه)</label>
-                </div>
+                <span id="fr-item-error" class="fb-error hidden">یک کالا از فهرست انتخاب کنید.</span>
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="fr-stock-qty">مقدار</label>
-                <input type="text" id="fr-stock-qty" name="qty" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
-            </div>
-            <div class="fb-field hidden" id="fr-stock-cost-field">
-                <label class="fb-label" for="fr-stock-cost">بهای واحد (تومان)</label>
-                <input type="text" id="fr-stock-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
-                <span class="fb-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
+                <input type="text" id="fr-stock-qty" name="qty" required dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="fr-stock-notes">دلیل (اجباری)</label>
                 <textarea id="fr-stock-notes" name="notes" required rows="2" class="textarea w-full"></textarea>
             </div>
-            <button type="submit" class="btn btn-soft btn-sm self-start">ثبت</button>
+            <button type="submit" class="btn btn-soft btn-sm self-start">ثبت مصرف</button>
         </form>
     </div>
-    {% endif %}
 
     <!-- ۹. خلاصه‌ی مالی -->
     <div class="fb-card fb-pad flex flex-col gap-3 border-2 border-primary/20">
         <div class="flex items-center justify-between gap-2 flex-wrap">
-            <h2 class="font-bold text-base text-primary">خلاصه‌ی مالی پروژه</h2>
-            <span class="fb-badge {% if pnl.state == 'final' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">حساب {{ pnl.state_label }}</span>
+            <h2 class="font-bold text-base text-primary">خلاصه‌ی ثبت‌شده‌ی پروژه</h2>
+            <span class="fb-badge fb-badge-neutral">{{ pnl.state_label }}</span>
         </div>
         <div class="space-y-2 text-xs">
             <div class="flex justify-between"><span class="fb-muted">فروش (طبق فاکتور)</span><span class="font-technical font-semibold">{{ pnl.revenue|intcomma_fa }} تومان</span></div>
             <div class="flex justify-between"><span class="fb-muted">دریافت‌شده</span><span class="font-technical">{{ pnl.collected|intcomma_fa }} تومان</span></div>
             <div class="flex justify-between"><span class="fb-muted">هزینه‌ی انبار ثبت‌شده تا الان</span><span class="font-technical">{{ pnl.stock_cost|intcomma_fa }} تومان</span></div>
-            <div class="flex justify-between"><span class="fb-muted">هزینه‌ی تسویه‌نشده (تخمینی؛ با تایید نهایی ثبت می‌شود)</span><span class="font-technical text-warning">{{ pnl.pending_cost|intcomma_fa }} تومان</span></div>
             <div class="flex justify-between"><span class="fb-muted">هزینه‌های ثبت‌شده</span><span class="font-technical">{{ pnl.recorded_costs|intcomma_fa }} تومان</span></div>
-            <div class="flex justify-between border-t border-base-300 pt-2 font-bold"><span>سود پیش‌بینی بعد از تسویه (طبق فاکتور)</span><span class="font-technical {{ pnl.profit_tone }}">{{ pnl.profit_projected|intcomma_fa }} تومان</span></div>
-            <div class="flex justify-between"><span class="fb-muted">وضعیت نقدی (دریافتی منهای هزینه‌ها)</span><span class="font-technical {{ pnl.cash_tone }}">{{ pnl.cash_position|intcomma_fa }} تومان</span></div>
+            <div class="flex justify-between border-t border-base-300 pt-2"><span class="fb-muted">هزینه‌ی انبار با ثبت جدول تسویه (تقریبی)</span><span class="font-technical" data-live-stock>—</span></div>
+            <div class="flex justify-between font-bold"><span>فروش منهای هزینه‌های ثبت‌شده، بعد از تسویه (تقریبی)</span><span class="font-technical" data-live-result>—</span></div>
         </div>
         <div class="alert alert-info text-xs flex flex-col items-start gap-1">
             {% icon "info" "w-4 h-4 shrink-0" %}
-            <span>سود طبق فاکتور است، نه پول دریافتی. مبلغ فاکتور مشتری با این صفحه تغییر نمی‌کند؛ برای تغییر فاکتور به «پرونده‌ی مالی» در مرکز حسابداری بروید.</span>
+            <span>دستمزد، ایاب‌ذهاب و هر هزینه‌ی ثبت‌نشده در این عدد نیست؛ قضاوت درباره‌ی سود با حسابدار است. برای ثبت هزینه یا تغییر فاکتور به «پرونده‌ی مالی» در مرکز حسابداری بروید. بهای دقیق کالا هنگام ثبت از لات‌ها محاسبه می‌شود.</span>
         </div>
     </div>
 
     <!-- ۱۰. تایید -->
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">تسویه‌ی مصرف مواد و تایید نهایی</h2>
-        {% if data.pending_parts or data.pending_extras %}
+        {% if data.pending_parts %}
         <div class="alert alert-warning text-xs">
             {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-            <span>{% if data.pending_parts %}درخواست قطعه‌ی بدون پاسخ دارید. {% endif %}{% if data.pending_extras %}قطعه‌ی اضافه‌ی بی‌تکلیف دارید (در بخش «گزارش ارسال قطعات» تعیین تکلیف کنید).{% endif %}</span>
+            <span>درخواست قطعه‌ی بدون پاسخ دارید.</span>
         </div>
         <button type="button" disabled class="btn btn-disabled w-full">تایید نهایی غیرفعال است</button>
         {% elif can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
-            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم از نصب‌شده‌ها و قطعه‌های تحویلی ساخته شده. اگر عدد را عوض کنید، دلیل لازم است. کالایی که اینجا نیست را قبل از تایید با فرم «ثبت مصرف» بالا اضافه کنید.</p>
-            {% if recon %}
-            <div class="overflow-x-auto">
+            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: اگر نصاب برای کالا عدد نصب‌شده زده باشد همان عدد (شامل قطعه‌ی تحویلی و اضافه‌ی ارسالی)؛ وگرنه پیش‌فاکتور + قطعه‌ی تحویلی + اضافه‌ی ارسالی. اگر عددی را عوض کنید دلیل لازم است.</p>
+            <div class="overflow-x-auto" data-settle-root data-revenue="{{ pnl.revenue|stringformat:'d' }}" data-stock-cost="{{ pnl.stock_cost|stringformat:'d' }}" data-recorded="{{ pnl.recorded_costs|stringformat:'d' }}">
                 <table class="table table-sm text-xs">
-                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>کسر‌شده تاکنون</th><th>پیشنهاد سیستم</th><th>مصرف نهایی</th><th>اختلاف بها با پیش‌فاکتور</th></tr></thead>
+                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>نصب‌شده</th><th>قطعه‌ی تحویلی</th><th>اضافه‌ی ارسالی</th><th>کسرشده تاکنون</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
                     <tbody>
                     {% for r in recon %}
-                        <tr>
-                            <td class="font-semibold">{{ r.item.name }}</td>
+                        <tr data-net="{{ r.net_str }}" data-unit="{{ r.unit_str }}">
+                            <td class="font-semibold">{{ r.item.name }}
+                                {% for e in r.extras %}<div class="fb-hint font-normal">اضافه‌ی ارسالی <span class="font-technical">{{ e.qty|floatformat:"-4"|fa_digits }}</span>: {{ e.note }}</div>{% endfor %}
+                            </td>
                             <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{% if r.basis == 'install' %}{{ r.installed|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
+                            <td class="font-technical">{{ r.parts_issued|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ r.extras_shipped|floatformat:"-4"|fa_digits }}</td>
                             <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
-                            <td class="font-technical">{{ r.expected|floatformat:"-4"|fa_digits }}</td>
                             <td>
-                                <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" data-settle-qty data-item="{{ r.item.id }}"
+                                <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" required data-settle-qty data-item="{{ r.item.id }}"
                                        data-suggested="{{ r.expected_input }}" dir="ltr" inputmode="decimal" aria-label="مصرف نهایی {{ r.item.name }}"
                                        class="input input-xs w-24 font-technical">
                                 <input type="text" name="reason_{{ r.item.id }}" data-settle-reason="{{ r.item.id }}" placeholder="دلیل تغییر (اجباری)"
                                        class="input input-xs w-full mt-1 hidden">
                             </td>
-                            <td>
-                                {% if r.variance > 0 %}<span class="fb-badge fb-badge-error">زیان {{ r.variance|intcomma_fa }}</span>
-                                {% elif r.variance < 0 %}<span class="fb-badge fb-badge-success">سود {{ r.variance|cut:"-"|intcomma_fa }}</span>
-                                {% else %}—{% endif %}
-                            </td>
+                            <td class="font-technical" data-change>—</td>
                         </tr>
+                    {% empty %}
+                        <tr><td colspan="8" class="fb-empty">کالایی برای تسویه نیست.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
-            {% endif %}
             <div class="fb-field">
                 <label class="fb-label">توضیحات پایانی بازبینی نهایی (اجباری)</label>
                 <textarea name="comment" required rows="3" class="textarea w-full" placeholder="نتیجه‌ی بازبینی نهایی، نکات تحویل و..."></textarea>
@@ -405,30 +367,49 @@
     if (!mount) return;
     var items = JSON.parse(document.getElementById('fr-stock-items-data').textContent || '[]');
     var hidden = document.getElementById('fr-stock-item-id');
-    var picker = fbItemPicker({ items: items, ariaLabel: 'انتخاب کالا', onSelect: function (it) { hidden.value = it ? it.id : ''; } });
+    var picker = fbItemPicker({ items: items, ariaLabel: 'انتخاب کالا', onSelect: function (it) {
+        hidden.value = it ? it.id : '';
+        if (it) document.getElementById('fr-item-error').classList.add('hidden');
+    } });
     mount.appendChild(picker.el);
-    document.querySelectorAll('input[name="kind"]').forEach(function (r) {
-        r.addEventListener('change', function () {
-            document.getElementById('fr-stock-cost-field').classList.toggle('hidden', this.value !== 'adjust_increase' && this.value !== 'return');
+
+    var form = document.getElementById('fr-consume-form');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            if (!hidden.value) {
+                e.preventDefault();
+                document.getElementById('fr-item-error').classList.remove('hidden');
+                picker.focus();
+            }
         });
-    });
+    }
 })();
 (function () {
-    var FA = '۰۱۲۳۴۵۶۷۸۹';
+    var root = document.querySelector('[data-settle-root]');
+    if (!root) return;
+    var FA = '۰۱۲۳۴۵۶۷۸۹', nf = new Intl.NumberFormat('fa-IR');
     function norm(s) { return String(s || '').replace(/[۰-۹]/g, function (d) { return FA.indexOf(d); }).replace(/[,٬\s]/g, '').replace(/٫/g, '.'); }
-    document.querySelectorAll('[data-settle-qty]').forEach(function (inp) {
-        var reason = document.querySelector('[data-settle-reason="' + inp.dataset.item + '"]');
-        function sync() {
-            var v = norm(inp.value);
-            var changed = v !== '' && parseFloat(v) !== parseFloat(inp.dataset.suggested);
-            if (reason) {
-                reason.classList.toggle('hidden', !changed);
-                reason.required = changed;
-            }
-        }
-        inp.addEventListener('input', sync);
-        sync();
-    });
+    function fmt(n) { return nf.format(Math.round(n)).replace(/٬/g, ','); }
+    function setAll(sel, text) { document.querySelectorAll(sel).forEach(function (e) { e.textContent = text; }); }
+    function recalc() {
+        var delta = 0;
+        root.querySelectorAll('[data-settle-qty]').forEach(function (inp) {
+            var tr = inp.closest('tr'), reason = tr.querySelector('[data-settle-reason]');
+            var v = parseFloat(norm(inp.value));
+            if (isNaN(v)) v = parseFloat(inp.dataset.suggested);
+            var d = v - parseFloat(tr.dataset.net);
+            delta += d * parseFloat(tr.dataset.unit);
+            var changed = norm(inp.value) !== '' && v !== parseFloat(inp.dataset.suggested);
+            reason.classList.toggle('hidden', !changed);
+            reason.required = changed;
+            tr.querySelector('[data-change]').textContent = Math.abs(d) < 0.00005 ? 'بدون تغییر' : (d > 0 ? '+' : '−') + nf.format(Math.abs(d));
+        });
+        var stock = parseFloat(root.dataset.stockCost) + delta;
+        setAll('[data-live-stock]', fmt(stock));
+        setAll('[data-live-result]', fmt(parseFloat(root.dataset.revenue) - stock - parseFloat(root.dataset.recorded)));
+    }
+    root.addEventListener('input', recalc);
+    recalc();
 })();
 </script>
 {% endblock %}

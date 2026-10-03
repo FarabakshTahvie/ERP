@@ -1,13 +1,17 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.exceptions import ValidationError
+from django.db.models import Count, Max, Sum
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from core.models import Party
 from projects.services import project_prices_editable
+from utils.jalali_forms import JalaliDateField
 
 from inventory.models import PurchaseLine, StockMovement
 from projects import ops
-from projects.models import Project, StageKind
+from projects.models import Project, ProjectCost, StageKind
 from projects.services import user_can_access_accounting
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
@@ -57,7 +61,6 @@ def _projects_ctx(request):
     qs = accounting.projects_financial_queryset().order_by("-created_at")
 
     def row_builder(p):
-        variant = "success" if p.profit > 0 else ("error" if p.profit < 0 else "neutral")
         return {"url": reverse("finance:accounting_project", args=[p.id]), "cells": [
             {"type": "text", "value": p.name},
             {"type": "muted", "value": to_fa_digits(p.code)},
@@ -66,8 +69,8 @@ def _projects_ctx(request):
             {"type": "text", "value": _m(p.paid)},
             {"type": "text", "value": _m(p.remaining)},
             {"type": "text", "value": _m(p.actual_cost)},
-            {"type": "badge", "value": _m(p.profit), "variant": variant},
-            {"type": "badge", "value": "قطعی" if p.final_done else "موقت", "variant": "success" if p.final_done else "neutral"},
+            {"type": "text", "value": _m(p.net_result)},
+            {"type": "badge", "value": "بعد از تسویه" if p.final_done else "موقت", "variant": "neutral"},
         ]}
 
     return build_table_context(
@@ -81,9 +84,9 @@ def _projects_ctx(request):
             {"label": "دریافتی (تومان)", "sort_field": "paid"},
             {"label": "مانده‌ی فاکتور (تومان)", "sort_field": "remaining", "filter_key": "remaining", "filter_type": "number_range"},
             {"label": "هزینه‌ی ثبت‌شده (تومان)", "sort_field": "actual_cost"},
-            {"label": "سود طبق فاکتور (تومان)", "sort_field": "profit", "filter_key": "profit", "filter_type": "number_range"},
+            {"label": "فروش منهای هزینه‌ها (تومان)", "sort_field": "net_result", "filter_key": "net_result", "filter_type": "number_range"},
             {"label": "حساب", "sort_field": "final_done", "filter_key": "final", "filter_type": "boolean",
-             "filter_field": "final_done", "true_label": "قطعی", "false_label": "موقت"},
+             "filter_field": "final_done", "true_label": "بعد از تسویه", "false_label": "موقت"},
         ],
         row_builder=row_builder, container_id="table-acc-projects", param_prefix="ap_",
         empty_icon="folder-kanban", empty_text="هنوز پروژه‌ای ثبت نشده.",
@@ -184,7 +187,9 @@ def _purchases_ctx(request):
         request, qs,
         columns=[
             {"label": "تاریخ", "sort_field": "purchase__purchased_at"},
-            {"label": "تأمین‌کننده", "sort_field": "purchase__supplier__name"},
+            {"label": "تأمین‌کننده", "sort_field": "purchase__supplier__name", "filter_key": "supplier",
+             "filter_type": "select", "filter_field": "purchase__supplier_id",
+             "choices": [(p.id, p.name) for p in Party.objects.filter(purchases__isnull=False).distinct().order_by("name")]},
             {"label": "شماره فاکتور"},
             {"label": "کالا", "sort_field": "item__name"},
             {"label": "مقدار"},
@@ -274,19 +279,84 @@ def project_adjust_invoice(request, project_id):
 @login_required
 @user_passes_test(_can)
 @require_POST
-def credit_settle(request, payment_id):
-    from .models import Payment
-    credit = get_object_or_404(Payment, pk=payment_id)
+def project_add_payment(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    invoice = getattr(project, "invoice", None)
     try:
-        accounting.settle_credit_payment(
-            credit=credit, method=request.POST.get("method"), amount_raw=request.POST.get("amount"),
-            reference_number=request.POST.get("reference_number"), receipt_file=request.FILES.get("receipt_file"),
+        if invoice is None:
+            raise ValueError("این پروژه فاکتور ندارد.")
+        raw_date = (request.POST.get("paid_date") or "").strip()
+        try:
+            paid_date = JalaliDateField().clean(raw_date) if raw_date else None
+        except ValidationError as e:
+            raise ValueError(" ".join(e.messages))
+        accounting.record_accountant_payment(
+            invoice=invoice, method=request.POST.get("method"), amount_raw=request.POST.get("amount"),
+            paid_date=paid_date, reference_number=request.POST.get("reference_number"),
+            note=request.POST.get("note"), receipt_file=request.FILES.get("receipt_file"),
+            cheque_number=request.POST.get("cheque_number", ""), cheque_bank=request.POST.get("cheque_bank", ""),
             actor=request.user)
     except ValueError as e:
         messages.error(request, str(e))
     else:
-        messages.success(request, "وصول اعتباری ثبت شد.")
-    return redirect("finance:payment_detail", credit.id)
+        messages.success(request, "پرداخت ثبت شد.")
+    return redirect("finance:accounting_project", project.id)
+
+
+def _suppliers_ctx(request):
+    qs = (Party.objects.annotate(purchases_count=Count("purchases", distinct=True),
+                                 total=Sum(accounting.SUPPLIER_VALUE),
+                                 last_at=Max("purchases__purchased_at"))
+          .filter(purchases_count__gt=0).order_by("-last_at"))
+
+    def row_builder(p):
+        return {"url": reverse("finance:accounting_supplier", args=[p.id]), "cells": [
+            {"type": "text", "value": p.name},
+            {"type": "muted", "value": to_fa_digits(p.phone_number) or "—"},
+            {"type": "muted", "value": to_fa_digits(p.purchases_count)},
+            {"type": "text", "value": _m(p.total)},
+            {"type": "muted", "value": jalali_str(p.last_at, fmt="%Y/%m/%d")},
+        ]}
+
+    return build_table_context(
+        request, qs,
+        columns=[
+            {"label": "تأمین‌کننده", "sort_field": "name"},
+            {"label": "تلفن"},
+            {"label": "تعداد خرید", "sort_field": "purchases_count"},
+            {"label": "جمع خرید (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+            {"label": "آخرین خرید", "sort_field": "last_at"},
+        ],
+        row_builder=row_builder, container_id="table-acc-suppliers", param_prefix="as_",
+        empty_icon="receipt", empty_text="هنوز خریدی از تأمین‌کننده‌ای ثبت نشده.",
+        list_url=reverse("finance:accounting_suppliers_table"),
+        search_fields=["name", "phone_number"], search_placeholder="جستجو در نام یا شماره تأمین‌کننده...",
+    )
+
+
+@login_required
+@user_passes_test(_can)
+def suppliers_page(request):
+    return _table_page(request, _suppliers_ctx, nav="suppliers", title="تأمین‌کننده‌ها",
+                       sub="از هر تأمین‌کننده چقدر و چه چیزی خریده‌ایم. فقط برای آمار؛ حسابی با تأمین‌کننده نگهداری نمی‌شود.")
+
+
+@login_required
+@user_passes_test(_can)
+def suppliers_table(request):
+    return render_table(request, _suppliers_ctx(request))
+
+
+@login_required
+@user_passes_test(_can)
+def supplier_detail(request, party_id):
+    party = get_object_or_404(Party, pk=party_id)
+    lines = PurchaseLine.objects.filter(purchase__supplier=party)
+    return render(request, "finance/accounting_supplier.html", {
+        "nav_active": "suppliers", "party": party, "items": accounting.supplier_items(party),
+        "purchases_count": party.purchases.count(),
+        "total": accounting._sum(lines, accounting.VALUE),
+    })
 
 
 @login_required
@@ -299,10 +369,11 @@ def project_detail(request, project_id):
         "nav_active": "projects", "project": project, "invoice": invoice,
         "payments": invoice.payments.order_by("-created_at") if invoice else [],
         "recon": recon, "unsettled_count": sum(1 for r in recon if r["status"] != "ok"),
-        "pnl": accounting.project_pnl(project, recon),
+        "pnl": accounting.project_pnl(project),
         "data": ops.final_review_data(project),
         "moves": accounting.project_movements(project),
         "events": project.accounting_events.select_related("actor")[:50],
         "can_adjust_invoice": bool(invoice and not project_prices_editable(project)),
         "has_final_review": project.stages.filter(kind=StageKind.FINAL_REVIEW).exists(),
+        "cost_kinds": ProjectCost.Kind.choices,
     })
