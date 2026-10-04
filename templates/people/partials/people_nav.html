@@ -1,0 +1,7 @@
+{% load custom_tags %}
+<nav class="flex flex-wrap gap-2" aria-label="بخش‌های افراد">
+    <a href="{% url 'people:staff' %}" class="btn btn-sm {% if nav_active == 'staff' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "users" "w-4 h-4" %} کارکنان</a>
+    <a href="{% url 'people:customers' %}" class="btn btn-sm {% if nav_active == 'customers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "user-check" "w-4 h-4" %} مشتریان و شرکا</a>
+    <a href="{% url 'finance:accounting_suppliers' %}" class="btn btn-sm btn-soft">{% icon "receipt" "w-4 h-4" %} تأمین‌کننده‌ها</a>
+    {% if caps.people_edit %}<a href="{% url 'accounts:register_staff' %}" class="btn btn-sm btn-soft">{% icon "user-plus" "w-4 h-4" %} کاربر جدید</a>{% endif %}
+</nav>

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ person.get_full_name|default:person.username }} | افراد{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'people:staff' %}" class="link link-hover text-sm fb-muted">بازگشت به افراد</a>
+        <h1 class="fb-page-title mt-2">{{ person.get_full_name|default:person.username }}</h1>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            <span class="fb-badge fb-badge-neutral">{{ person.get_role_display }}</span>
+            <span class="fb-badge {% if person.is_active %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{% if person.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
+            {% for s in person.specialties.all %}<span class="fb-badge fb-badge-neutral">{{ s.name }}</span>{% endfor %}
+        </div>
+        <div class="flex flex-wrap gap-2 mt-3">
+            {% if can_edit %}<a href="{% url 'people:user_edit' person.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش اطلاعات</a>{% endif %}
+            {% if person.party %}<a href="{% url 'people:party_detail' person.party_id %}" class="btn btn-soft btn-sm">پرونده‌ی طرف‌حساب</a>{% endif %}
+        </div>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <h2 class="fb-section-title">اطلاعات</h2>
+        <div class="flex justify-between gap-2"><span class="fb-muted">نام کاربری</span><span dir="ltr" class="font-technical">{{ person.username }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">موبایل</span><span dir="ltr" class="font-technical">{{ person.phone_number|default:"—"|fa_digits }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">کد ملی</span><span dir="ltr" class="font-technical">{{ person.national_code|default:"—"|fa_digits }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">ایمیل</span><span dir="ltr">{{ person.email|default:"—" }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">عضویت</span><span class="font-technical">{{ person.date_joined|to_jalali:"%Y/%m/%d" }}</span></div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">کارهای در دست اجرا ({{ active_stages|length|fa_digits }})</h2>
+        {% for s in active_stages %}
+        <a href="{% url 'projects:staff_project_overview' s.project_id %}" class="fb-inset text-xs hover:bg-base-300">{{ s.project.name }} — {{ s.title }}</a>
+        {% empty %}<p class="fb-hint">کار فعالی ندارد.</p>{% endfor %}
+        <p class="fb-hint">مرحله‌ی تکمیل‌شده توسط او: <span class="font-technical">{{ done_count|fa_digits }}</span></p>
+    </section>
+
+    {% if created_projects %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پروژه‌هایی که ثبت کرده</h2>
+        {% for p in created_projects %}
+        <a href="{% url 'projects:staff_project_overview' p.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+            <span>{{ p.name }}</span><span class="fb-badge fb-badge-neutral">{{ p.get_status_display }}</span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if can_edit %}
+    <section class="fb-card fb-pad flex flex-col gap-4">
+        <h2 class="fb-section-title">مدیریت حساب</h2>
+        <form method="post" action="{% url 'people:user_toggle_active' person.id %}" data-fb-once class="flex flex-wrap items-end gap-2">
+            {% csrf_token %}
+            <div class="fb-field flex-1 min-w-48">
+                <label class="fb-label" for="toggle-reason">دلیل {% if person.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %} (اجباری)</label>
+                <input type="text" id="toggle-reason" name="reason" required class="input input-sm w-full">
+            </div>
+            <button type="submit" class="btn btn-soft btn-sm {% if person.is_active %}btn-error{% endif %}">{% if person.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+        </form>
+        <form method="post" action="{% url 'people:user_reset_password' person.id %}" data-fb-once
+              onsubmit="return confirm('رمز فعلی باطل و یک رمز موقت ساخته می‌شود. ادامه می‌دهید؟')" class="flex flex-col gap-2">
+            {% csrf_token %}
+            <p class="fb-hint">رمز موقت فقط یک‌بار نمایش داده می‌شود و کاربر در ورود بعدی باید رمز جدید بگذارد. ورودهای فعلی او باطل می‌شود.</p>
+            <button type="submit" class="btn btn-soft btn-sm self-start">{% icon "key" "w-4 h-4" %} بازنشانی رمز</button>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if show_activity %}
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <h2 class="fb-section-title">آخرین دیده‌شدن</h2>
+        <div class="flex justify-between gap-2"><span class="fb-muted">زمان</span><span class="font-technical">{{ seen }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">صفحه</span>
+            <span>{% if presence %}<a href="{{ presence.last_path }}" class="link link-hover">{{ page }}</a>{% else %}—{% endif %}</span></div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">فعالیت‌های اخیر</h2>
+            <div class="flex gap-1">
+                {% for d in days_choices %}<a href="?days={{ d }}" class="btn btn-xs {% if d == days %}btn-primary{% else %}btn-soft{% endif %}">{{ d|fa_digits }} روز</a>{% endfor %}
+            </div>
+        </div>
+        {% for r in feed %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs">
+            <span class="min-w-0"><span class="fb-badge fb-badge-neutral">{{ r.kind }}</span>
+                {% if r.url %}<a href="{{ r.url }}" class="link link-hover">{{ r.text }}</a>{% else %}{{ r.text }}{% endif %}</span>
+            <span class="fb-muted font-technical">{{ r.at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+        </div>
+        {% empty %}<p class="fb-hint">در این بازه فعالیتی ثبت نشده.</p>{% endfor %}
+    </section>
+
+    {% if history %}
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">تغییرهای مدیریتی حساب</h2>
+        {% for h in history %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+            <span>{{ h.reason }}</span>
+            <span class="fb-muted">{{ h.who }} · <span class="font-technical">{{ h.at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

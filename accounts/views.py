@@ -233,9 +233,9 @@ from django.contrib.auth.forms import SetPasswordForm
 @login_required
 def force_set_password(request):
     next_url = request.GET.get("next") or request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        next_url = ""
     if request.method == "POST":
-        if "skip" in request.POST:
-            return redirect(next_url or "home")
         form = SetPasswordForm(request.user, request.POST)
         if form.is_valid():
             form.save()

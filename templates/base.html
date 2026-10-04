@@ -90,6 +90,11 @@
                         {% icon "bar-chart-3" "w-4 h-4" %} حسابداری
                     </a>
                     {% endif %}
+                    {% if caps.people_view %}
+                    <a href="{% url 'people:staff' %}" class="btn btn-ghost btn-sm">
+                        {% icon "users" "w-4 h-4" %} افراد
+                    </a>
+                    {% endif %}
                     {% if caps.admin_panel %}
                     <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت
@@ -128,11 +133,15 @@
                             <li><a href="{% url 'finance:payments_review' %}">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}</a></li>
                             <li><a href="{% url 'finance:accounting_overview' %}">{% icon "bar-chart-3" "w-4 h-4" %} حسابداری</a></li>
                             {% endif %}
+                            {% if caps.people_view %}
+                            <li><a href="{% url 'people:staff' %}">{% icon "users" "w-4 h-4" %} افراد</a></li>
+                            {% endif %}
                             {% if caps.admin_panel %}
                             <li>
                                 <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
                             </li>
                             {% endif %}
+                            <li><a href="{% url 'accounts:change_password' %}">{% icon "key" "w-4 h-4" %} تغییر رمز عبور</a></li>
                             <li class="border-t border-base-300 mt-1 pt-1">
                                 <form action="{% url 'accounts:logout' %}" method="post" class="p-0 m-0 w-full">
                                     {% csrf_token %}

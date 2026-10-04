@@ -85,10 +85,11 @@ python manage.py seed_demo_data
 | `notifications` | زیرساخت پیامک/پوش (فعلاً بخشی از نقاط اتصال کامنت است) |
 | `utils` | ابزار مشترک (عکس، پیامک، پوش) |
 | `dashboard` | داشبورد مدیر: صف اقدام، پروژه‌های فعال؛ فقط می‌خواند |
+| `people` | افراد: کارکنان، مشتریان، پروفایل، ردپا |
 
 ترتیب وابستگی اپ‌ها (برای جلوگیری از import چرخه‌ای):
 ```
-core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard
+core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people
 ```
 
 ## نقش‌های کاربری
