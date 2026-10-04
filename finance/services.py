@@ -78,6 +78,8 @@ def create_customer_payment(*, invoice, method, amount_raw="", reference_number=
     """
     if method not in CUSTOMER_METHODS:
         raise ValueError("روش پرداخت معتبر انتخاب کنید.")
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("این فاکتور لغو شده است و پرداخت جدید ثبت نمی‌شود.")
     reference_number = (reference_number or "").strip()
     note = (note or "").strip()
 
@@ -207,6 +209,8 @@ def generate_invoice_for_project(project, issue_date=None, document_type=Invoice
 def refresh_invoice_lines(invoice):
     from core.periods import assert_open
     assert_open(invoice.issue_date, "اصلاح فاکتور")
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("فاکتور لغوشده قابل بازتولید نیست.")
     if invoice.document_type != Invoice.DocumentType.PROFORMA:
         raise ValueError("فقط پیش‌فاکتور قابل بازتولید ردیف‌هاست؛ فاکتور نهایی قفل است.")
     invoice.lines.filter(is_manual=False).delete()
@@ -237,6 +241,8 @@ def approve_payment(payment, approved_by, verified_amount=None):
         raise ValueError("این پرداخت قبلاً بررسی شده است.")
     invoice = Invoice.objects.select_for_update().get(pk=payment.invoice_id)   # جلوی تایید هم‌زمان دو پرداخت
     payment.invoice = invoice
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("فاکتور لغو شده است؛ پرداخت تایید نمی‌شود.")
 
     if payment.method in PROOF_METHODS:
         if verified_amount is None or str(verified_amount).strip() == "":
@@ -276,6 +282,8 @@ def reject_payment(payment, rejected_by, reason=""):
 
 
 def recalculate_invoice_paid_amount(invoice):
+    if invoice.status == Invoice.Status.CANCELLED:
+        return
     real_paid = invoice.payments.filter(
         status=Payment.Status.APPROVED,
     ).exclude(method=Payment.Method.CREDIT).aggregate(total=models.Sum('amount'))['total'] or 0
@@ -349,3 +357,62 @@ def ensure_billed_party_account_and_notify(invoice):
     if user:
         notify_invoice_issued(invoice, user, raw_password)
     return user, raw_password
+
+
+@transaction.atomic
+def cancel_invoice(*, invoice, reason, actor):
+    """
+    لغو فاکتور (فقط مدیر، دلیل اجباری). پرداخت تاییدشده‌ی واقعی (غیراعتباری) مانع است.
+    پرداخت‌های منتظر تایید خودکار رد می‌شوند. ماه بسته مانع است.
+    """
+    from core.capabilities import can
+    from core.periods import assert_open
+    from .accounting import log_event
+    from .models import AccountingEvent
+    if not can(actor, "invoice.cancel"):
+        raise ValueError("فقط مدیر می‌تواند فاکتور را لغو کند.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("دلیل لغو فاکتور را بنویسید.")
+    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("این فاکتور قبلاً لغو شده است.")
+    assert_open(invoice.issue_date, "لغو فاکتور")
+    has_real_payment = (invoice.payments.filter(status=Payment.Status.APPROVED)
+                        .exclude(method=Payment.Method.CREDIT).exists())
+    if has_real_payment:
+        raise ValueError("این فاکتور پرداخت تاییدشده دارد و لغو نمی‌شود. برای اصلاح مبلغ از «ردیف دستی فاکتور» استفاده کنید.")
+    for pending in list(invoice.payments.filter(status=Payment.Status.PENDING)):
+        reject_payment(pending, rejected_by=actor, reason="فاکتور لغو شد")
+    invoice.refresh_from_db()
+    invoice.status = Invoice.Status.CANCELLED
+    invoice.save(update_fields=["status"])
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
+              amount=-invoice.total_amount, text=f"فاکتور {invoice.number} لغو شد — {reason}")
+    return invoice
+
+
+@transaction.atomic
+def set_invoice_due_date(*, invoice, due_date, actor):
+    """ثبت یا پاک‌کردن سررسید (مدیر یا حسابدار). due_date=None یعنی پاک کن."""
+    from core.capabilities import can
+    from utils.jalali import jalali_str
+    from .accounting import log_event
+    from .models import AccountingEvent
+    if not can(actor, "invoice.adjust"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند سررسید ثبت کند.")
+    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    if invoice.status in (Invoice.Status.CANCELLED, Invoice.Status.PAID):
+        raise ValueError("برای فاکتور لغوشده یا تسویه‌شده سررسید ثبت نمی‌شود.")
+    if due_date is not None and invoice.issue_date and due_date < invoice.issue_date:
+        raise ValueError("سررسید نمی‌تواند قبل از تاریخ صدور فاکتور باشد.")
+    old = invoice.due_date
+    if old == due_date:
+        raise ValueError("همین تاریخ از قبل ثبت شده است.")
+    invoice.due_date = due_date
+    invoice.save(update_fields=["due_date"])
+    show = lambda d: jalali_str(d, fmt="%Y/%m/%d") if d else "ندارد"
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
+              text=f"سررسید فاکتور {invoice.number}: {show(old)} ← {show(due_date)}")
+    return invoice
+

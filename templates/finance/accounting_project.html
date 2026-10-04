@@ -104,6 +104,38 @@
     </section>
     {% endif %}
 
+    {% if invoice %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">سررسید و وضعیت فاکتور</h2>
+            <span class="fb-badge {% if invoice.status == 'cancelled' %}fb-badge-error{% elif invoice.status == 'paid' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{{ invoice.get_status_display }}</span>
+        </div>
+        {% if invoice.status == 'cancelled' %}
+        <p class="fb-hint">این فاکتور لغو شده؛ در فروش، مانده و سن بدهی حساب نمی‌شود.</p>
+        {% else %}
+        <form method="post" action="{% url 'finance:accounting_set_due' project.id %}" data-fb-once class="flex flex-wrap items-end gap-2">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="due-date-input">تاریخ سررسید</label>
+                <input type="text" id="due-date-input" name="due_date" value="{{ due_value }}" dir="ltr" inputmode="none" autocomplete="off"
+                       data-jalali-date data-clearable placeholder="۱۴۰۵/۰۷/۲۰" class="input input-sm w-40 font-technical">
+            </div>
+            <button type="submit" class="btn btn-soft btn-sm">ثبت سررسید</button>
+        </form>
+        <p class="fb-hint">بدون سررسید، سن بدهی از تاریخ صدور فاکتور حساب می‌شود.</p>
+        {% if caps.invoice_cancel %}
+        <form method="post" action="{% url 'finance:accounting_cancel_invoice' project.id %}" data-fb-once class="flex flex-col gap-2 pt-3 border-t border-base-300">
+            {% csrf_token %}
+            <span class="fb-label">لغو فاکتور</span>
+            <p class="fb-hint">فقط وقتی پرداخت تاییدشده ندارد. پرداخت‌های منتظر تایید خودکار رد می‌شوند. ماه بسته مانع است.</p>
+            <input type="text" name="reason" required placeholder="دلیل لغو (اجباری)" class="input input-sm w-full">
+            <button type="submit" class="btn btn-soft btn-error btn-sm self-start">لغو فاکتور</button>
+        </form>
+        {% endif %}
+        {% endif %}
+    </section>
+    {% endif %}
+
     <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
         <h2 class="fb-section-title">قطعه‌ها و هزینه‌ها</h2>
         {% for ex in data.extras %}

@@ -1,7 +1,8 @@
 from datetime import timedelta
 
 import jdatetime
-from django.db.models import Count, DecimalField, Exists, ExpressionWrapper, F, OuterRef, Subquery
+from django.db.models import Case, Count, DecimalField, Exists, ExpressionWrapper, F, IntegerField, OuterRef, Subquery, Value, When
+from projects.services import EXTERNAL_APPROVAL_TYPES
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
@@ -49,7 +50,8 @@ def project_counts():
     return {
         "in_progress": by_status.get(Project.Status.IN_PROGRESS, 0),
         "completed": by_status.get(Project.Status.COMPLETED, 0),
-        "suspended": Project.objects.filter(stages__status=ProjectStage.Status.SUSPENDED).distinct().count(),
+        "suspended": Project.objects.filter(status=Project.Status.IN_PROGRESS,
+                                            stages__status=ProjectStage.Status.SUSPENDED).distinct().count(),
     }
 
 
@@ -118,17 +120,20 @@ def attention_items(stats, now=None):
     unassigned = unassigned_stages()
     unassigned_ids = list(unassigned.values_list("pk", flat=True))
     add("unassigned", "مرحله‌ی بدون مسئول", len(unassigned_ids), level="error",
+        url=reverse("dashboard:stages") + "?ds_f_no_owner=1",
         hint="کار در حال انجام است ولی کسی مسئول یا کاندیدای آن نیست.",
         rows=[_stage_row(s, now) for s in unassigned[:LIST_LIMIT]])
 
     suspended = (ProjectStage.objects.filter(status=ProjectStage.Status.SUSPENDED, **_LIVE)
                  .select_related("project").order_by("started_at"))
     add("suspended", "مرحله‌ی معلق", suspended.count(), level="error",
+        url=reverse("dashboard:suspended"),
         hint="تصمیم مدیر لازم است: بازگشت به چرخه یا لغو پروژه.",
         rows=[_stage_row(s, now) for s in suspended[:LIST_LIMIT]])
 
     stale = stale_stages(now, unassigned_ids)
     add("stale", f"بیش از {_fa(STALE_STAGE_DAYS)} روز بدون حرکت", stale.count(),
+        url=reverse("dashboard:stages"),
         hint="مسئول دارد ولی مرحله جلو نرفته است.",
         rows=[_stage_row(s, now, since=s.last_move,
                          extra=(s.assigned_to.get_full_name() or s.assigned_to.username) if s.assigned_to else "")
@@ -179,6 +184,37 @@ def attention_items(stats, now=None):
     return items
 
 
+def active_stages_qs():
+    """همه‌ی مراحل در حال انجامِ پروژه‌های در حال اجرا؛ برای جدول ارجاع."""
+    last_event = StageEvent.objects.filter(stage=OuterRef("pk")).order_by("-created_at").values("created_at")[:1]
+    pool = ProjectStage.candidate_users.through.objects.filter(projectstage_id=OuterRef("pk"))
+    return (ProjectStage.objects
+            .filter(status=ProjectStage.Status.IN_PROGRESS, **_LIVE)
+            .annotate(has_pool=Exists(pool), last_move=Coalesce(Subquery(last_event), F("started_at")))
+            .annotate(no_owner=Case(When(assigned_to__isnull=True, has_pool=False, then=Value(1)),
+                                    default=Value(0), output_field=IntegerField()))
+            .select_related("project", "assigned_to").prefetch_related("candidate_users")
+            .order_by("last_move"))
+
+
+def suspended_items():
+    out = []
+    qs = (ProjectStage.objects.filter(status=ProjectStage.Status.SUSPENDED, **_LIVE)
+          .select_related("project", "step_template").order_by("started_at"))
+    for s in qs:
+        last = s.events.order_by("-created_at").first()
+        approval = s.approvals.order_by("-sent_at").first()
+        out.append({
+            "stage": s,
+            "reason": last.comment if last else "",
+            "customer_comment": approval.comment if approval and approval.decision == StageApproval.Decision.REJECTED else "",
+            "is_approval": s.step_template.approval_by in EXTERNAL_APPROVAL_TYPES,
+            "has_invoice": getattr(s.project, "invoice", None) is not None,
+        })
+    return out
+
+
 def dashboard_context():
     stats = accounting.accounting_overview("this_month")
-    return {"counts": project_counts(), "stats": stats, "attention": attention_items(stats)}
+    return {"counts": project_counts(), "stats": stats, "attention": attention_items(stats),
+            "months": accounting.period_rows(3)}

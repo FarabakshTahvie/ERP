@@ -41,6 +41,9 @@ CAPABILITIES = {
     "people.edit": _manager,
     "activity.view": _manager,
     "stages.assign": _manager,
+    "admin.panel": _manager,
+    "projects.cancel": _manager,
+    "invoice.cancel": _manager,
     # --- مدیر یا حسابدار ---
     "accounting.access": _manager_or_accountant,
     "payments.review": _manager_or_accountant,
