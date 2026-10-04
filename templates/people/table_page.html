@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">{{ page_title }}</h1>
+        <p class="fb-page-sub">{{ page_sub }}</p>
+    </div>
+    {% include "people/partials/people_nav.html" %}
+    {% include "utils/partials/generic_table.html" %}
+</div>
+{% endblock %}

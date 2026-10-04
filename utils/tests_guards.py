@@ -40,3 +40,10 @@ class SourceGuardTests(TestCase):
             names = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
             self.assertFalse({n for n in names if names.count(n) > 1}, rel)
 
+    def test_people_views_use_capabilities_not_roles(self):
+        for rel in ("people/views.py", "people/services.py"):
+            text = (BASE / rel).read_text(encoding="utf-8")
+            self.assertNotIn("is_staff", text, rel)
+        self.assertNotIn("is_staff", (BASE / "accounts" / "middleware.py").read_text(encoding="utf-8"))
+
+

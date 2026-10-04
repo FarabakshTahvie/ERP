@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'notifications',
     'utils',
     'dashboard',
+    'people',
 ]
 
 MIDDLEWARE = [
@@ -78,6 +79,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'accounts.middleware.ForcePasswordChangeMiddleware',
+    'accounts.middleware.PresenceMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

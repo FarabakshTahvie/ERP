@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}ویرایش {{ person.get_full_name|default:person.username }} | افراد{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'people:user_detail' person.id %}" class="link link-hover text-sm fb-muted">بازگشت به پروفایل</a>
+        <h1 class="fb-page-title mt-2">ویرایش اطلاعات</h1>
+        <p class="fb-page-sub">نقش از پنل مدیریت عوض می‌شود. اگر نام کاربری همان شماره‌ی موبایل بوده باشد، با تغییر شماره هم عوض می‌شود.</p>
+    </div>
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 gap-3">
+            <div class="fb-field"><label class="fb-label" for="f-first">نام</label>
+                <input type="text" id="f-first" name="first_name" value="{{ values.first_name }}" class="input w-full"></div>
+            <div class="fb-field"><label class="fb-label" for="f-last">نام خانوادگی</label>
+                <input type="text" id="f-last" name="last_name" value="{{ values.last_name }}" class="input w-full"></div>
+        </div>
+        <div class="fb-field"><label class="fb-label" for="f-phone">موبایل</label>
+            <input type="text" id="f-phone" name="phone_number" value="{{ values.phone_number }}" dir="ltr" inputmode="numeric" class="input w-full font-technical"></div>
+        <div class="fb-field"><label class="fb-label" for="f-mail">ایمیل</label>
+            <input type="text" id="f-mail" name="email" value="{{ values.email }}" dir="ltr" class="input w-full"></div>
+        <div class="fb-field"><label class="fb-label" for="f-code">کد ملی</label>
+            <input type="text" id="f-code" name="national_code" value="{{ values.national_code }}" dir="ltr" inputmode="numeric" maxlength="10" class="input w-full font-technical"></div>
+        {% if person.role == 'employee' %}
+        <div class="fb-field">
+            <span class="fb-label">تخصص‌ها</span>
+            <div class="flex flex-wrap gap-2">
+                {% for s in specialties %}<label class="fb-choice"><input type="checkbox" name="specialties" value="{{ s.id }}" class="sr-only" {% if s.id in selected %}checked{% endif %}> {{ s.name }}</label>{% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary flex-1">ذخیره</button>
+            <a href="{% url 'people:user_detail' person.id %}" class="btn btn-ghost flex-1">انصراف</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

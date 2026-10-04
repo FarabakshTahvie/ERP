@@ -181,7 +181,7 @@ def period_rows(count=14):
         end = (jdatetime.date(y + 1, 1, 1) if m == 12 else jdatetime.date(y, m + 1, 1)).togregorian()
         pending = (Payment.objects.filter(status=Payment.Status.PENDING,
                                           created_at__gte=_dt(start), created_at__lt=_dt(end))
-                   .exclude(method=Payment.Method.CREDIT).count())
+                   .exclude(method=Payment.Method.GATEWAY).count())
         rows.append({"year": y, "month": m, "label": month_label(y, m),
                      "locked": (y, m) in locked, "pending_count": pending})
     return rows
