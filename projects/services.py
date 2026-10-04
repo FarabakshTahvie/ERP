@@ -482,46 +482,118 @@ def default_approval_party(project):
 
 
 @transaction.atomic
-def resume_suspended_stage(stage, actor, comment):
-    if not comment or not comment.strip():
-        raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
-    old = stage.status
-    stage.status = ProjectStage.Status.IN_PROGRESS
-    stage.save(update_fields=["status"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=comment)
-
-
-@transaction.atomic
-def cancel_project_from_stage(stage, actor, comment):
-    if not comment or not comment.strip():
-        raise ValueError("ثبت دلیل لغو پروژه اجباری است.")
-    project = stage.project
-    from .models import Project
-    project.status = Project.Status.CANCELLED
-    project.save(update_fields=["status"])
-    old = stage.status
-    stage.status = ProjectStage.Status.REJECTED
-    stage.save(update_fields=["status"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=f"پروژه لغو شد: {comment}")
-
-
-@transaction.atomic
 def assign_stage(stage, target_user, actor, comment):
+    """
+    ارجاع مستقیم مدیر. فقط مرحله‌ی «در حال انجام» از پروژه‌ی در حال اجرا.
+    هدف باید تکنسین فعال باشد؛ تخصص اجباری نیست (خارج از تخصص در سابقه ثبت می‌شود)،
+    ولی صدور پیش‌فاکتور و بازبینی نهایی فقط به حسابدار داده می‌شود.
+    """
     from accounts.models import User
-    if not (actor.is_superuser or actor.role == User.Role.ADMIN):
+    from core.capabilities import can
+    if not can(actor, "stages.assign"):
         raise ValueError("فقط مدیر می‌تواند مرحله را آزادانه به هرکسی ارجاع دهد.")
-    if not comment or not comment.strip():
+    comment = (comment or "").strip()
+    if not comment:
         raise ValueError("ثبت دلیل ارجاع دستی اجباری است.")
-    old_status = stage.status
+    if target_user is None:
+        raise ValueError("مسئول جدید را انتخاب کنید.")
+    stage = (ProjectStage.objects.select_for_update()
+             .select_related("project", "step_template", "assigned_to").get(pk=stage.pk))
+    if stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("پروژه در حال اجرا نیست.")
+    if stage.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("فقط مرحله‌ی «در حال انجام» قابل ارجاع است.")
+    if not target_user.is_active or target_user.role != User.Role.EMPLOYEE:
+        raise ValueError("مسئول باید یک تکنسین فعال باشد.")
+    if stage.assigned_to_id == target_user.id:
+        raise ValueError("این کار همین الان به همین شخص سپرده شده است.")
+    if stage.kind == StageKind.PROFORMA and not can(target_user, "pricing.edit"):
+        raise ValueError("صدور پیش‌فاکتور فقط به حسابدار ارجاع داده می‌شود.")
+    if stage.kind == StageKind.FINAL_REVIEW and not can(target_user, "final_review.view"):
+        raise ValueError("بازبینی نهایی فقط به حسابدار ارجاع داده می‌شود.")
+
+    specialty = stage.step_template.responsible_specialty
+    off_specialty = bool(specialty and not target_user.specialties.filter(pk=specialty.pk).exists())
+    name = target_user.get_full_name() or target_user.username
     stage.assigned_to = target_user
     stage.candidate_users.clear()
-    if stage.status != ProjectStage.Status.IN_PROGRESS:
-        stage.status = ProjectStage.Status.IN_PROGRESS
-        if not stage.started_at:
-            stage.started_at = timezone.now()
-    stage.save(update_fields=["assigned_to", "status", "started_at"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old_status, to_status=stage.status, comment=comment)
+    stage.save(update_fields=["assigned_to", "updated_at"])
+    StageEvent.objects.create(
+        stage=stage, actor=actor, from_status=stage.status, to_status=stage.status,
+        comment=f"ارجاع مدیر به {name}: {comment}" + (" [خارج از تخصص مرحله]" if off_specialty else ""))
+    # TODO(اعلان ارجاع به تکنسین): فاز ۴-د
     return stage
+
+
+@transaction.atomic
+def resume_suspended_stage(stage, actor, comment):
+    """بازگشت مرحله‌ی معلق به چرخه. مرحله‌ی تاییدِ مشتری دوباره برای مشتری فرستاده می‌شود."""
+    from core.capabilities import can
+    if not can(actor, "stages.assign"):
+        raise ValueError("فقط مدیر می‌تواند مرحله‌ی معلق را به چرخه برگرداند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
+    stage = (ProjectStage.objects.select_for_update()
+             .select_related("project", "step_template").get(pk=stage.pk))
+    if stage.status != ProjectStage.Status.SUSPENDED:
+        raise ValueError("این مرحله معلق نیست.")
+    if stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("پروژه در حال اجرا نیست.")
+    old = stage.status
+    if stage.step_template.approval_by in EXTERNAL_APPROVAL_TYPES:
+        send_stage_for_approval(stage, sent_by=actor)   # وضعیت را WAITING_APPROVAL می‌کند
+        text = f"بازگشت به چرخه توسط مدیر؛ دوباره برای تایید ارسال شد: {comment}"
+    else:
+        stage.status = ProjectStage.Status.IN_PROGRESS
+        stage.save(update_fields=["status", "updated_at"])
+        if not stage.assigned_to_id and not stage.candidate_users.exists():
+            _assign_stage_responsible(stage)
+            stage.save()
+        text = f"بازگشت به چرخه توسط مدیر: {comment}"
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=text)
+    return stage
+
+
+@transaction.atomic
+def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
+    """
+    لغو پروژه (فقط مدیر). درخواست‌های تاییدِ باز لغو می‌شوند.
+    cancel_invoice=True: فاکتور هم لغو می‌شود؛ اگر فاکتور پرداخت تاییدشده داشته باشد
+    کل عملیات (از جمله لغو پروژه) برمی‌گردد.
+    """
+    from core.capabilities import can
+    from finance.models import Invoice
+    from .models import StageApproval
+    if not can(actor, "projects.cancel"):
+        raise ValueError("فقط مدیر می‌تواند پروژه را لغو کند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل لغو پروژه اجباری است.")
+    project = Project.objects.select_for_update().get(pk=stage.project_id)
+    if project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه قبلاً لغو شده است.")
+    if project.status == Project.Status.COMPLETED:
+        raise ValueError("پروژه‌ی تکمیل‌شده قابل لغو نیست.")
+
+    invoice_note = ""
+    invoice = getattr(project, "invoice", None)
+    if cancel_invoice and invoice is not None and invoice.status != Invoice.Status.CANCELLED:
+        from finance.services import cancel_invoice as cancel_invoice_service
+        cancel_invoice_service(invoice=invoice, reason=f"لغو پروژه: {comment}", actor=actor)
+        invoice_note = " (فاکتور هم لغو شد)"
+
+    project.status = Project.Status.CANCELLED
+    project.save(update_fields=["status", "updated_at"])
+    StageApproval.objects.filter(stage__project=project, decision=StageApproval.Decision.PENDING).update(
+        decision=StageApproval.Decision.CANCELLED, decided_at=timezone.now())
+    stage = ProjectStage.objects.get(pk=stage.pk)
+    old = stage.status
+    stage.status = ProjectStage.Status.REJECTED
+    stage.save(update_fields=["status", "updated_at"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status,
+                              comment=f"پروژه لغو شد{invoice_note}: {comment}")
+
 
 
 @transaction.atomic

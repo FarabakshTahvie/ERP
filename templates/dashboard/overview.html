@@ -16,6 +16,8 @@
             </a>
             <a href="{% url 'finance:accounting_periods' %}" class="btn btn-soft btn-sm">{% icon "lock" "w-4 h-4" %} قفل ماه‌ها</a>
             <a href="{% url 'accounts:register_staff' %}" class="btn btn-soft btn-sm">{% icon "users" "w-4 h-4" %} کاربر جدید</a>
+            <a href="{% url 'dashboard:stages' %}" class="btn btn-soft btn-sm">{% icon "users" "w-4 h-4" %} ارجاع و مراحل</a>
+            <a href="{% url 'dashboard:suspended' %}" class="btn btn-soft btn-sm">{% icon "alert-triangle" "w-4 h-4" %} مراحل معلق</a>
             <a href="/admin/" class="btn btn-soft btn-sm">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
         </div>
     </div>
@@ -36,6 +38,47 @@
             {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
             {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
             {% include "finance/partials/stat_card.html" with label="ارزش فعلی موجودی انبار" value=stats.stock_value tone="" hint="کل زمان." %}
+        </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">قفل ماه‌ها</h2>
+        <div class="fb-card fb-pad flex flex-col gap-2">
+            {% for p in months %}
+            <div class="fb-inset flex items-center justify-between gap-3 flex-wrap">
+                <div class="min-w-0">
+                    <span class="text-sm font-semibold">{{ p.label }}</span>
+                    {% if p.pending_count %}<span class="text-xs text-warning block mt-0.5">{{ p.pending_count|fa_digits }} پرداخت منتظر تایید در این ماه</span>{% endif %}
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    {% if p.locked %}
+                    <span class="fb-badge fb-badge-info">بسته</span>
+                    {% if caps.periods_unlock %}
+                    <form method="post" action="{% url 'finance:accounting_period_toggle' %}" data-fb-once class="flex items-center gap-2 flex-wrap">
+                        {% csrf_token %}
+                        <input type="hidden" name="year" value="{{ p.year }}">
+                        <input type="hidden" name="month" value="{{ p.month }}">
+                        <input type="hidden" name="action" value="unlock">
+                        <input type="hidden" name="next" value="{% url 'dashboard:overview' %}">
+                        <input type="text" name="reason" required placeholder="دلیل بازکردن (اجباری)" class="input input-xs w-44">
+                        <button type="submit" class="btn btn-soft btn-xs">بازکردن</button>
+                    </form>
+                    {% endif %}
+                    {% else %}
+                    <span class="fb-badge fb-badge-neutral">باز</span>
+                    <form method="post" action="{% url 'finance:accounting_period_toggle' %}" data-fb-once>
+                        {% csrf_token %}
+                        <input type="hidden" name="year" value="{{ p.year }}">
+                        <input type="hidden" name="month" value="{{ p.month }}">
+                        <input type="hidden" name="action" value="lock">
+                        <input type="hidden" name="next" value="{% url 'dashboard:overview' %}">
+                        <button type="submit" class="btn btn-soft btn-error btn-xs">بستن</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            <a href="{% url 'finance:accounting_periods' %}" class="link link-hover text-xs fb-muted self-start">همه‌ی ماه‌ها</a>
         </div>
     </section>
 

@@ -90,7 +90,7 @@
                         {% icon "bar-chart-3" "w-4 h-4" %} حسابداری
                     </a>
                     {% endif %}
-                    {% if request.user.is_staff %}
+                    {% if caps.admin_panel %}
                     <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت
                     </a>
@@ -128,7 +128,7 @@
                             <li><a href="{% url 'finance:payments_review' %}">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}</a></li>
                             <li><a href="{% url 'finance:accounting_overview' %}">{% icon "bar-chart-3" "w-4 h-4" %} حسابداری</a></li>
                             {% endif %}
-                            {% if request.user.is_staff %}
+                            {% if caps.admin_panel %}
                             <li>
                                 <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
                             </li>

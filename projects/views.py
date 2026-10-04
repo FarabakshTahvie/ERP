@@ -120,9 +120,10 @@ def _duration_hint(hours):
 
 
 def _my_tasks_base_qs(request):
-    return ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS, assigned_to=request.user
-    ).select_related("project", "step_template").order_by("project__name", "order")
+    return (ProjectStage.objects
+            .filter(status=ProjectStage.Status.IN_PROGRESS, assigned_to=request.user)
+            .exclude(project__status=Project.Status.CANCELLED)
+            .select_related("project", "step_template").order_by("project__name", "order"))
 
 
 def _my_tasks_table_context(request):
@@ -159,9 +160,11 @@ def dashboard_my_tasks_table(request):
 
 
 def _claimable_base_qs(request):
-    return ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS, candidate_users=request.user
-    ).exclude(assigned_to=request.user).select_related("project", "step_template").distinct().order_by("project__name", "order")
+    return (ProjectStage.objects
+            .filter(status=ProjectStage.Status.IN_PROGRESS, candidate_users=request.user)
+            .exclude(assigned_to=request.user)
+            .exclude(project__status=Project.Status.CANCELLED)
+            .select_related("project", "step_template").distinct().order_by("project__name", "order"))
 
 
 def _claimable_table_context(request):

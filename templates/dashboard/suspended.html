@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}مراحل معلق | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'dashboard:overview' %}" class="link link-hover text-sm fb-muted">بازگشت به داشبورد</a>
+        <h1 class="fb-page-title mt-2">مراحل معلق</h1>
+        <p class="fb-page-sub">مرحله‌ای که رد شده و مسیر بازگشت خودکار نداشته. تصمیم با مدیر است: به چرخه برگردد یا پروژه لغو شود.</p>
+    </div>
+
+    {% for it in items %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-start justify-between gap-2 flex-wrap">
+            <div class="min-w-0">
+                <h2 class="fb-section-title">{{ it.stage.project.name }} — {{ it.stage.title }}</h2>
+                <a href="{% url 'projects:staff_project_overview' it.stage.project_id %}" class="link link-hover text-xs fb-muted">نمای پروژه</a>
+            </div>
+            <span class="fb-badge fb-badge-error">معلق</span>
+        </div>
+        {% if it.customer_comment %}<p class="fb-inset text-sm">دلیل رد مشتری: {{ it.customer_comment }}</p>
+        {% elif it.reason %}<p class="fb-inset text-sm">{{ it.reason }}</p>{% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <form method="post" action="{% url 'dashboard:suspended_resume' it.stage.id %}" data-fb-once class="fb-inset flex flex-col gap-2">
+                {% csrf_token %}
+                <span class="fb-label">بازگشت به چرخه</span>
+                {% if it.is_approval %}
+                <p class="fb-hint">با بازگشت، درخواست تایید دوباره برای مشتری ارسال می‌شود. اگر قیمت‌ها باید عوض شوند، اول پیش‌فاکتور را اصلاح کنید.
+                    <a href="{% url 'projects:proforma_editor' it.stage.project_id %}" class="link link-primary">ویرایشگر پیش‌فاکتور</a></p>
+                {% endif %}
+                <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل بازگشت (اجباری)"></textarea>
+                <button type="submit" class="btn btn-soft btn-sm self-start">بازگشت به چرخه</button>
+            </form>
+
+            {% if caps.projects_cancel %}
+            <form method="post" action="{% url 'dashboard:suspended_cancel' it.stage.id %}" data-fb-once class="fb-inset flex flex-col gap-2">
+                {% csrf_token %}
+                <span class="fb-label">لغو پروژه</span>
+                <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل لغو (اجباری)"></textarea>
+                {% if it.has_invoice %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" name="cancel_invoice" class="checkbox checkbox-sm"> فاکتور هم لغو شود
+                </label>
+                <p class="fb-hint">اگر فاکتور پرداخت تاییدشده داشته باشد، کل لغو انجام نمی‌شود.</p>
+                {% endif %}
+                <button type="submit" class="btn btn-soft btn-error btn-sm self-start">لغو پروژه</button>
+            </form>
+            {% endif %}
+        </div>
+    </section>
+    {% empty %}
+    <div class="fb-card"><div class="fb-empty">مرحله‌ی معلقی نیست.</div></div>
+    {% endfor %}
+</div>
+{% endblock %}

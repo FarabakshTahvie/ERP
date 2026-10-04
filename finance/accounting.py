@@ -148,7 +148,7 @@ def attention_items():
 
 
 def final_review_queue(limit=20):
-    """پروژه‌هایی که بازبینی نهایی‌شان باز است + آنچه جلوی تایید یا درستی حساب را می‌گیرد."""
+    "پروژه‌هایی که بازبینی نهایی‌شان باز است + آنچه جلوی تایید یا درستی حساب را می‌گیرد."
     stages = (ProjectStage.objects.filter(kind=StageKind.FINAL_REVIEW, status=ProjectStage.Status.IN_PROGRESS)
               .select_related("project").order_by("project__name")[:limit])
     rows = []
@@ -160,6 +160,32 @@ def final_review_queue(limit=20):
             "unsettled": sum(1 for r in project_reconciliation(p) if r["status"] != "ok"),
         })
     return rows
+
+
+def period_rows(count=14):
+    """ماه‌های شمسی گذشته (جدیدترین اول): وضعیت قفل و تعداد پرداخت منتظر تایید همان ماه."""
+    from core.models import PeriodLock
+    from core.periods import current_ym, month_label
+    from datetime import datetime, time
+    from django.utils.timezone import make_aware, get_current_timezone
+    y, m = current_ym()
+    locked = {(l.year, l.month) for l in PeriodLock.objects.filter(is_locked=True)}
+    rows = []
+    tz = get_current_timezone()
+    _dt = lambda d: make_aware(datetime.combine(d, time.min), tz)
+    for _ in range(count):
+        m -= 1
+        if m < 1:
+            y, m = y - 1, 12
+        start = jdatetime.date(y, m, 1).togregorian()
+        end = (jdatetime.date(y + 1, 1, 1) if m == 12 else jdatetime.date(y, m + 1, 1)).togregorian()
+        pending = (Payment.objects.filter(status=Payment.Status.PENDING,
+                                          created_at__gte=_dt(start), created_at__lt=_dt(end))
+                   .exclude(method=Payment.Method.CREDIT).count())
+        rows.append({"year": y, "month": m, "label": month_label(y, m),
+                     "locked": (y, m) in locked, "pending_count": pending})
+    return rows
+
 
 
 # ---------- مالی هر پروژه ----------

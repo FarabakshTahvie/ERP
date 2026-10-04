@@ -27,3 +27,16 @@ class SourceGuardTests(TestCase):
                 text = path.read_text(encoding="utf-8")
                 for cls in banned:
                     self.assertNotIn(cls, text, f"{path.name}: {cls}")
+
+    def test_no_is_staff_in_any_template(self):
+        for path in (BASE / "templates").rglob("*.html"):
+            self.assertNotIn("is_staff", path.read_text(encoding="utf-8"), path.name)
+
+    def test_no_duplicate_top_level_functions_in_key_modules(self):
+        import ast
+        for rel in ("finance/views_accounting.py", "finance/views.py", "projects/views.py",
+                    "projects/views_ops.py", "dashboard/views.py", "dashboard/services.py"):
+            tree = ast.parse((BASE / rel).read_text(encoding="utf-8"))
+            names = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+            self.assertFalse({n for n in names if names.count(n) > 1}, rel)
+
