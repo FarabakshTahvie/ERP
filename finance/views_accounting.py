@@ -2,9 +2,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Max, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from core.capabilities import can, cap_required
 from core.models import Party
 from projects.services import project_prices_editable
 from utils.jalali_forms import JalaliDateField
@@ -12,7 +14,6 @@ from utils.jalali_forms import JalaliDateField
 from inventory.models import PurchaseLine, StockMovement
 from projects import ops
 from projects.models import Project, ProjectCost, StageKind
-from projects.services import user_can_access_accounting
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
@@ -23,7 +24,11 @@ PROJECT_STATUS_VARIANT = {"completed": "success", "cancelled": "error", "in_prog
 
 
 def _can(user):
-    return user_can_access_accounting(user)
+    return can(user, "accounting.access")
+
+
+def _can_unlock(user):
+    return can(user, "periods.unlock")
 
 
 def _m(value):
@@ -342,8 +347,11 @@ def periods_page(request):
 @user_passes_test(_can)
 @require_POST
 def period_toggle(request):
-    year = int(request.POST.get("year", 0))
-    month = int(request.POST.get("month", 0))
+    try:
+        year, month = int(request.POST.get("year", "")), int(request.POST.get("month", ""))
+    except ValueError:
+        messages.error(request, "ماه نامعتبر است.")
+        return redirect("finance:accounting_periods")
     action = request.POST.get("action")
     reason = (request.POST.get("reason") or "").strip()
     from core.periods import set_lock, month_label
@@ -395,32 +403,33 @@ def financial_report_page(request):
         "start_date": start_date,
         "end_date": end_date,
     })
+
+
 @login_required
 @user_passes_test(_can)
 def customers_center_page(request):
-    from core.models import Party
     from finance.aging import get_customer_aging_data
-    
-    clients = Party.objects.filter(is_client=True).order_by("name")
-    selected_client_id = request.GET.get("client_id")
-    selected_client = None
-    aging_summary = None
-    aging_rows = None
-    ledger_entries = None
+    from finance.models import Payment
 
-    if selected_client_id:
-        selected_client = get_object_or_404(Party, id=selected_client_id, is_client=True)
+    clients = Party.objects.filter(invoices__isnull=False).distinct().order_by("name")
+    selected_client = aging_summary = aging_rows = payments = None
+    client_id = (request.GET.get("client_id") or "").strip()
+    if client_id:
+        if not client_id.isdigit():
+            raise Http404
+        selected_client = get_object_or_404(clients, pk=int(client_id))
         aging_summary, aging_rows = get_customer_aging_data(selected_client)
-        ledger_entries = selected_client.ledger_entries.all()[:50]
+        payments = (Payment.objects.filter(invoice__billed_party=selected_client)
+                    .select_related("invoice").order_by("-created_at")[:50])
 
     return render(request, "finance/accounting_customers.html", {
-        "nav_active": "customers",
-        "clients": clients,
-        "selected_client": selected_client,
-        "aging_summary": aging_summary,
-        "aging_rows": aging_rows,
-        "ledger_entries": ledger_entries,
+        "nav_active": "customers", "clients": clients, "selected_client": selected_client,
+        "aging_summary": aging_summary, "aging_rows": aging_rows, "payments": payments,
     })
+
+
+# ---------- تأمین‌کننده‌ها ----------
+def _suppliers_ctx(request):
     qs = (Party.objects.annotate(purchases_count=Count("purchases", distinct=True),
                                  total=Sum(accounting.SUPPLIER_VALUE),
                                  last_at=Max("purchases__purchased_at"))

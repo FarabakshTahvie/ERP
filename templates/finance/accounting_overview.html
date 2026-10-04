@@ -22,8 +22,8 @@
             {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
             {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
             {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
-            {% include "finance/partials/stat_card.html" with label="اعتباری وصول‌نشده" value=stats.credit_open tone="text-warning" hint="پولی که هنوز نرسیده." %}
-            {% include "finance/partials/stat_card.html" with label="سود پروژه‌های قطعی" value=stats.final_profit tone="text-success" hint="فقط پروژه‌های تایید‌شده؛ تعداد: "|add:stats.final_count|fa_digits %}
+            {% include "finance/partials/stat_card.html" with label="فروش منهای هزینه‌های ثبت‌شده — پروژه‌های تسویه‌شده" value=stats.final_result tone="" hint="فقط پروژه‌هایی که بازبینی نهایی‌شان تایید شده. دستمزد و هر هزینه‌ی ثبت‌نشده در آن نیست." %}
+            {% include "finance/partials/stat_card.html" with label="تعداد پروژه‌ی تسویه‌شده" value=stats.final_count tone="" hint="" %}
         </div>
     </section>
 
@@ -76,7 +76,6 @@
             <span class="font-semibold">{{ r.project.name }}</span>
             <span class="flex flex-wrap items-center gap-1.5">
                 {% if r.pending_parts %}<span class="fb-badge fb-badge-warning">درخواست قطعه: {{ r.pending_parts|fa_digits }}</span>{% endif %}
-                {% if r.pending_extras %}<span class="fb-badge fb-badge-error">قطعه‌ی بی‌تکلیف: {{ r.pending_extras|fa_digits }}</span>{% endif %}
                 {% if r.unsettled %}<span class="fb-badge fb-badge-info">اقلام ناهم‌خوان: {{ r.unsettled|fa_digits }}</span>{% endif %}
             </span>
         </a>

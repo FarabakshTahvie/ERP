@@ -123,8 +123,11 @@ def part_requests_table(request):
 @login_required
 @user_passes_test(user_can_manage_inventory)
 def part_request_detail(request, req_id):
+    from core.capabilities import can
     req = _obj(PartRequest.objects.select_related("project", "item", "requested_by", "stage"), req_id)
-    return render(request, "projects/part_request_detail.html", {"req": req, "stock": req.item.current_stock})
+    return render(request, "projects/part_request_detail.html", {
+        "req": req, "stock": req.item.current_stock, "show_money": can(request.user, "money.view"),
+    })
 
 
 @login_required

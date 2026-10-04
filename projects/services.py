@@ -37,35 +37,24 @@ def clean_project_notes(raw):
     return text
 
 
+from core.capabilities import can, is_accountant
+
+
 def user_can_create_projects(user):
-    return (
-        user.is_authenticated
-        and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name__in=[INTAKE_SPECIALTY_NAME, ACCOUNTANT_SPECIALTY_NAME]).exists()
-    )
+    return can(user, "projects.create")
 
 
 def user_is_accountant(user):
-    """فقط تخصص «حسابدار»؛ برای دسترسی‌های اختصاصی حسابدار (بازبینی نهایی، آمار مالی) که انباردار/پذیرش آن‌ها را ندارند."""
-    return (
-        user.is_authenticated
-        and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name=ACCOUNTANT_SPECIALTY_NAME).exists()
-    )
+    return is_accountant(user)
 
 
 def user_can_access_accounting(user):
-    """مرکز حسابداری: مدیر، سوپریوزر یا حسابدار. تنها منبع این تصمیم."""
-    return user.is_authenticated and (
-        user.is_superuser or getattr(user, "role", None) == "manager" or user_is_accountant(user)
-    )
+    """مرکز حسابداری: مدیر، superuser یا حسابدار."""
+    return can(user, "accounting.access")
 
 
 def can_edit_pricing(user, project=None):
-    """قیمت‌گذاری و صدور پیش‌فاکتور: فقط مدیر یا حسابدار."""
-    return user.is_authenticated and (
-        user.is_superuser or getattr(user, "role", None) == "manager" or user_is_accountant(user)
-    )
+    return can(user, "pricing.edit")
 
 
 def can_search_parties_for_purchase(user):
@@ -193,6 +182,9 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
     prices_open = project_prices_editable(project)
     fees_sent = any(v is not None for v in (installation_fee_raw, shipping_fee_raw, extra_fee_raw))
     costs_touched = fees_sent or contract_date is not NOT_SENT
+    pricing_touched = service_lines is not None or material_lines is not None or costs_touched
+    if pricing_touched and not can_edit_pricing(actor, project):
+        raise ValueError("تغییر خدمات، قیمت‌ها و اطلاعات قرارداد فقط با حسابدار یا مدیر است.")
     if (service_lines is not None or material_lines is not None or costs_touched) and not prices_open:
         raise ValueError(
             "قیمت‌ها و اطلاعات قرارداد قفل شده‌اند (پیش‌فاکتور تایید شده یا پرداختی ثبت شده). "

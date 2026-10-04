@@ -346,7 +346,7 @@ class ManualStockChangeTests(TestCase):
     def test_consume_reduces_stock_with_out_movement(self):
         item = Item.objects.create(name="کالای تست ۳", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
         receive_stock(item=item, warehouse=self.warehouse, qty=10, unit_cost=1000, received_at=timezone.now())
-        record_manual_stock_change(item=item, kind=CHANGE_KIND_CONSUME, qty_raw="4", notes="مصرف در پروژه تست", user=self.user)
+        record_manual_stock_change(item=item, kind=CHANGE_KIND_CONSUME, qty_raw="4", notes="مصرف در پروژه تست", user=self.user, internal=True)
         item.refresh_from_db()
         self.assertEqual(item.current_stock, Decimal("6"))
         movement = StockMovement.objects.filter(item=item, movement_type=StockMovement.MovementType.OUT).latest("created_at")

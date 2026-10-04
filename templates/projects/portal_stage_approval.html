@@ -23,6 +23,12 @@
     {% if invoice %}
     <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm self-start">مشاهده فاکتور</a>
     {% endif %}
+    {% elif readonly %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">این صفحه فقط برای مشاهده است؛ تایید یا رد را خودِ طرف‌حساب انجام می‌دهد.</span>
+    </div>
+    {% if invoice %}<a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm self-start">مشاهده فاکتور</a>{% endif %}
     {% else %}
     <form method="post" enctype="multipart/form-data" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
         {% csrf_token %}

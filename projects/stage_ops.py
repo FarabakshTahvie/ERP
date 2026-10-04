@@ -12,8 +12,7 @@ MAX_CUTS = 999
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
-def _is_manager(user):
-    return user.is_superuser or user.role == User.Role.ADMIN
+from core.capabilities import is_manager as _is_manager
 
 
 def can_upload_to_stage(user, stage):

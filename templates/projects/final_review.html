@@ -22,10 +22,10 @@
             <div><span class="fb-muted">تاریخ قرارداد:</span> <span class="font-technical">{{ project.contract_date|to_jalali:"%Y/%m/%d"|default:"—" }}</span></div>
             <div><span class="fb-muted">مکان:</span> {% if project.location.has_exact_coordinates %}<a href="{% map_url project.location.latitude project.location.longitude %}" target="_blank" rel="noopener" class="btn btn-soft btn-sm">{% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه</a>{% else %}<span>{{ project.location.address_text|default:"—" }}</span>{% endif %}</div>
         </div>
-        {% if project.internal_notes %}
+        {% if project.notes %}
         <div class="text-xs pt-2 border-t border-base-300">
-            <span class="fb-muted">یادداشت داخلی:</span>
-            <p class="mt-0.5 leading-relaxed">{{ project.internal_notes }}</p>
+            <span class="fb-muted">یادداشت:</span>
+            <p class="mt-0.5 leading-relaxed">{{ project.notes }}</p>
         </div>
         {% endif %}
     </div>
@@ -126,7 +126,7 @@
             <div class="border-b border-base-300 pb-2 text-xs">
                 <div class="flex items-center justify-between gap-2">
                     <span class="font-semibold">{{ st.order|fa_digits }}. {{ st.title }}</span>
-                    <span class="fb-badge fb-badge-sm {% if st.status == 'done' %}fb-badge-success{% elif st.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ st.get_status_display }}</span>
+                    <span class="fb-badge {% if st.status == 'done' %}fb-badge-success{% elif st.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ st.get_status_display }}</span>
                 </div>
                 <div class="fb-muted mt-0.5">مسئول: {% if st.assigned_to %}{{ st.assigned_to.get_full_name|default:st.assigned_to.username }}{% else %}—{% endif %}</div>
                 {% if st.events.all %}
@@ -150,7 +150,7 @@
         <h2 class="font-bold text-sm">گزارش ارسال قطعات</h2>
         {% if data.not_sent %}
         <div class="text-xs">
-            <span class="font-semibold text-error">برای {{ data.not_sent|length|fa_digits }} قطعه هنوز «ارسال شد» یا «ارسال نشد» ثبت نشده است:</span>
+            <span class="font-semibold text-error">{{ data.not_sent|length|fa_digits }} قطعه ارسال نشده است:</span>
             <ul class="list-disc list-inside mt-1 space-y-1">
                 {% for sc in data.not_sent %}
                 <li>{{ sc.file.display_name }} — <span class="fb-muted">دلیل:</span> {{ sc.reason }}</li>
@@ -222,7 +222,7 @@
             <div class="flex justify-between items-center border-b border-base-200 pb-1.5 flex-wrap gap-2">
                 <div>
                     <span class="font-semibold">{{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>
-                    <span class="fb-badge fb-badge-xs {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
+                    <span class="fb-badge {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
                     <span class="fb-muted ms-1">({{ p.note }})</span>
                     {% if p.photo %}<a href="{{ p.photo.url }}" target="_blank" rel="noopener" class="link link-primary ms-1">مشاهده عکس</a>{% endif %}
                 </div>
@@ -297,7 +297,7 @@
             <div class="flex justify-between border-t border-base-300 pt-2"><span class="fb-muted">هزینه‌ی انبار با ثبت جدول تسویه (تقریبی)</span><span class="font-technical" data-live-stock>—</span></div>
             <div class="flex justify-between font-bold"><span>فروش منهای هزینه‌های ثبت‌شده، بعد از تسویه (تقریبی)</span><span class="font-technical" data-live-result>—</span></div>
         </div>
-        <div class="alert alert-info text-xs flex flex-col items-start gap-1">
+        <div class="alert alert-soft alert-info text-xs flex flex-col items-start gap-1">
             {% icon "info" "w-4 h-4 shrink-0" %}
             <span>دستمزد، ایاب‌ذهاب و هر هزینه‌ی ثبت‌نشده در این عدد نیست؛ قضاوت درباره‌ی سود با حسابدار است. برای ثبت هزینه یا تغییر فاکتور به «پرونده‌ی مالی» در مرکز حسابداری بروید. بهای دقیق کالا هنگام ثبت از لات‌ها محاسبه می‌شود.</span>
         </div>
@@ -307,7 +307,7 @@
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">تسویه‌ی مصرف مواد و تایید نهایی</h2>
         {% if data.pending_parts %}
-        <div class="alert alert-warning text-xs">
+        <div class="alert alert-soft alert-warning text-xs">
             {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
             <span>درخواست قطعه‌ی بدون پاسخ دارید.</span>
         </div>

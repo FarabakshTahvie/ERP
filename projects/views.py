@@ -451,14 +451,15 @@ def staff_project_overview(request, project_id):
 @login_required
 def portal_stage_approval(request, approval_id):
     from finance.services import create_customer_payment
+    from core.capabilities import can
 
     approval = get_object_or_404(
         StageApproval.objects.select_related("stage__project", "stage__step_template", "sent_to_party"),
         pk=approval_id,
     )
     party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or party.id != approval.sent_to_party_id):
+    is_owner = bool(party and party.id == approval.sent_to_party_id)
+    if not is_owner and not can(request.user, "accounting.access"):
         raise Http404
 
     stage = approval.stage
@@ -466,7 +467,8 @@ def portal_stage_approval(request, approval_id):
     needs_payment = stage.step_template.requires_payment_selection
 
     def render_page(**extra):
-        ctx = {"approval": approval, "stage": stage, "invoice": invoice, "needs_payment": needs_payment}
+        ctx = {"approval": approval, "stage": stage, "invoice": invoice,
+               "needs_payment": needs_payment, "readonly": not is_owner}
         ctx.update(extra)
         return render(request, "projects/portal_stage_approval.html", ctx)
 
@@ -477,6 +479,8 @@ def portal_stage_approval(request, approval_id):
         return render_page(already_decided=True)
 
     if request.method == "POST":
+        if not is_owner:
+            raise Http404
         action = request.POST.get("action")
         comment = request.POST.get("comment", "").strip()
 

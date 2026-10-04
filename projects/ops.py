@@ -47,9 +47,10 @@ def is_creator_or_manager(user, project):
     return user.is_authenticated and (_is_manager(user) or project.created_by_id == user.id)
 
 
+from core.capabilities import can
+
 def can_view_final_review(user, project):
-    """بازبینی نهایی: فقط مدیر یا حسابدار."""
-    return user.is_authenticated and (_is_manager(user) or user_is_accountant(user))
+    return can(user, "final_review.view")
 
 
 def review_open(project):
@@ -291,8 +292,7 @@ def cancel_part_request(*, req, actor):
 
 # ---------------- هزینه‌ها ----------------
 def can_manage_costs(user, project):
-    """ثبت و حذف هزینه فقط با حسابدار یا مدیر."""
-    return user_is_accountant(user) or _is_manager(user)
+    return can(user, "costs.manage")
 
 
 @transaction.atomic
@@ -324,7 +324,7 @@ def ops_context(user, stage):
     if stage.kind not in (StageKind.SHIPPING, StageKind.INSTALL):
         return None
     project = stage.project
-    money = _is_manager(user) or user_is_accountant(user)
+    money = can(user, "money.view")
     ctx = {"can_edit": can_edit_ops(user, stage), "show_money": money}
     if stage.kind == StageKind.SHIPPING:
         ctx["rows"] = shipment_rows(stage)

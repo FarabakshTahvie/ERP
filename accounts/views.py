@@ -21,8 +21,10 @@ from utils.request_meta import get_client_ip
 OTP_LOGIN_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 
-def is_manager(user):
-    return user.is_authenticated and user.role == User.Role.ADMIN
+from core.capabilities import can
+
+def _can_manage_people(user):
+    return can(user, "people.edit")
 
 
 class StyledLoginView(LoginView):
@@ -125,7 +127,7 @@ def verify_otp_login(request):
 
 
 @login_required
-@user_passes_test(is_manager)
+@user_passes_test(_can_manage_people)
 def register_staff(request):
     if request.method == "POST":
         form = StaffRegistrationForm(request.POST)

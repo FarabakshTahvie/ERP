@@ -131,17 +131,10 @@ def _check_reorder_point(item):
         # TODO(پوش هشدار موجودی کم): بعد از آماده شدن پوش/پیامک از کامنت خارج شود.
 
 
+from core.capabilities import can
+
 def user_can_manage_inventory(user):
-    """
-    دسترسی به بخش انبارداری: دقیقاً هم‌الگوی projects.services.user_can_create_projects.
-    کاربر باید role=employee باشد و تخصص «انباردار» یا «حسابدار» داشته باشد. مدیر استثنا نیست —
-    مدیر از پنل ادمین (Item/StockLot/Purchase/Warehouse) استفاده می‌کند.
-    """
-    return (
-        user.is_authenticated
-        and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name__in=[WAREHOUSE_KEEPER_SPECIALTY_NAME, ACCOUNTANT_SPECIALTY_NAME]).exists()
-    )
+    return can(user, "inventory.manage")
 
 
 def low_stock_items_count():
@@ -275,7 +268,8 @@ def project_unit_cost(item, project):
 
 
 @transaction.atomic
-def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None, movement_date=None):
+def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None,
+                               movement_date=None, internal=False):
     """
     تنها مسیر ثبت مصرف/تعدیل/موجودی اولیه‌ی دستی.
     - consume: مصرف واقعی (OUT).
@@ -297,10 +291,8 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     qty = parse_decimal_input(qty_raw, label="مقدار")
 
     if kind == CHANGE_KIND_CONSUME:
-        # اگر در تست‌ها بدون پروژه فرستاده شد، بررسی الزام پروژه را برای تست‌های قدیمی غیرفعال یا از اولین پروژه استفاده می‌کنیم
-        if not related_object:
-            from projects.models import Project
-            related_object = Project.objects.first()
+        if related_object is None and not internal:
+            raise ValueError("برای مصرف، پروژه یا «مصرف داخلی شرکت» را مشخص کنید.")
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
                       related_object=related_object, movement_date=target_date)
         return

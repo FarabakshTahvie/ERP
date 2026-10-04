@@ -63,7 +63,7 @@ class ProjectEditTests(TestCase):
 
     def test_creator_can_edit_address_and_lines_rebuilds_invoice(self):
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
 
         ps = self.project.services.first()
         edit_data = {
@@ -92,7 +92,7 @@ class ProjectEditTests(TestCase):
         self.assertEqual(self.invoice.total_amount, 1500000)  # 1200000 + 300000
 
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
 
         edit_data = {
             "address_text": "آدرس تست ردیف دستی",
@@ -113,7 +113,7 @@ class ProjectEditTests(TestCase):
         ps.save()
 
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
 
         edit_data = {
             "services_json": json.dumps([{"pk": ps.pk, "id": self.service1.id, "qty": 4, "unit_price": 500000}]),
@@ -131,7 +131,7 @@ class ProjectEditTests(TestCase):
         )
 
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
 
         # ارسال تغییر ردیف باید با خطا روبرو شود
         bad_edit = {
@@ -159,7 +159,7 @@ class ProjectEditTests(TestCase):
         stage2.save()
 
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
 
         edit_data = {
             "services_json": json.dumps([{"id": self.service1.id, "qty": 5, "unit_price": 500000}]),

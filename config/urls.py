@@ -12,6 +12,7 @@ urlpatterns = [
     path('manifest.json', manifest_view, name='manifest'),
     path('najva-messaging-sw.js', najva_service_worker, name='najva_sw'),
     path('accounts/', include('accounts.urls', namespace='accounts')),
+    path('manager/', include('dashboard.urls', namespace='dashboard')),
     path('utils/', include('utils.urls', namespace='utils')),
     path('', include('inventory.urls', namespace='inventory')),
     path('', include('notifications.urls', namespace='notifications')),

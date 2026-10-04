@@ -1,6 +1,14 @@
 from django.utils import timezone
 from finance.models import Invoice
 
+BUCKET_LABELS = {
+    "current": "سررسیدنشده",
+    "1-30": "۱ تا ۳۰ روز",
+    "31-60": "۳۱ تا ۶۰ روز",
+    "61-90": "۶۱ تا ۹۰ روز",
+    "over-90": "بیش از ۹۰ روز",
+}
+
 def get_customer_aging_data(party, today=None):
     """
     محاسبه جدول سن بدهی (Aging) برای یک مشتری (Party) بر اساس فاکتورهای تسویه‌نشده.
@@ -53,6 +61,7 @@ def get_customer_aging_data(party, today=None):
             "remaining": remaining,
             "delta_days": delta_days,
             "bucket": bucket,
+            "bucket_label": BUCKET_LABELS[bucket],
         })
 
     summary = {

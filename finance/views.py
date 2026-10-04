@@ -8,6 +8,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 import weasyprint
 
+from core.capabilities import can
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
@@ -15,12 +16,18 @@ from .models import Invoice, Payment
 from .services import approve_payment, reject_payment, create_customer_payment, PROOF_METHODS
 
 
+def _invoice_access(user, invoice):
+    """(مجاز؟، مالک؟) مالک = طرف‌حساب همین فاکتور. مدیر و حسابدار فقط می‌بینند؛ ثبت پرداخت فقط برای مالک."""
+    party = getattr(user, "party", None)
+    is_owner = bool(party and invoice.billed_party_id == party.id)
+    return (is_owner or can(user, "accounting.access")), is_owner
+
+
 @login_required
 def invoice_detail(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    allowed, is_owner = _invoice_access(request.user, invoice)
+    if not allowed:
         raise Http404
 
     from projects.models import StageApproval
@@ -29,35 +36,28 @@ def invoice_detail(request, invoice_uuid):
     ).select_related("stage").first()
     payments = invoice.payments.order_by("-created_at")
     return render(request, "finance/portal_invoice.html", {
-        "invoice": invoice, "pending_approval": pending_approval, "payments": payments,
+        "invoice": invoice, "pending_approval": pending_approval, "payments": payments, "is_owner": is_owner,
     })
 
 
 @login_required
 def invoice_pdf(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    allowed, _is_owner = _invoice_access(request.user, invoice)
+    if not allowed:
         raise Http404
 
     html = render_to_string("finance/invoice_pdf.html", {"invoice": invoice}, request=request)
     pdf_bytes = weasyprint.HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf()
-
-    return FileResponse(
-        io.BytesIO(pdf_bytes),
-        as_attachment=False,
-        filename=f"{invoice.number}.pdf",
-        content_type="application/pdf"
-    )
+    return FileResponse(io.BytesIO(pdf_bytes), as_attachment=False,
+                        filename=f"{invoice.number}.pdf", content_type="application/pdf")
 
 
 @login_required
 def add_payment(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    _allowed, is_owner = _invoice_access(request.user, invoice)
+    if not is_owner:   # مدیر و حسابدار از مسیر «ثبت پرداخت» پرونده‌ی مالی استفاده می‌کنند
         raise Http404
     if invoice.remaining_amount <= 0:
         messages.info(request, "این فاکتور تسویه شده است.")
@@ -85,8 +85,7 @@ def add_payment(request, invoice_uuid):
 
 
 def _can_review_payments(user):
-    from projects.services import user_can_access_accounting
-    return user_can_access_accounting(user)
+    return can(user, "payments.review")
 
 
 def _visible_payments(user):

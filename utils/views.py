@@ -22,6 +22,11 @@ def home_view(request):
     if not request.user.is_authenticated:
         return redirect("accounts:login")
 
+    from core.capabilities import can
+    if can(request.user, "dashboard.manager"):
+        from dashboard.views import overview_view
+        return overview_view(request)
+
     user = request.user
     party = getattr(user, "party", None)
 

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}داشبورد مدیر | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">سلام، {{ request.user.get_full_name|default:request.user.username }}</h1>
+            <p class="fb-page-sub">وضعیت کل شرکت در یک نگاه</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{% url 'finance:accounting_overview' %}" class="btn btn-soft btn-sm">{% icon "bar-chart-3" "w-4 h-4" %} مرکز حسابداری</a>
+            <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
+                {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
+                {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}
+            </a>
+            <a href="{% url 'finance:accounting_periods' %}" class="btn btn-soft btn-sm">{% icon "lock" "w-4 h-4" %} قفل ماه‌ها</a>
+            <a href="{% url 'accounts:register_staff' %}" class="btn btn-soft btn-sm">{% icon "users" "w-4 h-4" %} کاربر جدید</a>
+            <a href="/admin/" class="btn btn-soft btn-sm">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
+        </div>
+    </div>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">پروژه‌ها</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {% include "finance/partials/stat_card.html" with label="در حال اجرا" value=counts.in_progress tone="text-primary" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="دارای مرحله‌ی معلق" value=counts.suspended tone="text-error" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="تکمیل‌شده" value=counts.completed tone="" hint="" %}
+        </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">مالی (این ماه)</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
+            {% include "finance/partials/stat_card.html" with label="ارزش فعلی موجودی انبار" value=stats.stock_value tone="" hint="کل زمان." %}
+        </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">نیازمند اقدام</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {% for a in attention %}
+            <div class="fb-card fb-pad flex flex-col gap-2 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold">{{ a.label }}</span>
+                    <span class="fb-badge fb-badge-{{ a.level }}">{{ a.count|fa_digits }}</span>
+                </div>
+                {% if a.hint %}<p class="fb-hint">{{ a.hint }}</p>{% endif %}
+                {% for r in a.rows %}
+                <a href="{{ r.url }}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300 min-w-0">
+                    <span class="font-semibold min-w-0 break-words">{{ r.title }}</span>
+                    <span class="fb-muted shrink-0">{% if r.amount %}<span class="font-technical">{{ r.amount|intcomma_fa }}</span> · {% endif %}{{ r.sub }}</span>
+                </a>
+                {% endfor %}
+                {% if a.url %}<a href="{{ a.url }}" class="btn btn-soft btn-sm self-start">مشاهده</a>{% endif %}
+            </div>
+            {% empty %}
+            <div class="fb-card lg:col-span-2"><div class="fb-empty">موردی منتظر اقدام نیست.</div></div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">پروژه‌های در حال اجرا</h2>
+        {% include "utils/partials/generic_table.html" %}
+    </section>
+</div>
+{% endblock %}
