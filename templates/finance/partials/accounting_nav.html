@@ -6,4 +6,7 @@
     <a href="{% url 'finance:accounting_stock' %}" class="btn btn-sm {% if nav_active == 'stock' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "arrow-left-right" "w-4 h-4" %} حرکات انبار</a>
     <a href="{% url 'finance:accounting_purchases' %}" class="btn btn-sm {% if nav_active == 'purchases' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "receipt" "w-4 h-4" %} خریدها</a>
     <a href="{% url 'finance:accounting_suppliers' %}" class="btn btn-sm {% if nav_active == 'suppliers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "users" "w-4 h-4" %} تأمین‌کننده‌ها</a>
+    <a href="{% url 'finance:accounting_reports' %}" class="btn btn-sm {% if nav_active == 'reports' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "file-spreadsheet" "w-4 h-4" %} گزارش‌های مالی</a>
+    <a href="{% url 'finance:accounting_customers' %}" class="btn btn-sm {% if nav_active == 'customers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "user-check" "w-4 h-4" %} مرکز مشتریان</a>
+    <a href="{% url 'finance:accounting_periods' %}" class="btn btn-sm {% if nav_active == 'periods' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "lock" "w-4 h-4" %} قفل ماه‌ها</a>
 </nav>

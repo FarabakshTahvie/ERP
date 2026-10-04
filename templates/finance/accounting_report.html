@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}گزارش‌های دوره‌ای مالی | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">گزارش‌های دوره‌ای مالی</h1>
+        <p class="fb-page-sub">محاسبه درآمدهای ناخالص، هزینه‌های جاری و انبارگردانی به تفکیک بازه زمانی شمسی.</p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="fb-card p-4">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div class="fb-field">
+                <label class="fb-label">تاریخ شروع (شمسی)</label>
+                <input type="text" name="start_date" placeholder="۱۴۰۵/۰۱/۰۱" value="{{ start_date }}" class="input input-sm input-bordered w-36">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label">تاریخ پایان (شمسی)</label>
+                <input type="text" name="end_date" placeholder="۱۴۰۵/۰۶/۳۱" value="{{ end_date }}" class="input input-sm input-bordered w-36">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">تولید گزارش</button>
+            {% if report %}
+            <a href="?start_date={{ start_date }}&end_date={{ end_date }}&export=csv" class="btn btn-outline btn-sm">خروجی اکسل/CSV</a>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if error_msg %}
+    <div class="fb-inset text-error text-sm">⚠️ {{ error_msg }}</div>
+    {% endif %}
+
+    {% if report %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">درآمد ناخالص فاکتورها</span>
+            <div class="fb-stat-value font-technical">{{ report.total_revenue|fa_digits }} تومان</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">مجموع کل هزینه‌ها</span>
+            <div class="fb-stat-value font-technical">{{ report.total_expenses|fa_digits }} تومان</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">کل دریافتی‌های تاییدشده</span>
+            <div class="fb-stat-value font-technical">{{ report.total_received|fa_digits }} تومان</div>
+        </div>
+    </div>
+
+    <div class="fb-card p-4 space-y-3">
+        <h2 class="fb-section-title">جزئیات گزارش تفاضلی</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full">
+                <tbody>
+                    <tr>
+                        <td class="font-semibold">تفاضل نهایی (درآمد منهای هزینه)</td>
+                        <td class="font-technical text-left font-bold text-lg fb-stat-value">{{ report.net_difference|fa_digits }} تومان</td>
+                    </tr>
+                    <tr>
+                        <td>سهم خرید مواد اولیه انبار</td>
+                        <td class="font-technical text-left text-neutral">{{ report.purchases_sum|fa_digits }} تومان</td>
+                    </tr>
+                    <tr>
+                        <td>سهم هزینه‌های عملیاتی پروژه‌ها</td>
+                        <td class="font-technical text-left text-neutral">{{ report.operational_costs_sum|fa_digits }} تومان</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}ورود گروهی موجودی اولیه | انبار{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">ورود گروهی موجودی اولیه</h1>
+        <p class="fb-page-sub">ثبت همزمان موجودی اولیه برای حداکثر ۵۰ کالا در قالب یک تراکنش اتمیک.</p>
+    </div>
+
+    <form method="post" id="bulk-form" class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="lines_json" id="lines_json" value="{{ lines_json }}">
+        
+        <div class="fb-card p-4 space-y-3">
+            <div class="flex gap-2">
+                <select id="item-select" class="select select-sm select-bordered flex-1">
+                    <option value="">-- انتخاب کالا --</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}" data-name="{{ item.name }}" data-unit="{{ item.get_unit_display }}">
+                        {{ item.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="number" step="any" id="qty-input" placeholder="مقدار" class="input input-bordered input-sm w-24">
+                <input type="number" step="any" id="cost-input" placeholder="بهای واحد (تومان)" class="input input-bordered input-sm w-40">
+                <button type="button" id="add-btn" class="btn btn-primary btn-sm">افزودن</button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table table-sm w-full" id="items-table">
+                    <thead>
+                        <tr>
+                            <th>کالا</th>
+                            <th>مقدار</th>
+                            <th>بهای واحد (تومان)</th>
+                            <th class="w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- ردیف‌ها پویا اضافه می‌شوند -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="fb-card p-4 space-y-3">
+            <label class="form-control w-full">
+                <span class="label-text mb-1 font-semibold">توضیح سند (اجباری)</span>
+                <input type="text" name="notes" required placeholder="مثلاً: موجودی اولیه شروع سال مالی" value="{{ notes }}" class="input input-bordered w-full">
+            </label>
+        </div>
+
+        <div class="flex justify-end gap-2">
+            <a href="{% url 'home' %}" class="btn btn-ghost">انصراف</a>
+            <button type="submit" class="btn btn-primary">پیش‌نمایش و تایید</button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const tableBody = document.querySelector("#items-table tbody");
+    const itemSelect = document.getElementById("item-select");
+    const qtyInput = document.getElementById("qty-input");
+    const costInput = document.getElementById("cost-input");
+    const addBtn = document.getElementById("add-btn");
+    const linesJsonInput = document.getElementById("lines_json");
+    const bulkForm = document.getElementById("bulk-form");
+
+    let lines = [];
+    try {
+        lines = JSON.parse(linesJsonInput.value || "[]");
+    } catch(e) {
+        lines = [];
+    }
+
+    function renderTable() {
+        tableBody.innerHTML = "";
+        lines.forEach((line, index) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${line.item_name}</td>
+                <td class="font-technical">${parseFloat(line.qty).toLocaleString('fa-IR')} ${line.unit}</td>
+                <td class="font-technical">${parseFloat(line.unit_cost).toLocaleString('fa-IR')}</td>
+                <td>
+                    <button type="button" class="btn btn-ghost btn-xs text-error delete-btn" data-index="${index}">حذف</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+        linesJsonInput.value = JSON.stringify(lines);
+    }
+
+    addBtn.addEventListener("click", function () {
+        const option = itemSelect.options[itemSelect.selectedIndex];
+        const itemId = option.value;
+        const itemName = option.getAttribute("data-name");
+        const unit = option.getAttribute("data-unit");
+        const qty = qtyInput.value.trim();
+        const cost = costInput.value.trim();
+
+        if (!itemId || !qty || !cost) {
+            alert("لطفاً تمامی فیلدها را پر کنید.");
+            return;
+        }
+
+        if (lines.some(l => l.item_id === itemId)) {
+            alert("این کالا قبلاً اضافه شده است.");
+            return;
+        }
+
+        lines.push({
+            item_id: itemId,
+            item_name: itemName,
+            unit: unit,
+            qty: qty,
+            unit_cost: cost
+        });
+
+        qtyInput.value = "";
+        costInput.value = "";
+        itemSelect.selectedIndex = 0;
+        renderTable();
+    });
+
+    tableBody.addEventListener("click", function (e) {
+        if (e.target.classList.contains("delete-btn")) {
+            const index = parseInt(e.target.getAttribute("data-index"));
+            lines.splice(index, 1);
+            renderTable();
+        }
+    });
+
+    renderTable();
+});
+</script>
+{% endblock %}

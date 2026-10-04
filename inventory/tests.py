@@ -423,6 +423,7 @@ class ManualStockChangeTests(TestCase):
 
         resp = client.post(reverse("inventory:stock_movement_new"), {
             "item_id": item.id, "kind": CHANGE_KIND_CONSUME, "qty": "2", "notes": "تست از ویو",
+            "project_id": "company",
         })
         self.assertRedirects(resp, reverse("home"))
         item.refresh_from_db()

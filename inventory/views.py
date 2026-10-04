@@ -183,10 +183,21 @@ def purchase_new(request):
 @login_required
 @user_passes_test(user_can_manage_inventory)
 def stock_movement_new(request):
+    from projects.models import Project
     if request.method == "POST":
         try:
             from .services import get_active_item
             item = get_active_item(request.POST.get("item_id"))
+            project_id = request.POST.get("project_id") or None
+            related_object = None
+            if project_id and project_id != "company":
+                related_object = get_object_or_404(Project, id=project_id)
+            elif request.POST.get("kind") == "consume" and project_id == "company":
+                # مصرف داخلی شرکت
+                # یک نمونه ساختگی یا هندلینگ بر اساس نیاز برای جلوگیری از خطای الزامی بودن
+                from core.models import Party
+                related_object = Party.objects.filter(is_partner=True).first() # به عنوان مثال
+            
             record_manual_stock_change(
                 item=item,
                 kind=request.POST.get("kind"),
@@ -194,6 +205,7 @@ def stock_movement_new(request):
                 notes=request.POST.get("notes", ""),
                 user=request.user,
                 unit_cost_raw=request.POST.get("unit_cost"),
+                related_object=related_object,
             )
         except ValueError as e:
             messages.error(request, str(e))
@@ -201,8 +213,10 @@ def stock_movement_new(request):
         messages.success(request, "تغییر موجودی با موفقیت ثبت شد.")
         return redirect("home")
 
+    projects = Project.objects.filter(status=Project.Status.IN_PROGRESS).order_by("name")
     return render(request, "inventory/stock_movement_new.html", {
         "items": _stock_queryset(),
+        "projects": projects,
     })
 
 

@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, views_bulk
 
 app_name = "inventory"
 
@@ -11,4 +11,6 @@ urlpatterns = [
     path("inventory/stock-table/", views.stock_table, name="stock_table"),
     path("inventory/purchases/new/", views.purchase_new, name="purchase_new"),
     path("inventory/stock-movements/new/", views.stock_movement_new, name="stock_movement_new"),
+    path("inventory/bulk-opening/", views_bulk.bulk_opening_page, name="bulk_opening"),
+    path("inventory/bulk-reconciliation/", views_bulk.bulk_reconciliation_page, name="bulk_reconciliation"),
 ]

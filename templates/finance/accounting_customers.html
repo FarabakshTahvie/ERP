@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}مرکز مشتریان و سن بدهی | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">مرکز مشتریان (صورت‌حساب و سن بدهی)</h1>
+        <p class="fb-page-sub">بررسی وضعیت مالی مشتریان، صورت‌حساب‌ها و جدول سن بدهی (Aging) فاکتورهای معوق.</p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="fb-card p-4">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div class="fb-field flex-1 min-w-[240px]">
+                <label class="fb-label">انتخاب مشتری / کارفرما</label>
+                <select name="client_id" class="select select-sm select-bordered w-full" onchange="this.form.submit()">
+                    <option value="">-- انتخاب مشتری --</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}" {% if selected_client and selected_client.id == c.id %}selected{% endif %}>
+                        {{ c.name }} {% if c.phone_number %}({{ c.phone_number|fa_digits }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    {% if selected_client %}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">کل بدهی معوق</span>
+            <div class="fb-stat-value font-technical">{{ aging_summary.total_outstanding|fa_digits }} تومان</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">سررسیدنشده (جاری)</span>
+            <div class="fb-stat-value font-technical">{{ aging_summary.current|fa_digits }} تومان</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">۱ تا ۳۰ روز گذشته</span>
+            <div class="fb-stat-value font-technical">{{ aging_summary.days_1_30|fa_digits }} تومان</div>
+        </div>
+        <div class="fb-card fb-pad">
+            <span class="fb-stat-label">بیش از ۹۰ روز گذشته</span>
+            <div class="fb-stat-value font-technical text-warning">{{ aging_summary.days_over_90|fa_digits }} تومان</div>
+        </div>
+    </div>
+
+    <div class="fb-card p-4 space-y-4">
+        <h2 class="fb-section-title">جدول سن بدهی (Aging) فاکتورها</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full">
+                <thead>
+                    <tr>
+                        <th>شماره فاکتور</th>
+                        <th>پروژه</th>
+                        <th>تاریخ صدور / سررسید</th>
+                        <th>باقی‌مانده (تومان)</th>
+                        <th>تاخیر (روز)</th>
+                        <th>بازه سنی</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in aging_rows %}
+                    <tr>
+                        <td class="font-semibold">{{ row.invoice.number }}</td>
+                        <td>{{ row.invoice.project.name }}</td>
+                        <td class="font-technical">{{ row.invoice.issue_date|to_jalali }}</td>
+                        <td class="font-technical font-bold">{{ row.remaining|fa_digits }}</td>
+                        <td class="font-technical">{{ row.delta_days|fa_digits }} روز</td>
+                        <td><span class="fb-badge fb-badge-neutral">{{ row.bucket }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted-foreground py-4">هیچ فاکتور معوقی وجود ندارد.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="fb-card p-4 space-y-4">
+        <h2 class="fb-section-title">صورت‌حساب و گردش‌های مالی اخیر</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>نوع سند</th>
+                        <th>مبلغ (تومان)</th>
+                        <th>شرح</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in ledger_entries %}
+                    <tr>
+                        <td class="font-technical">{{ entry.created_at|to_jalali }}</td>
+                        <td>{{ entry.get_entry_type_display }}</td>
+                        <td class="font-technical">{{ entry.amount|fa_digits }}</td>
+                        <td>{{ entry.description|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted-foreground py-4">هیچ گردش مالی ثبت نشده است.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}قفل ماه‌ها | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">قفل ماه‌های مالی</h1>
+        <p class="fb-page-sub">ماه بسته‌شده تغییر نمی‌کند: خرید، پرداخت دستی و اصلاح فاکتوری با تاریخ داخل آن ماه ثبت نمی‌شود.</p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="space-y-3">
+        {% for p in periods %}
+        <div class="fb-inset flex items-center justify-between gap-3 flex-wrap">
+            <div>
+                <span class="font-semibold text-sm">{{ p.label }}</span>
+                {% if p.pending_count > 0 %}
+                <span class="text-xs text-warning block mt-0.5">⚠️ {{ p.pending_count|fa_digits }} پرداخت منتظر تایید در این ماه وجود دارد.</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2">
+                {% if p.locked %}
+                <span class="fb-badge fb-badge-info">بسته</span>
+                {% if can_unlock %}
+                <form method="post" action="{% url 'finance:accounting_period_toggle' %}" data-fb-once class="flex items-center gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="year" value="{{ p.year }}">
+                    <input type="hidden" name="month" value="{{ p.month }}">
+                    <input type="hidden" name="action" value="unlock">
+                    <input type="text" name="reason" required placeholder="دلیل بازکردن (اجباری)" class="input input-xs w-48">
+                    <button type="submit" class="btn btn-soft btn-xs">بازکردن ماه</button>
+                </form>
+                {% endif %}
+                {% else %}
+                <span class="fb-badge fb-badge-neutral">باز</span>
+                <form method="post" action="{% url 'finance:accounting_period_toggle' %}" data-fb-once>
+                    {% csrf_token %}
+                    <input type="hidden" name="year" value="{{ p.year }}">
+                    <input type="hidden" name="month" value="{{ p.month }}">
+                    <input type="hidden" name="action" value="lock">
+                    <button type="submit" class="btn btn-soft btn-error btn-xs">بستن ماه</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -44,6 +45,21 @@ class Location(TimeStampedModel):
     @property
     def has_exact_coordinates(self) -> bool:
         return self.latitude is not None and self.longitude is not None
+
+
+class PeriodLock(models.Model):
+    """ماه شمسی بسته‌شده. تا وقتی is_locked=True سندی با تاریخ داخل این ماه ساخته یا تغییر نمی‌کند."""
+    year = models.PositiveSmallIntegerField(verbose_name="سال شمسی")
+    month = models.PositiveSmallIntegerField(verbose_name="ماه شمسی")
+    is_locked = models.BooleanField(default=True, verbose_name="بسته است")
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    changed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "قفل ماه"
+        verbose_name_plural = "قفل ماه‌ها"
+        constraints = [models.UniqueConstraint(fields=["year", "month"], name="unique_period_lock")]
 
 
 class Party(TimeStampedModel):

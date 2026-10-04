@@ -205,6 +205,8 @@ def generate_invoice_for_project(project, issue_date=None, document_type=Invoice
 
 @transaction.atomic
 def refresh_invoice_lines(invoice):
+    from core.periods import assert_open
+    assert_open(invoice.issue_date, "اصلاح فاکتور")
     if invoice.document_type != Invoice.DocumentType.PROFORMA:
         raise ValueError("فقط پیش‌فاکتور قابل بازتولید ردیف‌هاست؛ فاکتور نهایی قفل است.")
     invoice.lines.filter(is_manual=False).delete()

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}پیش‌نمایش ورود گروهی موجودی اولیه | انبار{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">پیش‌نمایش ورود گروهی موجودی اولیه</h1>
+        <p class="fb-page-sub">لطفاً صحت مقادیر را تایید کنید. تراکنش پس از کلیک بر روی «تایید نهایی» به صورت اتمیک ثبت خواهد شد.</p>
+    </div>
+
+    <div class="fb-card p-4 space-y-4">
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full">
+                <thead>
+                    <tr>
+                        <th>کالا</th>
+                        <th>مقدار ثبت‌شونده</th>
+                        <th>بهای واحد (تومان)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in preview_lines %}
+                    <tr>
+                        <td class="font-semibold">{{ line.item.name }}</td>
+                        <td class="font-technical text-info">{{ line.qty_raw|fa_digits }} {{ line.item.get_unit_display }}</td>
+                        <td class="font-technical text-neutral">{{ line.cost_raw|fa_digits }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="fb-inset text-sm space-y-1">
+            <div><span class="font-semibold text-muted-foreground">توضیح سند:</span> {{ notes }}</div>
+        </div>
+
+        <form method="post" data-fb-once class="flex justify-end gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="lines_json" value="{{ lines_json }}">
+            <input type="hidden" name="notes" value="{{ notes }}">
+            <input type="hidden" name="confirm" value="1">
+            <a href="{% url 'inventory:bulk_opening' %}" class="btn btn-ghost">ویرایش و اصلاح</a>
+            <button type="submit" class="btn btn-primary">تایید نهایی و ثبت سند</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
