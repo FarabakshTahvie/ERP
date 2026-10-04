@@ -27,3 +27,13 @@ def make_accountant(username="acc_helper"):
     user = User.objects.create_user(username=username, password="pw", role=User.Role.EMPLOYEE)
     user.specialties.add(sp)
     return user
+
+
+def confirm_invoice(invoice):
+    """مرحله‌ی «تایید پیش‌فاکتور» پروژه را انجام‌شده می‌کند تا فاکتور بدهی‌ساز شود."""
+    from projects.models import ProjectStage, WorkflowStepTemplate, WorkflowTemplate
+    project = invoice.project
+    tpl = WorkflowTemplate.objects.create(name=f"قالب تایید {project.pk}")
+    step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="تایید", requires_payment_selection=True)
+    return ProjectStage.objects.create(project=project, step_template=step, order=90, title="تایید",
+                                       status=ProjectStage.Status.DONE)

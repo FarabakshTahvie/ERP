@@ -19,6 +19,6 @@ def export_report_to_csv(report_data):
     writer.writerow(["مجموع هزینه‌های عملیاتی پروژه‌ها", int(report_data["operational_costs_sum"])])
     writer.writerow(["کل هزینه‌ها", int(report_data["total_expenses"])])
     writer.writerow(["کل دریافتی‌های تاییدشده", int(report_data["total_received"])])
-    writer.writerow(["تفاضل نهایی (درآمد منهای هزینه)", int(report_data["net_difference"])])
+    writer.writerow(["فروش منهای خرید و هزینه‌های ثبت‌شده", int(report_data["net_difference"])])
     
     return response

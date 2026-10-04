@@ -13,11 +13,11 @@
         <form method="get" class="flex flex-wrap items-end gap-3">
             <div class="fb-field">
                 <label class="fb-label">تاریخ شروع (شمسی)</label>
-                <input type="text" name="start_date" placeholder="۱۴۰۵/۰۱/۰۱" value="{{ start_date }}" class="input input-sm input-bordered w-36">
+                <input type="text" name="start_date" placeholder="۱۴۰۵/۰۱/۰۱" value="{{ start_date }}" class="input input-sm w-36">
             </div>
             <div class="fb-field">
                 <label class="fb-label">تاریخ پایان (شمسی)</label>
-                <input type="text" name="end_date" placeholder="۱۴۰۵/۰۶/۳۱" value="{{ end_date }}" class="input input-sm input-bordered w-36">
+                <input type="text" name="end_date" placeholder="۱۴۰۵/۰۶/۳۱" value="{{ end_date }}" class="input input-sm w-36">
             </div>
             <button type="submit" class="btn btn-primary btn-sm">تولید گزارش</button>
             {% if report %}
@@ -34,15 +34,15 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="fb-card fb-pad">
             <span class="fb-stat-label">درآمد ناخالص فاکتورها</span>
-            <div class="fb-stat-value font-technical">{{ report.total_revenue|fa_digits }} تومان</div>
+            <div class="fb-stat-value font-technical">{{ report.total_revenue|intcomma_fa }} تومان</div>
         </div>
         <div class="fb-card fb-pad">
             <span class="fb-stat-label">مجموع کل هزینه‌ها</span>
-            <div class="fb-stat-value font-technical">{{ report.total_expenses|fa_digits }} تومان</div>
+            <div class="fb-stat-value font-technical">{{ report.total_expenses|intcomma_fa }} تومان</div>
         </div>
         <div class="fb-card fb-pad">
             <span class="fb-stat-label">کل دریافتی‌های تاییدشده</span>
-            <div class="fb-stat-value font-technical">{{ report.total_received|fa_digits }} تومان</div>
+            <div class="fb-stat-value font-technical">{{ report.total_received|intcomma_fa }} تومان</div>
         </div>
     </div>
 
@@ -52,16 +52,16 @@
             <table class="table table-sm w-full">
                 <tbody>
                     <tr>
-                        <td class="font-semibold">تفاضل نهایی (درآمد منهای هزینه)</td>
-                        <td class="font-technical text-left font-bold text-lg fb-stat-value">{{ report.net_difference|fa_digits }} تومان</td>
+                        <td class="font-semibold">فروش منهای خرید و هزینه‌های ثبت‌شده</td>
+                        <td class="font-technical text-left font-bold text-lg fb-stat-value">{{ report.net_difference|intcomma_fa }} تومان</td>
                     </tr>
                     <tr>
                         <td>سهم خرید مواد اولیه انبار</td>
-                        <td class="font-technical text-left text-neutral">{{ report.purchases_sum|fa_digits }} تومان</td>
+                        <td class="font-technical text-left text-neutral">{{ report.purchases_sum|intcomma_fa }} تومان</td>
                     </tr>
                     <tr>
                         <td>سهم هزینه‌های عملیاتی پروژه‌ها</td>
-                        <td class="font-technical text-left text-neutral">{{ report.operational_costs_sum|fa_digits }} تومان</td>
+                        <td class="font-technical text-left text-neutral">{{ report.operational_costs_sum|intcomma_fa }} تومان</td>
                     </tr>
                 </tbody>
             </table>

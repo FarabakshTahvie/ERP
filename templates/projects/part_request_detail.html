@@ -44,11 +44,13 @@
 
         {% if req.status == 'issued' %}
         <div class="flex flex-col gap-2 pt-2 border-t border-base-300 text-xs">
+            {% if show_money %}
             <div class="flex justify-between items-center"><span class="fb-muted">بهای تمام‌شده:</span><span class="font-technical">{{ req.cost_total|intcomma_fa }} تومان</span></div>
             <div class="flex justify-between items-center"><span class="fb-muted">جمع فروش:</span><span class="font-technical font-semibold">{{ req.sale_total|intcomma_fa }} تومان</span></div>
             {% for c in req.costs.all %}
             <div class="flex justify-between items-center"><span class="fb-muted">هزینه‌ی ارسال ثبت‌شده:</span><span class="font-technical font-semibold">{{ c.amount|intcomma_fa }} تومان</span></div>
             {% endfor %}
+            {% endif %}
             {% if req.photo %}
             <div class="flex justify-between items-center"><span class="fb-muted">عکس:</span><a href="{{ req.photo.url }}" target="_blank" rel="noopener" class="link link-primary">مشاهده عکس</a></div>
             {% endif %}

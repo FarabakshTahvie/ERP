@@ -90,7 +90,12 @@
                         {% icon "bar-chart-3" "w-4 h-4" %} حسابداری
                     </a>
                     {% endif %}
-                    {% if request.user.is_staff %}
+                    {% if caps.people_view %}
+                    <a href="{% url 'people:staff' %}" class="btn btn-ghost btn-sm">
+                        {% icon "users" "w-4 h-4" %} افراد
+                    </a>
+                    {% endif %}
+                    {% if caps.admin_panel %}
                     <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت
                     </a>
@@ -98,6 +103,10 @@
                 </nav>
 
                 <div class="flex-none flex items-center gap-1">
+                    <a href="{% url 'notifications:center' %}" class="btn btn-ghost btn-circle btn-sm relative" aria-label="اعلان‌ها">
+                        {% icon "bell" "w-4 h-4" %}
+                        {% if unread_notifications_count %}<span class="fb-badge fb-badge-warning absolute -top-1 -left-1">{{ unread_notifications_count|fa_digits }}</span>{% endif %}
+                    </a>
                     <label class="swap swap-rotate btn btn-ghost btn-circle btn-sm" title="تغییر تم (روشن / تاریک)">
                         <input type="checkbox" id="theme-toggle" class="theme-controller" value="farabakhsh-dark" />
                         {% icon "sun" "swap-off w-4 h-4" %}
@@ -128,11 +137,15 @@
                             <li><a href="{% url 'finance:payments_review' %}">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها {% if pending_payments_nav_count %}<span class="fb-badge fb-badge-warning">{{ pending_payments_nav_count|fa_digits }}</span>{% endif %}</a></li>
                             <li><a href="{% url 'finance:accounting_overview' %}">{% icon "bar-chart-3" "w-4 h-4" %} حسابداری</a></li>
                             {% endif %}
-                            {% if request.user.is_staff %}
+                            {% if caps.people_view %}
+                            <li><a href="{% url 'people:staff' %}">{% icon "users" "w-4 h-4" %} افراد</a></li>
+                            {% endif %}
+                            {% if caps.admin_panel %}
                             <li>
                                 <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
                             </li>
                             {% endif %}
+                            <li><a href="{% url 'accounts:change_password' %}">{% icon "key" "w-4 h-4" %} تغییر رمز عبور</a></li>
                             <li class="border-t border-base-300 mt-1 pt-1">
                                 <form action="{% url 'accounts:logout' %}" method="post" class="p-0 m-0 w-full">
                                     {% csrf_token %}

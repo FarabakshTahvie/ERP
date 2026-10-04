@@ -214,10 +214,6 @@ class P2SettlementTests(P2BaseScenarioMixin, TestCase):
         self.assertEqual(self.project.status, Project.Status.COMPLETED)
         self.assertTrue(AccountingEvent.objects.filter(project=self.project, kind=AccountingEvent.Kind.SETTLEMENT).exists())
 
-    def test_final_review_blocked_with_pending_extras_or_parts(self):
-        # fld disposition doesn't block final review anymore as it was removed in Phase 2-B
-        pass
-
 
 class P2InvoiceAdjustmentTests(P2BaseScenarioMixin, TestCase):
     def setUp(self):
@@ -258,31 +254,6 @@ class P2InvoiceAdjustmentTests(P2BaseScenarioMixin, TestCase):
                 invoice=self.invoice, title="اضافه", amount_raw="10000",
                 kind="increase", reason="دلیل", actor=self.creator
             )
-
-
-class P2CreditSettlementTests(P2BaseScenarioMixin, TestCase):
-    def setUp(self):
-        self.setup_scenario()
-
-    def test_credit_open_amount_and_labels(self):
-        # credit settlement features were removed in Phase 2-B
-        pass
-
-    def test_settle_partial_credit_payment(self):
-        # credit settlement features were removed in Phase 2-B
-        pass
-
-    def test_settle_full_credit_payment(self):
-        # credit settlement features were removed in Phase 2-B
-        pass
-
-    def test_settle_more_than_open_fails(self):
-        # credit settlement features were removed in Phase 2-B
-        pass
-
-    def test_credit_open_total_excludes_cancelled_invoices(self):
-        # credit settlement features were removed in Phase 2-B
-        pass
 
 
 class P2IntegrityTests(P2BaseScenarioMixin, TestCase):

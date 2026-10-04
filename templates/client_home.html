@@ -11,9 +11,12 @@
             <h1 class="fb-page-title">سلام، {{ request.user.get_full_name|default:request.user.username }}</h1>
             <p class="fb-page-sub">وضعیت پروژه‌ها و صورت‌حساب‌های شما</p>
         </div>
-        <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-soft btn-sm">
-            {% icon "phone" "w-4 h-4" %} تماس با دفتر
-        </a>
+        <div class="flex items-center gap-2">
+            {% if party %}<a href="{% url 'finance:portal_statement' %}" class="btn btn-soft btn-sm">{% icon "receipt" "w-4 h-4" %} صورت‌حساب من</a>{% endif %}
+            <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-soft btn-sm">
+                {% icon "phone" "w-4 h-4" %} تماس با دفتر
+            </a>
+        </div>
     </div>
 
     {% for project in projects %}{% if project.action_url %}

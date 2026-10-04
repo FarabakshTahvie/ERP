@@ -21,8 +21,10 @@ from utils.request_meta import get_client_ip
 OTP_LOGIN_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 
-def is_manager(user):
-    return user.is_authenticated and user.role == User.Role.ADMIN
+from core.capabilities import can
+
+def _can_manage_people(user):
+    return can(user, "people.edit")
 
 
 class StyledLoginView(LoginView):
@@ -125,7 +127,7 @@ def verify_otp_login(request):
 
 
 @login_required
-@user_passes_test(is_manager)
+@user_passes_test(_can_manage_people)
 def register_staff(request):
     if request.method == "POST":
         form = StaffRegistrationForm(request.POST)
@@ -231,9 +233,9 @@ from django.contrib.auth.forms import SetPasswordForm
 @login_required
 def force_set_password(request):
     next_url = request.GET.get("next") or request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        next_url = ""
     if request.method == "POST":
-        if "skip" in request.POST:
-            return redirect(next_url or "home")
         form = SetPasswordForm(request.user, request.POST)
         if form.is_valid():
             form.save()

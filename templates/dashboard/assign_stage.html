@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ارجاع مرحله | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'dashboard:stages' %}" class="link link-hover text-sm fb-muted">بازگشت به مراحل فعال</a>
+        <h1 class="fb-page-title mt-2">ارجاع مرحله</h1>
+        <p class="fb-page-sub">{{ stage.project.name }} — {{ stage.title }}</p>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2"><span class="fb-muted">وضعیت</span><span>{{ stage.get_status_display }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">مسئول فعلی</span>
+            <span>{% if stage.assigned_to %}{{ stage.assigned_to.get_full_name|default:stage.assigned_to.username }}{% elif stage.candidate_users.all %}در استخر{% else %}ندارد{% endif %}</span></div>
+        {% if specialty %}<div class="flex justify-between gap-2"><span class="fb-muted">تخصص مرحله</span><span>{{ specialty.name }}</span></div>{% endif %}
+        <a href="{% url 'projects:staff_project_overview' stage.project_id %}" class="btn btn-soft btn-sm self-start">نمای پروژه</a>
+    </section>
+
+    {% if not can_assign %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">فقط مرحله‌ی «در حال انجام» از پروژه‌ی در حال اجرا قابل ارجاع است.</span>
+    </div>
+    {% else %}
+    {% if accountant_only %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">این مرحله‌ی مالی فقط به حسابدار ارجاع داده می‌شود.</span>
+    </div>
+    {% endif %}
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        <div class="fb-field">
+            <label class="fb-label" for="assign-target">ارجاع به</label>
+            <select id="assign-target" name="target_user" required class="select w-full">
+                <option value="">انتخاب کنید...</option>
+                {% if same %}<optgroup label="هم‌تخصص این مرحله">
+                    {% for u in same %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+                </optgroup>{% endif %}
+                {% if others %}<optgroup label="{% if specialty and not accountant_only %}خارج از تخصص (در سابقه ثبت می‌شود){% else %}تکنسین‌ها{% endif %}">
+                    {% for u in others %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+                </optgroup>{% endif %}
+            </select>
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="assign-comment">دلیل ارجاع (اجباری)</label>
+            <textarea id="assign-comment" name="comment" required rows="3" class="textarea w-full"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">ارجاع</button>
+    </form>
+    {% endif %}
+
+    {% if events %}
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">آخرین رویدادهای این مرحله</h2>
+        {% for ev in events %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+            <span>{{ ev.comment|default:"بدون توضیح" }}</span>
+            <span class="fb-muted">{{ ev.actor.get_full_name|default:ev.actor.username|default:"سیستم" }} · <span class="font-technical">{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

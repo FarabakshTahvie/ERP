@@ -117,21 +117,10 @@ class Party(TimeStampedModel):
             raise ValidationError("حداقل یکی از نقش‌های طرف‌حساب باید انتخاب شود.")
 
     @property
-    def balance(self):
-        """مانده حساب: مثبت یعنی طرف‌حساب به ما بدهکار است."""
-        from django.db.models import Sum
-        from finance.models import LedgerEntry
-        debit = self.ledger_entries.filter(entry_type=LedgerEntry.EntryType.DEBIT).aggregate(s=Sum('amount'))['s'] or 0
-        credit = self.ledger_entries.filter(entry_type=LedgerEntry.EntryType.CREDIT).aggregate(s=Sum('amount'))['s'] or 0
-        return debit - credit
-
-    @property
     def total_outstanding(self):
-        """مجموع مبلغ باقی‌مانده‌ی همه‌ی فاکتورهای این طرف‌حساب که لغو نشده‌اند."""
-        from finance.models import Invoice
-        invoices = self.invoices.exclude(status=Invoice.Status.CANCELLED)
-        total = sum((inv.remaining_amount for inv in invoices), 0)
-        return total
+        """مجموع مانده‌ی فاکتورهای بدهی‌ساز (تاییدشده یا دارای پرداخت)؛ همان عدد مرکز مشتریان."""
+        from finance.aging import debt_invoices
+        return sum((inv.remaining_amount for inv in debt_invoices(self.invoices.all())), 0)
 
 
 class PartyContact(TimeStampedModel):

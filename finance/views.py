@@ -1,26 +1,34 @@
 import io
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, IntegerField, Sum, When
 from django.http import Http404, FileResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
 import weasyprint
 
+from core.capabilities import can
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
+from .aging import debt_invoices, get_customer_aging_data
 from .models import Invoice, Payment
 from .services import approve_payment, reject_payment, create_customer_payment, PROOF_METHODS
+
+
+def _invoice_access(user, invoice):
+    """(مجاز؟، مالک؟) مالک = طرف‌حساب همین فاکتور. مدیر و حسابدار فقط می‌بینند؛ ثبت پرداخت فقط برای مالک."""
+    party = getattr(user, "party", None)
+    is_owner = bool(party and invoice.billed_party_id == party.id)
+    return (is_owner or can(user, "accounting.access")), is_owner
 
 
 @login_required
 def invoice_detail(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    allowed, is_owner = _invoice_access(request.user, invoice)
+    if not allowed:
         raise Http404
 
     from projects.models import StageApproval
@@ -29,35 +37,28 @@ def invoice_detail(request, invoice_uuid):
     ).select_related("stage").first()
     payments = invoice.payments.order_by("-created_at")
     return render(request, "finance/portal_invoice.html", {
-        "invoice": invoice, "pending_approval": pending_approval, "payments": payments,
+        "invoice": invoice, "pending_approval": pending_approval, "payments": payments, "is_owner": is_owner,
     })
 
 
 @login_required
 def invoice_pdf(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    allowed, _is_owner = _invoice_access(request.user, invoice)
+    if not allowed:
         raise Http404
 
     html = render_to_string("finance/invoice_pdf.html", {"invoice": invoice}, request=request)
     pdf_bytes = weasyprint.HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf()
-
-    return FileResponse(
-        io.BytesIO(pdf_bytes),
-        as_attachment=False,
-        filename=f"{invoice.number}.pdf",
-        content_type="application/pdf"
-    )
+    return FileResponse(io.BytesIO(pdf_bytes), as_attachment=False,
+                        filename=f"{invoice.number}.pdf", content_type="application/pdf")
 
 
 @login_required
 def add_payment(request, invoice_uuid):
     invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
-    party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or invoice.billed_party_id != party.id):
+    _allowed, is_owner = _invoice_access(request.user, invoice)
+    if not is_owner:   # مدیر و حسابدار از مسیر «ثبت پرداخت» پرونده‌ی مالی استفاده می‌کنند
         raise Http404
     if invoice.remaining_amount <= 0:
         messages.info(request, "این فاکتور تسویه شده است.")
@@ -85,8 +86,7 @@ def add_payment(request, invoice_uuid):
 
 
 def _can_review_payments(user):
-    from projects.services import user_can_access_accounting
-    return user_can_access_accounting(user)
+    return can(user, "payments.review")
 
 
 def _visible_payments(user):
@@ -181,3 +181,23 @@ def payment_decide(request, payment_id):
         messages.error(request, str(e))
         return redirect("finance:payment_detail", payment.id)
     return redirect("finance:payments_review")
+
+
+@login_required
+def statement(request):
+    """صورت‌حساب خود طرف‌حساب: فقط از فاکتور و پرداخت؛ اعتباری فقط اطلاع است و مانده را عوض نمی‌کند."""
+    party = getattr(request.user, "party", None)
+    if party is None:
+        raise Http404
+    live = party.invoices.exclude(status=Invoice.Status.CANCELLED)
+    debts = list(debt_invoices(party.invoices.all()).select_related("project").order_by("-issue_date"))
+    waiting = list(live.exclude(pk__in=[i.pk for i in debts]).select_related("project"))
+    summary, aging_rows = get_customer_aging_data(party)
+    payments = Payment.objects.filter(invoice__in=live).select_related("invoice").order_by("-created_at")[:50]
+    pending_total = (Payment.objects.filter(invoice__in=live, status=Payment.Status.PENDING)
+                     .exclude(method=Payment.Method.CREDIT).aggregate(t=Sum("amount"))["t"] or 0)
+    return render(request, "finance/portal_statement.html", {
+        "party": party, "summary": summary, "aging_rows": aging_rows, "debts": debts, "waiting": waiting,
+        "payments": payments, "pending_total": pending_total,
+        "paid_total": sum((i.paid_amount for i in debts), 0),
+    })

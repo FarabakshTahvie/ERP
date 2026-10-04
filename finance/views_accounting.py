@@ -2,28 +2,35 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Max, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from core.capabilities import can, cap_required
 from core.models import Party
 from projects.services import project_prices_editable
-from utils.jalali_forms import JalaliDateField
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from inventory.models import PurchaseLine, StockMovement
 from projects import ops
 from projects.models import Project, ProjectCost, StageKind
-from projects.services import user_can_access_accounting
+from utils.jalali_forms import JalaliDateField
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
 
 from . import accounting
+from .services import cancel_invoice, set_invoice_due_date
 
 PROJECT_STATUS_VARIANT = {"completed": "success", "cancelled": "error", "in_progress": "info"}
 
 
 def _can(user):
-    return user_can_access_accounting(user)
+    return can(user, "accounting.access")
+
+
+def _can_unlock(user):
+    return can(user, "periods.unlock")
 
 
 def _m(value):
@@ -303,31 +310,48 @@ def project_add_payment(request, project_id):
     return redirect("finance:accounting_project", project.id)
 
 
-def _can_unlock(user):
-    return user.is_superuser or getattr(user, "role", None) == "manager"
+@login_required
+@user_passes_test(_can)
+@require_POST
+def project_set_due(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    invoice = getattr(project, "invoice", None)
+    try:
+        if invoice is None:
+            raise ValueError("این پروژه فاکتور ندارد.")
+        raw = (request.POST.get("due_date") or "").strip()
+        try:
+            due = JalaliDateField().clean(raw) if raw else None
+        except ValidationError as e:
+            raise ValueError(" ".join(e.messages))
+        set_invoice_due_date(invoice=invoice, due_date=due, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "سررسید ثبت شد." if due else "سررسید پاک شد.")
+    return redirect("finance:accounting_project", project.id)
+
+
+@login_required
+@user_passes_test(_can)
+@require_POST
+def project_cancel_invoice(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    invoice = getattr(project, "invoice", None)
+    try:
+        if invoice is None:
+            raise ValueError("این پروژه فاکتور ندارد.")
+        cancel_invoice(invoice=invoice, reason=request.POST.get("reason"), actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "فاکتور لغو شد.")
+    return redirect("finance:accounting_project", project.id)
+
 
 
 def _period_rows(count=14):
-    from core.models import PeriodLock
-    from core.periods import current_ym, month_label
-    y, m = current_ym()
-    locked = {(l.year, l.month): l for l in PeriodLock.objects.filter(is_locked=True)}
-    rows = []
-    for _ in range(count):
-        m -= 1
-        if m < 1:
-            y, m = y - 1, 12
-        # شمارش پرداخت منتظر تایید با created_at داخل همان ماه
-        from finance.models import Payment
-        from finance.accounting import period_range
-        # بازه‌ی شمسی ماه y, m را می‌گیریم
-        import jdatetime
-        start_j = jdatetime.date(y, m, 1)
-        end_j = jdatetime.date(y + 1, 1, 1) if m == 12 else jdatetime.date(y, m + 1, 1)
-        start_g, end_g = start_j.togregorian(), end_j.togregorian()
-        pending_count = Payment.objects.filter(status=Payment.Status.PENDING, created_at__gte=start_g, created_at__lt=end_g).count()
-        rows.append({"year": y, "month": m, "label": month_label(y, m), "locked": (y, m) in locked, "pending_count": pending_count})
-    return rows
+    return accounting.period_rows(count)
 
 
 @login_required
@@ -338,12 +362,23 @@ def periods_page(request):
     })
 
 
+def _back(request, default_name):
+    nxt = request.POST.get("next", "")
+    if nxt and url_has_allowed_host_and_scheme(
+            nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(nxt)
+    return redirect(default_name)
+
+
 @login_required
 @user_passes_test(_can)
 @require_POST
 def period_toggle(request):
-    year = int(request.POST.get("year", 0))
-    month = int(request.POST.get("month", 0))
+    try:
+        year, month = int(request.POST.get("year", "")), int(request.POST.get("month", ""))
+    except ValueError:
+        messages.error(request, "ماه نامعتبر است.")
+        return _back(request, "finance:accounting_periods")
     action = request.POST.get("action")
     reason = (request.POST.get("reason") or "").strip()
     from core.periods import set_lock, month_label
@@ -354,17 +389,21 @@ def period_toggle(request):
             messages.success(request, f"ماه {month_label(year, month)} بسته شد.")
         elif action == "unlock":
             if not _can_unlock(request.user):
-                raise ValueError("فقط مدیر کل می‌تواند ماه را باز کند.")
+                raise ValueError("فقط مدیر می‌تواند ماه را باز کند.")
             if not reason:
                 raise ValueError("دلیل بازکردن ماه اجباری است.")
             set_lock(year, month, locked=False, user=request.user)
-            accounting.log_event(kind="period", actor=request.user, text=f"بازکردن ماه {month_label(year, month)} — دلیل: {reason}")
+            accounting.log_event(kind="period", actor=request.user,
+                                 text=f"بازکردن ماه {month_label(year, month)} — دلیل: {reason}")
             messages.success(request, f"ماه {month_label(year, month)} باز شد.")
         else:
             raise ValueError("عملیات نامعتبر است.")
     except ValueError as e:
         messages.error(request, str(e))
-    return redirect("finance:accounting_periods")
+    return _back(request, "finance:accounting_periods")
+
+
+
 @login_required
 @user_passes_test(_can)
 def financial_report_page(request):
@@ -395,32 +434,33 @@ def financial_report_page(request):
         "start_date": start_date,
         "end_date": end_date,
     })
+
+
 @login_required
 @user_passes_test(_can)
 def customers_center_page(request):
-    from core.models import Party
     from finance.aging import get_customer_aging_data
-    
-    clients = Party.objects.filter(is_client=True).order_by("name")
-    selected_client_id = request.GET.get("client_id")
-    selected_client = None
-    aging_summary = None
-    aging_rows = None
-    ledger_entries = None
+    from finance.models import Payment
 
-    if selected_client_id:
-        selected_client = get_object_or_404(Party, id=selected_client_id, is_client=True)
+    clients = Party.objects.filter(invoices__isnull=False).distinct().order_by("name")
+    selected_client = aging_summary = aging_rows = payments = None
+    client_id = (request.GET.get("client_id") or "").strip()
+    if client_id:
+        if not client_id.isdigit():
+            raise Http404
+        selected_client = get_object_or_404(clients, pk=int(client_id))
         aging_summary, aging_rows = get_customer_aging_data(selected_client)
-        ledger_entries = selected_client.ledger_entries.all()[:50]
+        payments = (Payment.objects.filter(invoice__billed_party=selected_client)
+                    .select_related("invoice").order_by("-created_at")[:50])
 
     return render(request, "finance/accounting_customers.html", {
-        "nav_active": "customers",
-        "clients": clients,
-        "selected_client": selected_client,
-        "aging_summary": aging_summary,
-        "aging_rows": aging_rows,
-        "ledger_entries": ledger_entries,
+        "nav_active": "customers", "clients": clients, "selected_client": selected_client,
+        "aging_summary": aging_summary, "aging_rows": aging_rows, "payments": payments,
     })
+
+
+# ---------- تأمین‌کننده‌ها ----------
+def _suppliers_ctx(request):
     qs = (Party.objects.annotate(purchases_count=Count("purchases", distinct=True),
                                  total=Sum(accounting.SUPPLIER_VALUE),
                                  last_at=Max("purchases__purchased_at"))
@@ -493,4 +533,5 @@ def project_detail(request, project_id):
         "can_adjust_invoice": bool(invoice and not project_prices_editable(project)),
         "has_final_review": project.stages.filter(kind=StageKind.FINAL_REVIEW).exists(),
         "cost_kinds": ProjectCost.Kind.choices,
+        "due_value": jalali_str(invoice.due_date, fmt="%Y/%m/%d") if invoice and invoice.due_date else "",
     })

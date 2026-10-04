@@ -2,6 +2,7 @@ import jdatetime
 from datetime import datetime, time
 from decimal import Decimal
 from django.db import models
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.db.models import Sum, Q
 from catalog.models import Item
@@ -28,52 +29,33 @@ def get_jalali_date_range(start_date, end_date):
 
 
 def generate_periodic_financial_report(start_g, end_g):
-    """
-    تولید ساختار داده گزارش مالی دوره‌ای.
-    بدون کلمات سود و زیان یا رنگ‌بندی‌های جهت‌دار.
-    مبالغ بر اساس فیلترهای فنی نمایش داده می‌شوند.
-    """
-    # ۱. درآمد ناخالص (فاکتورهای قطعی تاییدشده صادر شده در بازه)
-    invoices = Invoice.objects.filter(
-        document_type=Invoice.DocumentType.FINAL,
-        issue_date__gte=start_g,
-        issue_date__lte=end_g
-    ).exclude(status=Invoice.Status.CANCELLED)
-    
-    total_revenue = sum(inv.total_amount for inv in invoices)
+    """فقط اعداد؛ بدون برچسب سود/زیان. فروش = همه‌ی فاکتورهای غیرلغوشده با تاریخ صدور در بازه؛
+    دریافتی = پرداخت تاییدشده‌ی غیراعتباری با تاریخ مؤثر Coalesce(paid_at, approved_at, created_at)."""
+    start_dt = timezone.make_aware(datetime.combine(start_g, time.min))
+    end_dt = timezone.make_aware(datetime.combine(end_g, time.max))
 
-    # ۲. هزینه‌ها (شامل خرید مواد و هزینه‌های عملیاتی ثبت‌شده در بازه)
-    # خرید مواد:
+    total_revenue = (Invoice.objects.exclude(status=Invoice.Status.CANCELLED)
+                     .filter(issue_date__gte=start_g, issue_date__lte=end_g)
+                     .aggregate(t=Sum("total_amount"))["t"] or Decimal("0"))
+
     purchases_sum = PurchaseLine.objects.filter(
-        purchase__purchased_at__date__gte=start_g,
-        purchase__purchased_at__date__lte=end_g
+        purchase__purchased_at__date__gte=start_g, purchase__purchased_at__date__lte=end_g,
     ).aggregate(t=Sum(models.F("qty") * models.F("unit_cost")))["t"] or Decimal("0")
 
-    # هزینه‌های عملیاتی پروژه‌ها:
     operational_costs_sum = ProjectCost.objects.filter(
-        created_at__gte=timezone.make_aware(datetime.combine(start_g, time.min)),
-        created_at__lte=timezone.make_aware(datetime.combine(end_g, time.max))
+        created_at__gte=start_dt, created_at__lte=end_dt,
     ).aggregate(t=Sum("amount"))["t"] or Decimal("0")
 
+    total_received = (Payment.objects.filter(status=Payment.Status.APPROVED)
+                      .exclude(method=Payment.Method.CREDIT)
+                      .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at"))
+                      .filter(eff_at__gte=start_dt, eff_at__lte=end_dt)
+                      .aggregate(t=Sum("amount"))["t"] or Decimal("0"))
+
     total_expenses = purchases_sum + operational_costs_sum
-
-    # ۳. خالص دریافتی‌ها (پرداخت‌های تاییدشده در بازه)
-    total_received = Payment.objects.filter(
-        status=Payment.Status.APPROVED,
-        paid_at__date__gte=start_g,
-        paid_at__date__lte=end_g
-    ).exclude(method=Payment.Method.CREDIT).aggregate(t=Sum("amount"))["t"] or Decimal("0")
-
-    # تفاضل نهایی (بدون رنگ‌بندی جهت‌دار یا نام سود و زیان)
-    net_difference = total_revenue - total_expenses
-
     return {
-        "start_g": start_g,
-        "end_g": end_g,
-        "total_revenue": total_revenue,
-        "total_expenses": total_expenses,
-        "total_received": total_received,
-        "net_difference": net_difference,
-        "purchases_sum": purchases_sum,
-        "operational_costs_sum": operational_costs_sum,
+        "start_g": start_g, "end_g": end_g,
+        "total_revenue": total_revenue, "total_expenses": total_expenses,
+        "total_received": total_received, "net_difference": total_revenue - total_expenses,
+        "purchases_sum": purchases_sum, "operational_costs_sum": operational_costs_sum,
     }

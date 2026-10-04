@@ -125,7 +125,7 @@ class ProjectCostsAndContractTests(TestCase):
     def test_update_fees_open_rebuilds_invoice(self):
         proj, rebuilt = update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             installation_fee_raw="300000",
             shipping_fee_raw="100000",
             extra_fee_raw="50000",
@@ -137,12 +137,12 @@ class ProjectCostsAndContractTests(TestCase):
     def test_update_same_fees_or_date_no_rebuild(self):
         update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             installation_fee_raw="0",
         )
         proj, rebuilt = update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             installation_fee_raw="0",
         )
         self.assertFalse(rebuilt)
@@ -150,12 +150,12 @@ class ProjectCostsAndContractTests(TestCase):
     def test_update_fees_none_keeps_existing(self):
         update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             installation_fee_raw="400000",
         )
         proj, _ = update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             installation_fee_raw=None,
         )
         self.assertEqual(proj.installation_fee, Decimal("400000"))
@@ -199,20 +199,20 @@ class ProjectCostsAndContractTests(TestCase):
     def test_contract_date_updates_or_clears(self):
         dt = JalaliDateField().clean("1405/01/01")
         proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.creator, contract_date=dt
+            project=self.project, actor=self.admin_user, contract_date=dt
         )
         self.assertEqual(proj.contract_date, dt)
         self.assertEqual(self.project.invoice.contract_date, dt)
 
         proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.creator, contract_date=None
+            project=self.project, actor=self.admin_user, contract_date=None
         )
         self.assertIsNone(proj.contract_date)
         self.assertIsNone(self.project.invoice.contract_date)
 
         dt2 = JalaliDateField().clean("1405/02/02")
         proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.creator, contract_date=dt2
+            project=self.project, actor=self.admin_user, contract_date=dt2
         )
         self.assertEqual(proj.contract_date, dt2)
 
@@ -226,7 +226,7 @@ class ProjectCostsAndContractTests(TestCase):
         )
         update_project_from_technician_edit(
             project=self.project,
-            actor=self.creator,
+            actor=self.admin_user,
             extra_fee_raw="50000",
         )
         self.project.invoice.refresh_from_db()
@@ -306,7 +306,7 @@ class ProjectCostsAndContractTests(TestCase):
 
     def test_view_project_edit_post_success(self):
         client = Client()
-        client.force_login(self.creator)
+        client.force_login(self.admin_user)
         resp = client.post(reverse("projects:project_edit", args=[self.project.id]), {
             "installation_fee": "500000",
             "services_json": json.dumps([{"id": self.service1.id, "qty": "2", "unit_price": "500000"}]),

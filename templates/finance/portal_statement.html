@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}صورت‌حساب | فرابخش تهویه{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'home' %}" class="link link-hover text-sm fb-muted">بازگشت به خانه</a>
+        <h1 class="fb-page-title mt-2">صورت‌حساب {{ party.name }}</h1>
+        <p class="fb-page-sub">فقط فاکتورهایی که تایید کرده‌اید یا برایشان پرداخت ثبت شده. پرداخت اعتباری فقط اجازه‌ی ادامه‌ی کار است و مانده را کم نمی‌کند.</p>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {% include "finance/partials/stat_card.html" with label="مانده‌ی قابل پرداخت (تومان)" value=summary.total_outstanding tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="سررسید گذشته (تومان)" value=summary.overdue tone="text-warning" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="پرداخت‌شده (تومان)" value=paid_total tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="منتظر تایید کارشناس (تومان)" value=pending_total tone="" hint="تا تایید رسید، از مانده کم نمی‌شود." %}
+    </div>
+
+    {% if waiting %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پیش‌فاکتورهای منتظر تایید شما</h2>
+        {% for i in waiting %}
+        <a href="{% url 'finance:portal_invoice_detail' i.uuid %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+            <span>{{ i.project.name }} — <span class="font-technical">{{ i.number|fa_digits }}</span></span>
+            <span class="font-technical font-semibold">{{ i.total_amount|intcomma_fa }}</span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">فاکتورها</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>فاکتور</th><th>پروژه</th><th>صدور</th><th>مبلغ</th><th>پرداخت‌شده</th><th>مانده</th></tr></thead>
+                <tbody>
+                {% for i in debts %}
+                    <tr>
+                        <td><a href="{% url 'finance:portal_invoice_detail' i.uuid %}" class="link link-hover font-technical">{{ i.number|fa_digits }}</a></td>
+                        <td>{{ i.project.name }}</td>
+                        <td class="font-technical">{{ i.issue_date|to_jalali }}</td>
+                        <td class="font-technical">{{ i.total_amount|intcomma_fa }}</td>
+                        <td class="font-technical">{{ i.paid_amount|intcomma_fa }}</td>
+                        <td class="font-technical font-semibold">{{ i.remaining_amount|intcomma_fa }}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="6" class="fb-empty">فاکتوری ثبت نشده.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">سن مانده</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>فاکتور</th><th>مانده (تومان)</th><th>تاخیر</th><th>بازه</th></tr></thead>
+                <tbody>
+                {% for r in aging_rows %}
+                    <tr><td class="font-technical">{{ r.invoice.number|fa_digits }}</td>
+                        <td class="font-technical font-semibold">{{ r.remaining|intcomma_fa }}</td>
+                        <td class="font-technical">{{ r.delta_days|fa_digits }} روز</td>
+                        <td><span class="fb-badge fb-badge-neutral">{{ r.bucket_label }}</span></td></tr>
+                {% empty %}<tr><td colspan="4" class="fb-empty">مانده‌ای ندارید.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پرداخت‌های ثبت‌شده</h2>
+        {% for p in payments %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs">
+            <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.created_at|to_jalali:"%Y/%m/%d" }}</span> — <span class="font-technical">{{ p.invoice.number|fa_digits }}</span></span>
+            <span class="flex items-center gap-2"><span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>
+                <span class="fb-badge fb-badge-{{ p.status_variant }}">{{ p.status_label }}</span></span>
+        </div>
+        {% empty %}<p class="fb-hint">پرداختی ثبت نشده.</p>{% endfor %}
+    </section>
+</div>
+{% endblock %}

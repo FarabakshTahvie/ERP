@@ -190,3 +190,20 @@ class LoginHistory(models.Model):
         from utils.jalali import jalali_str
         who = self.user or self.username_attempted
         return f"{who} - {self.get_result_display()} @ {jalali_str(self.created_at, fmt='%Y/%m/%d %H:%M')}"
+
+
+class UserPresence(models.Model):
+    """آخرین زمان و صفحه‌ی دیده‌شدن هر کاربر. فقط PresenceMiddleware می‌نویسد."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="presence", verbose_name="کاربر")
+    last_seen = models.DateTimeField(verbose_name="آخرین زمان دیده‌شدن")
+    last_path = models.CharField(max_length=300, blank=True, verbose_name="آخرین صفحه")
+    view_name = models.CharField(max_length=100, blank=True, verbose_name="نام صفحه")
+
+    class Meta:
+        verbose_name = "حضور کاربر"
+        verbose_name_plural = "حضور کاربران"
+
+    def __str__(self):
+        return f"{self.user} @ {self.last_path}"
+

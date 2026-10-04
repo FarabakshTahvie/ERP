@@ -77,12 +77,6 @@ class Project(TimeStampedModel):
         from utils.utils import monthly_prefix, next_monthly_code
         return next_monthly_code(Project.objects.all(), "code", monthly_prefix("P"))
 
-    @property
-    def current_files(self):
-        """همه‌ی فایل‌های جاری (آخرین نسخه) پروژه، صرف‌نظر از اینکه در کدام مرحله آپلود شده‌اند — جدیدترین بالا."""
-        from .models import ProjectFile
-        return ProjectFile.objects.filter(stage__project=self, is_current=True).select_related("stage").order_by("-created_at")
-
 
 class ProjectService(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="services", verbose_name="پروژه")

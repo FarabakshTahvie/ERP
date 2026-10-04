@@ -1,67 +1,56 @@
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
+
 from finance.models import Invoice
 
+BUCKET_LABELS = {
+    "current": "سررسیدنشده",
+    "1-30": "۱ تا ۳۰ روز",
+    "31-60": "۳۱ تا ۶۰ روز",
+    "61-90": "۶۱ تا ۹۰ روز",
+    "over-90": "بیش از ۹۰ روز",
+}
+_KEYS = {"current": "current", "1-30": "days_1_30", "31-60": "days_31_60",
+         "61-90": "days_61_90", "over-90": "days_over_90"}
+
+
+def debt_invoices(qs=None):
+    """فاکتورهای بدهی‌ساز: لغونشده و (مشتری تایید کرده یا پولی رویش پرداخت شده).
+    پیش‌فاکتورِ تاییدنشده بدهی حساب نمی‌شود. تنها منبع تعریف «بدهی» در کل سیستم."""
+    from projects.models import ProjectStage
+    confirmed = Exists(ProjectStage.objects.filter(
+        project=OuterRef("project"), step_template__requires_payment_selection=True,
+        status=ProjectStage.Status.DONE))
+    qs = Invoice.objects.all() if qs is None else qs
+    return (qs.exclude(status=Invoice.Status.CANCELLED).annotate(is_confirmed=confirmed)
+            .filter(Q(is_confirmed=True) | Q(paid_amount__gt=0)))
+
+
 def get_customer_aging_data(party, today=None):
-    """
-    محاسبه جدول سن بدهی (Aging) برای یک مشتری (Party) بر اساس فاکتورهای تسویه‌نشده.
-    دسته‌بندی بازه‌ها بر اساس روزهای گذشت‌شده از سررسید (due_date) یا تاریخ صدور (issue_date):
-    - جاری (سررسیدنشده)
-    - ۱ تا ۳۰ روز از سررسید گذشته
-    - ۳۱ تا ۶۰ روز از سررسید گذشته
-    - ۶۱ تا ۹۰ روز از سررسید گذشته
-    - بیش از ۹۰ روز از سررسید گذشته
-    """
-    if today is None:
-        today = timezone.localdate()
-
-    invoices = party.invoices.exclude(status__in=[Invoice.Status.CANCELLED, Invoice.Status.PAID])
-    
-    current = 0
-    days_1_30 = 0
-    days_31_60 = 0
-    days_61_90 = 0
-    days_over_90 = 0
-
-    aging_rows = []
-
+    """سن بدهی از سررسید (وگرنه تاریخ صدور). فقط فاکتور بدهی‌ساز با مانده‌ی مثبت."""
+    today = today or timezone.localdate()
+    invoices = debt_invoices(party.invoices.all()).exclude(status=Invoice.Status.PAID).select_related("project")
+    summary = {v: 0 for v in _KEYS.values()}
+    rows = []
     for inv in invoices:
         remaining = inv.remaining_amount
         if remaining <= 0:
             continue
-        
-        base_date = inv.due_date or inv.issue_date
-        delta_days = (today - base_date).days if base_date else 0
-
-        bucket = "current"
-        if delta_days <= 0:
-            current += remaining
-        elif 1 <= delta_days <= 30:
-            days_1_30 += remaining
+        base = inv.due_date or inv.issue_date
+        delta = (today - base).days if base else 0
+        if delta <= 0:
+            bucket = "current"
+        elif delta <= 30:
             bucket = "1-30"
-        elif 31 <= delta_days <= 60:
-            days_31_60 += remaining
+        elif delta <= 60:
             bucket = "31-60"
-        elif 61 <= delta_days <= 90:
-            days_61_90 += remaining
+        elif delta <= 90:
             bucket = "61-90"
         else:
-            days_over_90 += remaining
             bucket = "over-90"
-
-        aging_rows.append({
-            "invoice": inv,
-            "remaining": remaining,
-            "delta_days": delta_days,
-            "bucket": bucket,
-        })
-
-    summary = {
-        "current": current,
-        "days_1_30": days_1_30,
-        "days_31_60": days_31_60,
-        "days_61_90": days_61_90,
-        "days_over_90": days_over_90,
-        "total_outstanding": party.total_outstanding,
-    }
-
-    return summary, aging_rows
+        summary[_KEYS[bucket]] += remaining
+        rows.append({"invoice": inv, "remaining": remaining, "delta_days": delta,
+                     "bucket": bucket, "bucket_label": BUCKET_LABELS[bucket]})
+    summary["total_outstanding"] = sum(r["remaining"] for r in rows)
+    summary["overdue"] = summary["total_outstanding"] - summary["current"]
+    return summary, rows

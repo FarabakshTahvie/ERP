@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -23,6 +23,7 @@ from catalog.services import has_global_margin, resolve_margin_percents
 from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile
 from .stage_ops import can_upload_to_stage, add_stage_file, upload_requirement, complete_stage, cut_files, cuts_summary, set_cut
 from .services import (
+    approval_design_files,
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, can_edit_pricing, project_prices_editable,
@@ -48,14 +49,6 @@ def _cost_values(project):
         "notes": project.notes or "",
     }
 
-
-def _parse_json_lines(raw_value):
-    """پارس امن services_json/materials_json — اگر یکی خالی/نامعتبر بود، آن‌یکی را خراب نمی‌کند."""
-    try:
-        data = json.loads(raw_value) if raw_value else []
-        return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, TypeError):
-        return []
 
 
 def _parse_json_lines_strict(raw_value):
@@ -84,20 +77,6 @@ def _line_choices(project):
     return services, items
 
 
-def _initial_lines(project):
-    def qty_str(value):
-        return format(value.normalize(), "f")
-    return {
-        "services": [
-            {"pk": ps.pk, "id": ps.service_id, "qty": qty_str(ps.qty), "unit_price": str(int(ps.unit_price))}
-            for ps in project.services.order_by("pk")
-        ],
-        "materials": [
-            {"pk": pm.pk, "id": pm.item_id, "qty": qty_str(pm.qty), "unit_price": str(int(pm.unit_price))}
-            for pm in project.extra_materials.order_by("pk")
-        ],
-    }
-
 
 DURATION_HINTS = {
     range(0, 5): "معمولاً چند ساعت طول می‌کشد.",
@@ -120,9 +99,10 @@ def _duration_hint(hours):
 
 
 def _my_tasks_base_qs(request):
-    return ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS, assigned_to=request.user
-    ).select_related("project", "step_template").order_by("project__name", "order")
+    return (ProjectStage.objects
+            .filter(status=ProjectStage.Status.IN_PROGRESS, assigned_to=request.user)
+            .exclude(project__status=Project.Status.CANCELLED)
+            .select_related("project", "step_template").order_by("project__name", "order"))
 
 
 def _my_tasks_table_context(request):
@@ -159,9 +139,11 @@ def dashboard_my_tasks_table(request):
 
 
 def _claimable_base_qs(request):
-    return ProjectStage.objects.filter(
-        status=ProjectStage.Status.IN_PROGRESS, candidate_users=request.user
-    ).exclude(assigned_to=request.user).select_related("project", "step_template").distinct().order_by("project__name", "order")
+    return (ProjectStage.objects
+            .filter(status=ProjectStage.Status.IN_PROGRESS, candidate_users=request.user)
+            .exclude(assigned_to=request.user)
+            .exclude(project__status=Project.Status.CANCELLED)
+            .select_related("project", "step_template").distinct().order_by("project__name", "order"))
 
 
 def _claimable_table_context(request):
@@ -451,14 +433,15 @@ def staff_project_overview(request, project_id):
 @login_required
 def portal_stage_approval(request, approval_id):
     from finance.services import create_customer_payment
+    from core.capabilities import can
 
     approval = get_object_or_404(
         StageApproval.objects.select_related("stage__project", "stage__step_template", "sent_to_party"),
         pk=approval_id,
     )
     party = getattr(request.user, "party", None)
-    is_staff_viewer = request.user.is_staff
-    if not is_staff_viewer and (not party or party.id != approval.sent_to_party_id):
+    is_owner = bool(party and party.id == approval.sent_to_party_id)
+    if not is_owner and not can(request.user, "accounting.access"):
         raise Http404
 
     stage = approval.stage
@@ -466,7 +449,9 @@ def portal_stage_approval(request, approval_id):
     needs_payment = stage.step_template.requires_payment_selection
 
     def render_page(**extra):
-        ctx = {"approval": approval, "stage": stage, "invoice": invoice, "needs_payment": needs_payment}
+        ctx = {"approval": approval, "stage": stage, "invoice": invoice,
+               "needs_payment": needs_payment, "readonly": not is_owner,
+               "design_files": approval_design_files(stage)}
         ctx.update(extra)
         return render(request, "projects/portal_stage_approval.html", ctx)
 
@@ -477,6 +462,8 @@ def portal_stage_approval(request, approval_id):
         return render_page(already_decided=True)
 
     if request.method == "POST":
+        if not is_owner:
+            raise Http404
         action = request.POST.get("action")
         comment = request.POST.get("comment", "").strip()
 
@@ -525,6 +512,23 @@ def portal_stage_approval(request, approval_id):
             return finish()
 
     return render_page()
+
+
+@login_required
+def portal_stage_file(request, approval_id, file_id):
+    from core.capabilities import can
+    approval = get_object_or_404(StageApproval.objects.select_related("stage__project"), pk=approval_id)
+    party = getattr(request.user, "party", None)
+    is_owner = bool(party and party.id == approval.sent_to_party_id)
+    if not is_owner and not can(request.user, "accounting.access"):
+        raise Http404
+    f = next((x for x in approval_design_files(approval.stage) if x.pk == file_id), None)
+    if f is None:
+        raise Http404
+    inline = f.kind in ("pdf", "image")
+    response = FileResponse(f.file.open("rb"), as_attachment=not inline, filename=f.display_name)
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @login_required

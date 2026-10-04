@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}مراحل فعال و ارجاع | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'dashboard:overview' %}" class="link link-hover text-sm fb-muted">بازگشت به داشبورد</a>
+        <h1 class="fb-page-title mt-2">مراحل فعال و ارجاع</h1>
+        <p class="fb-page-sub">همه‌ی مراحل در حال انجام؛ قدیمی‌ترین بی‌حرکت بالاتر است. برای ارجاع یا تغییر مسئول روی هر ردیف بزنید.</p>
+    </div>
+    {% include "utils/partials/generic_table.html" %}
+</div>
+{% endblock %}

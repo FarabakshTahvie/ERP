@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.utils import timezone
 from accounts.models import User
 from .models import Project, ProjectStage, StageApproval, StageEvent, StageKind
-from .services import EXTERNAL_APPROVAL_TYPES, _assign_stage_responsible
+from .services import EXTERNAL_APPROVAL_TYPES, _assign_stage_responsible, notify_stage_responsible
 
 _ACTIVE = (ProjectStage.Status.IN_PROGRESS, ProjectStage.Status.WAITING_APPROVAL)
 
@@ -94,5 +94,5 @@ def move_to_stage(*, project, target_id, actor, comment, return_to_current=True)
     target.save()
     mode_note = "بعد از تکمیل، به همین مرحله برمی‌گردد." if return_to_current else "بعد از تکمیل، ادامه‌ی عادی پروژه از همان‌جا جلو می‌رود (بدون برگشت)."
     _event(target, actor, old, f"از مرحله‌ی «{origin.title}» منتقل شد: {comment} — {mode_note}")
-    # TODO(اطلاع‌رسانی به مسئول مرحله‌ی بازشده): قالب پیام هنوز آماده نیست.
+    notify_stage_responsible(target, reason="انتقال مرحله")
     return target

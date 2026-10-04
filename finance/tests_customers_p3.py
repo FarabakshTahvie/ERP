@@ -35,6 +35,8 @@ class CustomersCenterAndAgingTests(TestCase):
             billed_party=self.client_party, project=self.project, document_type=Invoice.DocumentType.FINAL,
             status=Invoice.Status.SENT, total_amount=1200000, issue_date=jdatetime.date(1405, 1, 15).togregorian()
         )
+        from utils.test_helpers import confirm_invoice
+        confirm_invoice(self.invoice)
 
     def test_customers_center_page_and_aging(self):
         self.client.force_login(self.accountant_user)

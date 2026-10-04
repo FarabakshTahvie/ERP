@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}اعلان‌ها | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">اعلان‌ها</h1>
+            <p class="fb-page-sub">پنجاه اعلان اخیر شما</p>
+        </div>
+        <form method="post" action="{% url 'notifications:mark_all_seen' %}" data-fb-once>
+            {% csrf_token %}
+            <button type="submit" class="btn btn-soft btn-sm">همه دیده شد</button>
+        </form>
+    </div>
+    {% for n in items %}
+    <div class="fb-card fb-pad flex flex-col gap-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-semibold">{{ n.title }}</span>
+            {% if not n.seen_at %}<span class="fb-badge fb-badge-info">جدید</span>{% endif %}
+        </div>
+        <p class="text-xs fb-muted">{{ n.body }}</p>
+        <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="fb-muted font-technical">{{ n.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+            {% if n.short_path %}<a href="/{{ n.short_path }}" class="btn btn-soft btn-xs">باز کردن</a>{% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="fb-card"><div class="fb-empty">اعلانی ندارید.</div></div>
+    {% endfor %}
+</div>
+{% endblock %}

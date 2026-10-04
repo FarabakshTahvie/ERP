@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ title }} | انبار{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">{{ title }}</h1>
+        <p class="fb-page-sub">{{ sub }}</p>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <a href="{% url 'inventory:bulk_template' mode %}" class="btn btn-soft btn-sm self-start">{% icon "download" "w-4 h-4" %} دانلود فهرست کالاها (Excel)</a>
+        <p class="fb-hint">{{ steps }}</p>
+    </section>
+
+    <form method="post" data-fb-once class="flex flex-col gap-4">
+        {% csrf_token %}
+        <div class="fb-card fb-pad flex flex-col gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="bulk-pasted">فهرست (هر سطر یک کالا، ستون‌ها با Tab جدا)</label>
+                <textarea id="bulk-pasted" name="pasted" rows="12" dir="ltr" class="textarea w-full font-technical" spellcheck="false">{{ pasted }}</textarea>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="bulk-notes">توضیح سند (اجباری)</label>
+                <input type="text" id="bulk-notes" name="notes" value="{{ notes }}" required class="input w-full">
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <button type="submit" name="action" value="preview" class="btn btn-soft">پیش‌نمایش</button>
+                <a href="{% url 'home' %}" class="btn btn-ghost">انصراف</a>
+            </div>
+        </div>
+
+        {% if preview %}
+        {% if preview.error_count %}
+        <section class="fb-card fb-pad flex flex-col gap-2">
+            <div role="alert" class="alert alert-soft alert-error">
+                {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+                <span class="text-sm">{{ preview.error_count|fa_digits }} ردیف خطا دارد. تا اصلاح نشود ثبت انجام نمی‌شود.</span>
+            </div>
+            {% for e in preview.errors %}
+            <p class="fb-inset text-xs">ردیف {{ e.row|fa_digits }}: {{ e.text }}</p>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        {% if preview.lines %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <h2 class="fb-section-title">{{ preview.lines|length|fa_digits }} ردیف آماده‌ی ثبت</h2>
+                {% if mode == 'opening' %}<span class="text-sm">جمع ارزش: <span class="font-technical font-bold">{{ preview.total_value|intcomma_fa }}</span> تومان</span>{% endif %}
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm text-xs">
+                    <thead>
+                        {% if mode == 'opening' %}
+                        <tr class="fb-muted"><th>کالا</th><th>مقدار</th><th>بهای واحد (تومان)</th><th>جمع (تومان)</th></tr>
+                        {% else %}
+                        <tr class="fb-muted"><th>کالا</th><th>موجودی سیستم</th><th>شمارش‌شده</th><th>اختلاف</th></tr>
+                        {% endif %}
+                    </thead>
+                    <tbody>
+                    {% for l in preview.lines %}
+                        {% if mode == 'opening' %}
+                        <tr>
+                            <td class="font-semibold">{{ l.item.name }}</td>
+                            <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ l.cost|intcomma_fa }}</td>
+                            <td class="font-technical">{{ l.value|intcomma_fa }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="font-semibold">{{ l.item.name }}</td>
+                            <td class="font-technical">{{ l.stock|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ l.counted|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{% if l.diff > 0 %}+{% endif %}{{ l.diff|floatformat:"-4"|fa_digits }}</td>
+                        </tr>
+                        {% endif %}
+                        {% for w in l.warnings %}
+                        <tr><td colspan="4" class="text-warning">{{ l.item.name }}: {{ w }}</td></tr>
+                        {% endfor %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if not preview.error_count %}
+            <input type="hidden" name="digest" value="{{ digest }}">
+            {% if preview.warning_count %}
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" name="ack" value="1" class="checkbox checkbox-sm"> هشدارها را دیده‌ام
+            </label>
+            {% endif %}
+            <button type="submit" name="action" value="confirm" class="btn btn-primary self-start">{{ button }}</button>
+            {% endif %}
+        </section>
+        {% endif %}
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

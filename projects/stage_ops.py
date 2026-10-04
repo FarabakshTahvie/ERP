@@ -12,8 +12,7 @@ MAX_CUTS = 999
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
-def _is_manager(user):
-    return user.is_superuser or user.role == User.Role.ADMIN
+from core.capabilities import is_manager as _is_manager
 
 
 def can_upload_to_stage(user, stage):
@@ -111,6 +110,9 @@ def stage_completion_problem(stage, *, needs_approval=None):
             return f"هنوز {total - done} برش از {total} برش علامت نخورده است."
     if stage.kind == StageKind.DESIGN_INITIAL and needs_approval is None and not stage.return_to_id:
         return "مشخص کنید این طرح نیاز به تایید مشتری دارد یا نه."
+    if stage.kind == StageKind.DESIGN_INITIAL and needs_approval and not files.filter(
+            kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
+        return "برای ارسال به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید؛ فایل اتوکد را مشتری نمی‌تواند ببیند."
     from . import ops
     if stage.kind == StageKind.SHIPPING:
         problem = ops.shipping_problem(stage)

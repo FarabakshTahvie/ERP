@@ -195,6 +195,9 @@ def issue_proforma(*, project, actor, send_sms=False):
     invoice = generate_invoice_for_project(project)
     if invoice.total_amount <= 0:
         raise ValueError("جمع پیش‌فاکتور باید بیشتر از صفر باشد.")
+    from finance.models import Invoice
+    invoice.status = Invoice.Status.SENT
+    invoice.save(update_fields=["status"])
     user, raw_password = ensure_billed_party_account(invoice)   # قبل از پیشروی؛ مرحله‌ی بعد به این حساب اطلاع می‌دهد
     advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment="پیش‌فاکتور صادر شد.")
     if send_sms and user:

@@ -188,24 +188,22 @@ def stock_movement_new(request):
         try:
             from .services import get_active_item
             item = get_active_item(request.POST.get("item_id"))
-            project_id = request.POST.get("project_id") or None
-            related_object = None
-            if project_id and project_id != "company":
-                related_object = get_object_or_404(Project, id=project_id)
-            elif request.POST.get("kind") == "consume" and project_id == "company":
-                # مصرف داخلی شرکت
-                # یک نمونه ساختگی یا هندلینگ بر اساس نیاز برای جلوگیری از خطای الزامی بودن
-                from core.models import Party
-                related_object = Party.objects.filter(is_partner=True).first() # به عنوان مثال
-            
+            kind = request.POST.get("kind")
+            project_id = (request.POST.get("project_id") or "").strip()
+            related_object, internal = None, False
+            if kind == "consume":
+                if project_id == "company":
+                    internal = True
+                elif project_id.isdigit():
+                    related_object = get_object_or_404(Project, id=int(project_id), status=Project.Status.IN_PROGRESS)
+            elif project_id.isdigit():
+                related_object = get_object_or_404(Project, id=int(project_id))
+
             record_manual_stock_change(
-                item=item,
-                kind=request.POST.get("kind"),
-                qty_raw=request.POST.get("qty"),
-                notes=request.POST.get("notes", ""),
-                user=request.user,
+                item=item, kind=kind, qty_raw=request.POST.get("qty"),
+                notes=request.POST.get("notes", ""), user=request.user,
                 unit_cost_raw=request.POST.get("unit_cost"),
-                related_object=related_object,
+                related_object=related_object, internal=internal,
             )
         except ValueError as e:
             messages.error(request, str(e))

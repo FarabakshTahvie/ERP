@@ -37,35 +37,24 @@ def clean_project_notes(raw):
     return text
 
 
+from core.capabilities import can, is_accountant
+
+
 def user_can_create_projects(user):
-    return (
-        user.is_authenticated
-        and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name__in=[INTAKE_SPECIALTY_NAME, ACCOUNTANT_SPECIALTY_NAME]).exists()
-    )
+    return can(user, "projects.create")
 
 
 def user_is_accountant(user):
-    """فقط تخصص «حسابدار»؛ برای دسترسی‌های اختصاصی حسابدار (بازبینی نهایی، آمار مالی) که انباردار/پذیرش آن‌ها را ندارند."""
-    return (
-        user.is_authenticated
-        and getattr(user, "role", None) == "employee"
-        and user.specialties.filter(name=ACCOUNTANT_SPECIALTY_NAME).exists()
-    )
+    return is_accountant(user)
 
 
 def user_can_access_accounting(user):
-    """مرکز حسابداری: مدیر، سوپریوزر یا حسابدار. تنها منبع این تصمیم."""
-    return user.is_authenticated and (
-        user.is_superuser or getattr(user, "role", None) == "manager" or user_is_accountant(user)
-    )
+    """مرکز حسابداری: مدیر، superuser یا حسابدار."""
+    return can(user, "accounting.access")
 
 
 def can_edit_pricing(user, project=None):
-    """قیمت‌گذاری و صدور پیش‌فاکتور: فقط مدیر یا حسابدار."""
-    return user.is_authenticated and (
-        user.is_superuser or getattr(user, "role", None) == "manager" or user_is_accountant(user)
-    )
+    return can(user, "pricing.edit")
 
 
 def can_search_parties_for_purchase(user):
@@ -193,6 +182,9 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
     prices_open = project_prices_editable(project)
     fees_sent = any(v is not None for v in (installation_fee_raw, shipping_fee_raw, extra_fee_raw))
     costs_touched = fees_sent or contract_date is not NOT_SENT
+    pricing_touched = service_lines is not None or material_lines is not None or costs_touched
+    if pricing_touched and not can_edit_pricing(actor, project):
+        raise ValueError("تغییر خدمات، قیمت‌ها و اطلاعات قرارداد فقط با حسابدار یا مدیر است.")
     if (service_lines is not None or material_lines is not None or costs_touched) and not prices_open:
         raise ValueError(
             "قیمت‌ها و اطلاعات قرارداد قفل شده‌اند (پیش‌فاکتور تایید شده یا پرداختی ثبت شده). "
@@ -298,6 +290,7 @@ def create_project_stages_from_template(project):
         first_stage.started_at = timezone.now()
         _assign_stage_responsible(first_stage)
         first_stage.save()
+        notify_stage_responsible(first_stage)
 
     if project.status == Project.Status.DRAFT:
         project.status = Project.Status.IN_PROGRESS
@@ -383,6 +376,24 @@ def _assign_stage_responsible(stage):
     return []
 
 
+def notify_stage_responsible(stage, *, reason=""):
+    """به مسئول مرحله (یا کل استخر کاندیدا) خبر می‌دهد. بعد از commit ارسال می‌شود."""
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    stage = ProjectStage.objects.select_related("project", "assigned_to").get(pk=stage.pk)
+    if stage.assigned_to_id:
+        users, pool = [stage.assigned_to], False
+    else:
+        users, pool = list(stage.candidate_users.all()), True
+    body = f"مرحله «{stage.title}» از پروژه «{stage.project.name}»"
+    if reason:
+        body += f" — {reason}"
+    if pool:
+        body += " (در استخر شماست؛ هر کدام برداشتید)"
+    notify_users(users, notification_type=NotificationType.STAGE_ASSIGNED, title="کار جدید",
+                 body=body, real_target_url=f"/my-tasks/{stage.id}/")
+
+
 EXTERNAL_APPROVAL_TYPES = (
     WorkflowStepTemplate.ApprovalBy.PARTNER,
     WorkflowStepTemplate.ApprovalBy.OWNER,
@@ -406,6 +417,7 @@ def _resume_parked(stage):
     if not parked.assigned_to_id and not parked.candidate_users.exists():
         _assign_stage_responsible(parked)
     parked.save()
+    notify_stage_responsible(parked)
 
 
 def _activate_next_stage(stage):
@@ -435,9 +447,9 @@ def _activate_next_stage(stage):
     # تخصص کانال‌کش هم داره) رو از چرخه‌ی ارجاع تکنسین خارج کنه.
     next_stage.status = ProjectStage.Status.IN_PROGRESS
     next_stage.started_at = timezone.now()
-    notify_users = _assign_stage_responsible(next_stage)   # noqa: F841
+    _assign_stage_responsible(next_stage)
     next_stage.save()
-    # TODO(نوتیفیکیشن ارجاع کار): طبق تصمیم قبلی کاربر، همچنان کامنت بمونه.
+    notify_stage_responsible(next_stage)
 
 
 @transaction.atomic
@@ -490,46 +502,123 @@ def default_approval_party(project):
 
 
 @transaction.atomic
-def resume_suspended_stage(stage, actor, comment):
-    if not comment or not comment.strip():
-        raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
-    old = stage.status
-    stage.status = ProjectStage.Status.IN_PROGRESS
-    stage.save(update_fields=["status"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=comment)
-
-
-@transaction.atomic
-def cancel_project_from_stage(stage, actor, comment):
-    if not comment or not comment.strip():
-        raise ValueError("ثبت دلیل لغو پروژه اجباری است.")
-    project = stage.project
-    from .models import Project
-    project.status = Project.Status.CANCELLED
-    project.save(update_fields=["status"])
-    old = stage.status
-    stage.status = ProjectStage.Status.REJECTED
-    stage.save(update_fields=["status"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=f"پروژه لغو شد: {comment}")
-
-
-@transaction.atomic
 def assign_stage(stage, target_user, actor, comment):
+    """
+    ارجاع مستقیم مدیر. فقط مرحله‌ی «در حال انجام» از پروژه‌ی در حال اجرا.
+    هدف باید تکنسین فعال باشد؛ تخصص اجباری نیست (خارج از تخصص در سابقه ثبت می‌شود)،
+    ولی صدور پیش‌فاکتور و بازبینی نهایی فقط به حسابدار داده می‌شود.
+    """
     from accounts.models import User
-    if not (actor.is_superuser or actor.role == User.Role.ADMIN):
+    from core.capabilities import can
+    if not can(actor, "stages.assign"):
         raise ValueError("فقط مدیر می‌تواند مرحله را آزادانه به هرکسی ارجاع دهد.")
-    if not comment or not comment.strip():
+    comment = (comment or "").strip()
+    if not comment:
         raise ValueError("ثبت دلیل ارجاع دستی اجباری است.")
-    old_status = stage.status
+    if target_user is None:
+        raise ValueError("مسئول جدید را انتخاب کنید.")
+    stage = (ProjectStage.objects.select_for_update()
+             .select_related("project", "step_template", "assigned_to").get(pk=stage.pk))
+    if stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("پروژه در حال اجرا نیست.")
+    if stage.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("فقط مرحله‌ی «در حال انجام» قابل ارجاع است.")
+    if not target_user.is_active or target_user.role != User.Role.EMPLOYEE:
+        raise ValueError("مسئول باید یک تکنسین فعال باشد.")
+    if stage.assigned_to_id == target_user.id:
+        raise ValueError("این کار همین الان به همین شخص سپرده شده است.")
+    if stage.kind == StageKind.PROFORMA and not can(target_user, "pricing.edit"):
+        raise ValueError("صدور پیش‌فاکتور فقط به حسابدار ارجاع داده می‌شود.")
+    if stage.kind == StageKind.FINAL_REVIEW and not can(target_user, "final_review.view"):
+        raise ValueError("بازبینی نهایی فقط به حسابدار ارجاع داده می‌شود.")
+
+    specialty = stage.step_template.responsible_specialty
+    off_specialty = bool(specialty and not target_user.specialties.filter(pk=specialty.pk).exists())
+    name = target_user.get_full_name() or target_user.username
     stage.assigned_to = target_user
     stage.candidate_users.clear()
-    if stage.status != ProjectStage.Status.IN_PROGRESS:
-        stage.status = ProjectStage.Status.IN_PROGRESS
-        if not stage.started_at:
-            stage.started_at = timezone.now()
-    stage.save(update_fields=["assigned_to", "status", "started_at"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old_status, to_status=stage.status, comment=comment)
+    stage.save(update_fields=["assigned_to", "updated_at"])
+    StageEvent.objects.create(
+        stage=stage, actor=actor, from_status=stage.status, to_status=stage.status,
+        comment=f"ارجاع مدیر به {name}: {comment}" + (" [خارج از تخصص مرحله]" if off_specialty else ""))
+    notify_stage_responsible(stage, reason="ارجاع مدیر")
     return stage
+
+
+@transaction.atomic
+def resume_suspended_stage(stage, actor, comment):
+    """بازگشت مرحله‌ی معلق به چرخه. مرحله‌ی تاییدِ مشتری دوباره برای مشتری فرستاده می‌شود."""
+    from core.capabilities import can
+    if not can(actor, "stages.assign"):
+        raise ValueError("فقط مدیر می‌تواند مرحله‌ی معلق را به چرخه برگرداند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
+    stage = (ProjectStage.objects.select_for_update()
+             .select_related("project", "step_template").get(pk=stage.pk))
+    if stage.status != ProjectStage.Status.SUSPENDED:
+        raise ValueError("این مرحله معلق نیست.")
+    if stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("پروژه در حال اجرا نیست.")
+    old = stage.status
+    if stage.step_template.approval_by in EXTERNAL_APPROVAL_TYPES:
+        send_stage_for_approval(stage, sent_by=actor)   # وضعیت را WAITING_APPROVAL می‌کند
+        text = f"بازگشت به چرخه توسط مدیر؛ دوباره برای تایید ارسال شد: {comment}"
+    else:
+        stage.status = ProjectStage.Status.IN_PROGRESS
+        stage.save(update_fields=["status", "updated_at"])
+        if not stage.assigned_to_id and not stage.candidate_users.exists():
+            _assign_stage_responsible(stage)
+            stage.save()
+        notify_stage_responsible(stage, reason="بازگشت از تعلیق")
+        text = f"بازگشت به چرخه توسط مدیر: {comment}"
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=text)
+    return stage
+
+
+@transaction.atomic
+def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
+    """
+    لغو پروژه (فقط مدیر). درخواست‌های تاییدِ باز لغو می‌شوند.
+    cancel_invoice=True: فاکتور هم لغو می‌شود؛ اگر فاکتور پرداخت تاییدشده داشته باشد
+    کل عملیات (از جمله لغو پروژه) برمی‌گردد.
+    """
+    from core.capabilities import can
+    from finance.models import Invoice
+    from .models import StageApproval
+    if not can(actor, "projects.cancel"):
+        raise ValueError("فقط مدیر می‌تواند پروژه را لغو کند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل لغو پروژه اجباری است.")
+    project = Project.objects.select_for_update().get(pk=stage.project_id)
+    if project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه قبلاً لغو شده است.")
+    if project.status == Project.Status.COMPLETED:
+        raise ValueError("پروژه‌ی تکمیل‌شده قابل لغو نیست.")
+
+    invoice_note = ""
+    invoice = getattr(project, "invoice", None)
+    if cancel_invoice and invoice is not None and invoice.status != Invoice.Status.CANCELLED:
+        from finance.services import cancel_invoice as cancel_invoice_service
+        cancel_invoice_service(invoice=invoice, reason=f"لغو پروژه: {comment}", actor=actor)
+        invoice_note = " (فاکتور هم لغو شد)"
+
+    project.status = Project.Status.CANCELLED
+    project.save(update_fields=["status", "updated_at"])
+    StageApproval.objects.filter(stage__project=project, decision=StageApproval.Decision.PENDING).update(
+        decision=StageApproval.Decision.CANCELLED, decided_at=timezone.now())
+    from .models import PartRequest
+    PartRequest.objects.filter(project=project, status=PartRequest.Status.REQUESTED).update(
+        status=PartRequest.Status.CANCELLED, decided_by=actor, decided_at=timezone.now(),
+        decision_note="پروژه لغو شد")
+    stage = ProjectStage.objects.get(pk=stage.pk)
+    old = stage.status
+    stage.status = ProjectStage.Status.REJECTED
+    stage.save(update_fields=["status", "updated_at"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status,
+                              comment=f"پروژه لغو شد{invoice_note}: {comment}")
+
 
 
 @transaction.atomic
@@ -543,6 +632,7 @@ def send_stage_for_approval(stage, party=None, sent_by=None):
 
     user = party.users.first()
     if user:
+        # TODO(پیامک design_approval_request): فقط برای مرحله‌ی kind=DESIGN_APPROVAL؛ بعد از ساخت قالب.
         from notifications.services import create_notification
         from notifications.models import NotificationType
         create_notification(
@@ -613,6 +703,7 @@ def transfer_stage(stage, from_user, to_user, comment=""):
     stage.assigned_to = to_user
     stage.candidate_users.clear()
     stage.save(update_fields=["assigned_to"])
+    notify_stage_responsible(stage, reason=f"از طرف {old_name}")
 
     StageEvent.objects.create(
         stage=stage, actor=from_user, from_status=stage.status, to_status=stage.status,
@@ -654,7 +745,9 @@ def update_visit_date(*, project, actor, visit_date):
         raise ValueError("بازدید انجام شده و تاریخ آن قابل تغییر نیست.")
     project.visit_date = visit_date
     project.save(update_fields=["visit_date", "updated_at"])
-    # TODO(پیامک تغییر زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست.
+    # TODO(پیامک visit_scheduled): قالب sms.ir هنوز نیست. طرف‌حساب هنوز حساب کاربری ندارد،
+    # پس مستقیم با SMSService().send_pattern(party.phone_number, "visit_scheduled", name=..., date=...) می‌رود،
+    # نه از مسیر اعلان.
 
 
 # نام قدیمی برای سازگاری موقت
@@ -745,7 +838,9 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     if uploaded_files:
         attach_project_files(project, stages[0], uploaded_files, uploader=created_by)
     if not issue_proforma:
-        # TODO(پیامک زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست؛ فقط کامنت.
+        # TODO(پیامک visit_scheduled): قالب sms.ir هنوز نیست. طرف‌حساب هنوز حساب کاربری ندارد،
+        # پس مستقیم با SMSService().send_pattern(party.phone_number, "visit_scheduled", name=..., date=...) می‌رود،
+        # نه از مسیر اعلان.
         return project, None, False
 
     from finance.services import generate_invoice_for_project, ensure_billed_party_account, notify_invoice_issued
@@ -759,3 +854,15 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
         notify_invoice_issued(invoice, user, raw_password)
 
     return project, invoice, account_conflict
+
+
+def approval_design_files(approval_stage):
+    """فایل‌های طرحی که مشتری باید ببیند: فایل‌های نزدیک‌ترین «طراحی اولیه»ی قبل از مرحله‌ی تایید،
+    بدون جی‌کد. جدیدترین اول."""
+    if approval_stage.kind != StageKind.DESIGN_APPROVAL:
+        return []
+    source = (approval_stage.project.stages
+              .filter(kind=StageKind.DESIGN_INITIAL, order__lt=approval_stage.order).order_by("-order").first())
+    if source is None:
+        return []
+    return list(source.files.exclude(kind="gcode").order_by("-created_at", "-pk"))
