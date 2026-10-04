@@ -95,9 +95,21 @@ class ProtectedMediaTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_path_traversal_blocked(self):
-        self.client.force_login(self.manager)
-        resp = self.client.get("/media/projects/../../manage.py")
-        self.assertEqual(resp.status_code, 404)
+        secret = Path(settings.MEDIA_ROOT).parent / "fb_secret_guard.txt"
+        secret.write_text("x", encoding="utf-8")
+        try:
+            self.client.force_login(self.manager)
+            self.assertEqual(self.client.get("/media/projects/../../fb_secret_guard.txt").status_code, 404)
+        finally:
+            secret.unlink(missing_ok=True)
+
+    def test_non_image_non_pdf_is_always_attachment(self):
+        (self.media_root / "projects" / "1" / "page.html").write_bytes(b"<script>1</script>")
+        self.client.force_login(self.tech)
+        r = self.client.get("/media/projects/1/page.html")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("attachment", r["Content-Disposition"])
+        self.assertNotIn("attachment", self.client.get("/media/projects/1/design.pdf")["Content-Disposition"])
 
     def test_unknown_media_path_404(self):
         self.client.force_login(self.manager)

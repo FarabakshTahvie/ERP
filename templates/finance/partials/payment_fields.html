@@ -19,7 +19,7 @@
     </div>
 
     <div class="fb-field" id="reference-field">
-        <label class="fb-label" for="reference-input" id="reference-label">شماره پیگیری / تراکنش (اختیاری)</label>
+        <label class="fb-label" for="reference-input" id="reference-label">شماره پیگیری / تراکنش</label>
         <input type="text" id="reference-input" name="reference_number" dir="ltr" autocomplete="off" class="input w-full font-technical">
     </div>
 
@@ -45,7 +45,7 @@
 
     {% if not hide_note_field %}
     <div class="fb-field">
-        <label class="fb-label" id="payment-note-label" for="payment-note-input">توضیح (اختیاری)</label>
+        <label class="fb-label" id="payment-note-label" for="payment-note-input">توضیح</label>
         <textarea name="payment_note" id="payment-note-input" class="textarea w-full" rows="2"></textarea>
     </div>
     {% endif %}
@@ -74,7 +74,7 @@ function fbTogglePaymentFields(method) {
     el('cheque-fields').classList.toggle('hidden', !isCheque);
     el('reference-field').classList.toggle('hidden', isCredit);
     el('reference-input').required = false;
-    el('reference-label').textContent = isCard ? 'شماره پیگیری / تراکنش' : 'شماره پیگیری / تراکنش (اختیاری)';
+    el('reference-label').textContent = isCard ? 'شماره پیگیری / تراکنش' : 'شماره پیگیری / تراکنش';
     el('payment-amount-hint').classList.toggle('hidden', !proof);
     fbSyncProofRequirement();
 
@@ -84,7 +84,7 @@ function fbTogglePaymentFields(method) {
         noteInput.required = isCredit;
         if (noteLabel) noteLabel.textContent = isCredit
             ? 'شرایط تسویه‌ی اعتباری (اجباری) — مثلاً چه زمانی تسویه می‌شود'
-            : 'توضیح (اختیاری)';
+            : 'توضیح';
     }
     if (typeof fbSyncApprovalCommentRequirement === 'function') {
         fbSyncApprovalCommentRequirement(method);

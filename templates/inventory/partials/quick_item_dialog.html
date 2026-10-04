@@ -25,14 +25,14 @@
                 </div>
             </div>
             <div class="fb-field">
-                <label class="fb-label" for="quick-item-category">دسته‌بندی (اختیاری)</label>
+                <label class="fb-label" for="quick-item-category">دسته‌بندی</label>
                 <select id="quick-item-category" name="category_id" class="select w-full">
                     <option value="">بدون دسته</option>
                     {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="fb-field">
-                <label class="fb-label" for="quick-item-reorder">حداقل موجودی برای هشدار (اختیاری)</label>
+                <label class="fb-label" for="quick-item-reorder">حداقل موجودی برای هشدار</label>
                 <input type="text" id="quick-item-reorder" name="reorder_point" dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
             </div>
             <span id="quick-item-error" class="fb-error hidden"></span>

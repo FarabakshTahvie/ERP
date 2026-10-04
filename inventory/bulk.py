@@ -100,6 +100,8 @@ def build_preview(mode, text):
     lines, errors, seen = [], [], set()
     for r in rows:
         cells = r["cells"] + [""] * 3
+        if mode == "opening" and cells[1] == "" and cells[2] == "":
+            continue                      # ردیف پرنشده‌ی قالب
         item, err = _resolve(cells[0], by_name, seen)
         if err:
             errors.append({"row": r["row"], "text": f"«{cells[0]}»: {err}"})
@@ -113,7 +115,8 @@ def build_preview(mode, text):
             line["row"] = r["row"]
             lines.append(line)
     if not lines and not errors:
-        raise ValueError("هیچ اختلافی بین شمارش و موجودی سیستم پیدا نشد.")
+        raise ValueError("ردیف پرشده‌ای پیدا نشد؛ مقدار و بهای واحد را بنویسید."
+                         if mode == "opening" else "هیچ اختلافی بین شمارش و موجودی سیستم پیدا نشد.")
     return {
         "mode": mode, "lines": lines, "errors": errors[:MAX_ERRORS_SHOWN], "error_count": len(errors),
         "warning_count": sum(1 for l in lines if l["warnings"]),

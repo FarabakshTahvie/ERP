@@ -176,7 +176,7 @@
                             <option value="{{ tech.id }}">{{ tech.get_full_name|default:tech.username }}</option>
                             {% endfor %}
                         </select>
-                        <textarea name="comment" class="textarea w-full" rows="2" placeholder="توضیح (اختیاری)"></textarea>
+                        <textarea name="comment" class="textarea w-full" rows="2" placeholder="توضیح"></textarea>
                         <div class="flex gap-2 pt-1">
                             <button type="submit" class="btn btn-primary flex-1">واگذار کن</button>
                             <button type="button" class="btn btn-ghost flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').close()">انصراف</button>

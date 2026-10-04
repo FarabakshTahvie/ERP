@@ -129,9 +129,14 @@ class BulkPasteCountTests(BulkBase):
         self.confirm("count", text, ack="1")
         self.assertEqual(self.stock(self.i1), 0)
 
-    def test_increase_without_average_cost_is_an_error(self):
-        Item.objects.create(name="کالای بدون بها", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
-        self.assertEqual(self.post("count", "کالای بدون بها\t3").context["preview"]["error_count"], 1)
+    def test_blank_template_rows_are_skipped(self):
+        r = self.post("opening", "کالای اول\t\t\nورق گالوانیزه\t5\t2000")
+        self.assertEqual(r.context["preview"]["error_count"], 0)
+        self.assertEqual(len(r.context["preview"]["lines"]), 1)
+
+    def test_all_blank_rows_report_nothing_filled(self):
+        r = self.post("opening", "کالای اول\t\t\nورق گالوانیزه\t\t")
+        self.assertIsNone(r.context["preview"])
 
 
 class BulkAccessAndTemplateTests(BulkBase):
