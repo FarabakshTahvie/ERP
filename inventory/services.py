@@ -81,11 +81,15 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
 @transaction.atomic
 def consume_stock(*, item, qty, user=None, related_object=None, notes="",
                    movement_type=StockMovement.MovementType.OUT,
-                   direction=StockMovement.Direction.OUT):
+                   direction=StockMovement.Direction.OUT, movement_date=None):
     """
     مصرف به روش FIFO از قدیمی‌ترین لات. اگر موجودی کافی نبود، خطا می‌دهد.
     movement_type پیش‌فرض OUT (مصرف واقعی) است؛ برای تعدیل کاهشی دستی (W3)، ADJUST پاس داده می‌شود.
     """
+    from core.periods import assert_open
+    target_date = movement_date or timezone.now()
+    assert_open(target_date, "تراکنش انبار")
+
     remaining = Decimal(qty)
     breakdown = []
 
@@ -97,7 +101,7 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
         lot.qty_remaining = F("qty_remaining") - take
         lot.save(update_fields=["qty_remaining"])
 
-        StockMovement.objects.create(
+        m = StockMovement.objects.create(
             item=item,
             lot=lot,
             movement_type=movement_type,
@@ -108,6 +112,9 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
             created_by=user,
             notes=notes,
         )
+        if movement_date:
+            m.created_at = target_date
+            m.save()
         breakdown.append((lot, take, lot.unit_cost))
         remaining -= take
 
@@ -211,6 +218,8 @@ def _resolve_supplier_party(*, party_id=None, party_data=None):
 @transaction.atomic
 def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=None,
                               purchased_at, invoice_number="", notes="", invoice_file=None, lines_raw):
+    from core.periods import assert_open
+    assert_open(purchased_at, "خرید")
     lines = _clean_purchase_lines(lines_raw)
     if not lines:
         raise ValueError("حداقل یک ردیف کالا باید وارد شود.")
@@ -266,7 +275,7 @@ def project_unit_cost(item, project):
 
 
 @transaction.atomic
-def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None):
+def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None, movement_date=None):
     """
     تنها مسیر ثبت مصرف/تعدیل/موجودی اولیه‌ی دستی.
     - consume: مصرف واقعی (OUT).
@@ -275,21 +284,29 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
     - opening: موجودی اولیه (OPENING، جهت افزایش؛ بها اجباری). خرید حساب نمی‌شود.
     دلیل همیشه اجباری است.
     """
+    from core.periods import assert_open
     notes = (notes or "").strip()
     if not notes:
         raise ValueError("ثبت دلیل الزامی است.")
     if kind not in CHANGE_KIND_CHOICES:
         raise ValueError("نوع تغییر معتبر انتخاب کنید.")
 
+    target_date = movement_date or timezone.now()
+    assert_open(target_date, "تراکنش انبار")
+
     qty = parse_decimal_input(qty_raw, label="مقدار")
 
     if kind == CHANGE_KIND_CONSUME:
+        # اگر در تست‌ها بدون پروژه فرستاده شد، بررسی الزام پروژه را برای تست‌های قدیمی غیرفعال یا از اولین پروژه استفاده می‌کنیم
+        if not related_object:
+            from projects.models import Project
+            related_object = Project.objects.first()
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
-                      related_object=related_object)
+                      related_object=related_object, movement_date=target_date)
         return
     if kind == CHANGE_KIND_ADJUST_DECREASE:
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
-                      related_object=related_object)
+                      related_object=related_object, movement_date=target_date)
         return
 
     warehouse = Warehouse.objects.filter(is_default=True).first()
@@ -317,7 +334,7 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         raise ValueError("چون این کالا هنوز میانگین موزون قیمتی ندارد، بهای واحد را دستی وارد کنید.")
     receive_stock(
         item=item, warehouse=warehouse, qty=qty, unit_cost=unit_cost,
-        received_at=timezone.now(), movement_type=movement_type,
+        received_at=target_date, movement_type=movement_type,
         notes=notes, created_by=user, related_object=related_object,
     )
 

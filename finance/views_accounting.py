@@ -303,7 +303,124 @@ def project_add_payment(request, project_id):
     return redirect("finance:accounting_project", project.id)
 
 
-def _suppliers_ctx(request):
+def _can_unlock(user):
+    return user.is_superuser or getattr(user, "role", None) == "manager"
+
+
+def _period_rows(count=14):
+    from core.models import PeriodLock
+    from core.periods import current_ym, month_label
+    y, m = current_ym()
+    locked = {(l.year, l.month): l for l in PeriodLock.objects.filter(is_locked=True)}
+    rows = []
+    for _ in range(count):
+        m -= 1
+        if m < 1:
+            y, m = y - 1, 12
+        # شمارش پرداخت منتظر تایید با created_at داخل همان ماه
+        from finance.models import Payment
+        from finance.accounting import period_range
+        # بازه‌ی شمسی ماه y, m را می‌گیریم
+        import jdatetime
+        start_j = jdatetime.date(y, m, 1)
+        end_j = jdatetime.date(y + 1, 1, 1) if m == 12 else jdatetime.date(y, m + 1, 1)
+        start_g, end_g = start_j.togregorian(), end_j.togregorian()
+        pending_count = Payment.objects.filter(status=Payment.Status.PENDING, created_at__gte=start_g, created_at__lt=end_g).count()
+        rows.append({"year": y, "month": m, "label": month_label(y, m), "locked": (y, m) in locked, "pending_count": pending_count})
+    return rows
+
+
+@login_required
+@user_passes_test(_can)
+def periods_page(request):
+    return render(request, "finance/accounting_periods.html", {
+        "nav_active": "periods", "periods": _period_rows(), "can_unlock": _can_unlock(request.user),
+    })
+
+
+@login_required
+@user_passes_test(_can)
+@require_POST
+def period_toggle(request):
+    year = int(request.POST.get("year", 0))
+    month = int(request.POST.get("month", 0))
+    action = request.POST.get("action")
+    reason = (request.POST.get("reason") or "").strip()
+    from core.periods import set_lock, month_label
+    try:
+        if action == "lock":
+            set_lock(year, month, locked=True, user=request.user)
+            accounting.log_event(kind="period", actor=request.user, text=f"بستن ماه {month_label(year, month)}")
+            messages.success(request, f"ماه {month_label(year, month)} بسته شد.")
+        elif action == "unlock":
+            if not _can_unlock(request.user):
+                raise ValueError("فقط مدیر کل می‌تواند ماه را باز کند.")
+            if not reason:
+                raise ValueError("دلیل بازکردن ماه اجباری است.")
+            set_lock(year, month, locked=False, user=request.user)
+            accounting.log_event(kind="period", actor=request.user, text=f"بازکردن ماه {month_label(year, month)} — دلیل: {reason}")
+            messages.success(request, f"ماه {month_label(year, month)} باز شد.")
+        else:
+            raise ValueError("عملیات نامعتبر است.")
+    except ValueError as e:
+        messages.error(request, str(e))
+    return redirect("finance:accounting_periods")
+@login_required
+@user_passes_test(_can)
+def financial_report_page(request):
+    from finance.reports import get_jalali_date_range, generate_periodic_financial_report
+    from utils.exporters import export_report_to_csv
+    
+    start_date = request.GET.get("start_date", "")
+    end_date = request.GET.get("end_date", "")
+    export_format = request.GET.get("export", "")
+
+    report = None
+    error_msg = None
+    
+    if start_date and end_date:
+        try:
+            start_g, end_g = get_jalali_date_range(start_date, end_date)
+            report = generate_periodic_financial_report(start_g, end_g)
+            
+            if export_format == "csv":
+                return export_report_to_csv(report)
+        except ValueError as e:
+            error_msg = str(e)
+            
+    return render(request, "finance/accounting_report.html", {
+        "nav_active": "reports",
+        "report": report,
+        "error_msg": error_msg,
+        "start_date": start_date,
+        "end_date": end_date,
+    })
+@login_required
+@user_passes_test(_can)
+def customers_center_page(request):
+    from core.models import Party
+    from finance.aging import get_customer_aging_data
+    
+    clients = Party.objects.filter(is_client=True).order_by("name")
+    selected_client_id = request.GET.get("client_id")
+    selected_client = None
+    aging_summary = None
+    aging_rows = None
+    ledger_entries = None
+
+    if selected_client_id:
+        selected_client = get_object_or_404(Party, id=selected_client_id, is_client=True)
+        aging_summary, aging_rows = get_customer_aging_data(selected_client)
+        ledger_entries = selected_client.ledger_entries.all()[:50]
+
+    return render(request, "finance/accounting_customers.html", {
+        "nav_active": "customers",
+        "clients": clients,
+        "selected_client": selected_client,
+        "aging_summary": aging_summary,
+        "aging_rows": aging_rows,
+        "ledger_entries": ledger_entries,
+    })
     qs = (Party.objects.annotate(purchases_count=Count("purchases", distinct=True),
                                  total=Sum(accounting.SUPPLIER_VALUE),
                                  last_at=Max("purchases__purchased_at"))

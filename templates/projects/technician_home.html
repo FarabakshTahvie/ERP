@@ -22,6 +22,12 @@
             <a href="{% url 'inventory:stock_movement_new' %}" class="btn btn-soft btn-sm">
                 {% icon "arrow-left-right" "w-4 h-4" %} ثبت مصرف/تعدیل
             </a>
+            <a href="{% url 'inventory:bulk_opening' %}" class="btn btn-soft btn-sm">
+                {% icon "plus-circle" "w-4 h-4" %} ورود گروهی
+            </a>
+            <a href="{% url 'inventory:bulk_reconciliation' %}" class="btn btn-soft btn-sm">
+                {% icon "check-square" "w-4 h-4" %} انبارگردانی اتمیک
+            </a>
             <a href="{% url 'inventory:item_new' %}" class="btn btn-soft btn-sm">
                 {% icon "package" "w-4 h-4" %} کالای جدید
             </a>

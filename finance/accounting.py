@@ -102,7 +102,7 @@ def accounting_overview(period_key="all", today=None):
     invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED)
     collected_qs = (
         Payment.objects.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
-        .annotate(eff_at=Coalesce("approved_at", "created_at")).filter(_range_q("eff_at", start, end))
+        .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at")).filter(_range_q("eff_at", start, end))
     )
     moves = StockMovement.objects.filter(_range_q("created_at", start, end))
     final_rows = list(projects_financial_queryset().filter(final_done=True).filter(_range_q("final_at", start, end)))
@@ -366,6 +366,8 @@ def settle_project_materials(*, project, final_qtys, reasons, actor):
 @transaction.atomic
 def add_invoice_adjustment(*, invoice, title, amount_raw, kind, reason, actor):
     """ردیف دستی فاکتور بعد از قفل قیمت‌ها. kind: increase | decrease. دلیل داخلی اجباری است."""
+    from core.periods import assert_open
+    assert_open(invoice.issue_date, "اصلاح فاکتور")
     if not user_can_access_accounting(actor):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند فاکتور را اصلاح کند.")
     title, reason = (title or "").strip(), (reason or "").strip()
@@ -399,8 +401,13 @@ ACCOUNTANT_PAYMENT_METHODS = (
 def record_accountant_payment(*, invoice, method, amount_raw, paid_date, reference_number, note,
                               receipt_file, cheque_number="", cheque_bank="", actor):
     """پرداخت واقعی توسط حسابدار؛ چون خودش تاییدکننده است مستقیم «تاییدشده» ثبت می‌شود."""
+    from core.periods import assert_open
     if not user_can_access_accounting(actor):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند پرداخت ثبت کند.")
+    if paid_date:
+        assert_open(paid_date, "پرداخت")
+        if paid_date > timezone.localdate():
+            raise ValueError("تاریخ پرداخت نمی‌تواند در آینده باشد.")
     if method not in ACCOUNTANT_PAYMENT_METHODS:
         raise ValueError("روش پرداخت معتبر انتخاب کنید.")
     invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)

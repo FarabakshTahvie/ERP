@@ -19,6 +19,18 @@
             <span id="current-stock-hint" class="fb-hint"></span>
         </div>
 
+        <div class="fb-field hidden" id="project-field">
+            <label class="fb-label" for="movement-project">پروژه مقصد مصرف</label>
+            <select name="project_id" id="movement-project" class="select w-full">
+                <option value="">-- انتخاب پروژه در حال اجرا --</option>
+                <option value="company">مصرف داخلی شرکت (دفتر مرکزی)</option>
+                {% for p in projects %}
+                <option value="{{ p.id }}">{{ p.name }} (کد: {{ p.code }})</option>
+                {% endfor %}
+            </select>
+            <span class="fb-hint">کالاهای مصرفی انبار باید به یک پروژه یا مصرف داخلی شرکت اختصاص یابند.</span>
+        </div>
+
         <div class="fb-field">
             <span class="fb-label">نوع تغییر</span>
             <div class="flex flex-col gap-2">
@@ -85,6 +97,14 @@
         document.getElementById('unit-cost-hint').textContent = kind === 'opening'
             ? 'برای موجودی اولیه بهای واحد را بنویسید.' : 'خالی بماند یعنی میانگین موزون فعلی کالا.';
         if (needsCost && current) document.getElementById('movement-cost').placeholder = 'مثلاً ' + current.avg_cost;
+
+        // نمایش یا پنهان‌سازی فیلد پروژه برای نوع مصرف
+        var isConsume = kind === 'consume';
+        var projField = document.getElementById('project-field');
+        if (projField) {
+            projField.classList.toggle('hidden', !isConsume);
+            document.getElementById('movement-project').required = isConsume;
+        }
     }
     document.querySelectorAll('input[name="kind"]').forEach(function (r) { r.addEventListener('change', toggleCostField); });
     document.getElementById('stock-movement-form').addEventListener('submit', function (e) {
