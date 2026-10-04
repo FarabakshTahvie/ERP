@@ -7,7 +7,7 @@ from django.utils import timezone
 from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
-from .models import Invoice, InvoiceLine, Payment, LedgerEntry
+from .models import Invoice, InvoiceLine, Payment
 from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line, PROOF_METHODS
 from .forms import AddInvoiceLineForm, PaymentInlineForm
 
@@ -19,21 +19,23 @@ class InvoiceLineInline(JalaliAdminMixin, TabularInline):
 
 
 class PaymentInline(JalaliAdminMixin, TabularInline):
+    """فقط نمایش. ثبت و تایید پرداخت از صفحه‌ی «پرداخت‌ها» و «پرونده‌ی مالی» انجام می‌شود."""
     model = Payment
-    form = PaymentInlineForm
     extra = 0
-    readonly_fields = ('approved_by', 'jalali_approved_at', 'jalali_paid_at')
+    can_delete = False
+    fields = ('method', 'amount', 'status', 'approved_by', 'jalali_approved_at', 'jalali_paid_at')
+    readonly_fields = fields
     jalali_approved_at = jalali_column('approved_at', 'تاریخ تأیید')
     jalali_paid_at = jalali_column('paid_at', 'تاریخ پرداخت')
 
-    def save_formset(self, request, form, formset, change):
-        instances = formset.save(commit=False)
-        for payment in instances:
-            if payment.status == Payment.Status.APPROVED and not payment.approved_by_id:
-                payment.approved_by = request.user
-                payment.approved_at = timezone.now()
-            payment.save()
-        formset.save_m2m()
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Invoice)
@@ -156,17 +158,3 @@ class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
             )
 
 
-@admin.register(LedgerEntry)
-class LedgerEntryAdmin(JalaliAdminMixin, ModelAdmin):
-    list_display = ('id', 'party', 'entry_type', 'amount', 'description', 'jalali_created_at')
-    list_filter = ('entry_type',)
-    search_fields = ('party__name', 'description')
-    readonly_fields = ('jalali_created_at',)
-
-    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
-
-    def has_module_permission(self, request):
-        return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
-
-    def has_view_permission(self, request, obj=None):
-        return self.has_module_permission(request)

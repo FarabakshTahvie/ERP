@@ -89,6 +89,7 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
     from core.periods import assert_open
     target_date = movement_date or timezone.now()
     assert_open(target_date, "تراکنش انبار")
+    stock_before = Decimal(item.current_stock)
 
     remaining = Decimal(qty)
     breakdown = []
@@ -121,14 +122,30 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
     if remaining > 0:
         raise ValueError(f"موجودی کالای «{item}» کافی نیست ({remaining} کسری).")
 
-    _check_reorder_point(item)
+    _check_reorder_point(item, stock_before)
     return breakdown
 
 
-def _check_reorder_point(item):
-    if item.reorder_point and item.current_stock <= item.reorder_point and item.responsible_user:
-        pass
-        # TODO(پوش هشدار موجودی کم): بعد از آماده شدن پوش/پیامک از کامنت خارج شود.
+def warehouse_keepers():
+    from accounts.models import User
+    return User.objects.filter(role=User.Role.EMPLOYEE, is_active=True,
+                               specialties__name=WAREHOUSE_KEEPER_SPECIALTY_NAME).distinct()
+
+
+def _check_reorder_point(item, stock_before):
+    """وقتی موجودی از بالای حد هشدار به حد یا پایین‌تر رسید، فقط همان یک‌بار اعلان می‌دهد."""
+    limit = Decimal(item.reorder_point or 0)
+    if limit <= 0:
+        return
+    now = Decimal(item.current_stock)
+    if not (Decimal(stock_before) > limit and now <= limit):
+        return
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    users = [item.responsible_user] if item.responsible_user_id else list(warehouse_keepers())
+    notify_users(users, notification_type=NotificationType.LOW_STOCK, title="کمبود موجودی",
+                 body=f"موجودی «{item.name}» به {format(now.normalize(), 'f')} رسید (حد هشدار {format(limit.normalize(), 'f')}).",
+                 real_target_url="/?tab=stock")
 
 
 from core.capabilities import can

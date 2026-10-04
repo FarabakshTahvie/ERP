@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}اطلاع‌رسانی‌ها | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'dashboard:overview' %}" class="link link-hover text-sm fb-muted">بازگشت به داشبورد</a>
+        <h1 class="fb-page-title mt-2">اطلاع‌رسانی‌ها</h1>
+        <p class="fb-page-sub">همه‌ی پیام‌ها: دیده شد یا نه و چند بار روی لینکش زده شد. پیش‌فاکتور باز شد؟ نوع «صدور پیش‌فاکتور» را فیلتر کنید. برای جزئیات روی ردیف بزنید.</p>
+    </div>
+    {% include "utils/partials/generic_table.html" %}
+</div>
+{% endblock %}

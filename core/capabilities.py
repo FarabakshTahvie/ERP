@@ -44,6 +44,7 @@ CAPABILITIES = {
     "admin.panel": _manager,
     "projects.cancel": _manager,
     "invoice.cancel": _manager,
+    "notifications.manage": _manager,
     # --- مدیر یا حسابدار ---
     "accounting.access": _manager_or_accountant,
     "payments.review": _manager_or_accountant,

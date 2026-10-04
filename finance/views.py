@@ -1,7 +1,7 @@
 import io
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, IntegerField, Sum, When
 from django.http import Http404, FileResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -12,6 +12,7 @@ from core.capabilities import can
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
+from .aging import debt_invoices, get_customer_aging_data
 from .models import Invoice, Payment
 from .services import approve_payment, reject_payment, create_customer_payment, PROOF_METHODS
 
@@ -180,3 +181,23 @@ def payment_decide(request, payment_id):
         messages.error(request, str(e))
         return redirect("finance:payment_detail", payment.id)
     return redirect("finance:payments_review")
+
+
+@login_required
+def statement(request):
+    """صورت‌حساب خود طرف‌حساب: فقط از فاکتور و پرداخت؛ اعتباری فقط اطلاع است و مانده را عوض نمی‌کند."""
+    party = getattr(request.user, "party", None)
+    if party is None:
+        raise Http404
+    live = party.invoices.exclude(status=Invoice.Status.CANCELLED)
+    debts = list(debt_invoices(party.invoices.all()).select_related("project").order_by("-issue_date"))
+    waiting = list(live.exclude(pk__in=[i.pk for i in debts]).select_related("project"))
+    summary, aging_rows = get_customer_aging_data(party)
+    payments = Payment.objects.filter(invoice__in=live).select_related("invoice").order_by("-created_at")[:50]
+    pending_total = (Payment.objects.filter(invoice__in=live, status=Payment.Status.PENDING)
+                     .exclude(method=Payment.Method.CREDIT).aggregate(t=Sum("amount"))["t"] or 0)
+    return render(request, "finance/portal_statement.html", {
+        "party": party, "summary": summary, "aging_rows": aging_rows, "debts": debts, "waiting": waiting,
+        "payments": payments, "pending_total": pending_total,
+        "paid_total": sum((i.paid_amount for i in debts), 0),
+    })

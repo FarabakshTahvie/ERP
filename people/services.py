@@ -47,6 +47,7 @@ PAGE_LABELS = {
     "inventory:bulk_reconciliation": "انبارگردانی",
     "people:staff": "افراد",
     "accounts:change_password": "تغییر رمز عبور",
+    "notifications:center": "اعلان‌ها",
 }
 
 
@@ -155,8 +156,22 @@ def set_user_active(*, user, active, actor, reason):
     user.save(update_fields=["is_active"])
     if active:
         return 0
-    return ProjectStage.objects.filter(assigned_to=user, status=ProjectStage.Status.IN_PROGRESS,
-                                       project__status=Project.Status.IN_PROGRESS).count()
+    from projects.services import _assign_stage_responsible, notify_stage_responsible
+    stages = list(ProjectStage.objects.select_for_update().select_related("step_template", "project")
+                  .filter(assigned_to=user, status=ProjectStage.Status.IN_PROGRESS,
+                          project__status=Project.Status.IN_PROGRESS))
+    for st in stages:
+        st.assigned_to = None
+        st.save(update_fields=["assigned_to", "updated_at"])
+        st.candidate_users.clear()
+        _assign_stage_responsible(st)            # استخر هم‌تخصص‌های فعال (کاربر الان غیرفعال است)
+        if st.assigned_to_id and not st.assigned_to.is_active:
+            st.assigned_to = None                # قالب مسئول ثابتی داشت که همین کاربر بود
+        st.save()
+        StageEvent.objects.create(stage=st, actor=actor, from_status=st.status, to_status=st.status,
+                                  comment=f"مسئول قبلی غیرفعال شد؛ مرحله به چرخه برگشت: {reason}")
+        notify_stage_responsible(st)
+    return len(stages)
 
 
 @transaction.atomic

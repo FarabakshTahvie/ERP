@@ -178,7 +178,7 @@ def attention_items(stats, now=None):
     add("failed_notifications", f"اطلاع‌رسانی ناموفق ({_fa(FAILED_NOTIFICATION_DAYS)} روز اخیر)",
         Notification.objects.filter(status=Notification.Status.FAILED,
                                     created_at__gte=now - timedelta(days=FAILED_NOTIFICATION_DAYS)).count(),
-        url=reverse("admin:notifications_notification_changelist") + "?status__exact=failed")
+        url=reverse("dashboard:notifications") + "?nt_f_status=failed")
 
     items.sort(key=lambda i: _LEVEL_RANK[i["level"]])
     return items

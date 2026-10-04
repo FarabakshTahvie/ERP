@@ -153,6 +153,7 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
 
 NAJVA_ENABLED = env.bool('NAJVA_ENABLED', default=False)
 
@@ -426,7 +427,7 @@ UNFOLD = {
                 "items": [
                     {"title": "فاکتورها", "icon": "receipt_long", "link": reverse_lazy("admin:finance_invoice_changelist")},
                     {"title": "پرداخت‌ها", "icon": "payments", "link": reverse_lazy("admin:finance_payment_changelist")},
-                    {"title": "دفتر حساب", "icon": "account_balance", "link": reverse_lazy("admin:finance_ledgerentry_changelist")},
+
                 ],
             },
             {

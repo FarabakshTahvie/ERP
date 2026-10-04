@@ -1,4 +1,7 @@
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect, Http404
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from utils.request_meta import get_client_ip
@@ -36,3 +39,21 @@ def track_and_redirect(request, code):
     if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
         target = "/"
     return HttpResponseRedirect(target)
+
+
+@login_required
+def center(request):
+    items = list(Notification.objects.filter(user=request.user).order_by("-created_at")[:50])
+    return render(request, "notifications/center.html", {"items": items})
+
+
+@login_required
+@require_POST
+def mark_all_seen(request):
+    """«دیده شد» داخل برنامه، پیامک جایگزین را هم لغو می‌کند (cron فقط PUSH_SENT دیده‌نشده را می‌فرستد)."""
+    now = timezone.now()
+    qs = Notification.objects.filter(user=request.user, seen_at__isnull=True)
+    qs.filter(status__in=[Notification.Status.PENDING, Notification.Status.PUSH_SENT,
+                          Notification.Status.IN_APP]).update(seen_at=now, status=Notification.Status.SEEN)
+    qs.update(seen_at=now)
+    return redirect("notifications:center")

@@ -223,6 +223,16 @@ def pending_part_requests(project):
     return PartRequest.objects.filter(project=project, status=PartRequest.Status.REQUESTED)
 
 
+def notify_part_request(req):
+    from inventory.services import warehouse_keepers
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    notify_users(warehouse_keepers(), notification_type=NotificationType.PART_REQUEST,
+                 title="درخواست قطعه‌ی جدید",
+                 body=f"«{req.item.name}» × {format(req.qty.normalize(), 'f')} برای پروژه «{req.project.name}»",
+                 real_target_url=f"/staff/part-requests/{req.id}/")
+
+
 @transaction.atomic
 def create_part_request(*, stage, item_id, qty_raw, note, actor):
     _need(stage, StageKind.INSTALL)
@@ -230,8 +240,9 @@ def create_part_request(*, stage, item_id, qty_raw, note, actor):
         raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
     item, qty = _active_item(item_id), _qty(qty_raw)
     text = _reason(note, required=True, label="دلیل درخواست")
-    # TODO(اطلاع‌رسانی به انباردارها): قالب پیام هنوز آماده نیست.
-    return PartRequest.objects.create(project=stage.project, stage=stage, item=item, qty=qty, note=text, requested_by=actor)
+    req = PartRequest.objects.create(project=stage.project, stage=stage, item=item, qty=qty, note=text, requested_by=actor)
+    notify_part_request(req)
+    return req
 
 
 @transaction.atomic

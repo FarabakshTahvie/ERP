@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from core.models import Party
 from catalog.models import Service, Item
 from projects.models import Project, ProjectService, ProjectMaterial, ProjectParticipant
-from finance.models import Invoice, InvoiceLine, Payment, LedgerEntry
+from finance.models import Invoice, InvoiceLine, Payment
 from finance.services import generate_invoice_for_project, approve_payment
 
 User = get_user_model()
@@ -71,7 +71,7 @@ class FinanceInvoiceTests(TestCase):
         material_line = lines.get(line_type=InvoiceLine.LineType.MATERIAL)
         self.assertEqual(material_line.cost_snapshot, Decimal('250000'))
 
-    def test_payment_methods_and_credit_ledger(self):
+    def test_payment_methods_and_credit(self):
         invoice = generate_invoice_for_project(self.project)
 
         # پرداخت اول: درگاه پرداخت ۱۰ میلیون تومان -> خودکار APPROVED می‌شود

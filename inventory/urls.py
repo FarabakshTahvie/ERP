@@ -13,4 +13,5 @@ urlpatterns = [
     path("inventory/stock-movements/new/", views.stock_movement_new, name="stock_movement_new"),
     path("inventory/bulk-opening/", views_bulk.bulk_opening_page, name="bulk_opening"),
     path("inventory/bulk-reconciliation/", views_bulk.bulk_reconciliation_page, name="bulk_reconciliation"),
+    path("inventory/bulk-template/<str:mode>/", views_bulk.bulk_template, name="bulk_template"),
 ]

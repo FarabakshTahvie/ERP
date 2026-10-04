@@ -161,25 +161,6 @@ class Payment(TimeStampedModel):
         recalculate_invoice_paid_amount(self.invoice)
 
 
-class LedgerEntry(TimeStampedModel):
-    class EntryType(models.TextChoices):
-        DEBIT = "debit", "بدهکار (طرف‌حساب به ما بدهکار است)"
-        CREDIT = "credit", "بستانکار (طرف‌حساب طلبکار است)"
-
-    party = models.ForeignKey('core.Party', on_delete=models.PROTECT, related_name="ledger_entries", verbose_name="طرف‌حساب")
-    entry_type = models.CharField(max_length=20, choices=EntryType.choices, verbose_name="نوع")
-    amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
-    description = models.CharField(max_length=255, blank=True, verbose_name="شرح")
-
-    related_content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True)
-    related_object_id = models.PositiveIntegerField(null=True, blank=True)
-    related_object = GenericForeignKey("related_content_type", "related_object_id")
-
-    class Meta:
-        verbose_name = "سند دفتر حساب"
-        verbose_name_plural = "اسناد دفتر حساب"
-        ordering = ["-created_at"]
-
 
 class AccountingEvent(models.Model):
     """سابقه‌ی اقدام‌های حسابدار (append-only)."""

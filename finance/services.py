@@ -5,7 +5,7 @@ from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from utils.image_utils import optimize_receipt_image
 from utils.utils import separate_digits, monthly_prefix, next_monthly_code
-from .models import Invoice, InvoiceLine, Payment, LedgerEntry
+from .models import Invoice, InvoiceLine, Payment
 
 # روش‌هایی که مبلغشان را کارشناس از روی مدرک تایید می‌کند
 PROOF_METHODS = (Payment.Method.CARD_TO_CARD, Payment.Method.RECEIPT, Payment.Method.CHEQUE)
@@ -261,6 +261,7 @@ def approve_payment(payment, approved_by, verified_amount=None):
     payment.status = Payment.Status.APPROVED
     payment.approved_by = approved_by
     payment.approved_at = timezone.now()
+    # TODO(پیامک payment_confirmed): فقط پرداخت‌های ثبت‌شده توسط مشتری
     payment.save()
     return payment
 
@@ -276,6 +277,7 @@ def reject_payment(payment, rejected_by, reason=""):
     payment.status = Payment.Status.REJECTED
     payment.approved_by = rejected_by
     payment.approved_at = timezone.now()
+    # TODO(پیامک payment_rejected): فقط پرداخت‌های ثبت‌شده توسط مشتری
     payment.note = (payment.note + "\n" if payment.note else "") + f"رد شد: {reason}"
     payment.save()
     return payment

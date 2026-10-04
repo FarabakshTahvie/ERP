@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Prefetch
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -7,12 +7,14 @@ from django.views.decorators.http import require_POST
 
 from accounts.models import User
 from core.capabilities import cap_required
+from notifications.models import Notification, NotificationType
+from notifications.services import resend_notification
 from projects.models import Project, ProjectStage, StageKind
 from projects.services import (
     ACCOUNTANT_SPECIALTY_NAME, assign_stage, cancel_project_from_stage, resume_suspended_stage,
 )
 from utils.generic_table import build_table_context, render_table
-from utils.jalali import to_fa_digits
+from utils.jalali import jalali_str, to_fa_digits
 
 from . import services
 
@@ -200,3 +202,70 @@ def suspended_cancel(request, stage_id):
     else:
         messages.success(request, f"پروژه «{stage.project.name}» لغو شد.")
     return redirect("dashboard:suspended")
+
+
+def notifications_context(request):
+    qs = (Notification.objects.select_related("user")
+          .annotate(n_clicks=Count("click_events")).order_by("-created_at"))
+    variant = {"pending": "warning", "push_sent": "info", "seen": "success", "sms_sent": "info", "failed": "error"}
+
+    def row_builder(n):
+        return {"url": reverse("dashboard:notification_detail", args=[n.id]), "cells": [
+            {"type": "text", "value": n.get_notification_type_display()},
+            {"type": "text", "value": n.user.get_full_name() or n.user.username},
+            {"type": "badge", "value": n.get_status_display(), "variant": variant.get(n.status, "neutral")},
+            {"type": "muted", "value": jalali_str(n.created_at, fmt="%Y/%m/%d %H:%M")},
+            {"type": "muted", "value": jalali_str(n.seen_at, fmt="%Y/%m/%d %H:%M") if n.seen_at else "دیده نشده"},
+            {"type": "muted", "value": to_fa_digits(n.n_clicks)},
+        ]}
+
+    return build_table_context(
+        request, qs,
+        columns=[
+            {"label": "نوع", "sort_field": "notification_type", "filter_key": "type", "filter_type": "select",
+             "filter_field": "notification_type", "choices": NotificationType.choices},
+            {"label": "گیرنده", "sort_field": "user__last_name"},
+            {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
+             "choices": Notification.Status.choices},
+            {"label": "زمان", "sort_field": "created_at"},
+            {"label": "دیده‌شدن", "sort_field": "seen_at"},
+            {"label": "کلیک", "sort_field": "n_clicks"},
+        ],
+        row_builder=row_builder, container_id="table-manager-notifications", param_prefix="nt_",
+        empty_icon="bell", empty_text="اطلاع‌رسانی‌ای ثبت نشده.",
+        list_url=reverse("dashboard:notifications_table"),
+        search_fields=["title", "user__first_name", "user__last_name", "user__username"],
+        search_placeholder="جستجو در عنوان یا گیرنده...",
+    )
+
+
+@cap_required("notifications.manage")
+def notifications_page(request):
+    return render(request, "dashboard/notifications.html", notifications_context(request))
+
+
+@cap_required("notifications.manage")
+def notifications_table(request):
+    return render_table(request, notifications_context(request))
+
+
+@cap_required("notifications.manage")
+def notification_detail(request, notification_id):
+    n = get_object_or_404(Notification.objects.select_related("user"), pk=notification_id)
+    return render(request, "dashboard/notification_detail.html", {
+        "n": n, "clicks": n.click_events.order_by("-clicked_at")[:20],
+        "can_resend": n.status == Notification.Status.FAILED and n.notification_type != NotificationType.INVOICE_ISSUED,
+    })
+
+
+@cap_required("notifications.manage")
+@require_POST
+def notification_resend(request, notification_id):
+    n = get_object_or_404(Notification, pk=notification_id)
+    try:
+        n = resend_notification(n, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"وضعیت بعد از ارسال دوباره: {n.get_status_display()}")
+    return redirect("dashboard:notification_detail", n.id)

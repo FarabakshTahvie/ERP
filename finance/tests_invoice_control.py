@@ -100,6 +100,8 @@ class CancelInvoiceTests(InvoiceBase):
 
 class DueDateTests(InvoiceBase):
     def test_set_clear_and_aging(self):
+        from utils.test_helpers import confirm_invoice
+        confirm_invoice(self.invoice)
         Invoice.objects.filter(pk=self.invoice.pk).update(issue_date=self.today - timedelta(days=40))
         _, rows = get_customer_aging_data(self.party)
         self.assertEqual(rows[0]["bucket"], "31-60")

@@ -12,4 +12,8 @@ urlpatterns = [
     path("suspended/", views.suspended_page, name="suspended"),
     path("suspended/<int:stage_id>/resume/", views.suspended_resume, name="suspended_resume"),
     path("suspended/<int:stage_id>/cancel/", views.suspended_cancel, name="suspended_cancel"),
+    path("notifications/", views.notifications_page, name="notifications"),
+    path("notifications/table/", views.notifications_table, name="notifications_table"),
+    path("notifications/<int:notification_id>/", views.notification_detail, name="notification_detail"),
+    path("notifications/<int:notification_id>/resend/", views.notification_resend, name="notification_resend"),
 ]

@@ -3,3 +3,6 @@
 
 # Pending notifications processing every minute
 * * * * * www-data cd /var/www/farabakhsh/app && /var/www/farabakhsh/venv/bin/python manage.py process_pending_notifications >> /var/log/farabakhsh_cron.log 2>&1
+
+# Daily backup (database + media)
+30 3 * * * root bash /var/www/farabakhsh/app/deploy/backup.sh >> /var/log/farabakhsh_backup.log 2>&1

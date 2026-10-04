@@ -143,6 +143,17 @@ class ResumeAndCancelTests(ControlBase):
         self.assertEqual(self.project.status, Project.Status.CANCELLED)
         self.assertEqual(approval.decision, StageApproval.Decision.CANCELLED)
 
+    def test_cancel_project_cancels_open_part_requests(self):
+        from catalog.models import Item
+        from projects.models import PartRequest
+        item = Item.objects.create(name="قطعه لغو", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
+        sus = self.stage(ProjectStage.Status.SUSPENDED)
+        req = PartRequest.objects.create(project=self.project, stage=sus, item=item, qty=1, note="x",
+                                         requested_by=self.tech)
+        cancel_project_from_stage(sus, self.manager, "منصرف شد")
+        req.refresh_from_db()
+        self.assertEqual(req.status, PartRequest.Status.CANCELLED)
+
     def test_cancel_project_guards(self):
         sus = self.stage(ProjectStage.Status.SUSPENDED)
         for actor in (self.accountant, self.tech):

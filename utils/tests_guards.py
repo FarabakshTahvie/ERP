@@ -20,13 +20,12 @@ class SourceGuardTests(TestCase):
             for word in forbidden:
                 self.assertNotIn(word, text, f"{path.name}: {word}")
 
-    def test_banned_daisyui_classes_in_finance_and_dashboard_templates(self):
+    def test_banned_daisyui_classes_in_all_templates(self):
         banned = ["input-bordered", "select-bordered", "form-control", "label-text", "tabs-boxed"]
-        for folder in ("finance", "dashboard"):
-            for path in (BASE / "templates" / folder).rglob("*.html"):
-                text = path.read_text(encoding="utf-8")
-                for cls in banned:
-                    self.assertNotIn(cls, text, f"{path.name}: {cls}")
+        for path in (BASE / "templates").rglob("*.html"):
+            text = path.read_text(encoding="utf-8")
+            for cls in banned:
+                self.assertNotIn(cls, text, f"{path.name}: {cls}")
 
     def test_no_is_staff_in_any_template(self):
         for path in (BASE / "templates").rglob("*.html"):

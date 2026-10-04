@@ -237,9 +237,26 @@ class ToggleActiveTests(PeopleBase):
                                     status=ProjectStage.Status.IN_PROGRESS, assigned_to=self.tech)
         n = services.set_user_active(user=self.tech, active=False, actor=self.manager, reason="رفت")
         self.assertEqual(n, 1)
+        self.assertIsNone(ProjectStage.objects.get(assigned_to__isnull=True).assigned_to)
         self.assertEqual(self.login(self.tech).get(reverse("accounts:change_password")).status_code, 302)
         self.assertEqual(services.set_user_active(user=self.tech, active=True, actor=self.manager, reason="برگشت"), 0)
         self.assertTrue(any("غیرفعال" in h["reason"] for h in services.account_history(self.tech)))
+
+    def test_deactivate_returns_stage_to_specialty_pool(self):
+        sp = Specialty.objects.get_or_create(name="کانال‌کش")[0]
+        self.tech.specialties.add(sp)
+        mate = User.objects.create_user(username="p_mate", password="pw", role=User.Role.EMPLOYEE)
+        mate.specialties.add(sp)
+        tpl = WorkflowTemplate.objects.create(name="قالب استخر")
+        step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="م", responsible_specialty=sp)
+        proj = Project.objects.create(name="پروژه استخر", partner=self.party, workflow_template=tpl,
+                                      status=Project.Status.IN_PROGRESS)
+        st = ProjectStage.objects.create(project=proj, step_template=step, order=1, title="م",
+                                         status=ProjectStage.Status.IN_PROGRESS, assigned_to=self.tech)
+        services.set_user_active(user=self.tech, active=False, actor=self.manager, reason="رفت")
+        st.refresh_from_db()
+        self.assertIsNone(st.assigned_to)
+        self.assertEqual(list(st.candidate_users.all()), [mate])
 
 
 class ActivityFeedTests(PeopleBase):
@@ -291,6 +308,8 @@ class CustomersTests(PeopleBase):
                                               status=Project.Status.IN_PROGRESS)
         self.invoice = Invoice.objects.create(project=self.project, number="INV-PP-1", billed_party=self.party,
                                               total_amount=Decimal("1000"), issue_date=timezone.localdate())
+        from utils.test_helpers import confirm_invoice
+        confirm_invoice(self.invoice)
 
     def test_table_scope_and_outstanding(self):
         Party.objects.create(name="فقط تأمین‌کننده", is_supplier=True, phone_number="09130000011")
@@ -299,7 +318,17 @@ class CustomersTests(PeopleBase):
         self.assertIn("مشتری افراد", content)
         self.assertIn("۱,۰۰۰", content)
         self.assertNotIn("فقط تأمین‌کننده", content)
-        self.assertNotIn("خودمان", content)
+        internal = Party.objects.filter(is_internal=True).first()
+        self.assertNotIn(internal.name, content)
+
+    def test_unconfirmed_proforma_is_not_debt(self):
+        other = Party.objects.create(name="شریک بی‌تایید", is_partner=True, phone_number="09130000013")
+        proj = Project.objects.create(name="پروژه بی‌تایید", partner=other, owner=other, status=Project.Status.IN_PROGRESS)
+        Invoice.objects.create(project=proj, number="INV-PP-9", billed_party=other,
+                               total_amount=Decimal("7777"), issue_date=timezone.localdate())
+        content = self.login(self.manager).get(reverse("people:customers_table")).content.decode("utf-8")
+        self.assertIn("شریک بی‌تایید", content)
+        self.assertNotIn("۷,۷۷۷", content)
 
     def test_cancelled_invoice_not_counted(self):
         Invoice.objects.filter(pk=self.invoice.pk).update(status=Invoice.Status.CANCELLED)

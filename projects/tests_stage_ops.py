@@ -67,6 +67,7 @@ class DesignApprovalDecisionTests(TestCase):
     def _stage(self):
         stage = self.project.stages.get(kind=StageKind.DESIGN_INITIAL)
         add_stage_file(stage=stage, uploaded=SimpleUploadedFile("نقشه ۱.dwg", b"x"), uploader=self.designer)
+        add_stage_file(stage=stage, uploaded=SimpleUploadedFile("پیش‌نمایش.pdf", b"x"), uploader=self.designer)
         return stage
 
     def test_no_approval_skips_approval_stage_and_hides_it(self):

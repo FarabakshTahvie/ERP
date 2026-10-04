@@ -18,6 +18,8 @@ class NotificationType(models.TextChoices):
     LOW_STOCK = "low_stock", "کمبود موجودی انبار"
     MANUAL = "manual", "پیام دستی"
     STAGE_APPROVAL_REQUEST = "stage_approval_request", "درخواست تایید مرحله"
+    STAGE_ASSIGNED = "stage_assigned", "کار جدید"
+    PART_REQUEST = "part_request", "درخواست قطعه"
 
 
 class ChannelPolicy(models.TextChoices):
@@ -48,6 +50,7 @@ class Notification(models.Model):
         SEEN = "seen", "دیده شد"
         SMS_SENT = "sms_sent", "پیامک ارسال شد"
         FAILED = "failed", "ناموفق"
+        IN_APP = "in_app", "فقط داخل برنامه"
 
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="شناسه یکتا")
     notification_type = models.CharField(max_length=30, choices=NotificationType.choices, db_index=True, verbose_name="نوع پیام")

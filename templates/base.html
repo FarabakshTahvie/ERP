@@ -103,6 +103,10 @@
                 </nav>
 
                 <div class="flex-none flex items-center gap-1">
+                    <a href="{% url 'notifications:center' %}" class="btn btn-ghost btn-circle btn-sm relative" aria-label="اعلان‌ها">
+                        {% icon "bell" "w-4 h-4" %}
+                        {% if unread_notifications_count %}<span class="fb-badge fb-badge-warning absolute -top-1 -left-1">{{ unread_notifications_count|fa_digits }}</span>{% endif %}
+                    </a>
                     <label class="swap swap-rotate btn btn-ghost btn-circle btn-sm" title="تغییر تم (روشن / تاریک)">
                         <input type="checkbox" id="theme-toggle" class="theme-controller" value="farabakhsh-dark" />
                         {% icon "sun" "swap-off w-4 h-4" %}

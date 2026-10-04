@@ -290,6 +290,7 @@ def create_project_stages_from_template(project):
         first_stage.started_at = timezone.now()
         _assign_stage_responsible(first_stage)
         first_stage.save()
+        notify_stage_responsible(first_stage)
 
     if project.status == Project.Status.DRAFT:
         project.status = Project.Status.IN_PROGRESS
@@ -375,6 +376,24 @@ def _assign_stage_responsible(stage):
     return []
 
 
+def notify_stage_responsible(stage, *, reason=""):
+    """به مسئول مرحله (یا کل استخر کاندیدا) خبر می‌دهد. بعد از commit ارسال می‌شود."""
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    stage = ProjectStage.objects.select_related("project", "assigned_to").get(pk=stage.pk)
+    if stage.assigned_to_id:
+        users, pool = [stage.assigned_to], False
+    else:
+        users, pool = list(stage.candidate_users.all()), True
+    body = f"مرحله «{stage.title}» از پروژه «{stage.project.name}»"
+    if reason:
+        body += f" — {reason}"
+    if pool:
+        body += " (در استخر شماست؛ هر کدام برداشتید)"
+    notify_users(users, notification_type=NotificationType.STAGE_ASSIGNED, title="کار جدید",
+                 body=body, real_target_url=f"/my-tasks/{stage.id}/")
+
+
 EXTERNAL_APPROVAL_TYPES = (
     WorkflowStepTemplate.ApprovalBy.PARTNER,
     WorkflowStepTemplate.ApprovalBy.OWNER,
@@ -398,6 +417,7 @@ def _resume_parked(stage):
     if not parked.assigned_to_id and not parked.candidate_users.exists():
         _assign_stage_responsible(parked)
     parked.save()
+    notify_stage_responsible(parked)
 
 
 def _activate_next_stage(stage):
@@ -427,9 +447,9 @@ def _activate_next_stage(stage):
     # تخصص کانال‌کش هم داره) رو از چرخه‌ی ارجاع تکنسین خارج کنه.
     next_stage.status = ProjectStage.Status.IN_PROGRESS
     next_stage.started_at = timezone.now()
-    notify_users = _assign_stage_responsible(next_stage)   # noqa: F841
+    _assign_stage_responsible(next_stage)
     next_stage.save()
-    # TODO(نوتیفیکیشن ارجاع کار): طبق تصمیم قبلی کاربر، همچنان کامنت بمونه.
+    notify_stage_responsible(next_stage)
 
 
 @transaction.atomic
@@ -521,7 +541,7 @@ def assign_stage(stage, target_user, actor, comment):
     StageEvent.objects.create(
         stage=stage, actor=actor, from_status=stage.status, to_status=stage.status,
         comment=f"ارجاع مدیر به {name}: {comment}" + (" [خارج از تخصص مرحله]" if off_specialty else ""))
-    # TODO(اعلان ارجاع به تکنسین): فاز ۴-د
+    notify_stage_responsible(stage, reason="ارجاع مدیر")
     return stage
 
 
@@ -550,6 +570,7 @@ def resume_suspended_stage(stage, actor, comment):
         if not stage.assigned_to_id and not stage.candidate_users.exists():
             _assign_stage_responsible(stage)
             stage.save()
+        notify_stage_responsible(stage, reason="بازگشت از تعلیق")
         text = f"بازگشت به چرخه توسط مدیر: {comment}"
     StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status, comment=text)
     return stage
@@ -587,6 +608,10 @@ def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
     project.save(update_fields=["status", "updated_at"])
     StageApproval.objects.filter(stage__project=project, decision=StageApproval.Decision.PENDING).update(
         decision=StageApproval.Decision.CANCELLED, decided_at=timezone.now())
+    from .models import PartRequest
+    PartRequest.objects.filter(project=project, status=PartRequest.Status.REQUESTED).update(
+        status=PartRequest.Status.CANCELLED, decided_by=actor, decided_at=timezone.now(),
+        decision_note="پروژه لغو شد")
     stage = ProjectStage.objects.get(pk=stage.pk)
     old = stage.status
     stage.status = ProjectStage.Status.REJECTED
@@ -607,6 +632,7 @@ def send_stage_for_approval(stage, party=None, sent_by=None):
 
     user = party.users.first()
     if user:
+        # TODO(پیامک design_approval_request): فقط برای مرحله‌ی kind=DESIGN_APPROVAL؛ بعد از ساخت قالب.
         from notifications.services import create_notification
         from notifications.models import NotificationType
         create_notification(
@@ -677,6 +703,7 @@ def transfer_stage(stage, from_user, to_user, comment=""):
     stage.assigned_to = to_user
     stage.candidate_users.clear()
     stage.save(update_fields=["assigned_to"])
+    notify_stage_responsible(stage, reason=f"از طرف {old_name}")
 
     StageEvent.objects.create(
         stage=stage, actor=from_user, from_status=stage.status, to_status=stage.status,
@@ -718,7 +745,9 @@ def update_visit_date(*, project, actor, visit_date):
         raise ValueError("بازدید انجام شده و تاریخ آن قابل تغییر نیست.")
     project.visit_date = visit_date
     project.save(update_fields=["visit_date", "updated_at"])
-    # TODO(پیامک تغییر زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست.
+    # TODO(پیامک visit_scheduled): قالب sms.ir هنوز نیست. طرف‌حساب هنوز حساب کاربری ندارد،
+    # پس مستقیم با SMSService().send_pattern(party.phone_number, "visit_scheduled", name=..., date=...) می‌رود،
+    # نه از مسیر اعلان.
 
 
 # نام قدیمی برای سازگاری موقت
@@ -809,7 +838,9 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     if uploaded_files:
         attach_project_files(project, stages[0], uploaded_files, uploader=created_by)
     if not issue_proforma:
-        # TODO(پیامک زمان بازدید به طرف‌حساب): قالب پیامک هنوز آماده نیست؛ فقط کامنت.
+        # TODO(پیامک visit_scheduled): قالب sms.ir هنوز نیست. طرف‌حساب هنوز حساب کاربری ندارد،
+        # پس مستقیم با SMSService().send_pattern(party.phone_number, "visit_scheduled", name=..., date=...) می‌رود،
+        # نه از مسیر اعلان.
         return project, None, False
 
     from finance.services import generate_invoice_for_project, ensure_billed_party_account, notify_invoice_issued
@@ -823,3 +854,15 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
         notify_invoice_issued(invoice, user, raw_password)
 
     return project, invoice, account_conflict
+
+
+def approval_design_files(approval_stage):
+    """فایل‌های طرحی که مشتری باید ببیند: فایل‌های نزدیک‌ترین «طراحی اولیه»ی قبل از مرحله‌ی تایید،
+    بدون جی‌کد. جدیدترین اول."""
+    if approval_stage.kind != StageKind.DESIGN_APPROVAL:
+        return []
+    source = (approval_stage.project.stages
+              .filter(kind=StageKind.DESIGN_INITIAL, order__lt=approval_stage.order).order_by("-order").first())
+    if source is None:
+        return []
+    return list(source.files.exclude(kind="gcode").order_by("-created_at", "-pk"))

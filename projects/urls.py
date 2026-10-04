@@ -23,6 +23,7 @@ urlpatterns = [
     path("staff/stages/<int:stage_id>/files/", views.stage_file_upload, name="stage_file_upload"),
     path("staff/files/<int:file_id>/cut/", views.cut_set, name="cut_set"),
     path("portal/approvals/<int:approval_id>/", views.portal_stage_approval, name="portal_stage_approval"),
+    path("portal/approvals/<int:approval_id>/files/<int:file_id>/", views.portal_stage_file, name="portal_stage_file"),
     path("portal/<int:project_id>/progress/", views.project_progress, name="portal_project_progress"),
     path("my-tasks/", views.my_tasks, name="my_tasks"),
     path("my-tasks/<int:stage_id>/", views.my_task_detail, name="my_task_detail"),

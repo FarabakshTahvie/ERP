@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}اطلاع‌رسانی #{{ n.id }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'dashboard:notifications' %}" class="link link-hover text-sm fb-muted">بازگشت به اطلاع‌رسانی‌ها</a>
+        <h1 class="fb-page-title mt-2">{{ n.title }}</h1>
+        <div class="flex flex-wrap gap-2 mt-2">
+            <span class="fb-badge fb-badge-neutral">{{ n.get_notification_type_display }}</span>
+            <span class="fb-badge fb-badge-{% if n.status == 'failed' %}error{% elif n.status == 'seen' %}success{% else %}info{% endif %}">{{ n.get_status_display }}</span>
+        </div>
+    </div>
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2"><span class="fb-muted">گیرنده</span>
+            <a href="{% url 'people:user_detail' n.user_id %}" class="link link-hover">{{ n.user.get_full_name|default:n.user.username }}</a></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">ساخته‌شده</span><span class="font-technical">{{ n.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">پوش</span><span class="font-technical">{% if n.push_sent_at %}{{ n.push_sent_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}—{% endif %}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">پیامک</span><span class="font-technical">{% if n.sms_sent_at %}{{ n.sms_sent_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}—{% endif %}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">دیده‌شدن</span><span class="font-technical">{% if n.seen_at %}{{ n.seen_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}دیده نشده{% endif %}</span></div>
+        <p class="fb-inset text-xs whitespace-pre-line">{{ n.body }}</p>
+    </section>
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">کلیک‌ها</h2>
+        {% for c in clicks %}
+        <div class="fb-inset flex justify-between gap-2"><span>{% if c.channel == 'push' %}پوش{% else %}پیامک{% endif %}</span>
+            <span class="fb-muted font-technical">{{ c.clicked_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>
+        {% empty %}<p class="fb-hint">هنوز کلیکی ثبت نشده.</p>{% endfor %}
+    </section>
+    {% if can_resend %}
+    <form method="post" action="{% url 'dashboard:notification_resend' n.id %}" data-fb-once class="fb-card fb-pad">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">ارسال دوباره</button>
+    </form>
+    {% elif n.status == 'failed' %}
+    <p class="fb-hint">این پیام دوباره فرستاده نمی‌شود (پیامک پیش‌فاکتور رمز دارد). از «بازنشانی رمز» در افراد یا ورود با کد پیامکی استفاده شود.</p>
+    {% endif %}
+</div>
+{% endblock %}

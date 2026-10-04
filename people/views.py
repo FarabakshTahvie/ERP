@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.contrib import messages
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import User
 from core.capabilities import can, cap_required
 from core.models import Party, Specialty
-from finance.aging import get_customer_aging_data
+from finance.aging import debt_invoices, get_customer_aging_data
 from finance.models import Invoice, Payment
 from projects.models import Project
 from utils.generic_table import build_table_context, render_table
@@ -73,13 +73,14 @@ def _roles_text(p):
 
 
 def customers_ctx(request):
-    live = ~Q(invoices__status=Invoice.Status.CANCELLED)
+    rem = ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY)
+    per_party = (debt_invoices(Invoice.objects.filter(billed_party=OuterRef("pk")))
+                 .order_by().values("billed_party"))
     qs = (Party.objects.filter(is_internal=False).filter(Q(is_client=True) | Q(is_partner=True))
-          .annotate(n_inv=Count("invoices", filter=live),
-                    outstanding=Coalesce(
-                        Sum(ExpressionWrapper(F("invoices__total_amount") - F("invoices__paid_amount"),
-                                              output_field=MONEY), filter=live),
-                        Value(Decimal("0")), output_field=MONEY))
+          .annotate(
+              n_inv=Coalesce(Subquery(per_party.annotate(n=Count("id")).values("n")), Value(0)),
+              outstanding=Coalesce(Subquery(per_party.annotate(t=Sum(rem)).values("t"), output_field=MONEY),
+                                   Value(Decimal("0")), output_field=MONEY))
           .order_by("name"))
 
     def row_builder(p):
@@ -224,7 +225,7 @@ def user_toggle_active(request, user_id):
     else:
         messages.success(request, "حساب فعال شد." if target else "حساب غیرفعال شد.")
         if open_stages:
-            messages.warning(request, f"{to_fa_digits(open_stages)} مرحله‌ی در حال انجام هنوز به او سپرده شده؛ از «ارجاع و مراحل» جابه‌جا کنید.")
+            messages.warning(request, f"{to_fa_digits(open_stages)} مرحله‌ی او به چرخه برگشت (استخر هم‌تخصص‌ها). مرحله‌ی بی‌مسئول در داشبورد دیده می‌شود.")
     return redirect("people:user_detail", person.id)
 
 
