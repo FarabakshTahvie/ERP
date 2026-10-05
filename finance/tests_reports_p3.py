@@ -48,6 +48,13 @@ class ReportsAndExportersTests(TestCase):
         self.cost.save()
 
     def test_generate_periodic_financial_report(self):
+        # همچنین تعلیق پروژه باید درآمد و هزینه‌ی آن را از گزارش دوره‌ای حذف کند
+        from projects.services import suspend_stage
+        from projects.models import ProjectStage, WorkflowStepTemplate, WorkflowTemplate
+        tpl = WorkflowTemplate.objects.create(name="قالب گزارش")
+        step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="مرحله")
+        st = ProjectStage.objects.create(project=self.project, step_template=step, order=1, title="مرحله", status=ProjectStage.Status.IN_PROGRESS)
+
         self.client.force_login(self.accountant_user)
         
         response = self.client.get(reverse("finance:accounting_reports"), {
@@ -63,6 +70,17 @@ class ReportsAndExportersTests(TestCase):
         self.assertEqual(report["operational_costs_sum"], Decimal("50000"))
         self.assertEqual(report["total_expenses"], Decimal("50000"))
         self.assertEqual(report["net_difference"], Decimal("450000"))
+
+        admin_user = User.objects.create_user(username="rep_adm", role=User.Role.ADMIN)
+        suspend_stage(st, actor=admin_user, comment="تعلیق")
+
+        response_held = self.client.get(reverse("finance:accounting_reports"), {
+            "start_date": "1405/05/01",
+            "end_date": "1405/05/30",
+        })
+        report_held = response_held.context["report"]
+        self.assertEqual(report_held["total_revenue"], Decimal("0"))
+        self.assertEqual(report_held["operational_costs_sum"], Decimal("0"))
 
     def test_export_financial_report_to_csv(self):
         self.client.force_login(self.accountant_user)

@@ -20,6 +20,7 @@ from projects.services import (
 )
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
+from utils.utils import separate_digits
 from utils.tabs import build_tabs_context
 
 from . import services
@@ -212,9 +213,9 @@ def suspended_table_context(request):
                 {"type": "muted", "value": party.name if party else "—"},
                 {"type": "muted", "value": getattr(r, "suspended_title", "—")},
                 {"type": "badge", "value": to_fa_digits(f"{days} روز"), "variant": "warning"},
-                {"type": "amount", "value": r.revenue},
-                {"type": "amount", "value": r.paid},
-                {"type": "amount", "value": r.remaining},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.revenue))},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.paid))},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.remaining))},
             ]
         }
 
@@ -254,9 +255,9 @@ def cancelled_table_context(request):
                 {"type": "muted", "value": party.name if party else "—"},
                 {"type": "muted", "value": jalali_str(r.cancelled_at, fmt="%Y/%m/%d") if getattr(r, "cancelled_at", None) else "—"},
                 inv_badge,
-                {"type": "amount", "value": r.revenue},
-                {"type": "amount", "value": r.paid},
-                {"type": "amount", "value": r.remaining},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.revenue))},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.paid))},
+                {"type": "text", "value": to_fa_digits(separate_digits(r.remaining))},
             ]
         }
 

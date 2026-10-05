@@ -92,8 +92,14 @@ def _range_q(field, start, end, is_date=False):
     return q
 
 
+from .aging import debt_invoices
+
 def _sum(qs, expr):
     return qs.aggregate(t=Coalesce(Sum(expr), Value(ZERO), output_field=MONEY))["t"]
+
+
+def _remaining(qs):
+    return _sum(qs, ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
 
 
 # ---------- نمای کلی ----------
@@ -102,6 +108,7 @@ def accounting_overview(period_key="all", today=None):
     start, end = period_range(period_key, today)
     held = held_project_ids()
     invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).exclude(project_id__in=held)
+    debts = debt_invoices(Invoice.objects.all())
     collected_qs = (
         Payment.objects.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
         .exclude(invoice__project_id__in=held)
@@ -115,7 +122,8 @@ def accounting_overview(period_key="all", today=None):
         "period": period_key, "start": start, "end": end,
         "sales": _sum(invoices.filter(_range_q("issue_date", start, end, is_date=True)), F("total_amount")),
         "collected": _sum(collected_qs, F("amount")),
-        "receivable": _sum(invoices, ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY)),
+        "receivable": _remaining(debts.exclude(project_id__in=held)),
+        "held_receivable": _remaining(debts.filter(project_id__in=held)),
         "purchases": _sum(PurchaseLine.objects.filter(_range_q("purchase__purchased_at", start, end)), VALUE),
         "opening": _sum(moves.filter(movement_type=MT.OPENING), VALUE),
         "consumption": _sum(moves_linked_held.filter(movement_type=MT.OUT), VALUE),

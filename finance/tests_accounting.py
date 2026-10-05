@@ -223,6 +223,15 @@ class OverviewNumbersTests(BaseAccountingTestCase):
         self.assertEqual(stats_after["consumption_unlinked"], Decimal("2000"))
         self.assertEqual(stats_after["consumption"], Decimal("3000"))
 
+        # Suspend project -> consumption and sales excluded from accounting_overview
+        from projects.services import suspend_stage
+        step_first = self.project.stages.first()
+        if step_first:
+            suspend_stage(step_first, actor=self.admin_user, comment="تعلیق")
+            stats_held = accounting.accounting_overview("all")
+            self.assertEqual(stats_held["consumption"], Decimal("2000"))
+            self.assertEqual(stats_held["consumption_unlinked"], Decimal("2000"))
+
 
 class ProjectFinancialsTests(BaseAccountingTestCase):
     def test_project_financials_calculations(self):
