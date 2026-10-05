@@ -1,5 +1,5 @@
 {% load custom_tags %}
-<div class="fb-inset mt-3 ms-10 flex flex-col gap-3" id="ops-{{ s.id }}" data-ops-root>
+<div class="fb-inset mt-3 flex flex-col gap-3" id="ops-{{ s.id }}" data-ops-root>
 {% if s.kind == 'shipping' %}
     <div class="fb-label">چک‌لیست ارسال قطعات</div>
     {% for r in s.ops.rows %}
