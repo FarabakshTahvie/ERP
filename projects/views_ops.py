@@ -192,8 +192,14 @@ def final_review(request, project_id):
         return redirect("home")
     fin = accounting.projects_financial_queryset().get(pk=project.pk)
     recon = accounting.project_reconciliation(project)
+    can_approve = stage.status == ProjectStage.Status.IN_PROGRESS and project.status == Project.Status.IN_PROGRESS
+    can_suspend = stage.status == ProjectStage.Status.IN_PROGRESS and project.status == Project.Status.IN_PROGRESS
+    can_cancel_now = project.status == Project.Status.IN_PROGRESS
     return render(request, "projects/final_review.html", {
-        "project": project, "stage": stage, "can_approve": stage.status == ProjectStage.Status.IN_PROGRESS,
+        "project": project, "stage": stage,
+        "can_approve": can_approve,
+        "can_suspend": can_suspend,
+        "can_cancel_now": can_cancel_now,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
         "recon": recon, "pnl": accounting.project_pnl(fin),
         "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],

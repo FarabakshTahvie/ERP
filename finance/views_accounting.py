@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from core.capabilities import can, cap_required
 from core.models import Party
-from projects.services import project_prices_editable
+from projects.services import held_project_ids, project_prices_editable
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from inventory.models import PurchaseLine, StockMovement
@@ -65,7 +65,7 @@ def _table_page(request, builder, *, nav, title, sub):
 
 # ---------- جدول پروژه‌ها ----------
 def _projects_ctx(request):
-    qs = accounting.projects_financial_queryset().order_by("-created_at")
+    qs = accounting.projects_financial_queryset().exclude(id__in=held_project_ids()).order_by("-created_at")
 
     def row_builder(p):
         return {"url": reverse("finance:accounting_project", args=[p.id]), "cells": [

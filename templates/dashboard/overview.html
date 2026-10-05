@@ -19,7 +19,7 @@
             <a href="{% url 'people:staff' %}" class="btn btn-soft btn-sm">{% icon "users" "w-4 h-4" %} افراد</a>
             <a href="{% url 'dashboard:notifications' %}" class="btn btn-soft btn-sm">{% icon "bell" "w-4 h-4" %} اطلاع‌رسانی‌ها</a>
             <a href="{% url 'dashboard:stages' %}" class="btn btn-soft btn-sm">{% icon "users" "w-4 h-4" %} ارجاع و مراحل</a>
-            <a href="{% url 'dashboard:suspended' %}" class="btn btn-soft btn-sm">{% icon "alert-triangle" "w-4 h-4" %} مراحل معلق</a>
+            <a href="{% url 'dashboard:suspended' %}" class="btn btn-soft btn-sm">{% icon "alert-triangle" "w-4 h-4" %} پروژه‌های معلق</a>
             <a href="/admin/" class="btn btn-soft btn-sm">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>
         </div>
     </div>
@@ -41,6 +41,7 @@
             {% include "finance/partials/stat_card.html" with label="مانده‌ی همه‌ی فاکتورها" value=stats.receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
             {% include "finance/partials/stat_card.html" with label="ارزش فعلی موجودی انبار" value=stats.stock_value tone="" hint="کل زمان." %}
         </div>
+        <p class="text-xs fb-muted">پروژه‌های معلق و لغو‌شده در این اعداد نیستند؛ آمارشان در صفحه‌ی <a href="{% url 'dashboard:suspended' %}" class="link link-primary">پروژه‌های معلق</a> است.</p>
     </section>
 
     <section class="flex flex-col gap-3">

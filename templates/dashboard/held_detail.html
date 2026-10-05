@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ project.name }} | پروژه‌های معلق{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'dashboard:suspended' %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه‌های معلق</a>
+        <div class="flex items-center gap-3 mt-2 flex-wrap">
+            <h1 class="fb-page-title">پروژه {{ project.name }}</h1>
+            <span class="fb-muted text-sm">({{ project.code }})</span>
+            {% if is_cancelled %}
+            <span class="fb-badge fb-badge-error">لغوشده</span>
+            {% elif has_suspended %}
+            <span class="fb-badge fb-badge-warning">معلق</span>
+            {% endif %}
+        </div>
+        <p class="fb-page-sub">جزئیات مالی و تاریخچه‌ی تصمیم‌گیری برای این پروژه.</p>
+    </div>
+
+    <!-- Financial Stats Card -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">خلاصه‌ی وضعیت مالی</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">مبلغ فروش</span>
+                <span class="font-bold text-base font-technical">{{ stats.sales|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">دریافتی</span>
+                <span class="font-bold text-base font-technical text-success">{{ stats.collected|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">مانده طلب</span>
+                <span class="font-bold text-base font-technical text-warning">{{ stats.remaining|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">خروج از انبار</span>
+                <span class="font-bold text-base font-technical">{{ stats.stock_cost|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">هزینه‌های ثبت‌شده</span>
+                <span class="font-bold text-base font-technical">{{ stats.recorded_costs|intcomma_fa }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if has_suspended %}
+    {% for it in sus_reasons %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">مرحله‌ی معلق: {{ it.stage.title }}</h2>
+        {% if it.customer_comment %}<p class="fb-inset text-sm">دلیل رد مشتری: {{ it.customer_comment }}</p>
+        {% elif it.reason %}<p class="fb-inset text-sm">دلیل تعلیق: {{ it.reason }}</p>{% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {% if caps.stages_assign %}
+            <form method="post" action="{% url 'dashboard:suspended_resume' it.stage.id %}" data-fb-once class="fb-inset flex flex-col gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <span class="fb-label">بازگشت به چرخه</span>
+                <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل بازگشت (اجباری)"></textarea>
+                <button type="submit" class="btn btn-soft btn-sm self-start">بازگشت به چرخه</button>
+            </form>
+            {% endif %}
+
+            {% if caps.projects_cancel %}
+            <form method="post" action="{% url 'dashboard:suspended_cancel' it.stage.id %}" data-fb-once class="fb-inset flex flex-col gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'dashboard:suspended' %}?tab=cancelled">
+                <span class="fb-label">لغو پروژه</span>
+                <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل لغو (اجباری)"></textarea>
+                {% if invoice %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" name="cancel_invoice" class="checkbox checkbox-sm"> فاکتور هم لغو شود
+                </label>
+                {% endif %}
+                <button type="submit" class="btn btn-soft btn-error btn-sm self-start">لغو پروژه</button>
+            </form>
+            {% endif %}
+        </div>
+    </section>
+    {% endfor %}
+    {% endif %}
+
+    {% if is_cancelled %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اطلاعات لغو پروژه</h2>
+        {% if cancel_evt %}
+        <p class="fb-inset text-sm">دلیل لغو: {{ cancel_evt.comment }} (توسط {{ cancel_evt.actor.get_full_name|default:cancel_evt.actor.username }})</p>
+        {% endif %}
+
+        {% if caps.projects_restore %}
+        <form method="post" action="{% url 'dashboard:project_restore' project.id %}" data-fb-once class="fb-inset flex flex-col gap-2 max-w-xl">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <span class="fb-label">بازگرداندن پروژه از لغو</span>
+            <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل بازگرداندن (اجباری)"></textarea>
+            {% if invoice %}
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" name="restore_invoice" class="checkbox checkbox-sm"> فاکتور هم از لغو برگردد
+            </label>
+            {% endif %}
+            <button type="submit" class="btn btn-soft btn-primary btn-sm self-start">بازگرداندن پروژه</button>
+        </form>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if invoice %}
+    <div class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">فاکتور پروژه</h2>
+        <div class="flex items-center justify-between text-sm">
+            <span>شماره فاکتور: {{ invoice.invoice_number|default:invoice.id|fa_digits }}</span>
+            <span class="fb-badge {% if invoice.status == 'cancelled' %}fb-badge-error{% else %}fb-badge-info{% endif %}">{{ invoice.get_status_display }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">رویدادهای اخیر پروژه</h2>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>زمان</th>
+                        <th>مرحله</th>
+                        <th>کاربر</th>
+                        <th>توضیحات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in recent_events %}
+                    <tr>
+                        <td>{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M"|fa_digits }}</td>
+                        <td>{{ ev.stage.title }}</td>
+                        <td>{{ ev.actor.get_full_name|default:ev.actor.username|default:"—" }}</td>
+                        <td>{{ ev.comment|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 fb-muted">رویدادی ثبت نشده است.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

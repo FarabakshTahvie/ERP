@@ -1,8 +1,9 @@
 from datetime import timedelta
+from decimal import Decimal
 
 import jdatetime
 from django.db.models import Case, Count, DecimalField, Exists, ExpressionWrapper, F, IntegerField, OuterRef, Subquery, Value, When
-from projects.services import EXTERNAL_APPROVAL_TYPES
+from projects.services import EXTERNAL_APPROVAL_TYPES, CANCEL_EVENT_PREFIX, held_project_ids
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
@@ -88,6 +89,7 @@ def overdue_invoices(today):
         project=OuterRef("project"), step_template__requires_payment_selection=True,
         status=ProjectStage.Status.DONE))
     return (Invoice.objects.exclude(status__in=[Invoice.Status.CANCELLED, Invoice.Status.PAID])
+            .exclude(project_id__in=held_project_ids())
             .annotate(confirmed=confirmed,
                       remaining=ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY),
                       due=Coalesce("due_date", "issue_date"))
@@ -197,21 +199,30 @@ def active_stages_qs():
             .order_by("last_move"))
 
 
-def suspended_items():
-    out = []
-    qs = (ProjectStage.objects.filter(status=ProjectStage.Status.SUSPENDED, **_LIVE)
-          .select_related("project", "step_template").order_by("started_at"))
-    for s in qs:
-        last = s.events.order_by("-created_at").first()
-        approval = s.approvals.order_by("-sent_at").first()
-        out.append({
-            "stage": s,
-            "reason": last.comment if last else "",
-            "customer_comment": approval.comment if approval and approval.decision == StageApproval.Decision.REJECTED else "",
-            "is_approval": s.step_template.approval_by in EXTERNAL_APPROVAL_TYPES,
-            "has_invoice": getattr(s.project, "invoice", None) is not None,
-        })
-    return out
+def held_projects_qs(kind):
+    """kind: 'suspended' | 'cancelled'. بر پایه‌ی projects_financial_queryset (revenue, paid, remaining, stock_out, stock_back, rec_costs)."""
+    base = accounting.projects_financial_queryset()
+    if kind == "cancelled":
+        at = (StageEvent.objects.filter(stage__project=OuterRef("pk"), comment__startswith=CANCEL_EVENT_PREFIX)
+              .order_by("-created_at").values("created_at")[:1])
+        return base.filter(status=Project.Status.CANCELLED).annotate(cancelled_at=Subquery(at))
+    sus = ProjectStage.objects.filter(project=OuterRef("pk"), status=ProjectStage.Status.SUSPENDED).order_by("order")
+    since = (StageEvent.objects.filter(stage__project=OuterRef("pk"), stage__status=ProjectStage.Status.SUSPENDED)
+             .order_by("-created_at").values("created_at")[:1])
+    return (base.filter(status=Project.Status.IN_PROGRESS)
+            .annotate(has_suspended=Exists(sus), suspended_title=Subquery(sus.values("title")[:1]),
+                      suspended_since=Subquery(since))
+            .filter(has_suspended=True))
+
+
+def held_stats(kind):
+    rows = list(held_projects_qs(kind))
+    zero = Decimal("0")
+    return {"count": len(rows),
+            "sales": sum((r.revenue for r in rows), zero), "collected": sum((r.paid for r in rows), zero),
+            "remaining": sum((r.remaining for r in rows), zero),
+            "stock_cost": sum((r.stock_out - r.stock_back for r in rows), zero),
+            "recorded_costs": sum((r.rec_costs for r in rows), zero)}
 
 
 def dashboard_context():

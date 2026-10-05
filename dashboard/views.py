@@ -1,20 +1,26 @@
+from decimal import Decimal
 from django.contrib import messages
 from django.db.models import Count, Prefetch
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from accounts.models import User
 from core.capabilities import cap_required
+from finance import accounting
 from notifications.models import Notification, NotificationType
 from notifications.services import resend_notification
-from projects.models import Project, ProjectStage, StageKind
+from projects.models import Project, ProjectStage, StageEvent, StageKind
 from projects.services import (
-    ACCOUNTANT_SPECIALTY_NAME, assign_stage, cancel_project_from_stage, resume_suspended_stage,
+    ACCOUNTANT_SPECIALTY_NAME, CANCEL_EVENT_PREFIX, assign_stage, cancel_project_from_stage,
+    restore_cancelled_project, resume_suspended_stage, suspend_stage,
 )
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
+from utils.tabs import build_tabs_context
 
 from . import services
 
@@ -172,36 +178,226 @@ def assign_stage_page(request, stage_id):
     })
 
 
+def _return(request, default):
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect(default)
+
+
 @cap_required("stages.assign")
+@require_POST
+def stage_suspend(request, stage_id):
+    stage = get_object_or_404(ProjectStage.objects.select_related("project"), pk=stage_id)
+    comment = request.POST.get("comment")
+    try:
+        suspend_stage(stage, actor=request.user, comment=comment)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return _return(request, reverse("dashboard:suspended"))
+    messages.success(request, f"پروژه «{stage.project.name}» معلق شد.")
+    return _return(request, reverse("dashboard:suspended") + "?tab=suspended")
+
+
+def suspended_table_context(request):
+    qs = services.held_projects_qs("suspended")
+
+    def row_builder(r):
+        days = services._since(r.suspended_since, timezone.now())
+        party = getattr(r, "owner", None) or getattr(r, "partner", None)
+        return {
+            "url": reverse("dashboard:held_detail", args=[r.pk]),
+            "cells": [
+                {"type": "text", "value": r.name},
+                {"type": "muted", "value": party.name if party else "—"},
+                {"type": "muted", "value": getattr(r, "suspended_title", "—")},
+                {"type": "badge", "value": to_fa_digits(f"{days} روز"), "variant": "warning"},
+                {"type": "amount", "value": r.revenue},
+                {"type": "amount", "value": r.paid},
+                {"type": "amount", "value": r.remaining},
+            ]
+        }
+
+    return build_table_context(
+        request, qs,
+        columns=[
+            {"label": "پروژه", "sort_field": "name"},
+            {"label": "طرف‌حساب"},
+            {"label": "مرحله‌ی معلق"},
+            {"label": "روز معلق‌بودن", "sort_field": "suspended_since"},
+            {"label": "فروش", "sort_field": "revenue"},
+            {"label": "دریافتی", "sort_field": "paid"},
+            {"label": "مانده", "sort_field": "remaining"},
+        ],
+        row_builder=row_builder, container_id="table-held-suspended", param_prefix="hs_",
+        empty_icon="alert-triangle", empty_text="پروژه‌ی معلقی وجود ندارد.",
+        list_url=reverse("dashboard:suspended_table"),
+        search_fields=["name", "code", "owner__name", "partner__name"],
+        search_placeholder="جستجو در نام، کد یا طرف‌حساب...",
+    )
+
+
+def cancelled_table_context(request):
+    qs = services.held_projects_qs("cancelled")
+
+    def row_builder(r):
+        invoice = getattr(r, "invoice", None)
+        party = getattr(r, "owner", None) or getattr(r, "partner", None)
+        inv_badge = {"type": "muted", "value": "بدون فاکتور"}
+        if invoice:
+            inv_badge = {"type": "badge", "value": invoice.get_status_display(),
+                         "variant": "error" if invoice.status == "cancelled" else "info"}
+        return {
+            "url": reverse("dashboard:held_detail", args=[r.pk]),
+            "cells": [
+                {"type": "text", "value": r.name},
+                {"type": "muted", "value": party.name if party else "—"},
+                {"type": "muted", "value": jalali_str(r.cancelled_at, fmt="%Y/%m/%d") if getattr(r, "cancelled_at", None) else "—"},
+                inv_badge,
+                {"type": "amount", "value": r.revenue},
+                {"type": "amount", "value": r.paid},
+                {"type": "amount", "value": r.remaining},
+            ]
+        }
+
+    return build_table_context(
+        request, qs,
+        columns=[
+            {"label": "پروژه", "sort_field": "name"},
+            {"label": "طرف‌حساب"},
+            {"label": "تاریخ لغو", "sort_field": "cancelled_at"},
+            {"label": "وضعیت فاکتور"},
+            {"label": "فروش", "sort_field": "revenue"},
+            {"label": "دریافتی", "sort_field": "paid"},
+            {"label": "مانده", "sort_field": "remaining"},
+        ],
+        row_builder=row_builder, container_id="table-held-cancelled", param_prefix="hc_",
+        empty_icon="x-circle", empty_text="پروژه‌ی لغوشده‌ای وجود ندارد.",
+        list_url=reverse("dashboard:cancelled_table"),
+        search_fields=["name", "code", "owner__name", "partner__name"],
+        search_placeholder="جستجو در نام، کد یا طرف‌حساب...",
+    )
+
+
+@cap_required("suspended.view")
 def suspended_page(request):
-    return render(request, "dashboard/suspended.html", {"items": services.suspended_items()})
+    sus_ctx = suspended_table_context(request)
+    can_ctx = cancelled_table_context(request)
+    tabs = build_tabs_context(
+        request,
+        tabs=[
+            {"key": "suspended", "label": "معلق", "url": reverse("dashboard:suspended_table"),
+             "container_id": sus_ctx["container_id"], "count_builder": lambda: services.held_stats("suspended")["count"],
+             "eager_render": lambda: render_table(request, sus_ctx).content.decode("utf-8")},
+            {"key": "cancelled", "label": "لغوشده", "url": reverse("dashboard:cancelled_table"),
+             "container_id": can_ctx["container_id"], "count_builder": lambda: services.held_stats("cancelled")["count"],
+             "eager_render": lambda: render_table(request, can_ctx).content.decode("utf-8")},
+        ]
+    )
+    return render(request, "dashboard/suspended.html", {
+        "sus_stats": services.held_stats("suspended"),
+        "can_stats": services.held_stats("cancelled"),
+        "tabs": tabs,
+    })
+
+
+@cap_required("suspended.view")
+def suspended_table(request):
+    return render_table(request, suspended_table_context(request))
+
+
+@cap_required("suspended.view")
+def cancelled_table(request):
+    return render_table(request, cancelled_table_context(request))
+
+
+@cap_required("suspended.view")
+def held_detail(request, project_id):
+    project = get_object_or_404(Project.objects.prefetch_related("stages__events__actor", "stages__approvals"), pk=project_id)
+    is_cancelled = project.status == Project.Status.CANCELLED
+    has_suspended = project.status == Project.Status.IN_PROGRESS and project.stages.filter(status=ProjectStage.Status.SUSPENDED).exists()
+    if not is_cancelled and not has_suspended:
+        raise Http404("این پروژه نه لغو گردیده و نه معلق است.")
+
+    fin = accounting.projects_financial_queryset().filter(pk=project.pk).first()
+    zero = Decimal("0")
+    stats = {
+        "sales": getattr(fin, "revenue", zero) if fin else zero,
+        "collected": getattr(fin, "paid", zero) if fin else zero,
+        "remaining": getattr(fin, "remaining", zero) if fin else zero,
+        "stock_cost": (getattr(fin, "stock_out", zero) - getattr(fin, "stock_back", zero)) if fin else zero,
+        "recorded_costs": getattr(fin, "rec_costs", zero) if fin else zero,
+    }
+
+    suspended_stages = list(project.stages.filter(status=ProjectStage.Status.SUSPENDED))
+    sus_reasons = []
+    for s in suspended_stages:
+        last_evt = s.events.order_by("-created_at").first()
+        last_appr = s.approvals.order_by("-sent_at").first()
+        cust_comm = last_appr.comment if last_appr and last_appr.decision == "rejected" else ""
+        sus_reasons.append({
+            "stage": s,
+            "reason": last_evt.comment if last_evt else "",
+            "customer_comment": cust_comm,
+        })
+
+    cancel_evt = StageEvent.objects.filter(stage__project=project, comment__startswith=CANCEL_EVENT_PREFIX).order_by("-created_at").first()
+    recent_events = StageEvent.objects.filter(stage__project=project).select_related("stage", "actor").order_by("-created_at")[:10]
+
+    return render(request, "dashboard/held_detail.html", {
+        "project": project,
+        "is_cancelled": is_cancelled,
+        "has_suspended": has_suspended,
+        "stats": stats,
+        "sus_reasons": sus_reasons,
+        "cancel_evt": cancel_evt,
+        "recent_events": recent_events,
+        "invoice": getattr(project, "invoice", None),
+    })
 
 
 @cap_required("stages.assign")
 @require_POST
 def suspended_resume(request, stage_id):
-    stage = get_object_or_404(ProjectStage, pk=stage_id)
+    stage = get_object_or_404(ProjectStage.objects.select_related("project"), pk=stage_id)
+    comment = request.POST.get("comment")
     try:
-        resume_suspended_stage(stage, actor=request.user, comment=request.POST.get("comment"))
+        resume_suspended_stage(stage, actor=request.user, comment=comment)
     except ValueError as e:
         messages.error(request, str(e))
-    else:
-        messages.success(request, f"مرحله «{stage.title}» به چرخه برگشت.")
-    return redirect("dashboard:suspended")
+        return _return(request, reverse("dashboard:held_detail", args=[stage.project_id]))
+    messages.success(request, f"مرحله «{stage.title}» به چرخه برگشت.")
+    return _return(request, reverse("dashboard:held_detail", args=[stage.project_id]))
 
 
 @cap_required("projects.cancel")
 @require_POST
 def suspended_cancel(request, stage_id):
     stage = get_object_or_404(ProjectStage.objects.select_related("project"), pk=stage_id)
+    comment = request.POST.get("comment")
+    cancel_inv = request.POST.get("cancel_invoice") == "on"
     try:
-        cancel_project_from_stage(stage, actor=request.user, comment=request.POST.get("comment"),
-                                  cancel_invoice=request.POST.get("cancel_invoice") == "on")
+        cancel_project_from_stage(stage, actor=request.user, comment=comment, cancel_invoice=cancel_inv)
     except ValueError as e:
         messages.error(request, str(e))
-    else:
-        messages.success(request, f"پروژه «{stage.project.name}» لغو شد.")
-    return redirect("dashboard:suspended")
+        return _return(request, reverse("dashboard:suspended"))
+    messages.success(request, f"پروژه «{stage.project.name}» لغو شد.")
+    return _return(request, reverse("dashboard:suspended") + "?tab=cancelled")
+
+
+@cap_required("projects.restore")
+@require_POST
+def project_restore(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    comment = request.POST.get("comment")
+    restore_inv = request.POST.get("restore_invoice") == "on"
+    try:
+        restore_cancelled_project(project, actor=request.user, comment=comment, restore_invoice=restore_inv)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return _return(request, reverse("dashboard:held_detail", args=[project.id]))
+    messages.success(request, f"پروژه «{project.name}» از لغو برگشت.")
+    return redirect("projects:staff_project_overview", project_id=project.id)
 
 
 def notifications_context(request):

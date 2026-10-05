@@ -25,6 +25,7 @@
             {% include "finance/partials/stat_card.html" with label="فروش منهای هزینه‌های ثبت‌شده — پروژه‌های تسویه‌شده" value=stats.final_result tone="" hint="فقط پروژه‌هایی که بازبینی نهایی‌شان تایید شده. دستمزد و هر هزینه‌ی ثبت‌نشده در آن نیست." %}
             {% include "finance/partials/stat_card.html" with label="تعداد پروژه‌ی تسویه‌شده" value=stats.final_count tone="" hint="" %}
         </div>
+        <p class="text-xs fb-muted mt-2">پروژه‌های معلق و لغو‌شده در این اعداد نیستند؛ آمارشان در صفحه‌ی <a href="{% url 'dashboard:suspended' %}" class="link link-primary">پروژه‌های معلق</a> است.</p>
     </section>
 
     <section class="flex flex-col gap-3">

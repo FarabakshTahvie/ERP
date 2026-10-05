@@ -45,7 +45,9 @@ CAPABILITIES = {
     "projects.cancel": _manager,
     "invoice.cancel": _manager,
     "notifications.manage": _manager,
+    "projects.restore": _manager,
     # --- مدیر یا حسابدار ---
+    "suspended.view": _manager_or_accountant,
     "accounting.access": _manager_or_accountant,
     "payments.review": _manager_or_accountant,
     "pricing.edit": _manager_or_accountant,

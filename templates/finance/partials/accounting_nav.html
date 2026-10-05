@@ -8,5 +8,6 @@
     <a href="{% url 'finance:accounting_suppliers' %}" class="btn btn-sm {% if nav_active == 'suppliers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "users" "w-4 h-4" %} تأمین‌کننده‌ها</a>
     <a href="{% url 'finance:accounting_reports' %}" class="btn btn-sm {% if nav_active == 'reports' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "file-spreadsheet" "w-4 h-4" %} گزارش‌های مالی</a>
     <a href="{% url 'finance:accounting_customers' %}" class="btn btn-sm {% if nav_active == 'customers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "user-check" "w-4 h-4" %} مرکز مشتریان</a>
+    <a href="{% url 'dashboard:suspended' %}" class="btn btn-sm btn-soft">{% icon "alert-triangle" "w-4 h-4" %} پروژه‌های معلق</a>
     <a href="{% url 'finance:accounting_periods' %}" class="btn btn-sm {% if nav_active == 'periods' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "lock" "w-4 h-4" %} قفل ماه‌ها</a>
 </nav>

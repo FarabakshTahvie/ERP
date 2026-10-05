@@ -98,13 +98,18 @@ def _sum(qs, expr):
 
 # ---------- نمای کلی ----------
 def accounting_overview(period_key="all", today=None):
+    from projects.services import held_project_ids
     start, end = period_range(period_key, today)
-    invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED)
+    held = held_project_ids()
+    invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).exclude(project_id__in=held)
     collected_qs = (
         Payment.objects.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
+        .exclude(invoice__project_id__in=held)
         .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at")).filter(_range_q("eff_at", start, end))
     )
     moves = StockMovement.objects.filter(_range_q("created_at", start, end))
+    ct = ContentType.objects.get_for_model(Project)
+    moves_linked_held = moves.exclude(related_content_type=ct, related_object_id__in=held)
     final_rows = list(projects_financial_queryset().filter(final_done=True).filter(_range_q("final_at", start, end)))
     return {
         "period": period_key, "start": start, "end": end,
@@ -113,11 +118,11 @@ def accounting_overview(period_key="all", today=None):
         "receivable": _sum(invoices, ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY)),
         "purchases": _sum(PurchaseLine.objects.filter(_range_q("purchase__purchased_at", start, end)), VALUE),
         "opening": _sum(moves.filter(movement_type=MT.OPENING), VALUE),
-        "consumption": _sum(moves.filter(movement_type=MT.OUT), VALUE),
+        "consumption": _sum(moves_linked_held.filter(movement_type=MT.OUT), VALUE),
         "consumption_unlinked": _sum(moves.filter(movement_type=MT.OUT, related_content_type__isnull=True), VALUE),
-        "adjust_loss": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.OUT), VALUE),
-        "adjust_gain": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.IN), VALUE),
-        "returns": _sum(moves.filter(movement_type=MT.RETURN), VALUE),
+        "adjust_loss": _sum(moves_linked_held.filter(movement_type=MT.ADJUST, direction=DIR.OUT), VALUE),
+        "adjust_gain": _sum(moves_linked_held.filter(movement_type=MT.ADJUST, direction=DIR.IN), VALUE),
+        "returns": _sum(moves_linked_held.filter(movement_type=MT.RETURN), VALUE),
         "final_result": sum((p.net_result for p in final_rows), ZERO),
         "final_count": len(final_rows),
         "stock_value": _sum(StockLot.objects.all(), LOT_VALUE),
