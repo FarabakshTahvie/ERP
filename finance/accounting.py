@@ -403,7 +403,7 @@ def add_invoice_adjustment(*, invoice, title, amount_raw, kind, reason, actor):
         raise ValueError("دلیل اصلاح را بنویسید.")
     if kind not in ("increase", "decrease"):
         raise ValueError("نوع اصلاح معتبر انتخاب کنید.")
-    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
     if project_prices_editable(invoice.project):
         raise ValueError("قیمت‌ها هنوز قابل ویرایش‌اند؛ از ویرایشگر پیش‌فاکتور استفاده کنید.")
     amount = parse_amount(amount_raw)

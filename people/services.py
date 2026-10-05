@@ -157,7 +157,7 @@ def set_user_active(*, user, active, actor, reason):
     if active:
         return 0
     from projects.services import _assign_stage_responsible, notify_stage_responsible
-    stages = list(ProjectStage.objects.select_for_update().select_related("step_template", "project")
+    stages = list(ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project")
                   .filter(assigned_to=user, status=ProjectStage.Status.IN_PROGRESS,
                           project__status=Project.Status.IN_PROGRESS))
     for st in stages:

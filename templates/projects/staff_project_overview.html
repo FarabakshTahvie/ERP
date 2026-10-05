@@ -256,13 +256,19 @@ document.addEventListener('DOMContentLoaded', function() {
         var cb = e.target.closest('[data-cut]');
         if (!cb) return;
         var row = cb.closest('[data-cut-row]'), err = document.querySelector('[data-cut-error]');
-        var fd = new FormData(); fd.append('index', cb.dataset.cut); fd.append('done', cb.checked ? '1' : '0');
+        var fd = new FormData();
+        fd.append('index', cb.dataset.cut);
+        fd.append('done', cb.checked ? '1' : '0');
         cb.disabled = true;
-        window.fbSend(row.dataset.url, fd, csrf).then(function (res) {
-            cb.disabled = false;
-            if (res.ok) { err.classList.add('hidden'); row.querySelector('[data-file-done]').textContent = String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
-            else { cb.checked = !cb.checked; err.textContent = res.error; err.classList.remove('hidden'); }
-        });
+        function fail(msg) { cb.checked = !cb.checked; err.textContent = msg; err.classList.remove('hidden'); }
+        window.fbSend(row.dataset.url, fd, window.FB_CSRF).then(function (res) {
+            if (res.ok) {
+                err.classList.add('hidden');
+                row.querySelector('[data-file-done]').textContent =
+                    String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; });
+            } else { fail(res.error || 'ثبت نشد.'); }
+        }).catch(function () { fail('اتصال برقرار نشد؛ دوباره تلاش کنید.'); })
+          .finally(function () { cb.disabled = false; });
     });
 })();
 </script>

@@ -172,7 +172,7 @@ def ensure_install_lines(stage):
 
 @transaction.atomic
 def set_install_line(*, line, status, actual_qty_raw, reason, actor):
-    line = InstallLine.objects.select_for_update().select_related("stage__project").get(pk=line.pk)
+    line = InstallLine.objects.select_for_update(of=("self",)).select_related("stage__project").get(pk=line.pk)
     if not can_edit_ops(actor, line.stage):
         raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
     if status not in (InstallLine.Status.OK, InstallLine.Status.NOT_OK):
@@ -252,7 +252,7 @@ def issue_part_request(*, req, actor, shipping_cost_raw="", photo=None):
     amount = parse_fee(shipping_cost_raw, label="هزینه ارسال")
     photo_file = prepare_part_photo(photo) if photo else None
 
-    req = PartRequest.objects.select_for_update().select_related("item", "project").get(pk=req.pk)
+    req = PartRequest.objects.select_for_update(of=("self",)).select_related("item", "project").get(pk=req.pk)
     if req.status != PartRequest.Status.REQUESTED:
         raise ValueError("این درخواست قبلاً بررسی شده است.")
     breakdown = consume_stock(item=req.item, qty=req.qty, user=actor, related_object=req.project,
@@ -292,7 +292,7 @@ def reject_part_request(*, req, actor, reason):
 
 @transaction.atomic
 def cancel_part_request(*, req, actor):
-    req = PartRequest.objects.select_for_update().select_related("stage__project").get(pk=req.pk)
+    req = PartRequest.objects.select_for_update(of=("self",)).select_related("stage__project").get(pk=req.pk)
     if req.status != PartRequest.Status.REQUESTED:
         raise ValueError("این درخواست قبلاً بررسی شده و قابل لغو نیست.")
     if not (req.requested_by_id == actor.id or is_creator_or_manager(actor, req.project)):

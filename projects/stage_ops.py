@@ -129,7 +129,7 @@ def stage_completion_problem(stage, *, needs_approval=None):
 
 @transaction.atomic
 def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=False):
-    stage = ProjectStage.objects.select_for_update().select_related("step_template", "project").get(pk=stage.pk)
+    stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project").get(pk=stage.pk)
     if stage.kind == StageKind.PROFORMA:
         raise ValueError("این مرحله فقط با «صدور پیش‌فاکتور» از صفحه‌ی ویرایشگر تکمیل می‌شود.")
     if stage.kind == StageKind.FINAL_REVIEW and not via_review:

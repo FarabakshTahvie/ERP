@@ -517,7 +517,7 @@ def assign_stage(stage, target_user, actor, comment):
         raise ValueError("ثبت دلیل ارجاع دستی اجباری است.")
     if target_user is None:
         raise ValueError("مسئول جدید را انتخاب کنید.")
-    stage = (ProjectStage.objects.select_for_update()
+    stage = (ProjectStage.objects.select_for_update(of=("self",))
              .select_related("project", "step_template", "assigned_to").get(pk=stage.pk))
     if stage.project.status != Project.Status.IN_PROGRESS:
         raise ValueError("پروژه در حال اجرا نیست.")
@@ -554,7 +554,7 @@ def resume_suspended_stage(stage, actor, comment):
     comment = (comment or "").strip()
     if not comment:
         raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
-    stage = (ProjectStage.objects.select_for_update()
+    stage = (ProjectStage.objects.select_for_update(of=("self",))
              .select_related("project", "step_template").get(pk=stage.pk))
     if stage.status != ProjectStage.Status.SUSPENDED:
         raise ValueError("این مرحله معلق نیست.")
