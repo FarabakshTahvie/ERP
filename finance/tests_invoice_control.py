@@ -12,7 +12,7 @@ from core.periods import jalali_ym
 from finance import accounting
 from finance.aging import get_customer_aging_data
 from finance.models import AccountingEvent, Invoice, Payment
-from finance.services import approve_payment, cancel_invoice, create_customer_payment, set_invoice_due_date
+from finance.services import approve_payment, cancel_invoice, create_customer_payment, restore_invoice, set_invoice_due_date
 from projects.models import Project, ProjectStage
 from projects.proforma import issue_proforma, save_proforma
 from projects.services import advance_stage, create_project_from_technician_intake
@@ -87,6 +87,41 @@ class CancelInvoiceTests(InvoiceBase):
         with self.assertRaises(ValueError) as ctx:
             cancel_invoice(invoice=inv2, reason="دلیل", actor=self.manager)
         self.assertIn("بسته شده", str(ctx.exception))
+
+    def test_restore_invoice(self):
+        # فقط مدیر، دلیل اجباری، فقط فاکتور لغو‌شده، ماه بسته خطا می‌دهد، paid_amount بازمحاسبه می‌شود
+        # 1. Non-manager fails
+        self.invoice.status = Invoice.Status.CANCELLED
+        self.invoice.save()
+        for actor in (self.accountant, self.tech):
+            with self.assertRaises(ValueError):
+                restore_invoice(invoice=self.invoice, reason="دلیل", actor=actor)
+
+        # 2. Reason required
+        with self.assertRaises(ValueError):
+            restore_invoice(invoice=self.invoice, reason=" ", actor=self.manager)
+
+        # 3. Only cancelled invoice
+        self.invoice.status = Invoice.Status.SENT
+        self.invoice.save()
+        with self.assertRaises(ValueError):
+            restore_invoice(invoice=self.invoice, reason="دلیل", actor=self.manager)
+
+        # 4. Locked month fails
+        self.invoice.status = Invoice.Status.CANCELLED
+        self.invoice.save()
+        y, m = jalali_ym(self.today)
+        PeriodLock.objects.create(year=y, month=m, is_locked=True)
+        with self.assertRaises(ValueError) as ctx:
+            restore_invoice(invoice=self.invoice, reason="دلیل", actor=self.manager)
+        self.assertIn("بسته شده", str(ctx.exception))
+        PeriodLock.objects.filter(year=y, month=m).delete()
+
+        # 5. Success and paid_amount recalculated
+        restored = restore_invoice(invoice=self.invoice, reason="برگشت فاکتور", actor=self.manager)
+        self.assertEqual(restored.status, Invoice.Status.SENT)
+        self.assertEqual(restored.paid_amount, Decimal("0"))
+        self.assertTrue(AccountingEvent.objects.filter(project=self.project, text__contains="برگردانده شد").exists())
 
     def test_cancelled_invoice_refuses_approve_and_new_customer_payment(self):
         pending = self.pay()

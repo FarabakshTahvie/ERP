@@ -92,32 +92,45 @@ def _range_q(field, start, end, is_date=False):
     return q
 
 
+from .aging import debt_invoices
+
 def _sum(qs, expr):
     return qs.aggregate(t=Coalesce(Sum(expr), Value(ZERO), output_field=MONEY))["t"]
 
 
+def _remaining(qs):
+    return _sum(qs, ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
+
+
 # ---------- نمای کلی ----------
 def accounting_overview(period_key="all", today=None):
+    from projects.services import held_project_ids
     start, end = period_range(period_key, today)
-    invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED)
+    held = held_project_ids()
+    invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).exclude(project_id__in=held)
+    debts = debt_invoices(Invoice.objects.all())
     collected_qs = (
         Payment.objects.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
+        .exclude(invoice__project_id__in=held)
         .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at")).filter(_range_q("eff_at", start, end))
     )
     moves = StockMovement.objects.filter(_range_q("created_at", start, end))
+    ct = ContentType.objects.get_for_model(Project)
+    moves_linked_held = moves.exclude(related_content_type=ct, related_object_id__in=held)
     final_rows = list(projects_financial_queryset().filter(final_done=True).filter(_range_q("final_at", start, end)))
     return {
         "period": period_key, "start": start, "end": end,
         "sales": _sum(invoices.filter(_range_q("issue_date", start, end, is_date=True)), F("total_amount")),
         "collected": _sum(collected_qs, F("amount")),
-        "receivable": _sum(invoices, ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY)),
+        "receivable": _remaining(debts.exclude(project_id__in=held)),
+        "held_receivable": _remaining(debts.filter(project_id__in=held)),
         "purchases": _sum(PurchaseLine.objects.filter(_range_q("purchase__purchased_at", start, end)), VALUE),
         "opening": _sum(moves.filter(movement_type=MT.OPENING), VALUE),
-        "consumption": _sum(moves.filter(movement_type=MT.OUT), VALUE),
+        "consumption": _sum(moves_linked_held.filter(movement_type=MT.OUT), VALUE),
         "consumption_unlinked": _sum(moves.filter(movement_type=MT.OUT, related_content_type__isnull=True), VALUE),
-        "adjust_loss": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.OUT), VALUE),
-        "adjust_gain": _sum(moves.filter(movement_type=MT.ADJUST, direction=DIR.IN), VALUE),
-        "returns": _sum(moves.filter(movement_type=MT.RETURN), VALUE),
+        "adjust_loss": _sum(moves_linked_held.filter(movement_type=MT.ADJUST, direction=DIR.OUT), VALUE),
+        "adjust_gain": _sum(moves_linked_held.filter(movement_type=MT.ADJUST, direction=DIR.IN), VALUE),
+        "returns": _sum(moves_linked_held.filter(movement_type=MT.RETURN), VALUE),
         "final_result": sum((p.net_result for p in final_rows), ZERO),
         "final_count": len(final_rows),
         "stock_value": _sum(StockLot.objects.all(), LOT_VALUE),
@@ -403,7 +416,7 @@ def add_invoice_adjustment(*, invoice, title, amount_raw, kind, reason, actor):
         raise ValueError("دلیل اصلاح را بنویسید.")
     if kind not in ("increase", "decrease"):
         raise ValueError("نوع اصلاح معتبر انتخاب کنید.")
-    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
     if project_prices_editable(invoice.project):
         raise ValueError("قیمت‌ها هنوز قابل ویرایش‌اند؛ از ویرایشگر پیش‌فاکتور استفاده کنید.")
     amount = parse_amount(amount_raw)

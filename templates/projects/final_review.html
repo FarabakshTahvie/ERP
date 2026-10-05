@@ -28,6 +28,84 @@
             <p class="mt-0.5 leading-relaxed">{{ project.notes }}</p>
         </div>
         {% endif %}
+
+        {% if project.status == 'cancelled' %}
+        <div role="alert" class="alert alert-soft alert-error mt-2">
+            <span class="text-xs font-semibold">این پروژه لغو شده و تایید نهایی ممکن نیست.</span>
+        </div>
+        {% elif stage.status == 'suspended' %}
+        <div role="alert" class="alert alert-soft alert-warning mt-2">
+            <span class="text-xs font-semibold">این مرحله معلق است.</span>
+            {% if caps.suspended_view %}
+            <a href="{% url 'dashboard:held_detail' project.id %}" class="link link-primary text-xs font-semibold">مشاهده جزئیات تعلیق</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if can_approve and project.status == 'in_progress' %}
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-base-300">
+            {% if can_suspend and caps.stages_assign %}
+            <button type="button" class="btn btn-soft btn-sm" onclick="document.getElementById('modal-suspend-project').showModal()">
+                {% icon "pause-circle" "w-4 h-4" %} تعلیق پروژه
+            </button>
+            {% endif %}
+
+            {% if can_cancel_now and caps.projects_cancel %}
+            <button type="button" class="btn btn-soft btn-error btn-sm" onclick="document.getElementById('modal-cancel-project').showModal()">
+                {% icon "x-circle" "w-4 h-4" %} لغو پروژه
+            </button>
+            {% endif %}
+        </div>
+
+        {% if can_suspend and caps.stages_assign %}
+        <dialog id="modal-suspend-project" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-base mb-2">تعلیق پروژه</h3>
+                <p class="text-xs fb-muted mb-4">آیا از تعلیق این پروژه اطمینان دارید؟ مرحله‌ی بازبینی نهایی معلق شده و پروژه به لیست پروژه‌های معلق منتقل می‌شود.</p>
+                <form method="post" action="{% url 'dashboard:stage_suspend' stage.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <div class="fb-field mb-4">
+                        <label class="fb-label">دلیل تعلیق (اجباری)</label>
+                        <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل تعلیق را وارد کنید..."></textarea>
+                    </div>
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-suspend-project').close()">انصراف</button>
+                        <button type="submit" class="btn btn-soft btn-sm">تایید و تعلیق</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>بستن</button></form>
+        </dialog>
+        {% endif %}
+
+        {% if can_cancel_now and caps.projects_cancel %}
+        <dialog id="modal-cancel-project" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-base mb-2 text-error">لغو کامل پروژه</h3>
+                <p class="text-xs fb-muted mb-4">با لغو پروژه، تمامی مراحل در حال انجام متوقف شده و وضعیت پروژه به «لغوشده» تغییر می‌یابد.</p>
+                <form method="post" action="{% url 'dashboard:suspended_cancel' stage.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'dashboard:suspended' %}?tab=cancelled">
+                    <div class="fb-field mb-3">
+                        <label class="fb-label">دلیل لغو (اجباری)</label>
+                        <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل لغو را وارد کنید..."></textarea>
+                    </div>
+                    {% if invoice %}
+                    <label class="flex items-center gap-2 text-xs cursor-pointer mb-4">
+                        <input type="checkbox" name="cancel_invoice" class="checkbox checkbox-sm"> فاکتور هم لغو شود
+                    </label>
+                    {% endif %}
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-cancel-project').close()">انصراف</button>
+                        <button type="submit" class="btn btn-soft btn-error btn-sm">تایید و لغو پروژه</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>بستن</button></form>
+        </dialog>
+        {% endif %}
+        {% endif %}
     </div>
 
     <!-- ۲. پیش‌فاکتور -->

@@ -31,10 +31,13 @@ def get_jalali_date_range(start_date, end_date):
 def generate_periodic_financial_report(start_g, end_g):
     """فقط اعداد؛ بدون برچسب سود/زیان. فروش = همه‌ی فاکتورهای غیرلغوشده با تاریخ صدور در بازه؛
     دریافتی = پرداخت تاییدشده‌ی غیراعتباری با تاریخ مؤثر Coalesce(paid_at, approved_at, created_at)."""
+    from projects.services import held_project_ids
+    held = held_project_ids()
     start_dt = timezone.make_aware(datetime.combine(start_g, time.min))
     end_dt = timezone.make_aware(datetime.combine(end_g, time.max))
 
     total_revenue = (Invoice.objects.exclude(status=Invoice.Status.CANCELLED)
+                     .exclude(project_id__in=held)
                      .filter(issue_date__gte=start_g, issue_date__lte=end_g)
                      .aggregate(t=Sum("total_amount"))["t"] or Decimal("0"))
 
@@ -42,12 +45,13 @@ def generate_periodic_financial_report(start_g, end_g):
         purchase__purchased_at__date__gte=start_g, purchase__purchased_at__date__lte=end_g,
     ).aggregate(t=Sum(models.F("qty") * models.F("unit_cost")))["t"] or Decimal("0")
 
-    operational_costs_sum = ProjectCost.objects.filter(
+    operational_costs_sum = ProjectCost.objects.exclude(project_id__in=held).filter(
         created_at__gte=start_dt, created_at__lte=end_dt,
     ).aggregate(t=Sum("amount"))["t"] or Decimal("0")
 
     total_received = (Payment.objects.filter(status=Payment.Status.APPROVED)
                       .exclude(method=Payment.Method.CREDIT)
+                      .exclude(invoice__project_id__in=held)
                       .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at"))
                       .filter(eff_at__gte=start_dt, eff_at__lte=end_dt)
                       .aggregate(t=Sum("amount"))["t"] or Decimal("0"))

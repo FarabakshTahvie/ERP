@@ -17,9 +17,10 @@ MGR_ACC = MGR | {"accountant"}
 EXPECTED = {
     "dashboard.manager": MGR, "periods.unlock": MGR, "people.edit": MGR, "activity.view": MGR, "stages.assign": MGR,
     "admin.panel": MGR, "projects.cancel": MGR, "invoice.cancel": MGR, "notifications.manage": MGR,
+    "projects.restore": MGR,
     "accounting.access": MGR_ACC, "payments.review": MGR_ACC, "pricing.edit": MGR_ACC, "costs.manage": MGR_ACC,
     "final_review.view": MGR_ACC, "money.view": MGR_ACC, "periods.lock": MGR_ACC, "invoice.adjust": MGR_ACC,
-    "people.view": MGR_ACC,
+    "people.view": MGR_ACC, "suspended.view": MGR_ACC,
     "inventory.manage": {"warehouse", "accountant"},
     "projects.create": {"reception", "accountant"},
 }

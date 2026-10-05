@@ -271,7 +271,7 @@ def reject_payment(payment, rejected_by, reason=""):
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("برای رد پرداخت، ذکر دلیل اجباری است.")
-    payment = Payment.objects.select_for_update().select_related("invoice").get(pk=payment.pk)
+    payment = Payment.objects.select_for_update(of=("self",)).select_related("invoice").get(pk=payment.pk)
     if payment.status != Payment.Status.PENDING:
         raise ValueError("این پرداخت قبلاً بررسی شده است.")
     payment.status = Payment.Status.REJECTED
@@ -376,7 +376,7 @@ def cancel_invoice(*, invoice, reason, actor):
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("دلیل لغو فاکتور را بنویسید.")
-    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
     if invoice.status == Invoice.Status.CANCELLED:
         raise ValueError("این فاکتور قبلاً لغو شده است.")
     assert_open(invoice.issue_date, "لغو فاکتور")
@@ -403,7 +403,7 @@ def set_invoice_due_date(*, invoice, due_date, actor):
     from .models import AccountingEvent
     if not can(actor, "invoice.adjust"):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند سررسید ثبت کند.")
-    invoice = Invoice.objects.select_for_update().select_related("project").get(pk=invoice.pk)
+    invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
     if invoice.status in (Invoice.Status.CANCELLED, Invoice.Status.PAID):
         raise ValueError("برای فاکتور لغوشده یا تسویه‌شده سررسید ثبت نمی‌شود.")
     if due_date is not None and invoice.issue_date and due_date < invoice.issue_date:
@@ -416,5 +416,29 @@ def set_invoice_due_date(*, invoice, due_date, actor):
     show = lambda d: jalali_str(d, fmt="%Y/%m/%d") if d else "ندارد"
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
               text=f"سررسید فاکتور {invoice.number}: {show(old)} ← {show(due_date)}")
+    return invoice
+
+
+@transaction.atomic
+def restore_invoice(*, invoice, reason, actor):
+    """برگرداندن فاکتور لغوشده (فقط مدیر). پرداخت‌های ردشده‌ی هنگام لغو برنمی‌گردند."""
+    from core.capabilities import can
+    from core.periods import assert_open
+    from .accounting import log_event
+    from .models import AccountingEvent
+    if not can(actor, "projects.restore"):
+        raise ValueError("فقط مدیر می‌تواند فاکتور لغوشده را برگرداند.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("دلیل برگرداندن فاکتور را بنویسید.")
+    invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
+    if invoice.status != Invoice.Status.CANCELLED:
+        raise ValueError("این فاکتور لغو نشده است.")
+    assert_open(invoice.issue_date, "برگرداندن فاکتور")
+    invoice.status = Invoice.Status.SENT
+    invoice.save(update_fields=["status"])
+    recalculate_invoice_paid_amount(invoice)
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
+              amount=invoice.total_amount, text=f"فاکتور {invoice.number} برگردانده شد — {reason}")
     return invoice
 

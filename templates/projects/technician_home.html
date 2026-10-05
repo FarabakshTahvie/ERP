@@ -62,26 +62,6 @@
     </div>
     {% endif %}
 
-    <div class="overflow-x-auto">
-        <div role="tablist" class="tabs tabs-border">
-            {% for tab in tabs.tabs %}
-            <input type="radio" name="dash-tabs" role="tab" class="tab whitespace-nowrap"
-                   aria-label="{{ tab.label }}{% if tab.count is not None %} {{ tab.count|fa_digits }}{% endif %}"
-                   {% if tab.is_active %}checked{% endif %}
-                   hx-get="{{ tab.url }}?{{ tabs.tab_param }}={{ tab.key }}"
-                   hx-target="#{{ tab.container_id }}"
-                   hx-swap="innerHTML"
-                   hx-trigger="click">
-            <div role="tabpanel" class="tab-content pt-3">
-                {% if tab.hint %}<p class="fb-hint mb-2">{{ tab.hint }}</p>{% endif %}
-                <div id="{{ tab.container_id }}">
-                    {% if tab.eager_html %}{{ tab.eager_html|safe }}{% else %}
-                    <div class="flex justify-center py-6"><span class="loading loading-spinner loading-sm"></span></div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+    {% include "utils/partials/tab_panels.html" %}
 </div>
 {% endblock %}

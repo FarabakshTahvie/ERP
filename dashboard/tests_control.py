@@ -195,7 +195,7 @@ class ControlViewsTests(ControlBase):
     def test_pages_manager_only(self):
         s = self.stage()
         urls = [reverse("dashboard:stages"), reverse("dashboard:stages_table"),
-                reverse("dashboard:assign_stage", args=[s.id]), reverse("dashboard:suspended")]
+                reverse("dashboard:assign_stage", args=[s.id])]
         c = Client(); c.force_login(self.manager)
         for u in urls:
             self.assertEqual(c.get(u).status_code, 200, u)
@@ -203,6 +203,16 @@ class ControlViewsTests(ControlBase):
             c.force_login(user)
             for u in urls:
                 self.assertEqual(c.get(u).status_code, 404, f"{user.username} {u}")
+
+    def test_suspended_page_accessible_by_manager_and_accountant(self):
+        url = reverse("dashboard:suspended")
+        c = Client()
+        for user in (self.manager, self.accountant):
+            c.force_login(user)
+            self.assertEqual(c.get(url).status_code, 200, f"{user.username} {url}")
+        for user in (self.tech, self.client_user):
+            c.force_login(user)
+            self.assertEqual(c.get(url).status_code, 404, f"{user.username} {url}")
 
     def test_stages_table_filters_unowned(self):
         self.stage()

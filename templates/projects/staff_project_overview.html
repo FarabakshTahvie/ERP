@@ -120,21 +120,22 @@
                         <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor.get_full_name|default:ev.actor.username }}</div>
                         {% endif %}
                     {% endfor %}
-                    {% include "projects/partials/stage_files.html" %}
-                    {% if s.ops %}{% include "projects/partials/stage_ops.html" %}{% endif %}
-                    {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
-                    </div>
-                    </div>
+                </div>
+            </div>
+
+            {% include "projects/partials/stage_files.html" %}
+            {% if s.ops %}{% include "projects/partials/stage_ops.html" %}{% endif %}
+            {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
 
             {% if s.is_candidate and not s.is_mine and s.status == 'in_progress' %}
-            <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3 ms-10">
+            <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3">
                 {% csrf_token %}
                 <button class="btn btn-primary btn-sm">پذیرفتن این وظیفه</button>
             </form>
             {% endif %}
 
             {% if s.is_mine and s.status == 'in_progress' %}
-            <div class="mt-3 ms-10">
+            <div class="mt-3">
                 {% if s.kind == 'proforma' %}
                 <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-primary btn-sm">ورود به ویرایشگر پیش‌فاکتور</a>
                 {% elif s.kind == 'final_review' %}
@@ -153,10 +154,10 @@
                     </div>
                     {% endif %}
                     <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>
-                    <div class="flex gap-2">
-                        <button class="btn btn-primary btn-sm flex-1">تکمیل شد</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="btn btn-primary btn-sm flex-1 min-w-0">تکمیل شد</button>
                         {% if s.transfer_candidates %}
-                        <button type="button" class="btn btn-soft btn-sm flex-1" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
+                        <button type="button" class="btn btn-soft btn-sm flex-1 min-w-0" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
                         {% endif %}
                     </div>
                 </form>
@@ -256,13 +257,19 @@ document.addEventListener('DOMContentLoaded', function() {
         var cb = e.target.closest('[data-cut]');
         if (!cb) return;
         var row = cb.closest('[data-cut-row]'), err = document.querySelector('[data-cut-error]');
-        var fd = new FormData(); fd.append('index', cb.dataset.cut); fd.append('done', cb.checked ? '1' : '0');
+        var fd = new FormData();
+        fd.append('index', cb.dataset.cut);
+        fd.append('done', cb.checked ? '1' : '0');
         cb.disabled = true;
-        window.fbSend(row.dataset.url, fd, csrf).then(function (res) {
-            cb.disabled = false;
-            if (res.ok) { err.classList.add('hidden'); row.querySelector('[data-file-done]').textContent = String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
-            else { cb.checked = !cb.checked; err.textContent = res.error; err.classList.remove('hidden'); }
-        });
+        function fail(msg) { cb.checked = !cb.checked; err.textContent = msg; err.classList.remove('hidden'); }
+        window.fbSend(row.dataset.url, fd, window.FB_CSRF).then(function (res) {
+            if (res.ok) {
+                err.classList.add('hidden');
+                row.querySelector('[data-file-done]').textContent =
+                    String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; });
+            } else { fail(res.error || 'ثبت نشد.'); }
+        }).catch(function () { fail('اتصال برقرار نشد؛ دوباره تلاش کنید.'); })
+          .finally(function () { cb.disabled = false; });
     });
 })();
 </script>

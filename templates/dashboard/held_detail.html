@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ project.name }} | پروژه‌های معلق{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'dashboard:suspended' %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه‌های معلق</a>
+        <div class="flex items-center gap-3 mt-2 flex-wrap">
+            <h1 class="fb-page-title">پروژه {{ project.name }}</h1>
+            <span class="fb-muted text-sm">({{ project.code }})</span>
+            {% if is_cancelled %}
+            <span class="fb-badge fb-badge-error">لغوشده</span>
+            {% elif has_suspended %}
+            <span class="fb-badge fb-badge-warning">معلق</span>
+            {% endif %}
+        </div>
+        <p class="fb-page-sub">جزئیات مالی و تاریخچه‌ی تصمیم‌گیری برای این پروژه.</p>
+    </div>
+
+    <!-- Financial Stats Card -->
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">خلاصه‌ی وضعیت مالی</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">مبلغ فروش</span>
+                <span class="font-bold text-base font-technical">{{ stats.sales|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">دریافتی</span>
+                <span class="font-bold text-base font-technical text-success">{{ stats.collected|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">مانده طلب</span>
+                <span class="font-bold text-base font-technical text-warning">{{ stats.remaining|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">خروج از انبار</span>
+                <span class="font-bold text-base font-technical">{{ stats.stock_cost|intcomma_fa }}</span>
+            </div>
+            <div class="fb-inset p-3">
+                <span class="text-xs fb-muted block mb-1">هزینه‌های ثبت‌شده</span>
+                <span class="font-bold text-base font-technical">{{ stats.recorded_costs|intcomma_fa }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if has_suspended %}
+    {% for it in sus_reasons %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">مرحله‌ی معلق: {{ it.stage.title }}</h2>
+        {% if it.customer_comment %}<p class="fb-inset text-sm">دلیل رد مشتری: {{ it.customer_comment }}</p>
+        {% elif it.reason %}<p class="fb-inset text-sm">دلیل تعلیق: {{ it.reason }}</p>{% endif %}
+
+        {% if not caps.stages_assign %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            <span class="text-xs">تغییر وضعیت فقط با مدیر است.</span>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-2">
+            {% if caps.stages_assign %}
+            <button type="button" class="btn btn-soft btn-sm" onclick="document.getElementById('modal-resume-{{ it.stage.id }}').showModal()">بازگشت به چرخه</button>
+            {% endif %}
+
+            {% if caps.projects_cancel %}
+            <button type="button" class="btn btn-soft btn-error btn-sm" onclick="document.getElementById('modal-cancel-{{ it.stage.id }}').showModal()">لغو پروژه</button>
+            {% endif %}
+        </div>
+
+        {% if caps.stages_assign %}
+        <dialog id="modal-resume-{{ it.stage.id }}" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-base mb-2">بازگشت به چرخه</h3>
+                <p class="text-xs fb-muted mb-4">آیا از بازگشت این پروژه به چرخه‌ی کاری اطمینان دارید؟ این مرحله مجدداً فعال خواهد شد.</p>
+                <form method="post" action="{% url 'dashboard:suspended_resume' it.stage.id %}" data-fb-once>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <div class="fb-field mb-4">
+                        <label class="fb-label">دلیل بازگشت (اجباری)</label>
+                        <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل بازگشت را بنویسید..."></textarea>
+                    </div>
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-resume-{{ it.stage.id }}').close()">انصراف</button>
+                        <button type="submit" class="btn btn-primary btn-sm">تایید و بازگشت</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>بستن</button></form>
+        </dialog>
+        {% endif %}
+
+        {% if caps.projects_cancel %}
+        <dialog id="modal-cancel-{{ it.stage.id }}" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-base mb-2 text-error">لغو کامل پروژه</h3>
+                <p class="text-xs fb-muted mb-4">با لغو پروژه، کلیه فرآیندها متوقف خواهند شد.</p>
+                <form method="post" action="{% url 'dashboard:suspended_cancel' it.stage.id %}" data-fb-once>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'dashboard:suspended' %}?tab=cancelled">
+                    <div class="fb-field mb-3">
+                        <label class="fb-label">دلیل لغو (اجباری)</label>
+                        <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل لغو را بنویسید..."></textarea>
+                    </div>
+                    {% if invoice %}
+                    <label class="flex items-center gap-2 text-xs cursor-pointer mb-4">
+                        <input type="checkbox" name="cancel_invoice" class="checkbox checkbox-sm"> فاکتور هم لغو شود
+                    </label>
+                    {% endif %}
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-cancel-{{ it.stage.id }}').close()">انصراف</button>
+                        <button type="submit" class="btn btn-soft btn-error btn-sm">تایید و لغو پروژه</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>بستن</button></form>
+        </dialog>
+        {% endif %}
+    </section>
+    {% endfor %}
+    {% endif %}
+
+    {% if is_cancelled %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اطلاعات لغو پروژه</h2>
+        {% if cancel_evt %}
+        <p class="fb-inset text-sm">دلیل لغو: {{ cancel_evt.comment }} (توسط {{ cancel_evt.actor.get_full_name|default:cancel_evt.actor.username }})</p>
+        {% endif %}
+
+        {% if not caps.projects_restore %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            <span class="text-xs">تغییر وضعیت فقط با مدیر است.</span>
+        </div>
+        {% endif %}
+
+        {% if caps.projects_restore %}
+        <div class="flex gap-2">
+            <button type="button" class="btn btn-soft btn-primary btn-sm" onclick="document.getElementById('modal-restore-project').showModal()">بازگرداندن پروژه از لغو</button>
+        </div>
+
+        <dialog id="modal-restore-project" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-base mb-2">بازگرداندن پروژه از لغو</h3>
+                <p class="text-xs fb-muted mb-4">آیا از بازگرداندن این پروژه به حالت قبل اطمینان دارید؟</p>
+                <form method="post" action="{% url 'dashboard:project_restore' project.id %}" data-fb-once>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <div class="fb-field mb-4">
+                        <label class="fb-label">دلیل بازگرداندن (اجباری)</label>
+                        <textarea name="comment" required rows="2" class="textarea w-full" placeholder="دلیل بازگرداندن را بنویسید..."></textarea>
+                    </div>
+                    {% if invoice %}
+                    <label class="flex items-center gap-2 text-xs cursor-pointer mb-4">
+                        <input type="checkbox" name="restore_invoice" class="checkbox checkbox-sm"> فاکتور هم از لغو برگردد
+                    </label>
+                    {% endif %}
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-restore-project').close()">انصراف</button>
+                        <button type="submit" class="btn btn-primary btn-sm">تایید و بازگرداندن</button>
+                    </div>
+                </form>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>بستن</button></form>
+        </dialog>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if invoice %}
+    <div class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">فاکتور پروژه</h2>
+        <div class="flex items-center justify-between text-sm">
+            <div class="flex items-center gap-2">
+                <span>شماره فاکتور: {{ invoice.number|fa_digits }}</span>
+                <a href="{% url 'finance:accounting_project' project.id %}" class="link link-primary text-xs">پرونده‌ی مالی</a>
+            </div>
+            <span class="fb-badge {% if invoice.status == 'cancelled' %}fb-badge-error{% else %}fb-badge-info{% endif %}">{{ invoice.get_status_display }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">رویدادهای اخیر پروژه</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead>
+                    <tr>
+                        <th>زمان</th>
+                        <th>مرحله</th>
+                        <th>کاربر</th>
+                        <th>توضیحات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in recent_events %}
+                    <tr>
+                        <td>{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M"|fa_digits }}</td>
+                        <td>{{ ev.stage.title }}</td>
+                        <td>{{ ev.actor.get_full_name|default:ev.actor.username|default:"—" }}</td>
+                        <td>{{ ev.comment|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 fb-muted">رویدادی ثبت نشده است.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from accounts.models import User
 from utils.utils import guess_file_kind
-from .models import CutDone, ProjectFile, ProjectStage, StageEvent, StageKind
+from .models import CutDone, Project, ProjectFile, ProjectStage, StageEvent, StageKind
 from .services import advance_stage, user_is_accountant
 
 MAX_STAGE_FILES = 200
@@ -30,6 +30,8 @@ def parse_cut_count(raw):
 
 
 def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None):
+    if stage.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
     if not can_upload_to_stage(uploader, stage):
         raise ValueError("شما اجازه‌ی ارسال فایل در این مرحله را ندارید.")
     if uploaded is None:
@@ -77,6 +79,8 @@ def cuts_summary(project):
 
 def set_cut(*, file, index, done, actor):
     """صریح و idempotent (نه toggle): دو کلیک پشت‌سرهم نتیجه‌ی مبهم نمی‌دهد."""
+    if file.stage.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
     cutting = file.stage.project.stages.filter(kind=StageKind.CUTTING).first()
     if cutting is None or cutting.status != ProjectStage.Status.IN_PROGRESS:
         raise ValueError("مرحله‌ی برش‌کاری فعال نیست.")
@@ -129,7 +133,7 @@ def stage_completion_problem(stage, *, needs_approval=None):
 
 @transaction.atomic
 def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=False):
-    stage = ProjectStage.objects.select_for_update().select_related("step_template", "project").get(pk=stage.pk)
+    stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project").get(pk=stage.pk)
     if stage.kind == StageKind.PROFORMA:
         raise ValueError("این مرحله فقط با «صدور پیش‌فاکتور» از صفحه‌ی ویرایشگر تکمیل می‌شود.")
     if stage.kind == StageKind.FINAL_REVIEW and not via_review:

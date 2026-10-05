@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Project, ProjectStage, StageEvent, ProjectService, ProjectMaterial, WorkflowStepTemplate, StageKind
@@ -301,6 +302,8 @@ def create_project_stages_from_template(project):
 
 @transaction.atomic
 def advance_stage(stage, actor, new_status, comment):
+    if stage.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
     if not comment or not comment.strip():
         raise ValueError("ثبت توضیح برای این مرحله اجباری است.")
 
@@ -457,6 +460,8 @@ def claim_stage(stage, user):
     """کاربری که در candidate_users هست (یا ادمین) این کار را رسماً برمی‌دارد."""
     from accounts.models import User
     from .models import ProjectStage
+    if stage.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
     if stage.status != ProjectStage.Status.IN_PROGRESS:
         raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id:
@@ -517,7 +522,7 @@ def assign_stage(stage, target_user, actor, comment):
         raise ValueError("ثبت دلیل ارجاع دستی اجباری است.")
     if target_user is None:
         raise ValueError("مسئول جدید را انتخاب کنید.")
-    stage = (ProjectStage.objects.select_for_update()
+    stage = (ProjectStage.objects.select_for_update(of=("self",))
              .select_related("project", "step_template", "assigned_to").get(pk=stage.pk))
     if stage.project.status != Project.Status.IN_PROGRESS:
         raise ValueError("پروژه در حال اجرا نیست.")
@@ -545,6 +550,78 @@ def assign_stage(stage, target_user, actor, comment):
     return stage
 
 
+CANCEL_EVENT_PREFIX = "پروژه لغو شد"   # تنها منبع متن ردپای لغو؛ تاریخ لغو در جدول از همین پیدا می‌شود
+
+
+def held_project_ids():
+    """پروژه‌هایی که از اعداد داشبورد مالی بیرون‌اند: لغوشده، یا در حال اجرا با مرحله‌ی معلق. تنها منبع این تعریف."""
+    return list(Project.objects.filter(
+        Q(status=Project.Status.CANCELLED)
+        | Q(status=Project.Status.IN_PROGRESS, stages__status=ProjectStage.Status.SUSPENDED)
+    ).values_list("pk", flat=True).distinct())
+
+
+def _current_stage(project):
+    stages = list(project.stages.order_by("order"))
+    live = (ProjectStage.Status.IN_PROGRESS, ProjectStage.Status.WAITING_APPROVAL, ProjectStage.Status.SUSPENDED)
+    return next((s for s in stages if s.status in live), stages[-1] if stages else None)
+
+
+@transaction.atomic
+def suspend_stage(stage, actor, comment):
+    """تعلیق دستی توسط مدیر: فقط مرحله‌ی «در حال انجام» از پروژه‌ی در حال اجرا. مسئول و استخر دست نمی‌خورند."""
+    from core.capabilities import can
+    if not can(actor, "stages.assign"):
+        raise ValueError("فقط مدیر می‌تواند پروژه را معلق کند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل تعلیق اجباری است.")
+    stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("project").get(pk=stage.pk)
+    if stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("پروژه در حال اجرا نیست.")
+    if stage.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("فقط مرحله‌ی «در حال انجام» را می‌توان معلق کرد.")
+    old = stage.status
+    stage.status = ProjectStage.Status.SUSPENDED
+    stage.save(update_fields=["status", "updated_at"])
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status,
+                              comment=f"تعلیق توسط مدیر: {comment}")
+    return stage
+
+
+@transaction.atomic
+def restore_cancelled_project(project, actor, comment, *, restore_invoice=False):
+    """برگرداندن پروژه‌ی لغوشده (فقط مدیر، دلیل اجباری). مرحله‌ها همان‌طور که بودند برمی‌گردند."""
+    from core.capabilities import can
+    from .models import StageApproval
+    if not can(actor, "projects.restore"):
+        raise ValueError("فقط مدیر می‌تواند پروژه‌ی لغوشده را برگرداند.")
+    comment = (comment or "").strip()
+    if not comment:
+        raise ValueError("ثبت دلیل برگرداندن اجباری است.")
+    project = Project.objects.select_for_update().get(pk=project.pk)
+    if project.status != Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو نشده است.")
+    invoice = getattr(project, "invoice", None)
+    if restore_invoice and invoice is not None:
+        from finance.models import Invoice
+        if invoice.status == Invoice.Status.CANCELLED:
+            from finance.services import restore_invoice as restore_invoice_service
+            restore_invoice_service(invoice=invoice, reason=f"برگرداندن پروژه: {comment}", actor=actor)
+    project.status = Project.Status.IN_PROGRESS
+    project.save(update_fields=["status", "updated_at"])
+    for st in ProjectStage.objects.filter(project=project, status=ProjectStage.Status.WAITING_APPROVAL):
+        if not st.approvals.filter(decision=StageApproval.Decision.PENDING).exists():
+            send_stage_for_approval(st, sent_by=actor)      # درخواست قبلی با لغو، لغو شده بود
+    current = _current_stage(project)
+    if current:
+        StageEvent.objects.create(stage=current, actor=actor, from_status=current.status, to_status=current.status,
+                                  comment=f"پروژه از لغو برگشت: {comment}")
+        if current.status == ProjectStage.Status.IN_PROGRESS:
+            notify_stage_responsible(current, reason="برگشت پروژه از لغو")
+    return project
+
+
 @transaction.atomic
 def resume_suspended_stage(stage, actor, comment):
     """بازگشت مرحله‌ی معلق به چرخه. مرحله‌ی تاییدِ مشتری دوباره برای مشتری فرستاده می‌شود."""
@@ -554,7 +631,7 @@ def resume_suspended_stage(stage, actor, comment):
     comment = (comment or "").strip()
     if not comment:
         raise ValueError("ثبت دلیل بازگشت به چرخه اجباری است.")
-    stage = (ProjectStage.objects.select_for_update()
+    stage = (ProjectStage.objects.select_for_update(of=("self",))
              .select_related("project", "step_template").get(pk=stage.pk))
     if stage.status != ProjectStage.Status.SUSPENDED:
         raise ValueError("این مرحله معلق نیست.")
@@ -613,11 +690,9 @@ def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
         status=PartRequest.Status.CANCELLED, decided_by=actor, decided_at=timezone.now(),
         decision_note="پروژه لغو شد")
     stage = ProjectStage.objects.get(pk=stage.pk)
-    old = stage.status
-    stage.status = ProjectStage.Status.REJECTED
-    stage.save(update_fields=["status", "updated_at"])
-    StageEvent.objects.create(stage=stage, actor=actor, from_status=old, to_status=stage.status,
-                              comment=f"پروژه لغو شد{invoice_note}: {comment}")
+    StageEvent.objects.create(stage=stage, actor=actor, from_status=stage.status, to_status=stage.status,
+                              comment=f"{CANCEL_EVENT_PREFIX}{invoice_note}: {comment}")
+    return stage
 
 
 
@@ -684,6 +759,8 @@ def transfer_stage(stage, from_user, to_user, comment=""):
     """
     from accounts.models import User
     from .models import ProjectStage
+    if stage.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
     if stage.status != ProjectStage.Status.IN_PROGRESS:
         raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id != from_user.id:
