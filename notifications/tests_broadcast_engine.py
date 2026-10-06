@@ -65,6 +65,7 @@ class BroadcastEngineTests(TestCase):
 
         stats = run_process_broadcasts()
         self.assertEqual(stats["waiting"], 1)
+        self.assertEqual(stats["finalized"], 3)
         self.assertEqual(Notification.objects.filter(status=Notification.Status.PENDING).count(), 2) # SMS pending
         self.assertEqual(Notification.objects.filter(status=Notification.Status.PUSH_SENT).count(), 3) # Push sent
 
