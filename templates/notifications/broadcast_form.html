@@ -2,224 +2,142 @@
 {% load custom_tags %}
 {% block title %}ارسال پیام | فرابخش{% endblock %}
 {% block content %}
-<div class="fb-page fb-page--md">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
             <h1 class="fb-page-title">ارسال پیام</h1>
-            <p class="fb-page-sub">ارسال اعلان پوش یا پیامک آزاد به کارکنان، مشتریان یا افراد مشخص</p>
+            <p class="fb-page-sub">اعلان پوش یا پیامک بدون قالب به کارکنان، مشتریان یا افراد مشخص.</p>
         </div>
-        <a href="{% url 'notifications:broadcast_history' %}" class="btn btn-soft btn-sm">
-            {% icon "history" "w-4 h-4" %} تاریخچه و آمار
-        </a>
+        <a href="{% url 'notifications:broadcast_history' %}" class="btn btn-soft btn-sm">{% icon "rotate-ccw" "w-4 h-4" %} تاریخچه و آمار</a>
     </div>
 
-    <!-- تب‌های انتخاب کانال -->
-    <div class="tabs tabs-lift">
-        <!-- تب پوش -->
-        <input type="radio" name="channel_tabs" class="tab" aria-label="پوش نوتیفیکیشن" checked />
-        <div class="tab-content bg-base-100 border-base-300 rounded-box p-6 mt-2">
-            {% if not push_enabled %}
-            <div class="alert alert-soft alert-warning mb-4">
-                <span>این بخش در تنظیمات سرور غیرفعال است.</span>
-                {% if is_admin %}<span class="text-xs font-mono font-technical">NAJVA_ENABLED=False</span>{% endif %}
-            </div>
-            {% endif %}
-
-            <form method="post" action="{% url 'notifications:broadcast_preview' %}" enctype="multipart/form-data" data-fb-once {% if not push_enabled %}class="opacity-60 pointer-events-none"{% endif %}>
-                {% csrf_token %}
-                <input type="hidden" name="channel" value="push">
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="label"><span class="label-text font-semibold">عنوان پوش</span></label>
-                        <input type="text" name="title" id="push-title" class="input input-bordered w-full" maxlength="250" placeholder="مثال: به‌روزرسانی سیستم" required>
-                        <div class="text-xs fb-muted text-left mt-1 font-technical"><span id="push-title-count">0</span> / ۲۵۰</div>
-                    </div>
-
-                    <div>
-                        <label class="label"><span class="label-text font-semibold">متن پیام</span></label>
-                        <textarea name="body" id="push-body" class="textarea textarea-bordered w-full h-24" maxlength="400" placeholder="متن اعلان خود را بنویسید..." required></textarea>
-                        <div class="text-xs fb-muted text-left mt-1 font-technical"><span id="push-body-count">0</span> / ۴۰۰</div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="label"><span class="label-text font-semibold">لینک مقصد (مسیر داخلی)</span></label>
-                            <input type="text" name="link_path" id="push-link" class="input input-bordered w-full" placeholder="/notifications/" dir="ltr">
-                            <div class="flex gap-2 mt-2">
-                                {% for p in preset_links %}
-                                <button type="button" class="btn btn-xs btn-soft" onclick="document.getElementById('push-link').value='{{ p.url }}'">{{ p.label }}</button>
-                                {% endfor %}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="label"><span class="label-text font-semibold">مدت ماندگاری (ساعت)</span></label>
-                            <input type="number" name="ttl_hours" class="input input-bordered w-full font-technical" value="24" min="1" max="168">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="label"><span class="label-text font-semibold">تصویر بزرگ (در صورت تمایل)</span></label>
-                            <input type="file" name="image_file" class="file-input file-input-bordered w-full" accept=".jpg,.jpeg,.png,.webp">
-                            <span class="text-xs fb-muted mt-1 block">حداکثر ۲ مگابایت (JPG/PNG/WEBP)</span>
-                        </div>
-                        <div>
-                            <label class="label"><span class="label-text font-semibold">آیکون کوچک (در صورت تمایل)</span></label>
-                            <input type="text" name="icon_name" class="input input-bordered w-full" placeholder="خالی = آیکون پیش‌فرض فرابخش" dir="ltr">
-                        </div>
-                    </div>
-
-                    <!-- بخش انتخاب مخاطب -->
-                    <div class="divider">مخاطبان</div>
-                    <div class="space-y-3">
-                        <div class="form-control">
-                            <label class="label cursor-pointer justify-start gap-3">
-                                <input type="radio" name="audience_kind" value="all_staff" class="radio radio-primary" checked>
-                                <span class="label-text font-medium">همه کارکنان (مدیران و تکنسین‌ها)</span>
-                            </label>
-                        </div>
-                        <div class="form-control">
-                            <label class="label cursor-pointer justify-start gap-3">
-                                <input type="radio" name="audience_kind" value="specialty" class="radio radio-primary">
-                                <span class="label-text font-medium">تکنسین‌ها با تخصص خاص:</span>
-                            </label>
-                            <div class="flex flex-wrap gap-3 mr-7 mt-1">
-                                {% for s in specialties %}
-                                <label class="label cursor-pointer gap-2">
-                                    <input type="checkbox" name="audience_ids" value="{{ s.id }}" class="checkbox checkbox-sm checkbox-primary">
-                                    <span class="label-text text-xs">{{ s.name }}</span>
-                                </label>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- پیش‌نمایش زنده اعلان -->
-                    <div class="divider">پیش‌نمایش زنده</div>
-                    <div class="p-4 bg-base-200 rounded-box max-w-sm border border-base-300">
-                        <div class="flex items-start gap-3">
-                            <div class="w-10 h-10 rounded-btn bg-primary text-primary-content flex items-center justify-center font-bold text-sm">
-                                ف
-                            </div>
-                            <div class="flex-1 overflow-hidden">
-                                <div class="font-bold text-sm truncate" id="live-push-title">عنوان نوتیفیکیشن</div>
-                                <div class="text-xs text-base-content/80 mt-1 line-clamp-2" id="live-push-body">متن پیش‌نمایش در اینجا ظاهر می‌شود...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-base-300">
-                        <button type="submit" name="action" value="test_self" class="btn btn-soft">ارسال آزمایشی به خودم</button>
-                        <button type="submit" name="action" value="preview" class="btn btn-primary">پیش‌نمایش و ارسال</button>
-                    </div>
+    <div role="tablist" class="tabs tabs-border">
+        <input type="radio" name="bc-channel-tab" role="tab" class="tab whitespace-nowrap" aria-label="پوش نوتیفیکیشن" {% if active_channel == 'push' %}checked{% endif %}>
+        <div role="tabpanel" class="tab-content pt-4">
+            <section class="fb-card fb-pad flex flex-col gap-4">
+                {% if not push_enabled %}
+                <div role="alert" class="alert alert-soft alert-warning">
+                    {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                    <span class="text-xs">ارسال پوش در تنظیمات سرور خاموش است.{% if is_admin %} <span dir="ltr" class="font-technical">NAJVA_ENABLED=False</span>{% endif %}</span>
                 </div>
-            </form>
+                {% endif %}
+                <form method="post" action="{% url 'notifications:broadcast_preview' %}" enctype="multipart/form-data" data-fb-once data-broadcast-form="push" class="flex flex-col gap-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="channel" value="push">
+                    <fieldset {% if not push_enabled %}disabled{% endif %} class="flex flex-col gap-4 min-w-0">
+                        <div class="fb-field">
+                            <label class="fb-label" for="push-title">عنوان (اجباری)</label>
+                            <input type="text" id="push-title" name="title" value="{{ push.title }}" required maxlength="250" data-counter="push-title-count" class="input w-full">
+                            <span class="fb-hint"><span id="push-title-count" class="font-technical">۰</span> از ۲۵۰</span>
+                        </div>
+                        <div class="fb-field">
+                            <label class="fb-label" for="push-body">متن (اجباری)</label>
+                            <textarea id="push-body" name="body" rows="3" required maxlength="400" data-counter="push-body-count" class="textarea w-full">{{ push.body }}</textarea>
+                            <span class="fb-hint"><span id="push-body-count" class="font-technical">۰</span> از ۴۰۰</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="fb-field">
+                                <label class="fb-label" for="push-link">لینک مقصد (مسیر داخلی، در صورت نیاز)</label>
+                                <input type="text" id="push-link" name="link_path" value="{{ push.link_path }}" dir="ltr" autocomplete="off" placeholder="/notifications/" class="input w-full font-technical">
+                                <div class="flex flex-wrap gap-2 mt-1">
+                                    {% for p in preset_links %}<button type="button" class="btn btn-soft btn-xs" data-preset="{{ p.url }}">{{ p.label }}</button>{% endfor %}
+                                </div>
+                            </div>
+                            <div class="fb-field">
+                                <label class="fb-label" for="push-ttl">مدت ماندگاری (ساعت)</label>
+                                <input type="number" id="push-ttl" name="ttl_hours" value="{{ push.ttl_hours }}" min="1" max="168" dir="ltr" class="input w-full font-technical">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="fb-field">
+                                <label class="fb-label" for="push-image">تصویر بزرگ (در صورت نیاز)</label>
+                                <input type="file" id="push-image" name="image_file" accept=".jpg,.jpeg,.png,.webp" class="file-input w-full">
+                                {% if push.image_name %}<input type="hidden" name="image_name" value="{{ push.image_name }}"><span class="fb-hint">تصویر قبلی حفظ می‌شود؛ فایل تازه جایگزینش می‌کند.</span>{% endif %}
+                                <span class="fb-hint">JPG، PNG یا WEBP؛ خودکار کوچک می‌شود.</span>
+                            </div>
+                            <div class="fb-field">
+                                <label class="fb-label" for="push-icon">آیکون (در صورت نیاز؛ خالی = آیکون فرابخش)</label>
+                                <input type="file" id="push-icon" name="icon_file" accept=".jpg,.jpeg,.png,.webp" class="file-input w-full">
+                                {% if push.icon_name %}<input type="hidden" name="icon_name" value="{{ push.icon_name }}"><span class="fb-hint">آیکون قبلی حفظ می‌شود؛ فایل تازه جایگزینش می‌کند.</span>{% endif %}
+                                <span class="fb-hint">خودکار به حداکثر ۱۹۲ پیکسل و ۱۰۰ کیلوبایت می‌رسد.</span>
+                            </div>
+                        </div>
+
+                        <div class="fb-field">
+                            <span class="fb-label">دکمه‌ها (حداکثر دو تا، در صورت نیاز)</span>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input type="text" name="btn1_title" value="{{ push.btn1_title }}" maxlength="20" placeholder="عنوان دکمه ۱" aria-label="عنوان دکمه ۱" class="input input-sm w-full">
+                                <input type="text" name="btn1_path" value="{{ push.btn1_path }}" dir="ltr" placeholder="/portal/statement/" aria-label="مسیر دکمه ۱" class="input input-sm w-full font-technical">
+                                <input type="text" name="btn2_title" value="{{ push.btn2_title }}" maxlength="20" placeholder="عنوان دکمه ۲" aria-label="عنوان دکمه ۲" class="input input-sm w-full">
+                                <input type="text" name="btn2_path" value="{{ push.btn2_path }}" dir="ltr" placeholder="/notifications/" aria-label="مسیر دکمه ۲" class="input input-sm w-full font-technical">
+                            </div>
+                            <span class="fb-hint">مسیر داخلی؛ آدرس سایت و مسیر روی هم حداکثر ۸۰ کاراکتر.</span>
+                        </div>
+
+                        {% include "notifications/partials/audience_fields.html" with prefix="push" st=push %}
+
+                        <div class="fb-field">
+                            <span class="fb-label">پیش‌نمایش</span>
+                            <div class="fb-inset max-w-sm flex flex-col gap-1">
+                                <div class="font-bold text-sm truncate" data-live-title>عنوان</div>
+                                <div class="text-xs fb-muted line-clamp-2" data-live-body>متن پیام اینجا دیده می‌شود.</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-base-300">
+                            <button type="submit" name="action" value="test_self" class="btn btn-soft">ارسال آزمایشی به خودم</button>
+                            <button type="submit" name="action" value="preview" class="btn btn-primary">پیش‌نمایش و ارسال</button>
+                        </div>
+                    </fieldset>
+                </form>
+            </section>
         </div>
 
-        <!-- تب پیامک -->
-        <input type="radio" name="channel_tabs" class="tab" aria-label="پیامک بدون قالب" />
-        <div class="tab-content bg-base-100 border-base-300 rounded-box p-6 mt-2">
-            {% if not sms_enabled %}
-            <div class="alert alert-soft alert-warning mb-4">
-                <span>این بخش در تنظیمات سرور غیرفعال است.</span>
-                {% if is_admin %}<span class="text-xs font-mono font-technical">SMS_FREE_TEXT_ENABLED=False</span>{% endif %}
-            </div>
-            {% endif %}
-
-            <form method="post" action="{% url 'notifications:broadcast_preview' %}" data-fb-once {% if not sms_enabled %}class="opacity-60 pointer-events-none"{% endif %}>
-                {% csrf_token %}
-                <input type="hidden" name="channel" value="sms">
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="label"><span class="label-text font-semibold">متن پیامک</span></label>
-                        <textarea name="body" id="sms-body" class="textarea textarea-bordered w-full h-28" placeholder="متن پیامک..." required></textarea>
-                        <div class="flex justify-between text-xs fb-muted mt-1 font-technical">
-                            <span>طول بخش: <span id="sms-parts">۱</span> بخش</span>
-                            <span><span id="sms-body-count">0</span> کاراکتر</span>
+        <input type="radio" name="bc-channel-tab" role="tab" class="tab whitespace-nowrap" aria-label="پیامک بدون قالب" {% if active_channel == 'sms' %}checked{% endif %}>
+        <div role="tabpanel" class="tab-content pt-4">
+            <section class="fb-card fb-pad flex flex-col gap-4">
+                {% if not sms_enabled %}
+                <div role="alert" class="alert alert-soft alert-warning">
+                    {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                    <span class="text-xs">پیامک بدون قالب در تنظیمات سرور خاموش است.{% if is_admin %} <span dir="ltr" class="font-technical">SMS_FREE_TEXT_ENABLED=False</span>{% endif %}</span>
+                </div>
+                {% endif %}
+                <form method="post" action="{% url 'notifications:broadcast_preview' %}" data-fb-once data-broadcast-form="sms"
+                      data-sig-len="{{ sms_signature_len }}" data-link-len="{{ sms_link_len }}" class="flex flex-col gap-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="channel" value="sms">
+                    <fieldset {% if not sms_enabled %}disabled{% endif %} class="flex flex-col gap-4 min-w-0">
+                        <div class="fb-field">
+                            <label class="fb-label" for="sms-body">متن پیامک (اجباری)</label>
+                            <textarea id="sms-body" name="body" rows="4" required data-sms-body class="textarea w-full">{{ sms.body }}</textarea>
+                            <span class="fb-hint"><span data-sms-count class="font-technical">۰</span> کاراکتر با امضا و لینک — <span data-sms-parts class="font-technical">۱</span> بخش</span>
+                            <span class="fb-error hidden" data-sms-warn>متن نهایی بیشتر از ۳۲۰ کاراکتر است.</span>
                         </div>
-                    </div>
-
-                    <div>
-                        <label class="label"><span class="label-text font-semibold">لینک کوتاه ردیاب (مسیر داخلی)</span></label>
-                        <input type="text" name="link_path" id="sms-link" class="input input-bordered w-full" placeholder="/accounts/invoices/" dir="ltr">
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-2">
-                            <input type="checkbox" name="has_signature" class="checkbox checkbox-primary checkbox-sm" checked disabled>
-                            <span class="label-text text-xs">افزودن امضای «فرابخش تهویه» در انتهای پیامک</span>
-                        </label>
-                    </div>
-
-                    <div class="divider">مخاطبان</div>
-                    <div class="space-y-3">
-                        <div class="form-control">
-                            <label class="label cursor-pointer justify-start gap-3">
-                                <input type="radio" name="audience_kind" value="all_staff" class="radio radio-primary" checked>
-                                <span class="label-text font-medium">همه کارکنان دارای شماره تلفن</span>
-                            </label>
-                        </div>
-                        <div class="form-control">
-                            <label class="label cursor-pointer justify-start gap-3">
-                                <input type="radio" name="audience_kind" value="specialty" class="radio radio-primary">
-                                <span class="label-text font-medium">تکنسین‌ها با تخصص خاص:</span>
-                            </label>
-                            <div class="flex flex-wrap gap-3 mr-7 mt-1">
-                                {% for s in specialties %}
-                                <label class="label cursor-pointer gap-2">
-                                    <input type="checkbox" name="audience_ids" value="{{ s.id }}" class="checkbox checkbox-sm checkbox-primary">
-                                    <span class="label-text text-xs">{{ s.name }}</span>
-                                </label>
-                                {% endfor %}
+                        <div class="fb-field">
+                            <label class="fb-label" for="sms-link">لینک ردیاب (مسیر داخلی، در صورت نیاز)</label>
+                            <input type="text" id="sms-link" name="link_path" value="{{ sms.link_path }}" dir="ltr" autocomplete="off" placeholder="/portal/statement/" data-sms-link class="input w-full font-technical">
+                            <div class="flex flex-wrap gap-2 mt-1">
+                                {% for p in preset_links %}<button type="button" class="btn btn-soft btn-xs" data-preset="{{ p.url }}">{{ p.label }}</button>{% endfor %}
                             </div>
                         </div>
-                    </div>
+                        <p class="fb-hint">امضای «فرابخش تهویه» همیشه به انتهای پیامک اضافه می‌شود.</p>
 
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-base-300">
-                        <button type="submit" name="action" value="test_self" class="btn btn-soft">ارسال آزمایشی به خودم</button>
-                        <button type="submit" name="action" value="preview" class="btn btn-primary">پیش‌نمایش و ارسال</button>
-                    </div>
-                </div>
-            </form>
+                        {% include "notifications/partials/audience_fields.html" with prefix="sms" st=sms %}
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-base-300">
+                            <button type="submit" name="action" value="test_self" class="btn btn-soft">ارسال آزمایشی به خودم</button>
+                            <button type="submit" name="action" value="preview" class="btn btn-primary">پیش‌نمایش و ارسال</button>
+                        </div>
+                    </fieldset>
+                </form>
+            </section>
         </div>
     </div>
 </div>
-
-<script>
-    // پیش‌نمایش و شمارنده کاراکتر پوش
-    const pTitle = document.getElementById('push-title');
-    const pBody = document.getElementById('push-body');
-    const lpTitle = document.getElementById('live-push-title');
-    const lpBody = document.getElementById('live-push-body');
-    const pTitleCount = document.getElementById('push-title-count');
-    const pBodyCount = document.getElementById('push-body-count');
-
-    if (pTitle && pBody) {
-        pTitle.addEventListener('input', () => {
-            lpTitle.textContent = pTitle.value || 'عنوان نوتیفیکیشن';
-            pTitleCount.textContent = pTitle.value.length;
-        });
-        pBody.addEventListener('input', () => {
-            lpBody.textContent = pBody.value || 'متن پیش‌نمایش در اینجا ظاهر می‌شود...';
-            pBodyCount.textContent = pBody.value.length;
-        });
-    }
-
-    // شمارنده پیامک
-    const sBody = document.getElementById('sms-body');
-    const sBodyCount = document.getElementById('sms-body-count');
-    const sParts = document.getElementById('sms-parts');
-
-    if (sBody) {
-        sBody.addEventListener('input', () => {
-            const len = sBody.value.length;
-            sBodyCount.textContent = len;
-            const parts = Math.max(1, Math.ceil(len / 70));
-            sParts.textContent = parts;
-        });
-    }
-</script>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/remote_picker.js' %}"></script>
+<script src="{% static_v 'js/broadcast_form.js' %}"></script>
 {% endblock %}

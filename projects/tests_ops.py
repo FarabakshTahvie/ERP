@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 from unittest import mock
-from django.core.files.uploadedfile import SimpleUploadedFile
+from utils.test_helpers import make_image_file
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
@@ -82,7 +82,7 @@ class InstallShortageExcessTests(TestCase):
         self.stage.assigned_to = self.installer
         self.stage.status = ProjectStage.Status.IN_PROGRESS
         self.stage.save()
-        add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("install.jpg", b"x"), uploader=self.installer)
+        add_stage_file(stage=self.stage, uploaded=make_image_file("install.jpg"), uploader=self.installer)
         ensure_install_lines(self.stage)
 
     def _mat(self):
@@ -160,7 +160,7 @@ class PartRequestIssueTests(TestCase):
         self.stage.assigned_to = self.installer
         self.stage.status = ProjectStage.Status.IN_PROGRESS
         self.stage.save()
-        add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("ins.jpg", b"x"), uploader=self.installer)
+        add_stage_file(stage=self.stage, uploaded=make_image_file("ins.jpg"), uploader=self.installer)
 
     def test_issue_consumes_fifo_records_cost_and_blocks_second_issue(self):
         req = create_part_request(stage=self.stage, item_id=self.item.id, qty_raw="4", note="کم آمد", actor=self.installer)

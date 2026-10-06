@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 from django.core.files.uploadedfile import SimpleUploadedFile
+from utils.test_helpers import make_image_file
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
@@ -170,9 +171,9 @@ class StageOpsDetailedTests(TestCase):
 
     def test_unauthorized_technician_rejected(self):
         with self.assertRaises(ValueError):
-            add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("a.png", b"x"), uploader=self.other_tech)
+            add_stage_file(stage=self.stage, uploaded=make_image_file("a.png"), uploader=self.other_tech)
         # Admin is allowed
-        f = add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("a.png", b"x"), uploader=self.admin)
+        f = add_stage_file(stage=self.stage, uploaded=make_image_file("a.png"), uploader=self.admin)
         self.assertIsNotNone(f)
 
     def test_gcode_cut_count_parsing(self):

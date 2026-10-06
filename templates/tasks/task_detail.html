@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ task.title }} | وظایف{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <a href="{% url 'tasks:list' %}" class="link link-hover text-sm fb-muted">بازگشت به وظایف</a>
+        <h1 class="fb-page-title mt-2">{{ task.title }}</h1>
+        <p class="fb-page-sub">ثبت‌شده در <span class="font-technical">{{ task.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></p>
+        <div class="flex flex-wrap gap-2 mt-3">
+            <a href="{% url 'tasks:edit' task.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش</a>
+        </div>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2 items-center"><span class="fb-muted">ددلاین</span>
+            <span>{% if task.due_at %}<span class="font-technical">{{ task.due_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% if overdue %} <span class="fb-badge fb-badge-error">گذشته</span>{% endif %}{% else %}بدون ددلاین{% endif %}</span></div>
+        {% if task.description %}<p class="fb-inset text-xs whitespace-pre-line">{{ task.description }}</p>{% endif %}
+    </section>
+
+    {% if subtasks %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">زیروظیفه‌ها</h2>
+        {% for s in subtasks %}<div class="fb-inset text-xs">{{ s.title }}</div>{% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">مسئولان</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>مسئول</th><th>وضعیت</th><th>زمان ثبت</th><th>توضیح تکنسین</th></tr></thead>
+                <tbody>
+                {% for r in rows %}
+                    <tr>
+                        <td>{{ r.name }}{% if not r.a.user.is_active %} <span class="fb-badge fb-badge-neutral">غیرفعال</span>{% endif %}</td>
+                        <td>{% if r.done %}<span class="fb-badge fb-badge-success">ثبت شد</span>{% else %}<span class="fb-badge fb-badge-info">در حال انجام{% if r.progress %} ({{ r.progress }}){% endif %}</span>{% endif %}</td>
+                        <td class="font-technical">{% if r.a.submitted_at %}{{ r.a.submitted_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}—{% endif %}</td>
+                        <td>{{ r.a.note|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if attachments %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پیوست‌ها</h2>
+        <div class="flex gap-2 overflow-x-auto pb-1" role="list">
+            {% for att in attachments %}
+            <div role="listitem" class="fb-inset shrink-0 w-36 flex flex-col gap-1.5">
+                {% if att.is_image %}<img src="{{ att.file.url }}" alt="{{ att.original_name }}" loading="lazy" class="w-full h-20 object-cover rounded-field bg-base-300">
+                {% else %}<div class="w-full h-20 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>{% endif %}
+                <span class="text-xs break-all line-clamp-2" dir="auto">{{ att.original_name }}</span>
+                <div class="flex items-center gap-1">
+                    {% if att.is_image %}<button type="button" class="btn btn-ghost btn-xs" data-zoom="{{ att.file.url }}" data-zoom-name="{{ att.original_name }}" aria-label="بزرگ‌نمایی">{% icon "eye" "w-4 h-4" %}</button>{% endif %}
+                    <a href="{{ att.file.url }}" download="{{ att.original_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود">{% icon "download" "w-4 h-4" %}</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}

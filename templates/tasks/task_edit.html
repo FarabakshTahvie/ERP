@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ویرایش وظیفه | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div>
+        <a href="{% url 'tasks:detail' task.id %}" class="link link-hover text-sm fb-muted">بازگشت به جزئیات</a>
+        <h1 class="fb-page-title mt-2">ویرایش وظیفه</h1>
+        <p class="fb-page-sub">اگر مسئولی وظیفه را ثبت کرده باشد، حذفش ممکن نیست. افزودن زیروظیفه‌ی تازه، وظیفه را برای همه‌ی مسئولان دوباره باز می‌کند.</p>
+    </div>
+    <section class="fb-card fb-pad">{% include "tasks/partials/task_form.html" %}</section>
+</div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/line_editor.js' %}"></script>
+<script src="{% static_v 'js/task_form.js' %}"></script>
+{% endblock %}

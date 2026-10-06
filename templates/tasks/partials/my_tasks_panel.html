@@ -1,0 +1,74 @@
+{% load custom_tags %}
+<div class="flex flex-col gap-4">
+    {% if cards %}
+    {% if not is_done_panel %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">پس از علامت‌زدن همه‌ی موارد، حتماً دکمه‌ی «ثبت» را بزنید؛ تا ثبت نکنید وظیفه از «کارهای من» خارج نمی‌شود.</span>
+    </div>
+    {% endif %}
+    <div class="flex flex-col gap-3">
+        {% for c in cards %}
+        <div class="collapse collapse-arrow bg-base-100 border border-base-300" data-task-card
+             data-check-url="{% url 'tasks:check' c.task.id %}" data-submit-url="{% url 'tasks:submit' c.task.id %}">
+            <input type="checkbox" aria-label="باز و بسته‌کردن وظیفه: {{ c.task.title }}">
+            <div class="collapse-title flex flex-col gap-1">
+                <span class="text-sm font-semibold">{{ c.task.title }}</span>
+                <span class="flex flex-wrap items-center gap-2 text-xs fb-muted">
+                    <span>از {{ c.task.created_by.get_full_name|default:c.task.created_by.username }}</span>
+                    {% if c.task.due_at %}<span class="fb-badge {% if c.overdue %}fb-badge-error{% else %}fb-badge-neutral{% endif %}"><span class="font-technical">{{ c.task.due_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>{% endif %}
+                    {% if c.total %}<span data-task-progress>{{ c.done_count|fa_digits }} از {{ c.total|fa_digits }}</span>{% endif %}
+                </span>
+            </div>
+            <div class="collapse-content flex flex-col gap-3">
+                {% if c.task.description %}<p class="text-xs whitespace-pre-line">{{ c.task.description }}</p>{% endif %}
+
+                {% if c.attachments %}
+                <div class="flex gap-2 overflow-x-auto pb-1" role="list">
+                    {% for att in c.attachments %}
+                    <div role="listitem" class="fb-inset shrink-0 w-36 flex flex-col gap-1.5">
+                        {% if att.is_image %}<img src="{{ att.file.url }}" alt="{{ att.original_name }}" loading="lazy" class="w-full h-20 object-cover rounded-field bg-base-300">
+                        {% else %}<div class="w-full h-20 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>{% endif %}
+                        <span class="text-xs break-all line-clamp-2" dir="auto" title="{{ att.original_name }}">{{ att.original_name }}</span>
+                        <div class="flex items-center gap-1">
+                            {% if att.is_image %}<button type="button" class="btn btn-ghost btn-xs" data-zoom="{{ att.file.url }}" data-zoom-name="{{ att.original_name }}" aria-label="بزرگ‌نمایی">{% icon "eye" "w-4 h-4" %}</button>{% endif %}
+                            <a href="{{ att.file.url }}" download="{{ att.original_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود">{% icon "download" "w-4 h-4" %}</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="flex flex-col gap-1">
+                    <label class="fb-inset flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" class="checkbox checkbox-sm" data-task-check data-task-main-check {% if c.a.main_checked %}checked{% endif %} {% if is_done_panel %}disabled{% endif %}>
+                        <span class="text-sm font-semibold">کل وظیفه انجام شد</span>
+                    </label>
+                    {% for s in c.subtasks %}
+                    <label class="flex items-center gap-3 px-2 py-1 cursor-pointer">
+                        <input type="checkbox" class="checkbox checkbox-xs" data-task-check data-subtask-id="{{ s.obj.id }}" {% if s.checked %}checked{% endif %} {% if is_done_panel %}disabled{% endif %}>
+                        <span class="text-sm">{{ s.obj.title }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                {% if not is_done_panel %}
+                <div class="fb-field">
+                    <label class="fb-label">توضیح (در صورت نیاز)</label>
+                    <textarea class="textarea textarea-sm w-full" rows="2" maxlength="1000" data-task-note-input>{{ c.a.note }}</textarea>
+                </div>
+                <p class="fb-error hidden" data-task-error></p>
+                <div class="flex justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" data-task-submit-btn data-task-submit-action {% if not c.a.main_checked %}disabled{% endif %}>ثبت</button>
+                </div>
+                {% elif c.a.note %}
+                <p class="fb-inset text-xs">توضیح ثبت‌شده: {{ c.a.note }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include "utils/partials/generic_table.html" %}
+</div>

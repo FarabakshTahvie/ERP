@@ -1,5 +1,5 @@
 from django.urls import path, re_path
-from . import views, broadcast_views, image_views
+from . import views, broadcast_views
 
 app_name = "notifications"
 
@@ -12,7 +12,8 @@ urlpatterns = [
     path("broadcast/", broadcast_views.broadcast_form, name="broadcast_form"),
     path("broadcast/preview/", broadcast_views.broadcast_preview, name="broadcast_preview"),
     path("broadcast/history/", broadcast_views.broadcast_history, name="broadcast_history"),
+    path("broadcast/history/table/", broadcast_views.broadcast_history_table, name="broadcast_history_table"),
     path("broadcast/<int:broadcast_id>/", broadcast_views.broadcast_detail, name="broadcast_detail"),
+    path("broadcast/<int:broadcast_id>/table/", broadcast_views.broadcast_detail_table, name="broadcast_detail_table"),
     path("broadcast/<int:broadcast_id>/retry/", broadcast_views.broadcast_retry, name="broadcast_retry"),
-    re_path(r"^b/(?P<name>[0-9a-f]{32}\.(?:webp|png|jpg))$", image_views.public_broadcast_image, name="public_broadcast_image"),
 ]

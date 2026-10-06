@@ -797,11 +797,13 @@ def attach_project_files(project, stage, files, *, uploader):
     if len(files) > MAX_INTAKE_FILES:
         raise ValueError(f"حداکثر {MAX_INTAKE_FILES} فایل را می‌توان یک‌جا ارسال کرد.")
     from .models import ProjectFile
+    from utils.image_utils import optimize_named
     from utils.utils import guess_file_kind
     for f in files:
+        uploaded, name = optimize_named(f, (f.name or "")[:255])
         ProjectFile.objects.create(
-            stage=stage, file=f, kind=guess_file_kind(f.name),
-            original_name=(f.name or "")[:255], uploaded_by=uploader, is_attachment=True,
+            stage=stage, file=uploaded, kind=guess_file_kind(name),
+            original_name=name, uploaded_by=uploader, is_attachment=True,
         )
 
 

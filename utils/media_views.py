@@ -21,6 +21,15 @@ def _allowed(user, rel):
     head = rel.split("/")[0]
     if head == "avatars":
         return True
+    if head == "broadcast":
+        return can(user, "broadcast.use")
+    if head == "tasks":
+        try:
+            from tasks.models import TaskAttachment
+            att = TaskAttachment.objects.filter(file=rel).select_related("task").first()
+            return bool(att) and (att.task.created_by_id == user.id or att.task.assignments.filter(user=user).exists())
+        except ImportError:
+            return False
     if head == "payments":      # رسید: حسابدار/مدیر یا خود طرف‌حساب همان فاکتور
         from finance.models import Payment
         p = Payment.objects.filter(receipt_file=rel).select_related("invoice").first()

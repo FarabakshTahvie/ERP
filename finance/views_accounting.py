@@ -442,19 +442,19 @@ def customers_center_page(request):
     from finance.aging import get_customer_aging_data
     from finance.models import Payment
 
-    clients = Party.objects.filter(invoices__isnull=False).distinct().order_by("name")
     selected_client = aging_summary = aging_rows = payments = None
     client_id = (request.GET.get("client_id") or "").strip()
     if client_id:
         if not client_id.isdigit():
             raise Http404
-        selected_client = get_object_or_404(clients, pk=int(client_id))
+        selected_client = get_object_or_404(
+            Party.objects.filter(is_internal=False, invoices__isnull=False).distinct(), pk=int(client_id))
         aging_summary, aging_rows = get_customer_aging_data(selected_client)
         payments = (Payment.objects.filter(invoice__billed_party=selected_client)
                     .select_related("invoice").order_by("-created_at")[:50])
 
     return render(request, "finance/accounting_customers.html", {
-        "nav_active": "customers", "clients": clients, "selected_client": selected_client,
+        "nav_active": "customers", "selected_client": selected_client,
         "aging_summary": aging_summary, "aging_rows": aging_rows, "payments": payments,
     })
 

@@ -1,0 +1,83 @@
+{% load custom_tags %}
+<form method="post" data-task-form data-deferred-upload data-always-ajax data-entity="وظیفه"
+      action="{% if task %}{% url 'tasks:save' task.id %}{% else %}{% url 'tasks:save' %}{% endif %}"
+      class="flex flex-col gap-4">
+    {% csrf_token %}
+
+    <div class="fb-field">
+        <label class="fb-label" for="task-title">عنوان (اجباری)</label>
+        <input type="text" id="task-title" name="title" value="{{ task.title|default:'' }}" required maxlength="200" class="input w-full">
+    </div>
+
+    <div class="fb-field">
+        <span class="fb-label">ددلاین</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input type="text" name="due_date" value="{{ due_date_value }}" dir="ltr" inputmode="none" autocomplete="off"
+                   data-jalali-date data-clearable aria-label="تاریخ ددلاین" placeholder="۱۴۰۵/۰۷/۲۰" class="input w-full font-technical">
+            <select name="due_hour" aria-label="ساعت" class="select w-full font-technical" dir="ltr">
+                {% for h in hour_choices %}<option value="{{ h }}" {% if h == due_hour_value %}selected{% endif %}>{{ h|fa_digits }}</option>{% endfor %}
+            </select>
+            <select name="due_minute" aria-label="دقیقه" class="select w-full font-technical" dir="ltr">
+                {% for m in minute_choices %}<option value="{{ m }}" {% if m == due_minute_value %}selected{% endif %}>{{ m|fa_digits }}</option>{% endfor %}
+            </select>
+        </div>
+        <span class="fb-hint">اگر ددلاین ندارد، تاریخ را خالی بگذارید. ساعت و دقیقه فقط انتخابی است.</span>
+    </div>
+
+    <div class="fb-field">
+        <label class="fb-label" for="task-desc">توضیحات</label>
+        <textarea id="task-desc" name="description" rows="3" maxlength="2000" class="textarea w-full">{{ task.description|default:'' }}</textarea>
+    </div>
+
+    <div class="fb-field">
+        <span class="fb-label">زیروظیفه‌ها</span>
+        <div data-subtasks-mount></div>
+        <input type="hidden" data-subtasks-hidden data-name="subtasks_json">
+        {{ subtasks_initial|json_script:"task-subtasks-initial" }}
+    </div>
+
+    <div class="fb-field">
+        <span class="fb-label">مسئولان (اجباری)</span>
+        <div data-assignee-chips class="flex flex-wrap gap-2"></div>
+        <div class="flex flex-wrap items-center gap-2">
+            <select data-assignee-select aria-label="انتخاب تکنسین" class="select select-sm flex-1 min-w-48">
+                <option value="">انتخاب تکنسین...</option>
+                {% for t in technician_options %}<option value="{{ t.id }}" data-name="{{ t.name }}">{{ t.name }}{% if t.sub %} — {{ t.sub }}{% endif %}</option>{% endfor %}
+            </select>
+            <button type="button" class="btn btn-soft btn-sm" data-assignee-add>افزودن</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-assignee-all>افزودن همه‌ی تکنسین‌ها</button>
+        </div>
+        <span class="fb-error hidden" data-assignee-error>حداقل یک مسئول انتخاب کنید.</span>
+        {{ assignee_initial|json_script:"task-assignees-initial" }}
+    </div>
+
+    <div class="fb-field">
+        <span class="fb-label">پیوست‌ها</span>
+        {% include "utils/partials/file_dropzone.html" with mode="deferred" %}
+        {% if attachments %}
+        <div class="flex gap-2 overflow-x-auto pb-1" role="list">
+            {% for att in attachments %}
+            <div role="listitem" data-attachment class="fb-inset shrink-0 w-36 flex flex-col gap-1.5">
+                {% if att.is_image %}
+                <img src="{{ att.file.url }}" alt="{{ att.original_name }}" loading="lazy" class="w-full h-20 object-cover rounded-field bg-base-300">
+                {% else %}
+                <div class="w-full h-20 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>
+                {% endif %}
+                <span class="text-xs break-all line-clamp-2" dir="auto" title="{{ att.original_name }}">{{ att.original_name }}</span>
+                <div class="flex items-center gap-1">
+                    {% if att.is_image %}<button type="button" class="btn btn-ghost btn-xs" data-zoom="{{ att.file.url }}" data-zoom-name="{{ att.original_name }}" aria-label="بزرگ‌نمایی">{% icon "eye" "w-4 h-4" %}</button>{% endif %}
+                    <a href="{{ att.file.url }}" download="{{ att.original_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود">{% icon "download" "w-4 h-4" %}</a>
+                    <button type="button" class="btn btn-ghost btn-xs" data-attachment-delete data-url="{% url 'tasks:attachment_delete' att.id %}" aria-label="حذف پیوست">{% icon "trash-2" "w-4 h-4" %}</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div data-upload-error class="hidden alert alert-soft alert-error text-xs"></div>
+
+    <div class="flex justify-end pt-3 border-t border-base-300">
+        <button type="submit" class="btn btn-primary">{% if task %}ذخیره‌ی تغییرات{% else %}ثبت وظیفه{% endif %}</button>
+    </div>
+</form>

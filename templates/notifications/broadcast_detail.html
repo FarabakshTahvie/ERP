@@ -3,64 +3,79 @@
 {% block title %}جزئیات پیام همگانی | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--lg">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
-            <div class="flex items-center gap-2">
-                <a href="{% url 'notifications:broadcast_history' %}" class="btn btn-ghost btn-xs">{% icon "arrow-right" "w-4 h-4" %} بازگشت</a>
-                <h1 class="fb-page-title">{{ broadcast.title|default:broadcast.body|slice:":30" }}</h1>
-            </div>
+            <a href="{% url 'notifications:broadcast_history' %}" class="link link-hover text-sm fb-muted">بازگشت به تاریخچه</a>
+            <h1 class="fb-page-title mt-2">{{ broadcast.title|default:broadcast.body|truncatechars:40 }}</h1>
             <p class="fb-page-sub">
-                ارسال‌شده توسط {{ broadcast.created_by.get_full_name|default:broadcast.created_by.username }} در {{ broadcast.created_at|to_jalali:"%Y/%m/%d %H:%M" }}
+                {{ broadcast.created_by.get_full_name|default:broadcast.created_by.username|default:"—" }} ·
+                <span class="font-technical">{{ broadcast.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+                {% if broadcast.is_test %} · <span class="fb-badge fb-badge-neutral">آزمایشی</span>{% endif %}
+                {% if broadcast.is_dry_run %} · <span class="fb-badge fb-badge-neutral">بدون تماس بیرونی</span>{% endif %}
             </p>
         </div>
         {% if stats.failed_count > 0 %}
-        <!-- دکمه ارسال دوباره با مودال تایید -->
-        <button type="button" class="btn btn-soft btn-warning btn-sm" onclick="document.getElementById('retry-modal').showModal()">
+        <button type="button" class="btn btn-soft btn-sm" onclick="document.getElementById('retry-modal').showModal()">
             {% icon "refresh-cw" "w-4 h-4" %} ارسال دوباره برای ناموفق‌ها ({{ stats.failed_count|fa_digits }})
         </button>
         {% endif %}
     </div>
 
-    <!-- کارت‌های وضعیت -->
+    {% if pending_count and channel_closed %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">{{ pending_count|fa_digits }} ردیف در صف مانده، چون این کانال در تنظیمات سرور خاموش است. بعد از مدت ماندگاری پیام، ردیف‌های تازه منقضی می‌شوند.</span>
+    </div>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">محتوای پیام</h2>
+        <div class="fb-inset flex flex-col gap-2 text-sm">
+            <div class="flex justify-between gap-2"><span class="fb-muted">کانال</span><span>{{ broadcast.get_channel_display }}</span></div>
+            <div class="flex justify-between gap-2"><span class="fb-muted">مخاطبان</span><span>{{ broadcast.audience_label }}</span></div>
+            {% if broadcast.title %}<div class="flex justify-between gap-2"><span class="fb-muted">عنوان</span><span class="font-semibold">{{ broadcast.title }}</span></div>{% endif %}
+            {% if broadcast.link_path %}<div class="flex justify-between gap-2"><span class="fb-muted">لینک</span><span dir="ltr" class="font-technical">{{ broadcast.link_path }}</span></div>{% endif %}
+            {% if broadcast.channel == 'push' %}<div class="flex justify-between gap-2"><span class="fb-muted">ماندگاری</span><span class="font-technical">{{ broadcast.ttl_hours|fa_digits }} ساعت</span></div>{% endif %}
+            {% if broadcast.skipped_count %}<div class="flex justify-between gap-2"><span class="fb-muted">حذف‌شده</span><span class="font-technical">{{ broadcast.skipped_count|fa_digits }} نفر</span></div>{% endif %}
+            <p class="text-xs whitespace-pre-line pt-2 border-t border-base-300">{{ broadcast.body }}</p>
+        </div>
+        {% if icon_url or image_url %}
+        <div class="flex flex-wrap gap-3">
+            {% if icon_url %}<img src="{{ icon_url }}" alt="آیکون پیام" class="w-16 h-16 object-contain rounded-field bg-base-200">{% endif %}
+            {% if image_url %}<img src="{{ image_url }}" alt="تصویر پیام" class="max-h-40 object-contain rounded-field bg-base-200">{% endif %}
+        </div>
+        {% endif %}
+        {% for b in broadcast.buttons %}
+        <div class="text-xs"><span class="fb-muted">دکمه:</span> {{ b.title }} <span dir="ltr" class="font-technical fb-muted">{{ b.path }}</span></div>
+        {% endfor %}
+    </section>
+
     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {% include "finance/partials/stat_card.html" with label="کل گیرندگان" value=stats.recipients_count tone="" hint="" %}
         {% include "finance/partials/stat_card.html" with label="ارسال‌شده" value=stats.sent_count tone="text-success" hint="" %}
         {% include "finance/partials/stat_card.html" with label="فقط داخل برنامه" value=stats.in_app_count tone="text-info" hint="" %}
         {% include "finance/partials/stat_card.html" with label="ناموفق" value=stats.failed_count tone="text-error" hint="" %}
         {% include "finance/partials/stat_card.html" with label="دیده‌شده" value=stats.seen_count tone="text-primary" hint="" %}
-        {% include "finance/partials/stat_card.html" with label="کلیک‌شده (افراد)" value=stats.clicked_count tone="text-accent" hint="" %}
-        {% include "finance/partials/stat_card.html" with label="نرخ کلیک" value=stats.click_rate tone="text-accent" hint="درصد" %}
+        {% include "finance/partials/stat_card.html" with label="کلیک‌شده (افراد یکتا)" value=stats.clicked_count tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="نرخ کلیک" value=stats.click_rate tone="" hint="" %}
     </div>
+    <p class="fb-hint">«ارسال‌شده» یعنی سرویس پذیرفته؛ نه لزوماً رسیده. «دیده‌شده» یعنی باز شدن لینک یا «همه دیده شد» در مرکز اعلان.</p>
 
-    <div class="p-3 bg-base-200 rounded-box text-xs fb-muted">
-        {% icon "info" "w-4 h-4 inline-block ml-1" %}
-        دیده‌شده = باز کردن لینک یا زدن «همه دیده شد» در مرکز اعلان. تحویل واقعی پوش و پیامک از اینجا معلوم نیست.
-    </div>
-
-    <!-- جدول گیرندگان -->
-    <div class="fb-card">
-        {% include "utils/partials/generic_table.html" with table=table %}
-    </div>
+    {% include "utils/partials/generic_table.html" %}
 </div>
 
-<!-- مودال تایید ارسال دوباره -->
 {% if stats.failed_count > 0 %}
 <dialog id="retry-modal" class="modal">
-    <div class="modal-box">
-        <h3 class="font-bold text-lg">تایید ارسال دوباره</h3>
-        <p class="py-4 text-sm">
-            آیا مایلید برای {{ stats.failed_count|fa_digits }} پیام ناموفق مجدداً درخواست ارسال ثبت کنید؟
-        </p>
-        <div class="modal-action">
-            <form method="dialog">
-                <button class="btn btn-ghost">انصراف</button>
-            </form>
-            <form method="post" action="{% url 'notifications:broadcast_retry' broadcast.id %}" data-fb-once>
-                {% csrf_token %}
-                <button type="submit" class="btn btn-warning">ارسال مجدد</button>
-            </form>
-        </div>
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">ارسال دوباره</h3>
+        <p class="text-sm mb-4">برای {{ stats.failed_count|fa_digits }} پیام ناموفق دوباره درخواست ارسال ثبت شود؟</p>
+        <form method="post" action="{% url 'notifications:broadcast_retry' broadcast.id %}" data-fb-once class="flex gap-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary flex-1">ارسال دوباره</button>
+            <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+        </form>
     </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 {% endif %}
 {% endblock %}

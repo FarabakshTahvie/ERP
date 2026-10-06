@@ -54,7 +54,7 @@
                 <label class="fb-label" for="toggle-reason">دلیل {% if person.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %} (اجباری)</label>
                 <input type="text" id="toggle-reason" name="reason" required class="input input-sm w-full">
             </div>
-            <button type="submit" class="btn btn-soft btn-sm {% if person.is_active %}btn-error{% endif %}">{% if person.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+            <button type="submit" class="btn btn-soft btn-sm {% if person.is_active %}btn-soft btn-error{% endif %}">{% if person.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
         </form>
         <form method="post" action="{% url 'people:user_reset_password' person.id %}" data-fb-once
               onsubmit="return confirm('رمز فعلی باطل و یک رمز موقت ساخته می‌شود. ادامه می‌دهید؟')" class="flex flex-col gap-2">

@@ -1,0 +1,32 @@
+{% load custom_tags %}
+<div class="flex flex-col gap-3" data-audience>
+    <span class="fb-label">مخاطبان</span>
+    <div class="flex flex-col gap-2">
+        <label class="fb-choice justify-start"><input type="radio" name="audience_kind" value="all_staff" class="sr-only" {% if st.audience_kind == 'all_staff' %}checked{% endif %}> همه‌ی کارکنان (مدیران و تکنسین‌ها)</label>
+        <label class="fb-choice justify-start"><input type="radio" name="audience_kind" value="specialty" class="sr-only" {% if st.audience_kind == 'specialty' %}checked{% endif %}> تکنسین‌های دارای تخصص مشخص</label>
+        <label class="fb-choice justify-start"><input type="radio" name="audience_kind" value="role" class="sr-only" {% if st.audience_kind == 'role' %}checked{% endif %}> مشتریان یا شرکا</label>
+        <label class="fb-choice justify-start"><input type="radio" name="audience_kind" value="users" class="sr-only" {% if st.audience_kind == 'users' %}checked{% endif %}> انتخاب دستی افراد</label>
+    </div>
+
+    <div data-audience-panel="specialty" class="hidden">
+        <div class="flex flex-wrap gap-2">
+            {% for s in specialties %}
+            <label class="fb-choice"><input type="checkbox" name="audience_specialties" value="{{ s.id }}" class="sr-only" {% if s.id|stringformat:"s" in st.specialties %}checked{% endif %}> {{ s.name }}</label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div data-audience-panel="role" class="hidden">
+        <div class="flex flex-wrap gap-2">
+            <label class="fb-choice"><input type="checkbox" name="audience_roles" value="client" class="sr-only" {% if 'client' in st.roles %}checked{% endif %}> مشتریان (کارفرما)</label>
+            <label class="fb-choice"><input type="checkbox" name="audience_roles" value="partner" class="sr-only" {% if 'partner' in st.roles %}checked{% endif %}> شرکای تجاری</label>
+        </div>
+        <p class="fb-hint mt-1">فقط کاربرانی که طرف‌حساب دارند.</p>
+    </div>
+
+    <div data-audience-panel="users" class="hidden">
+        <div data-audience-picker data-name="audience_users" data-url="{% url 'people:search' %}?kind=audience" data-initial-id="{{ prefix }}-users-initial"></div>
+        {% with sid=prefix|add:"-users-initial" %}{{ st.users_initial|json_script:sid }}{% endwith %}
+        <p class="fb-hint mt-1">با نام یا شماره جستجو کنید (حداقل دو حرف). کاربر بدون شماره در پیامک حذف می‌شود.</p>
+    </div>
+</div>

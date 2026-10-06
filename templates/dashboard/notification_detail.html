@@ -32,8 +32,13 @@
         {% csrf_token %}
         <button type="submit" class="btn btn-primary btn-sm">ارسال دوباره</button>
     </form>
+    {% elif n.broadcast_id %}
+    <div class="fb-card fb-pad flex flex-col gap-2">
+        <p class="fb-hint">این اعلان بخشی از یک پیام همگانی است؛ ارسال دوباره از صفحه‌ی جزئیات همان پیام انجام می‌شود.</p>
+        <a href="{% url 'notifications:broadcast_detail' n.broadcast_id %}" class="btn btn-soft btn-sm self-start">مشاهده‌ی پیام همگانی</a>
+    </div>
     {% elif n.status == 'failed' %}
-    <p class="fb-hint">این پیام دوباره فرستاده نمی‌شود (پیامک پیش‌فاکتور رمز دارد). از «بازنشانی رمز» در افراد یا ورود با کد پیامکی استفاده شود.</p>
+    <p class="fb-hint">این پیام دوباره فرستاده نمی‌شود (پیامک پیش‌فاکتور رمز دارد). از «بازنشانی رمز» در افراد استفاده کن.</p>
     {% endif %}
 </div>
 {% endblock %}

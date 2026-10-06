@@ -21,6 +21,7 @@ class NotificationType(models.TextChoices):
     STAGE_ASSIGNED = "stage_assigned", "کار جدید"
     PART_REQUEST = "part_request", "درخواست قطعه"
     BROADCAST = "broadcast", "پیام همگانی"
+    TASK_ASSIGNED = "task_assigned", "وظیفه‌ی جدید"
 
 
 class ChannelPolicy(models.TextChoices):

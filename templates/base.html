@@ -95,6 +95,11 @@
                         {% icon "users" "w-4 h-4" %} افراد
                     </a>
                     {% endif %}
+                    {% if caps.tasks_manage %}
+                    <a href="{% url 'tasks:list' %}" class="btn btn-ghost btn-sm">
+                        {% icon "check-square" "w-4 h-4" %} وظایف
+                    </a>
+                    {% endif %}
                     {% if caps.admin_panel %}
                     <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت
@@ -139,6 +144,9 @@
                             {% endif %}
                             {% if caps.people_view %}
                             <li><a href="{% url 'people:staff' %}">{% icon "users" "w-4 h-4" %} افراد</a></li>
+                            {% endif %}
+                            {% if caps.tasks_manage %}
+                            <li><a href="{% url 'tasks:list' %}">{% icon "check-square" "w-4 h-4" %} وظایف</a></li>
                             {% endif %}
                             {% if caps.broadcast_use %}
                             <li><a href="{% url 'notifications:broadcast_form' %}">{% icon "send" "w-4 h-4" %} ارسال پیام</a></li>
