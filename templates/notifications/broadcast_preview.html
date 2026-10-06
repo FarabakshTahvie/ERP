@@ -18,19 +18,24 @@
                     </span>
                 </div>
                 <div>
-                    <span class="fb-muted">مخاطبان:</span>
-                    <span class="font-bold">{{ audience_label }}</span>
+                    <span class="fb-muted">مخاطبان نهایی:</span>
+                    <span class="font-bold">{{ recipients_count|fa_digits }} نفر</span>
                 </div>
                 {% if channel == "sms" %}
                 <div>
                     <span class="fb-muted">برآورد بخش‌های پیامک:</span>
                     <span class="font-bold font-technical">{{ sms_parts|fa_digits }} بخش</span>
                 </div>
-                {% endif %}
                 <div>
-                    <span class="fb-muted">حذف‌شده‌ها (بدون شماره/دستگاه):</span>
-                    <span class="font-bold text-error font-technical">{{ skipped_count|fa_digits }}</span>
+                    <span class="fb-muted">حذف‌شده‌ها (بدون شماره همراه):</span>
+                    <span class="font-bold text-error font-technical">{{ skipped_count|fa_digits }} نفر</span>
                 </div>
+                {% else %}
+                <div>
+                    <span class="fb-muted">بدون دستگاه پوش (فقط داخل برنامه):</span>
+                    <span class="font-bold text-error font-technical">{{ no_device_count|fa_digits }} نفر</span>
+                </div>
+                {% endif %}
             </div>
 
             <div class="space-y-2">
@@ -57,20 +62,10 @@
             <form method="post" action="{% url 'notifications:broadcast_preview' %}" data-fb-once>
                 {% csrf_token %}
                 <input type="hidden" name="action" value="confirm_send">
-                <input type="hidden" name="channel" value="{{ channel }}">
-                <input type="hidden" name="title" value="{{ title }}">
-                <input type="hidden" name="body" value="{{ body }}">
-                <input type="hidden" name="link_path" value="{{ link_path }}">
-                <input type="hidden" name="ttl_hours" value="{{ ttl_hours }}">
-                <input type="hidden" name="audience_kind" value="{{ audience_kind }}">
-                <!-- برای ارسال چند گزینه‌ای تخصص‌ها یا نقش‌ها -->
-                {% for item in audience_ids %}
-                <input type="hidden" name="audience_ids" value="{{ item }}">
+                {% for n, v in hidden %}
+                <input type="hidden" name="{{ n }}" value="{{ v }}">
                 {% endfor %}
-                <input type="hidden" name="icon_name" value="{{ icon_name }}">
-                <input type="hidden" name="image_name" value="{{ image_name }}">
                 <input type="hidden" name="digest" value="{{ digest }}">
-                <input type="hidden" name="audience_label" value="{{ audience_label }}">
 
                 <div class="alert alert-soft alert-info text-xs">
                     پس از کلیک بر روی دکمهٔ «تایید و ارسال نهایی»، پیام‌ها در صفِ سیستم قرار می‌گیرند و ظرف حداکثر یک دقیقه ارسال خواهند شد.

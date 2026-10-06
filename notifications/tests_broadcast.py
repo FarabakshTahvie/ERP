@@ -78,7 +78,11 @@ class BroadcastSystemTests(TestCase):
     def test_create_broadcast_flow(self):
         users = resolve_audience("all_staff", [], "sms")
         user_ids = [u.id for u in users]
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
+        digest = calculate_digest(
+            channel="sms", title="تست", body="سلام همگی", link_path="/notifications/",
+            ttl_hours=24, icon_name="", image_name="", buttons=[],
+            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
+        )
         b = create_broadcast(
             channel="sms",
             title="تست",
@@ -101,7 +105,11 @@ class BroadcastSystemTests(TestCase):
     def test_create_broadcast_disabled_flow_fails(self):
         users = resolve_audience("all_staff", [], "sms")
         user_ids = [u.id for u in users]
-        digest = calculate_digest("سلام", "all_staff", [], "", "", 24, [], "sms", user_ids)
+        digest = calculate_digest(
+            channel="sms", title="تست", body="سلام", link_path="",
+            ttl_hours=24, icon_name="", image_name="", buttons=[],
+            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
+        )
         with self.assertRaises(ValueError):
             create_broadcast(
                 channel="sms",
@@ -122,7 +130,11 @@ class BroadcastSystemTests(TestCase):
     def test_process_pending_notifications_ignores_broadcast(self):
         users = resolve_audience("all_staff", [], "sms")
         user_ids = [u.id for u in users]
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
+        digest = calculate_digest(
+            channel="sms", title="تست", body="سلام همگی", link_path="",
+            ttl_hours=24, icon_name="", image_name="", buttons=[],
+            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
+        )
         b = create_broadcast(
             channel="sms",
             title="تست",
@@ -146,7 +158,11 @@ class BroadcastSystemTests(TestCase):
     def test_process_broadcasts_dry_run(self):
         users = resolve_audience("all_staff", [], "sms")
         user_ids = [u.id for u in users]
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
+        digest = calculate_digest(
+            channel="sms", title="تست", body="سلام همگی", link_path="",
+            ttl_hours=24, icon_name="", image_name="", buttons=[],
+            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
+        )
         b = create_broadcast(
             channel="sms",
             title="تست",

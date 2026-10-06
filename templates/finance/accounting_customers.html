@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load custom_tags %}
+{% load static %}
 {% block title %}مرکز مشتریان و سن بدهی | حسابداری{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--lg">
@@ -9,21 +10,37 @@
     </div>
     {% include "finance/partials/accounting_nav.html" %}
 
-    <div class="fb-card p-4">
-        <form method="get" class="flex flex-wrap items-end gap-3">
-            <div class="fb-field flex-1 min-w-[240px]">
-                <label class="fb-label">انتخاب مشتری / کارفرما</label>
-                <select name="client_id" class="select select-sm w-full" onchange="this.form.submit()">
-                    <option value="">-- انتخاب مشتری --</option>
-                    {% for c in clients %}
-                    <option value="{{ c.id }}" {% if selected_client and selected_client.id == c.id %}selected{% endif %}>
-                        {{ c.name }} {% if c.phone_number %}({{ c.phone_number|fa_digits }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-        </form>
+    <div class="fb-card p-4 space-y-3">
+        <div class="fb-field">
+            <label class="fb-label">جستجوی مشتری / کارفرما</label>
+            <div id="party-picker-container"></div>
+        </div>
+        {% if not selected_client %}
+        <div class="fb-hint">برای دیدن صورت‌حساب و سن بدهی، نام یا شماره‌ی مشتری را جستجو کنید.</div>
+        {% else %}
+        <div class="text-sm font-semibold text-primary">مشتری انتخاب‌شده: {{ selected_client.name }} {% if selected_client.phone_number %}({{ selected_client.phone_number|fa_digits }}){% endif %}</div>
+        {% endif %}
     </div>
+
+    <script src="{% static 'js/remote_picker.js' %}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var container = document.getElementById('party-picker-container');
+            if (container && window.fbRemotePicker) {
+                var picker = window.fbRemotePicker({
+                    url: "{% url 'people:search' %}?kind=parties",
+                    multi: false,
+                    placeholder: 'نام یا شماره مشتری را جستجو کنید...',
+                    onSelect: function (item) {
+                        if (item && item.id) {
+                            window.location.href = "?client_id=" + item.id;
+                        }
+                    }
+                });
+                container.appendChild(picker);
+            }
+        });
+    </script>
 
     {% if selected_client %}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

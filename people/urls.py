@@ -14,4 +14,5 @@ urlpatterns = [
     path("users/<int:user_id>/toggle-active/", views.user_toggle_active, name="user_toggle_active"),
     path("parties/<int:party_id>/", views.party_detail, name="party_detail"),
     path("parties/<int:party_id>/edit/", views.party_edit, name="party_edit"),
+    path("search/", views.people_search, name="search"),
 ]

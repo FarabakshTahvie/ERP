@@ -175,7 +175,7 @@ class ReportsAndPagesTests(SecurityBase):
         resp = c.get(reverse("finance:accounting_customers"), {"client_id": partner.id})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["selected_client"], partner)
-        self.assertIn(partner, list(resp.context["clients"]))
+        self.assertNotIn("clients", resp.context)
         self.assertEqual(c.get(reverse("finance:accounting_customers"), {"client_id": "abc"}).status_code, 404)
 
     def test_part_request_detail_hides_money_from_plain_keeper(self):

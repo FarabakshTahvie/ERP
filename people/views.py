@@ -245,3 +245,41 @@ def party_edit(request, party_id):
             messages.success(request, "اطلاعات ذخیره شد.")
             return redirect("people:party_detail", party.id)
     return render(request, "people/party_edit.html", {"party": party, "values": values})
+
+
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse, Http404
+from utils.generic_table import _normalize_digits
+
+SEARCH_KINDS = {"parties": "accounting.access", "audience": "broadcast.use"}
+_AR, _FA = str.maketrans("يك", "یک"), str.maketrans("یک", "يك")
+
+
+def _variants(q):
+    q = _normalize_digits(q.strip())
+    return {q, q.translate(_AR), q.translate(_FA)}
+
+
+@login_required
+def people_search(request):
+    kind = request.GET.get("kind", "")
+    if kind not in SEARCH_KINDS or not can(request.user, SEARCH_KINDS[kind]):
+        raise Http404
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+    cond = Q()
+    if kind == "parties":
+        for v in _variants(q):
+            cond |= Q(name__icontains=v) | Q(brand_name__icontains=v) | Q(phone_number__icontains=v)
+        qs = (Party.objects.filter(is_internal=False, invoices__isnull=False).filter(cond)
+              .distinct().order_by("name")[:10])
+        data = [{"id": p.id, "name": p.name, "sub": p.phone_number or ""} for p in qs]
+    else:
+        for v in _variants(q):
+            cond |= (Q(first_name__icontains=v) | Q(last_name__icontains=v)
+                     | Q(username__icontains=v) | Q(phone_number__icontains=v))
+        qs = User.objects.filter(is_active=True).filter(cond).order_by("last_name", "first_name")[:10]
+        data = [{"id": u.id, "name": u.get_full_name() or u.username,
+                 "sub": f"{u.get_role_display()} · {u.phone_number or 'بدون شماره'}"} for u in qs]
+    return JsonResponse({"results": data})

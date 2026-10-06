@@ -121,20 +121,35 @@ def load_assets(broadcast):
     return {"icon": icon_tuple, "image": image_tuple}
 
 
+AUDIENCE_FIELD = {"specialty": "audience_specialties", "role": "audience_roles", "users": "audience_users"}
+
+
 def parse_audience(post):
     kind = post.get("audience_kind", "")
-    raw = post.getlist("audience_ids")
     if kind == "all_staff":
-        ids = []
-    elif kind in ("specialty", "users"):
-        ids = sorted({int(x) for x in raw if str(x).isdigit()})
-    elif kind == "role":
-        ids = sorted(set(raw) & {"client", "partner"})
-    else:
+        return kind, []
+    field = AUDIENCE_FIELD.get(kind)
+    if not field:
         raise ValueError("نوع مخاطب را انتخاب کنید.")
-    if kind != "all_staff" and not ids:
+    raw = post.getlist(field)
+    ids = sorted(set(raw) & {"client", "partner"}) if kind == "role" \
+        else sorted({int(x) for x in raw if str(x).isdigit()})
+    if not ids:
         raise ValueError("مخاطب را انتخاب کنید.")
     return kind, ids
+
+
+def parse_buttons(post):
+    out = []
+    for i in (1, 2):
+        title, path = (post.get(f"btn{i}_title") or "").strip(), (post.get(f"btn{i}_path") or "").strip()
+        if title or path:
+            out.append({"title": title, "path": path})
+    return out
+
+
+def sms_parts(n):
+    return 1 if n <= 70 else -(-n // 67)
 
 
 def audience_label_for(kind, ids):
@@ -195,19 +210,15 @@ def validate_link(path):
         return False
 
 
-def calculate_digest(body, audience_kind, audience_ids, image_name, icon_name, ttl_hours, buttons, channel, resolved_user_ids):
+def calculate_digest(*, channel, title, body, link_path, ttl_hours, icon_name, image_name,
+                     buttons, audience_kind, audience_ids, resolved_user_ids):
     payload = {
-        "body": body,
-        "audience_kind": audience_kind,
-        "audience_ids": sorted(audience_ids or []),
-        "image_name": image_name or "",
-        "icon_name": icon_name or "",
-        "ttl_hours": ttl_hours,
-        "buttons": buttons or [],
-        "channel": channel,
-        "resolved_user_ids": sorted(resolved_user_ids or []),
+        "channel": channel, "title": title, "body": body, "link_path": link_path, "ttl": ttl_hours,
+        "icon": icon_name or "", "image": image_name or "", "buttons": buttons or [],
+        "kind": audience_kind, "ids": sorted(map(str, audience_ids or [])),
+        "users": sorted(resolved_user_ids or []),
     }
-    dumped = json.dumps(payload, sort_keys=True)
+    dumped = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
 
 
@@ -224,10 +235,16 @@ def validate_content(channel, title, body, ttl_hours, image_name, icon_name, but
     if not (1 <= ttl_hours <= 168):
         raise ValueError("مدت ماندگاری باید بین ۱ تا ۱۶۸ ساعت باشد.")
     
-    if image_name and not ASSET_RE.match(image_name):
-        raise ValueError("تصویر نامعتبر است.")
-    if icon_name and not ASSET_RE.match(icon_name):
-        raise ValueError("آیکون نامعتبر است.")
+    if image_name:
+        if not ASSET_RE.match(image_name):
+            raise ValueError("تصویر نامعتبر است.")
+        if not default_storage.exists(f"broadcast/{image_name}"):
+            raise ValueError("تصویر پیدا نشد.")
+    if icon_name:
+        if not ASSET_RE.match(icon_name):
+            raise ValueError("آیکون نامعتبر است.")
+        if not default_storage.exists(f"broadcast/{icon_name}"):
+            raise ValueError("آیکون پیدا نشد.")
     
     if buttons:
         if not isinstance(buttons, list) or len(buttons) > 2:
@@ -237,7 +254,7 @@ def validate_content(channel, title, body, ttl_hours, image_name, icon_name, but
             bpath = btn.get("path", "")
             if not btitle or len(btitle) > 20:
                 raise ValueError("عنوان دکمه الزامی و حداکثر ۲۰ کاراکتر است.")
-            if not validate_link(bpath):
+            if not bpath or not validate_link(bpath):
                 raise ValueError("مسیر دکمه نامعتبر است.")
 
 
@@ -275,7 +292,7 @@ def _sms(n, b):
         _mark(n, Notification.Status.FAILED, error="فاقد شماره همراه")
         return False
     
-    text = b.body + (f"\n{n.tracking_url}" if n.tracking_url else "") + f"\n{SIGNATURE}"
+    text = b.body + (f"\n{n.tracking_url}" if b.link_path and n.tracking_url else "") + f"\n{SIGNATURE}"
     r = SMSService().send_text(mobile=phone, message=text)
     data = r.get("data") if isinstance(r.get("data"), dict) else {}
     code = data.get("status")
@@ -345,7 +362,8 @@ def _push(n, b, assets):
     return False
 
 
-def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, ttl_hours, audience_kind, audience_ids, created_by, buttons=None, digest=None):
+def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, ttl_hours,
+                     audience_kind, audience_ids, created_by, buttons=None, digest=None, is_test=False):
     if channel == "sms":
         if not channel_open("sms"):
             raise ValueError("پیامک بدون قالب غیرفعال است.")
@@ -359,13 +377,21 @@ def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, 
     buttons = buttons or []
     validate_content(channel, title, body, ttl_hours, image_name, icon_name, buttons)
 
-    users = resolve_audience(audience_kind, audience_ids, channel)
-    resolved_user_ids = [u.id for u in users]
-    audience_label = audience_label_for(audience_kind, audience_ids)
-
-    computed_digest = calculate_digest(body, audience_kind, audience_ids, image_name, icon_name, ttl_hours, buttons, channel, resolved_user_ids)
-    if digest != computed_digest:
-        raise ValueError("محتوای پیام یا گیرندگان تغییر کرده است. لطفاً پیش‌نمایش را بررسی کنید.")
+    if is_test:
+        if channel == "sms" and not created_by.phone_number:
+            raise ValueError("برای ارسال آزمایشی، شماره‌ی همراه شما ثبت نشده است.")
+        users, audience_kind, audience_ids = [created_by], "users", [created_by.pk]
+        audience_label = "آزمایشی به فرستنده"
+    else:
+        users = resolve_audience(audience_kind, audience_ids, channel)
+        audience_label = audience_label_for(audience_kind, audience_ids)
+        expected = calculate_digest(
+            channel=channel, title=title, body=body, link_path=link_path, ttl_hours=ttl_hours,
+            icon_name=icon_name, image_name=image_name, buttons=buttons or [],
+            audience_kind=audience_kind, audience_ids=audience_ids,
+            resolved_user_ids=[u.id for u in users])
+        if digest != expected:
+            raise ValueError("محتوای پیام یا گیرندگان تغییر کرده است. دوباره پیش‌نمایش بگیرید.")
 
     if channel == "sms" and len(users) > MAX_SMS_RECIPIENTS:
         raise ValueError(f"تعداد گیرندگان پیامک بیش از حد مجاز است (حداکثر {MAX_SMS_RECIPIENTS} کاربر).")
@@ -397,7 +423,8 @@ def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, 
             recipients_count=len(users),
             skipped_count=skipped_count,
             is_dry_run=is_dry_run,
-            created_by=created_by
+            created_by=created_by,
+            is_test=is_test,
         )
 
         notifications = []
