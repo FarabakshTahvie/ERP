@@ -25,7 +25,7 @@
     </div>
 
     <div data-audience-panel="users" class="hidden">
-        <div data-audience-picker data-url="{% url 'people:search' %}?kind=audience" data-initial-id="{{ prefix }}-users-initial"></div>
+        <div data-audience-picker data-name="audience_users" data-url="{% url 'people:search' %}?kind=audience" data-initial-id="{{ prefix }}-users-initial"></div>
         {% with sid=prefix|add:"-users-initial" %}{{ st.users_initial|json_script:sid }}{% endwith %}
         <p class="fb-hint mt-1">با نام یا شماره جستجو کنید (حداقل دو حرف). کاربر بدون شماره در پیامک حذف می‌شود.</p>
     </div>

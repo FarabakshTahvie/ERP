@@ -1,3 +1,5 @@
+import inspect
+import re
 from pathlib import Path
 from django.conf import settings
 from django.test import TestCase
@@ -95,6 +97,68 @@ class SourceGuardTests(TestCase):
             if "send_text(" in text:
                 violations.append(rel)
         self.assertEqual(violations, [])
+
+    def test_removed_css_classes_in_templates(self):
+        """قانون‌های ۱۰، ۱۳ و حذف‌شده‌های daisyUI 5 / Tailwind 4 در کلاس‌های تمپلیت."""
+        bad_exact = {"form-control", "label-text", "tabs-boxed", "tabs-lift", "rounded-btn", "flex-shrink-0",
+                     "flex-grow", "badge", "btn-warning", "btn-outline", "shadow-sm", "fb-page--md",
+                     "fb-badge-accent"}
+        problems = []
+        for path in (BASE / "templates").rglob("*.html"):
+            rel = str(path.relative_to(BASE / "templates")).replace("\\", "/")
+            if rel.startswith("admin/") or "dev_test" in rel:
+                continue
+            for attr in re.findall(r'class="([^"]*)"', path.read_text(encoding="utf-8")):
+                tokens = set(attr.split())
+                for t in tokens:
+                    if (t in bad_exact or t.endswith("-bordered") or t.startswith(("bg-opacity-", "text-opacity-"))
+                            or (t.startswith("badge-") and not t.startswith("fb-"))):
+                        problems.append(f"{rel}: {t}")
+                if "btn-error" in tokens and "btn-soft" not in tokens:
+                    problems.append(f"{rel}: btn-error بدون btn-soft")
+        self.assertEqual(sorted(set(problems)), [])
+
+    def test_generic_table_cell_types(self):
+        for path in BASE.rglob("*views*.py"):
+            if any(p in path.parts for p in ("venv", ".venv", "node_modules", "staticfiles")):
+                continue
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn('{"type": "html"', text, path.name)
+            self.assertNotIn('{"type": "amount"', text, path.name)
+
+    def test_digest_and_create_broadcast_are_keyword_only(self):
+        from notifications import broadcast
+        for fn in (broadcast.calculate_digest, broadcast.create_broadcast):
+            kinds = {p.kind for p in inspect.signature(fn).parameters.values()}
+            self.assertEqual(kinds, {inspect.Parameter.KEYWORD_ONLY}, fn.__name__)
+
+    def test_design_system_rules_are_numbered_continuously(self):
+        text = (BASE / "docs" / "DESIGN_SYSTEM.md").read_text(encoding="utf-8")
+        nums = [int(m.group(1)) for m in re.finditer(r"(?m)^(\d+)\. ", text)]
+        self.assertEqual(nums, list(range(1, 60)))
+
+    def test_no_windows_identifier_files_and_vendor_docs_exist(self):
+        for path in BASE.rglob("*.Identifier"):
+            if not any(p in path.parts for p in ("venv", ".venv", "node_modules")):
+                self.fail(str(path))
+        self.assertTrue((BASE / "docs" / "vendor" / "najva-api.md").is_file())
+        self.assertTrue((BASE / "docs" / "vendor" / "smsir-api.md").is_file())
+
+    def test_no_public_broadcast_image_route(self):
+        from django.test import Client
+        self.assertEqual(Client().get("/b/" + "a" * 32 + ".jpg").status_code, 404)
+        self.assertNotIn('"/b/"', (BASE / "accounts" / "middleware.py").read_text(encoding="utf-8"))
+
+    def test_image_upload_points_call_optimizer(self):
+        import ast
+        points = {"projects/stage_ops.py": "add_stage_file", "projects/services.py": "attach_project_files",
+                  "inventory/services.py": "create_purchase_from_form", "tasks/services.py": "add_attachment"}
+        for rel, func in points.items():
+            tree = ast.parse((BASE / rel).read_text(encoding="utf-8"))
+            node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == func)
+            names = {c.func.id for c in ast.walk(node) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+            self.assertTrue(names & {"optimize_named", "optimize_upload"}, f"{rel}:{func}")
+
 
 
 
