@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}جزئیات وظیفه | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--md">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="fb-page-title text-base-content">{{ task.title }}</h1>
+            <p class="fb-page-sub text-base-content/75">ثبت‌شده توسط {{ task.created_by.get_full_name|default:task.created_by.username }} در {{ task.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</p>
+        </div>
+        <a href="{% url 'tasks:edit' task.id %}" class="btn btn-outline btn-sm">ویرایش وظیفه</a>
+    </div>
+
+    <div class="space-y-4">
+        <div class="fb-card p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="fb-muted">سررسید:</span>
+                    <span class="font-bold font-technical">{% if task.due_at %}{{ task.due_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}بدون سررسید{% endif %}</span>
+                </div>
+            </div>
+            {% if task.description %}
+            <div>
+                <span class="text-xs fb-muted block mb-1">توضیحات:</span>
+                <p class="text-sm text-base-content/90 whitespace-pre-line">{{ task.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if task.subtasks.exists %}
+        <div class="fb-card p-4">
+            <h2 class="font-semibold text-sm mb-3">زیروظایف</h2>
+            <ul class="space-y-2">
+                {% for st in task.subtasks.all %}
+                <li class="flex items-center gap-2 text-sm">
+                    <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                    <span>{{ st.title }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="fb-card p-4">
+            <h2 class="font-semibold text-sm mb-3">وضعیت مسئولان</h2>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>مسئول</th>
+                            <th>وضعیت ثبت</th>
+                            <th>زمان ثبت</th>
+                            <th>توضیح تکنسین</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in task.assignments.all %}
+                        <tr>
+                            <td>{{ a.user.get_full_name|default:a.user.username }} {% if not a.user.is_active %}<span class="badge badge-error badge-xs">غیرفعال</span>{% endif %}</td>
+                            <td>
+                                {% if a.submitted_at %}
+                                <span class="badge badge-success badge-sm">ثبت شد</span>
+                                {% else %}
+                                <span class="badge badge-warning badge-sm">در حال انجام</span>
+                                {% endif %}
+                            </td>
+                            <td class="font-technical text-xs">{% if a.submitted_at %}{{ a.submitted_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}-{% endif %}</td>
+                            <td class="text-xs">{{ a.note|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if task.attachments.exists %}
+        <div class="fb-card p-4">
+            <h2 class="font-semibold text-sm mb-3">پیوست‌ها</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {% for att in task.attachments.all %}
+                <div class="border border-base-300 rounded-box p-3 flex flex-col gap-2 bg-base-100">
+                    <span class="text-xs truncate font-medium">{{ att.original_name }}</span>
+                    {% if att.is_image %}
+                    <img src="{{ att.file.url }}" alt="{{ att.original_name }}" loading="lazy" class="w-full h-24 object-cover rounded cursor-pointer" data-zoom="{{ att.file.url }}">
+                    {% endif %}
+                    <a href="{{ att.file.url }}" download class="btn btn-ghost btn-xs mt-auto">دانلود</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% include "utils/partials/image_zoom.html" %}
+<script>
+    document.addEventListener('click', function(e) {
+        var z = e.target.closest('[data-zoom]');
+        if (z) {
+            var modal = document.getElementById('img-zoom');
+            if (modal) {
+                modal.querySelector('img').src = z.dataset.zoom;
+                modal.showModal();
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -95,6 +95,11 @@
                         {% icon "users" "w-4 h-4" %} افراد
                     </a>
                     {% endif %}
+                    {% if caps.tasks_manage %}
+                    <a href="{% url 'tasks:list' %}" class="btn btn-ghost btn-sm">
+                        {% icon "check-square" "w-4 h-4" %} وظایف
+                    </a>
+                    {% endif %}
                     {% if caps.admin_panel %}
                     <a href="/admin/" class="btn btn-ghost btn-sm">
                         {% icon "settings" "w-4 h-4" %} پنل مدیریت

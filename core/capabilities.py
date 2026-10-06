@@ -57,6 +57,7 @@ CAPABILITIES = {
     "periods.lock": _manager_or_accountant,
     "invoice.adjust": _manager_or_accountant,
     "people.view": _manager_or_accountant,
+    "tasks.manage": _manager_or_accountant,
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
     "projects.create": lambda f: f.employee and bool(f.names & {SPECIALTY_INTAKE, SPECIALTY_ACCOUNTANT}),

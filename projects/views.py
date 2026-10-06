@@ -135,7 +135,11 @@ def _my_tasks_table_context(request):
 @login_required
 @user_passes_test(_is_technician)
 def dashboard_my_tasks_table(request):
-    return render_table(request, _my_tasks_table_context(request))
+    from tasks.models import TaskAssignment
+    ctx = _my_tasks_table_context(request)
+    ctx["task_assignments"] = TaskAssignment.objects.filter(user=request.user, submitted_at__isnull=True).select_related("task__created_by").prefetch_related("task__subtasks", "task__assignments", "checks", "task__attachments")
+    ctx["is_done_panel"] = False
+    return render_table(request, ctx, template="tasks/partials/my_tasks_panel.html")
 
 
 def _claimable_base_qs(request):
@@ -217,7 +221,11 @@ def _completed_table_context(request):
 @login_required
 @user_passes_test(_is_technician)
 def dashboard_completed_table(request):
-    return render_table(request, _completed_table_context(request))
+    from tasks.models import TaskAssignment
+    ctx = _completed_table_context(request)
+    ctx["task_assignments"] = TaskAssignment.objects.filter(user=request.user, submitted_at__isnull=False).select_related("task__created_by").prefetch_related("task__subtasks", "task__assignments", "checks", "task__attachments").order_by("-submitted_at")[:50]
+    ctx["is_done_panel"] = True
+    return render_table(request, ctx, template="tasks/partials/my_tasks_panel.html")
 
 
 def _my_projects_base_qs(request):

@@ -17,8 +17,11 @@ def get_jalali_date_range(start_date, end_date):
     if not start_date or not end_date:
         return None, None
     try:
-        s_y, s_m, s_d = map(int, start_date.split("/"))
-        e_y, e_m, e_d = map(int, end_date.split("/"))
+        from utils.jalali_forms import normalize_digits_and_separators
+        s_clean = normalize_digits_and_separators(start_date)
+        e_clean = normalize_digits_and_separators(end_date)
+        s_y, s_m, s_d = map(int, s_clean.split("/"))
+        e_y, e_m, e_d = map(int, e_clean.split("/"))
         start_g = jdatetime.date(s_y, s_m, s_d).togregorian()
         end_g = jdatetime.date(e_y, e_m, e_d).togregorian()
         if start_g > end_g:

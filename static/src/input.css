@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "../js/jalali_picker.js";
 @source "../js/remote_picker.js";
+@source "../js/tasks.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}ویرایش وظیفه | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--md">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="fb-page-title text-base-content">ویرایش وظیفه</h1>
+            <p class="fb-page-sub text-base-content/75">ویرایش مشخصات، زیروظایف و مسئولان وظیفه</p>
+        </div>
+        <a href="{% url 'tasks:detail' task.id %}" class="btn btn-ghost btn-sm">بازگشت به جزئیات</a>
+    </div>
+
+    <div class="fb-card p-4">
+        {% include "tasks/partials/task_form.html" %}
+    </div>
+</div>
+{% endblock %}

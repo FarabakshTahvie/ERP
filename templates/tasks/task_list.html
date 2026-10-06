@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}مدیریت وظایف | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="fb-page-title text-base-content">وظایف</h1>
+            <p class="fb-page-sub text-base-content/75">مدیریت و پیگیری وظایف محوله به تکنسین‌ها</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('task-create-card').classList.toggle('hidden')">ثبت وظیفه‌ی جدید</button>
+    </div>
+
+    <!-- فرم ثبت وظیفه بازشونده -->
+    <div id="task-create-card" class="fb-card p-4 mb-6 hidden">
+        <h2 class="font-bold text-sm mb-3">ثبت وظیفه‌ی جدید</h2>
+        {% include "tasks/partials/task_form.html" %}
+    </div>
+
+    <!-- تب‌ها -->
+    <div role="tablist" class="tabs tabs-border mb-4">
+        <a role="tab" class="tab {% if active_tab == 'open' %}tab-active font-bold{% endif %}" hx-get="{% url 'tasks:open_table' %}" hx-target="#task-table-container" hx-push-url="?tab=open" onclick="document.querySelectorAll('[role=tab]').forEach(t=>t.classList.remove('tab-active','font-bold')); this.classList.add('tab-active','font-bold'); document.getElementById('task-table-container').setAttribute('hx-get', '{% url 'tasks:open_table' %}');">وظایف در جریان</a>
+        <a role="tab" class="tab {% if active_tab == 'done' %}tab-active font-bold{% endif %}" hx-get="{% url 'tasks:done_table' %}" hx-target="#task-table-container" hx-push-url="?tab=done" onclick="document.querySelectorAll('[role=tab]').forEach(t=>t.classList.remove('tab-active','font-bold')); this.classList.add('tab-active','font-bold'); document.getElementById('task-table-container').setAttribute('hx-get', '{% url 'tasks:done_table' %}');">انجام‌شده</a>
+    </div>
+
+    <div id="task-table-container" hx-get="{% if active_tab == 'done' %}{% url 'tasks:done_table' %}{% else %}{% url 'tasks:open_table' %}{% endif %}" hx-trigger="load">
+        {% include "utils/partials/generic_table.html" with table=table %}
+    </div>
+</div>
+{% endblock %}
