@@ -149,6 +149,9 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
 
+SMS_FREE_TEXT_ENABLED = env.bool('SMS_FREE_TEXT_ENABLED', default=False)   # پیامک بدون قالب، فقط از پنل ارسال
+BROADCAST_DRY_RUN = env.bool('BROADCAST_DRY_RUN', default=False) and DEBUG  # فقط لوکال: بدون تماس بیرونی
+
 NAJVA_ENABLED = env.bool('NAJVA_ENABLED', default=False)
 
 # لینک «مشاهده روی نقشه»؛ جای‌نگهدار {lat} و {lng}. فقط با الگوی تاییدشده‌ی نشان عوض شود.
@@ -328,6 +331,8 @@ if 'test' in sys.argv:
     NAJVA_API_KEY = ''
     NAJVA_WEBSITE_ID = ''
     NAJVA_ENABLED = False
+    SMS_FREE_TEXT_ENABLED = False
+    BROADCAST_DRY_RUN = False
 
 # OTP Configuration
 OTP_LENGTH = env.int('OTP_LENGTH', default=5)

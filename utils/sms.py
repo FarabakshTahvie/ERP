@@ -21,14 +21,18 @@ class SMSService:
                 f"{self.BASE}/{path}", json=payload, timeout=10,
                 headers={"X-API-KEY": self.api_key, "Accept": "application/json"},
             )
-            data = r.json()
-        except (requests.exceptions.RequestException, ValueError) as e:
+            try:
+                data = r.json()
+            except ValueError:
+                data = {"message": r.text[:300]}
+        except requests.exceptions.RequestException as e:
             logger.error("sms.ir request error: %s", e)
-            return {"success": False, "error": str(e), "message_id": None}
+            return {"success": False, "error": str(e), "message_id": None, "http_status": None}
+        
         ok = r.status_code == 200 and data.get("status") == 1
         if not ok:
-            logger.error("sms.ir failed: HTTP %s %s", r.status_code, str(data)[:300])  # هرگز کلید را لاگ نکن
-            return {"success": False, "data": data, "error": data.get("message") or f"HTTP {r.status_code}", "message_id": None}
+            logger.error("sms.ir failed: HTTP %s %s", r.status_code, str(data)[:300])
+            return {"success": False, "data": data, "error": data.get("message") or f"HTTP {r.status_code}", "message_id": None, "http_status": r.status_code}
 
         # در صورت موفقیت، استخراج messageId و cost طبق مستند رسمی sms.ir
         resp_data = data.get("data")

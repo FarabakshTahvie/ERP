@@ -140,6 +140,9 @@
                             {% if caps.people_view %}
                             <li><a href="{% url 'people:staff' %}">{% icon "users" "w-4 h-4" %} افراد</a></li>
                             {% endif %}
+                            {% if caps.broadcast_use %}
+                            <li><a href="{% url 'notifications:broadcast_form' %}">{% icon "send" "w-4 h-4" %} ارسال پیام</a></li>
+                            {% endif %}
                             {% if caps.admin_panel %}
                             <li>
                                 <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>

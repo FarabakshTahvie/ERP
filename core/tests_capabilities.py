@@ -23,6 +23,7 @@ EXPECTED = {
     "people.view": MGR_ACC, "suspended.view": MGR_ACC,
     "inventory.manage": {"warehouse", "accountant"},
     "projects.create": {"reception", "accountant"},
+    "broadcast.use": MGR | {"accountant", "reception"},
 }
 
 

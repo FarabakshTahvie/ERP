@@ -49,6 +49,9 @@ PAGE_LABELS = {
     "people:staff": "افراد",
     "accounts:change_password": "تغییر رمز عبور",
     "notifications:center": "اعلان‌ها",
+    "notifications:broadcast_form": "ارسال پیام",
+    "notifications:broadcast_history": "فهرست پیام‌های همگانی",
+    "notifications:broadcast_detail": "جزئیات پیام همگانی",
 }
 
 

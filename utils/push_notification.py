@@ -27,7 +27,7 @@ class NajvaService:
     def configured(self):
         return bool(self.api_key and self.website_id)
 
-    def send(self, title, body, subscriber_tokens, url=None, ttl=24):
+    def send(self, title, body, subscriber_tokens, url=None, ttl=24, icon=None, image=None, buttons=()):
         tokens = list(subscriber_tokens or [])[: self.MAX_TOKENS]
         if not tokens:
             return {"success": False, "error": "no subscriber tokens", "invalid_tokens": []}
@@ -42,8 +42,18 @@ class NajvaService:
             ("message.title", title[:250]),
             ("message.body", body[:400]),
             ("message.notification_click.click_url", click_url[:250]),
-        ] + [("tokens[]", t) for t in tokens]
+        ]
+        for i, btn in enumerate(list(buttons)[:2], start=1):
+            fields += [
+                (f"message.button_{i}.title", btn["title"][:20]),
+                (f"message.button_{i}.click_url", btn["url"][:80]),
+            ]
+
+        fields += [("tokens[]", t) for t in tokens]
         files = [(k, (None, str(v))) for k, v in fields]  # multipart واقعی؛ Content-Type را دستی نگذار
+        for key, asset in (("message.icon", icon), ("message.image", image)):
+            if asset:
+                files.append((key, asset))
 
         try:
             resp = requests.post(self.url, files=files, headers={"apiKey": self.api_key}, timeout=10)

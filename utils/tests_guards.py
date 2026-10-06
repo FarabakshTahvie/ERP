@@ -75,4 +75,26 @@ class SourceGuardTests(TestCase):
                     "projects/partials/stage_cuts.html", "projects/staff_project_overview.html"):
             self.assertNotIn("ms-10", (BASE / "templates" / rel).read_text(encoding="utf-8"), rel)
 
+    def test_sms_send_text_usage_guard(self):
+        """send_text( فقط در utils/sms.py، core/management/commands/send_test_sms.py و notifications/broadcast.py مجاز است."""
+        allowed = {
+            "utils/sms.py",
+            "core/management/commands/send_test_sms.py",
+            "notifications/broadcast.py",
+            "notifications/management/commands/process_broadcasts.py"
+        }
+        violations = []
+        for path in BASE.rglob("*.py"):
+            if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
+                    or path.name.startswith("test")):
+                continue
+            rel = str(path.relative_to(BASE)).replace("\\", "/")
+            if rel in allowed:
+                continue
+            text = path.read_text(encoding="utf-8")
+            if "send_text(" in text:
+                violations.append(rel)
+        self.assertEqual(violations, [])
+
+
 

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}پیش‌نمایش و تایید ارسال پیام همگانی | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div class="fb-card fb-pad flex flex-col gap-4">
+        <div>
+            <h1 class="fb-page-title text-base-content">پیش‌نمایش و تایید نهایی</h1>
+            <p class="fb-page-sub text-base-content/75">لطفاً پیش از ارسال، اطلاعات پیام و تعداد نهایی مخاطبان را بررسی کنید.</p>
+        </div>
+
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4 bg-base-200 p-4 rounded-box text-sm">
+                <div>
+                    <span class="fb-muted">کانال ارسال:</span>
+                    <span class="font-bold">
+                        {% if channel == "push" %}پوش نوتیفیکیشن{% else %}پیامک بدون قالب{% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="fb-muted">مخاطبان:</span>
+                    <span class="font-bold">{{ audience_label }}</span>
+                </div>
+                {% if channel == "sms" %}
+                <div>
+                    <span class="fb-muted">برآورد بخش‌های پیامک:</span>
+                    <span class="font-bold font-technical">{{ sms_parts|fa_digits }} بخش</span>
+                </div>
+                {% endif %}
+                <div>
+                    <span class="fb-muted">حذف‌شده‌ها (بدون شماره/دستگاه):</span>
+                    <span class="font-bold text-error font-technical">{{ skipped_count|fa_digits }}</span>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="font-semibold text-sm">محتوای نهایی پیام:</label>
+                <div class="border border-base-300 rounded-box p-4 bg-base-100 space-y-2">
+                    {% if title %}
+                    <div class="font-bold text-sm">{{ title }}</div>
+                    {% endif %}
+                    <p class="text-xs text-base-content/90 whitespace-pre-line">{{ body }}</p>
+                    {% if link_path %}
+                    <div class="text-xs font-mono font-technical text-primary mt-2" dir="ltr">
+                        Link: {{ link_path }}
+                    </div>
+                    {% endif %}
+                    {% if channel == "push" and image_name %}
+                    <div class="mt-2 text-xs text-info">
+                        عکس پیوست: <span class="font-mono font-technical">{{ image_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- فرم نهایی تایید و صدور -->
+            <form method="post" action="{% url 'notifications:broadcast_preview' %}" data-fb-once>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm_send">
+                <input type="hidden" name="channel" value="{{ channel }}">
+                <input type="hidden" name="title" value="{{ title }}">
+                <input type="hidden" name="body" value="{{ body }}">
+                <input type="hidden" name="link_path" value="{{ link_path }}">
+                <input type="hidden" name="ttl_hours" value="{{ ttl_hours }}">
+                <input type="hidden" name="audience_kind" value="{{ audience_kind }}">
+                <!-- برای ارسال چند گزینه‌ای تخصص‌ها یا نقش‌ها -->
+                {% for item in audience_ids %}
+                <input type="hidden" name="audience_ids" value="{{ item }}">
+                {% endfor %}
+                <input type="hidden" name="icon_name" value="{{ icon_name }}">
+                <input type="hidden" name="image_name" value="{{ image_name }}">
+                <input type="hidden" name="digest" value="{{ digest }}">
+                <input type="hidden" name="audience_label" value="{{ audience_label }}">
+
+                <div class="alert alert-soft alert-info text-xs">
+                    پس از کلیک بر روی دکمهٔ «تایید و ارسال نهایی»، پیام‌ها در صفِ سیستم قرار می‌گیرند و ظرف حداکثر یک دقیقه ارسال خواهند شد.
+                </div>
+
+                <div class="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-base-300">
+                    <a href="{% url 'notifications:broadcast_form' %}" class="btn btn-ghost">انصراف و اصلاح</a>
+                    <button type="submit" class="btn btn-primary">تایید و ارسال نهایی</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

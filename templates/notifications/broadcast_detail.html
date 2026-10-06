@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}جزئیات پیام همگانی | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'notifications:broadcast_history' %}" class="btn btn-ghost btn-xs">{% icon "arrow-right" "w-4 h-4" %} بازگشت</a>
+                <h1 class="fb-page-title">{{ broadcast.title|default:broadcast.body|slice:":30" }}</h1>
+            </div>
+            <p class="fb-page-sub">
+                ارسال‌شده توسط {{ broadcast.created_by.get_full_name|default:broadcast.created_by.username }} در {{ broadcast.created_at|to_jalali:"%Y/%m/%d %H:%M" }}
+            </p>
+        </div>
+        {% if stats.failed_count > 0 %}
+        <!-- دکمه ارسال دوباره با مودال تایید -->
+        <button type="button" class="btn btn-soft btn-warning btn-sm" onclick="document.getElementById('retry-modal').showModal()">
+            {% icon "refresh-cw" "w-4 h-4" %} ارسال دوباره برای ناموفق‌ها ({{ stats.failed_count|fa_digits }})
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- کارت‌های وضعیت -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {% include "finance/partials/stat_card.html" with label="کل گیرندگان" value=stats.recipients_count tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="ارسال‌شده" value=stats.sent_count tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="فقط داخل برنامه" value=stats.in_app_count tone="text-info" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="ناموفق" value=stats.failed_count tone="text-error" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="دیده‌شده" value=stats.seen_count tone="text-primary" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="کلیک‌شده (افراد)" value=stats.clicked_count tone="text-accent" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="نرخ کلیک" value=stats.click_rate tone="text-accent" hint="درصد" %}
+    </div>
+
+    <div class="p-3 bg-base-200 rounded-box text-xs fb-muted">
+        {% icon "info" "w-4 h-4 inline-block ml-1" %}
+        دیده‌شده = باز کردن لینک یا زدن «همه دیده شد» در مرکز اعلان. تحویل واقعی پوش و پیامک از اینجا معلوم نیست.
+    </div>
+
+    <!-- جدول گیرندگان -->
+    <div class="fb-card">
+        {% include "utils/partials/generic_table.html" with table=table %}
+    </div>
+</div>
+
+<!-- مودال تایید ارسال دوباره -->
+{% if stats.failed_count > 0 %}
+<dialog id="retry-modal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">تایید ارسال دوباره</h3>
+        <p class="py-4 text-sm">
+            آیا مایلید برای {{ stats.failed_count|fa_digits }} پیام ناموفق مجدداً درخواست ارسال ثبت کنید؟
+        </p>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn btn-ghost">انصراف</button>
+            </form>
+            <form method="post" action="{% url 'notifications:broadcast_retry' broadcast.id %}" data-fb-once>
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning">ارسال مجدد</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+{% endif %}
+{% endblock %}

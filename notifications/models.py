@@ -20,6 +20,7 @@ class NotificationType(models.TextChoices):
     STAGE_APPROVAL_REQUEST = "stage_approval_request", "درخواست تایید مرحله"
     STAGE_ASSIGNED = "stage_assigned", "کار جدید"
     PART_REQUEST = "part_request", "درخواست قطعه"
+    BROADCAST = "broadcast", "پیام همگانی"
 
 
 class ChannelPolicy(models.TextChoices):
@@ -41,6 +42,38 @@ class NotificationPolicy(models.Model):
 
     def __str__(self):
         return f"{self.get_notification_type_display()} → {self.get_channel_policy_display()}"
+
+
+class Broadcast(models.Model):
+    class Channel(models.TextChoices):
+        PUSH = "push", "پوش"
+        SMS = "sms", "پیامک"
+
+    channel = models.CharField(max_length=10, choices=Channel.choices)
+    title = models.CharField(max_length=250, blank=True)
+    body = models.TextField()
+    link_path = models.CharField(max_length=300, blank=True)        # فقط مسیر داخلی
+    icon_name = models.CharField(max_length=60, blank=True)         # نام فایل عمومی یا خالی = آیکون پیش‌فرض
+    image_name = models.CharField(max_length=60, blank=True)
+    ttl_hours = models.PositiveSmallIntegerField(default=24)
+    buttons = models.JSONField(default=list, blank=True)
+    audience_kind = models.CharField(max_length=20)                 # all_staff | specialty | role | users
+    audience_ids = models.JSONField(default=list, blank=True)
+    audience_label = models.CharField(max_length=255)
+    recipients_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)          # بدون دستگاه/شماره که حذف شدند
+    is_test = models.BooleanField(default=False)                    # «آزمایشی به خودم»؛ از آمار بیرون است
+    is_dry_run = models.BooleanField(default=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "پیام همگانی"
+        verbose_name_plural = "پیام‌های همگانی"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_channel_display()} - {self.title or self.body[:30]}"
 
 
 class Notification(models.Model):
@@ -70,6 +103,9 @@ class Notification(models.Model):
     related_object = GenericForeignKey("related_content_type", "related_object_id")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
+    broadcast = models.ForeignKey('Broadcast', null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications")
+    error_text = models.CharField(max_length=255, blank=True)
+    provider_ref = models.CharField(max_length=100, blank=True)
 
     class Meta:
         verbose_name = "اطلاع‌رسانی"

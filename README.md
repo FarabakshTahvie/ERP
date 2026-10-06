@@ -23,11 +23,10 @@
   - `DEPLOY_USER`
   - `DEPLOY_SSH_KEY`
 
-## فعال‌سازی نجوا (Push Notification)
+## فعال‌سازی نجوا (Push Notification) و پیامک آزاد
 1. مقادیر `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در فایل `.env` تنظیم کنید.
-2. آی‌پی سرور خود را در پنل نجوا وایت‌لیست کنید.
+2. متغیر `NAJVA_ENABLED=True` (برای پوش) و `SMS_FREE_TEXT_ENABLED=True` (برای پیامک آزاد از پنل ارسال) را در صورت نیاز در `.env` فعال کنید.
 3. دستور `python manage.py najva_check` را برای تست اتصال اجرا نمایید.
-4. متغیر `NAJVA_ENABLED=True` را در `.env` قرار داده و سرویس را ری‌استارت کنید.
 
 ## استقرار روی سرور (Production Deployment)
 سرور واقعی با GitHub Actions دیپلوی می‌شود (بخش CI/CD). دامنه: `farabakhshtahvieh.com`.

@@ -11,7 +11,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         with transaction.atomic():
             pending = list(
-                Notification.objects.select_for_update(skip_locked=True).filter(status=Notification.Status.PENDING)
+                Notification.objects.select_for_update(skip_locked=True)
+                .filter(status=Notification.Status.PENDING, broadcast__isnull=True)
             )
             for notification in pending:
                 dispatch_notification(notification)
