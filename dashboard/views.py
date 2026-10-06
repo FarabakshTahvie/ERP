@@ -451,7 +451,8 @@ def notification_detail(request, notification_id):
     n = get_object_or_404(Notification.objects.select_related("user"), pk=notification_id)
     return render(request, "dashboard/notification_detail.html", {
         "n": n, "clicks": n.click_events.order_by("-clicked_at")[:20],
-        "can_resend": n.status == Notification.Status.FAILED and n.notification_type != NotificationType.INVOICE_ISSUED,
+        "can_resend": (n.status == Notification.Status.FAILED
+                       and n.notification_type not in (NotificationType.INVOICE_ISSUED, NotificationType.BROADCAST)),
     })
 
 

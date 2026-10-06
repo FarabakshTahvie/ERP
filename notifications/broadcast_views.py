@@ -1,4 +1,6 @@
 import json
+from datetime import datetime, time
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.http import Http404, JsonResponse
@@ -6,7 +8,7 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.utils import timezone
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 
 from core.capabilities import cap_required, can
 from core.models import Specialty
@@ -14,21 +16,12 @@ from accounts.models import User
 from utils.jalali import to_fa_digits, jalali_str
 from utils.generic_table import build_table_context, render_table
 from utils.models import PushDevice
+from finance.accounting import period_range
 from .models import Broadcast, Notification
 from .broadcast import (
-    resolve_audience,
-    validate_link,
-    calculate_digest,
-    save_broadcast_asset,
-    create_broadcast,
-    retry_failed,
-    parse_audience,
-    parse_buttons,
-    sms_parts,
-    MAX_PUSH_RECIPIENTS,
-    MAX_SMS_RECIPIENTS,
-    AUDIENCE_FIELD,
-    SIGNATURE,
+    resolve_audience, validate_link, calculate_digest, save_broadcast_asset, create_broadcast, retry_failed,
+    parse_audience, parse_buttons, sms_parts, sms_text_length, audience_label_for, validate_content, channel_open,
+    MAX_PUSH_RECIPIENTS, MAX_SMS_RECIPIENTS, AUDIENCE_FIELD, SIGNATURE,
 )
 
 PRESET_LINKS = [
@@ -38,20 +31,41 @@ PRESET_LINKS = [
 ]
 
 
-def _render_form(request, values=None):
-    push_enabled = bool(getattr(settings, "NAJVA_ENABLED", False) or getattr(settings, "BROADCAST_DRY_RUN", False))
-    sms_enabled = bool(getattr(settings, "SMS_FREE_TEXT_ENABLED", False) or getattr(settings, "BROADCAST_DRY_RUN", False))
-    specialties = Specialty.objects.all().order_by("name")
+def _form_state(post):
+    """مقادیر قبلی فرم (بعد از خطا یا «انصراف و اصلاح» در پیش‌نمایش). post=None یعنی فرم خالی."""
+    get = post.get if post is not None else (lambda k, d="": d)
+    getlist = post.getlist if post is not None else (lambda k: [])
+    chosen_ids = sorted({int(x) for x in getlist("audience_users") if str(x).isdigit()})
+    users = User.objects.filter(pk__in=chosen_ids)
+    return {
+        "channel": get("channel", "push") if get("channel", "push") in ("push", "sms") else "push",
+        "title": get("title", ""), "body": get("body", ""), "link_path": get("link_path", ""),
+        "ttl_hours": get("ttl_hours", "24") or "24",
+        "icon_name": get("icon_name", ""), "image_name": get("image_name", ""),
+        "btn1_title": get("btn1_title", ""), "btn1_path": get("btn1_path", ""),
+        "btn2_title": get("btn2_title", ""), "btn2_path": get("btn2_path", ""),
+        "audience_kind": get("audience_kind", "all_staff") or "all_staff",
+        "specialties": set(getlist("audience_specialties")),
+        "roles": set(getlist("audience_roles")),
+        "users_initial": [{"id": u.pk, "name": u.get_full_name() or u.username} for u in users],
+    }
 
+
+def _render_form(request, values=None):
+    state, blank = _form_state(values), _form_state(None)
+    base = settings.SITE_BASE_URL.rstrip("/")
     return render(request, "notifications/broadcast_form.html", {
-        "push_enabled": push_enabled,
-        "sms_enabled": sms_enabled,
-        "specialties": specialties,
+        "push_enabled": channel_open("push"),
+        "sms_enabled": channel_open("sms"),
+        "specialties": Specialty.objects.filter(is_active=True).order_by("name"),
         "preset_links": PRESET_LINKS,
         "is_admin": can(request.user, "admin.panel"),
-        "max_push": MAX_PUSH_RECIPIENTS,
-        "max_sms": MAX_SMS_RECIPIENTS,
-        "values": values,
+        "max_push": MAX_PUSH_RECIPIENTS, "max_sms": MAX_SMS_RECIPIENTS,
+        "active_channel": state["channel"],
+        "push": state if state["channel"] == "push" else blank,
+        "sms": state if state["channel"] == "sms" else blank,
+        "sms_signature_len": 1 + len(SIGNATURE),
+        "sms_link_len": 1 + len(base) + len("/s/") + 5,
     })
 
 
@@ -84,8 +98,7 @@ def _draft(request):
         for field, asset in (("icon_file", "icon"), ("image_file", "image")):
             if request.FILES.get(field):
                 d[f"{asset}_name"] = save_broadcast_asset(request.FILES[field], kind=asset)
-    from .broadcast import validate_content
-    validate_content(channel, d["title"], d["body"], ttl, d["image_name"], d["icon_name"], d["buttons"])
+    validate_content(channel, d["title"], d["body"], ttl, d["image_name"], d["icon_name"], d["buttons"], d["link_path"])
     if d["link_path"] and not validate_link(d["link_path"]):
         raise ValueError("لینک نامعتبر یا خارجی است.")
     return d
@@ -102,73 +115,41 @@ def _hidden_fields(d):
 
 @cap_required("broadcast.use")
 def broadcast_preview(request):
-    """
-    پیش‌نمایش پیام همگانی، اعتبارسنجی اولیه، محاسبه digest و تایید نهایی.
-    """
     if request.method != "POST":
         return redirect("notifications:broadcast_form")
     action = request.POST.get("action", "preview")
+    if action == "edit":                                   # «انصراف و اصلاح»: بدون اعتبارسنجی، فقط بازگرداندن فرم
+        return _render_form(request, values=request.POST)
     try:
         d = _draft(request)
         if action == "test_self":
-            b = create_broadcast(
-                channel=d["channel"], title=d["title"], body=d["body"],
-                link_path=d["link_path"], icon_name=d["icon_name"], image_name=d["image_name"],
-                ttl_hours=d["ttl_hours"], audience_kind=d["audience_kind"], audience_ids=d["audience_ids"],
-                created_by=request.user, buttons=d["buttons"], is_test=True
-            )
+            b = create_broadcast(**d, created_by=request.user, is_test=True)
             messages.success(request, "ارسال آزمایشی در صف قرار گرفت.")
             return redirect("notifications:broadcast_detail", broadcast_id=b.id)
-        
         users = resolve_audience(d["audience_kind"], d["audience_ids"], d["channel"])
         if not users:
             raise ValueError("گیرنده‌ای پیدا نشد.")
-        
         if action == "confirm_send":
-            b = create_broadcast(
-                channel=d["channel"], title=d["title"], body=d["body"],
-                link_path=d["link_path"], icon_name=d["icon_name"], image_name=d["image_name"],
-                ttl_hours=d["ttl_hours"], audience_kind=d["audience_kind"], audience_ids=d["audience_ids"],
-                created_by=request.user, buttons=d["buttons"], digest=request.POST.get("digest")
-            )
+            b = create_broadcast(**d, created_by=request.user, digest=request.POST.get("digest"))
             messages.success(request, "پیام در صف ارسال قرار گرفت.")
             return redirect("notifications:broadcast_detail", broadcast_id=b.id)
-        
-        digest = calculate_digest(
-            channel=d["channel"], title=d["title"], body=d["body"],
-            link_path=d["link_path"], ttl_hours=d["ttl_hours"], icon_name=d["icon_name"],
-            image_name=d["image_name"], buttons=d["buttons"], audience_kind=d["audience_kind"],
-            audience_ids=d["audience_ids"], resolved_user_ids=[u.id for u in users]
-        )
+        digest = calculate_digest(**d, resolved_user_ids=[u.id for u in users])
     except ValueError as e:
         messages.error(request, str(e))
         return _render_form(request, values=request.POST)
 
-    # Estimate stats
-    full_audience = resolve_audience(d["audience_kind"], d["audience_ids"], "push")
-    skipped_count = len(full_audience) - len(users) if d["channel"] == "sms" else 0
-
-    no_device_count = 0
+    skipped = 0
+    if d["channel"] == "sms":
+        skipped = len(resolve_audience(d["audience_kind"], d["audience_ids"], "push")) - len(users)
+    no_device = 0
     if d["channel"] == "push":
-        active_device_user_ids = set(PushDevice.objects.filter(user__in=users, is_active=True).values_list("user_id", flat=True))
-        no_device_count = sum(1 for u in users if u.id not in active_device_user_ids)
-
-    # Estimate SMS length and parts
-    final_text_len = len(d["body"]) + len("\n" + SIGNATURE)
-    if d["link_path"]:
-        final_text_len += 1 + len(settings.SITE_BASE_URL.rstrip('/')) + 8 # plus a newline and tracking url
-    estimated_parts = sms_parts(final_text_len)
-
+        with_device = set(PushDevice.objects.filter(user__in=users, is_active=True).values_list("user_id", flat=True))
+        no_device = sum(1 for u in users if u.id not in with_device)
     return render(request, "notifications/broadcast_preview.html", {
-        **d,
-        "hidden": _hidden_fields(d),
-        "digest": digest,
-        "recipients_count": len(users),
-        "skipped_count": skipped_count,
-        "no_device_count": no_device_count,
-        "sms_parts": estimated_parts,
-        "signature": SIGNATURE,
-        "site_base_url": settings.SITE_BASE_URL,
+        **d, "hidden": _hidden_fields(d), "digest": digest, "recipients_count": len(users),
+        "audience_label": audience_label_for(d["audience_kind"], d["audience_ids"]),
+        "skipped_count": skipped, "no_device_count": no_device,
+        "sms_parts": sms_parts(sms_text_length(d["body"], bool(d["link_path"]))),
     })
 
 
@@ -188,7 +169,7 @@ def _build_history_table_context(request):
             channel_variant = "info"
         else:
             channel_val = "پیامک" + (" (آزمایشی)" if b.is_test else "")
-            channel_variant = "accent"
+            channel_variant = "primary"
 
         return {
             "url": reverse("notifications:broadcast_detail", args=[b.id]),
@@ -234,20 +215,16 @@ def broadcast_history(request):
     """
     فهرست ارسال‌ها و آمار کلی با جدول ژنریک (پیشوند bh_).
     """
-    now = timezone.now()
-    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    # کارت‌های آمار این ماه (به جز ارسال‌های آزمایشی)
-    monthly_broadcasts = Broadcast.objects.filter(created_at__gte=start_of_month, is_test=False)
-    total_broadcasts = monthly_broadcasts.count()
-    total_recipients = sum(monthly_broadcasts.values_list("recipients_count", flat=True)) or 0
-
-    monthly_notifs = Notification.objects.filter(broadcast__in=monthly_broadcasts)
+    start, end = period_range("this_month")
+    aware = lambda d: timezone.make_aware(datetime.combine(d, time.min))
+    monthly = Broadcast.objects.filter(created_at__gte=aware(start), created_at__lt=aware(end), is_test=False)
+    total_broadcasts = monthly.count()
+    total_recipients = monthly.aggregate(t=Sum("recipients_count"))["t"] or 0
+    monthly_notifs = Notification.objects.filter(broadcast__in=monthly)
     seen_count = monthly_notifs.filter(seen_at__isnull=False).count()
     clicked_count = monthly_notifs.filter(click_events__isnull=False).distinct().count()
-
-    seen_rate = round((seen_count / total_recipients * 100), 1) if total_recipients > 0 else 0
-    click_rate = round((clicked_count / total_recipients * 100), 1) if total_recipients > 0 else 0
+    seen_rate = round(seen_count / total_recipients * 100, 1) if total_recipients else 0
+    click_rate = round(clicked_count / total_recipients * 100, 1) if total_recipients else 0
 
     table_ctx = _build_history_table_context(request)
     ctx = {
@@ -345,6 +322,14 @@ def broadcast_detail(request, broadcast_id):
             "click_rate": to_fa_digits(f"{click_rate}٪"),
         }
     }
+    def media(name):
+        return reverse("protected_media", kwargs={"path": f"broadcast/{name}"}) if name else ""
+
+    ctx.update(
+        icon_url=media(broadcast.icon_name), image_url=media(broadcast.image_name),
+        pending_count=notifs.filter(status=Notification.Status.PENDING).count(),
+        channel_closed=not channel_open(broadcast.channel),
+    )
     ctx.update(table_ctx)
     return render(request, "notifications/broadcast_detail.html", ctx)
 

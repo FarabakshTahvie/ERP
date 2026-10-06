@@ -21,9 +21,6 @@
         {% include "finance/partials/stat_card.html" with label="درصد کلیک" value=stats.click_rate tone="text-accent" hint="درصد" %}
     </div>
 
-    <!-- جدول ارسال‌ها -->
-    <div class="fb-card">
-        {% include "utils/partials/generic_table.html" with table=table %}
-    </div>
+    {% include "utils/partials/generic_table.html" %}
 </div>
 {% endblock %}
