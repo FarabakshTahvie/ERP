@@ -81,14 +81,15 @@ python manage.py seed_demo_data
 | `inventory` | خرید، لات موجودی، حرکت انبار (FIFO + میانگین موزون) |
 | `projects` | پروژه، گردش‌کار مراحل، فایل نقشه، تاییدیه |
 | `finance` | فاکتور (اسنپ‌شات)، پرداخت چندروشی، دفتر حساب |
-| `notifications` | زیرساخت پیامک/پوش |
+| `notifications` | اعلان، پوش و پیامک؛ پنل «ارسال پیام» همگانی |
 | `utils` | ابزار مشترک (عکس، پیامک، پوش) |
 | `dashboard` | داشبورد مدیر: صف اقدام، پروژه‌های فعال؛ فقط می‌خواند |
 | `people` | افراد: کارکنان، مشتریان، پروفایل، ردپا |
+| `tasks` | وظایف: مدیر و حسابدار می‌سازند، تکنسین در «کارهای من» انجام می‌دهد |
 
 ترتیب وابستگی اپ‌ها (برای جلوگیری از import چرخه‌ای):
 ```
-core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people
+core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks
 ```
 
 ## نقش‌های کاربری
@@ -105,6 +106,12 @@ core → accounts → catalog → inventory → projects → finance → notific
 6. رد شدن یک مرحله: اگر `on_reject_go_to` تعریف شده باشد خودکار برمی‌گردد؛ اگر نه، پروژه «معلق» می‌شود تا مدیر تصمیم بگیرد (بازگشت به چرخه یا لغو کامل).
 7. مبلغ پرداخت‌های دارای رسید (کارت به کارت، رسید واریز، چک) را همیشه کارشناس از روی رسید می‌نویسد؛ مبلغ واردشده‌ی مشتری فقط «اعلامی» است (`Payment.claimed_amount`). هیچ مسیری نباید چنین پرداختی را بدون مبلغ تاییدشده‌ی کارشناس تایید کند. قوانین ثبت پرداخت فقط در `finance/services.py` (`create_customer_payment`, `approve_payment`) هستند.
 8. هر تصمیم دسترسی فقط در `core/capabilities.py` تعریف و اعمال می‌شود. مقایسه‌ی مستقیم نقش یا `is_staff` ممنوع است.
+
+## فعال‌سازی نجوا (پوش) و پیامک آزاد
+1. `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در `.env` بگذارید.
+2. IP خروجی سرور را در پنل نجوا وایت‌لیست کنید (بدون آن خطای ۴۱۶ می‌گیرید). دستور `python manage.py najva_check` همین IP را چاپ می‌کند.
+3. `NAJVA_ENABLED=True` برای پوش و `SMS_FREE_TEXT_ENABLED=True` برای پیامک بدون قالب از پنل «ارسال پیام». `BROADCAST_DRY_RUN=True` فقط روی لوکال (با DEBUG) برای آزمایش بدون تماس بیرونی.
+4. ارسال پیام‌های همگانی با دستور `python manage.py process_broadcasts` انجام می‌شود (در پروداکشن با cron، هر دقیقه؛ فایل `deploy/cron`).
 
 ## پیامک و پوش
 پیامک و پوش فعال است. سیاست هر نوع پیام با دستور `python manage.py setup_notification_policies` ساخته و از پنل مدیریت قابل تغییر است. وضعیت پیام‌ها در داشبورد مدیر ← اطلاع‌رسانی‌ها.

@@ -81,3 +81,6 @@ FaraBakhsh.zip
 ehthumbs.db
 Thumbs.db
 graphify-out/
+
+# فایل‌های ویندوزی
+*.Identifier
