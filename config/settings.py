@@ -138,6 +138,26 @@ if 'test' in sys.argv:
     if not env.bool('TEST_ON_POSTGRES', default=False):
         DATABASES['default'] = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}
 
+# --- Celery: ارسال پیامک و پوش (پنل ارسال پیام + کد ورود) ---
+# دیتابیس ۱ ردیس؛ کش دیتابیس ۰ است و cache.clear() نباید صف را پاک کند.
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://127.0.0.1:6379/1')
+CELERY_TIMEZONE = 'Asia/Tehran'
+CELERY_TASK_IGNORE_RESULT = True                 # result backend نداریم
+CELERY_TASK_ACKS_LATE = False                    # ارسال پیامک نباید با کرش worker دوباره اجرا شود
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_TIMEOUT = 3
+# اگر ردیس پایین باشد .delay نباید درخواست وب را چند ثانیه معطل کند
+CELERY_TASK_PUBLISH_RETRY_POLICY = {"max_retries": 1, "interval_start": 0, "interval_step": 0.2, "interval_max": 0.5}
+CELERY_BEAT_SCHEDULE = {
+    "process-broadcasts": {"task": "notifications.process_broadcasts", "schedule": 60.0},   # شبکه‌ی ایمنی
+}
+
+if 'test' in sys.argv:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = 'memory://'
+
 
 # Signed Cookie Session Engine
 # https://docs.djangoproject.com/en/6.1/topics/http/sessions/#using-cookie-based-sessions

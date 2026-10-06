@@ -23,6 +23,7 @@ share/python-wheels/
 MANIFEST
 
 # Django specific
+celerybeat-schedule*
 *.log
 local_settings.py
 db.sqlite3
