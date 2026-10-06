@@ -56,6 +56,7 @@ class Broadcast(models.Model):
     icon_name = models.CharField(max_length=60, blank=True)         # نام فایل عمومی یا خالی = آیکون پیش‌فرض
     image_name = models.CharField(max_length=60, blank=True)
     ttl_hours = models.PositiveSmallIntegerField(default=24)
+    buttons = models.JSONField(default=list, blank=True)
     audience_kind = models.CharField(max_length=20)                 # all_staff | specialty | role | users
     audience_ids = models.JSONField(default=list, blank=True)
     audience_label = models.CharField(max_length=255)
@@ -104,6 +105,7 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     broadcast = models.ForeignKey('Broadcast', null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications")
     error_text = models.CharField(max_length=255, blank=True)
+    provider_ref = models.CharField(max_length=100, blank=True)
 
     class Meta:
         verbose_name = "اطلاع‌رسانی"

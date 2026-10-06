@@ -76,7 +76,9 @@ class BroadcastSystemTests(TestCase):
 
     @override_settings(SMS_FREE_TEXT_ENABLED=True, NAJVA_ENABLED=True)
     def test_create_broadcast_flow(self):
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "sms")
+        users = resolve_audience("all_staff", [], "sms")
+        user_ids = [u.id for u in users]
+        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
         b = create_broadcast(
             channel="sms",
             title="تست",
@@ -87,9 +89,8 @@ class BroadcastSystemTests(TestCase):
             ttl_hours=24,
             audience_kind="all_staff",
             audience_ids=[],
-            audience_label="همه",
             created_by=self.mgr,
-            is_test=False,
+            buttons=[],
             digest=digest
         )
         self.assertEqual(b.recipients_count, 3)  # mgr, acc, tech دارای شماره تلفن هستند
@@ -98,7 +99,9 @@ class BroadcastSystemTests(TestCase):
 
     @override_settings(SMS_FREE_TEXT_ENABLED=False, BROADCAST_DRY_RUN=False)
     def test_create_broadcast_disabled_flow_fails(self):
-        digest = calculate_digest("سلام", "all_staff", [], "", "sms")
+        users = resolve_audience("all_staff", [], "sms")
+        user_ids = [u.id for u in users]
+        digest = calculate_digest("سلام", "all_staff", [], "", "", 24, [], "sms", user_ids)
         with self.assertRaises(ValueError):
             create_broadcast(
                 channel="sms",
@@ -110,15 +113,16 @@ class BroadcastSystemTests(TestCase):
                 ttl_hours=24,
                 audience_kind="all_staff",
                 audience_ids=[],
-                audience_label="همه",
                 created_by=self.mgr,
-                is_test=False,
+                buttons=[],
                 digest=digest
             )
 
     @override_settings(SMS_FREE_TEXT_ENABLED=True)
     def test_process_pending_notifications_ignores_broadcast(self):
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "sms")
+        users = resolve_audience("all_staff", [], "sms")
+        user_ids = [u.id for u in users]
+        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
         b = create_broadcast(
             channel="sms",
             title="تست",
@@ -129,9 +133,8 @@ class BroadcastSystemTests(TestCase):
             ttl_hours=24,
             audience_kind="all_staff",
             audience_ids=[],
-            audience_label="همه",
             created_by=self.mgr,
-            is_test=False,
+            buttons=[],
             digest=digest
         )
         from django.core.management import call_command
@@ -141,7 +144,9 @@ class BroadcastSystemTests(TestCase):
 
     @override_settings(BROADCAST_DRY_RUN=True)
     def test_process_broadcasts_dry_run(self):
-        digest = calculate_digest("سلام همگی", "all_staff", [], "", "sms")
+        users = resolve_audience("all_staff", [], "sms")
+        user_ids = [u.id for u in users]
+        digest = calculate_digest("سلام همگی", "all_staff", [], "", "", 24, [], "sms", user_ids)
         b = create_broadcast(
             channel="sms",
             title="تست",
@@ -152,9 +157,8 @@ class BroadcastSystemTests(TestCase):
             ttl_hours=24,
             audience_kind="all_staff",
             audience_ids=[],
-            audience_label="همه",
             created_by=self.mgr,
-            is_test=False,
+            buttons=[],
             digest=digest
         )
         from django.core.management import call_command

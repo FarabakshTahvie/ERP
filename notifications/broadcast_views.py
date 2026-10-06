@@ -19,7 +19,7 @@ from .broadcast import (
     resolve_audience,
     validate_link,
     calculate_digest,
-    handle_broadcast_image,
+    save_broadcast_asset,
     create_broadcast,
     retry_failed,
     MAX_PUSH_RECIPIENTS,
@@ -79,7 +79,7 @@ def broadcast_preview(request):
         # بررسی آپلود تصویر جدید
         if "image_file" in request.FILES:
             try:
-                image_name = handle_broadcast_image(request.FILES["image_file"])
+                image_name = save_broadcast_asset(request.FILES["image_file"], kind="image")
             except ValueError as e:
                 messages.error(request, str(e))
                 return redirect("notifications:broadcast_form")
