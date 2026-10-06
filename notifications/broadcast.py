@@ -4,12 +4,14 @@ import json
 import hashlib
 import logging
 import secrets
+import time
 from io import BytesIO
 from datetime import timedelta
 from urllib.parse import urlsplit
 from PIL import Image, ImageOps, UnidentifiedImageError
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.urls import resolve, Resolver404
@@ -39,6 +41,9 @@ SENT = {"push": Notification.Status.PUSH_SENT, "sms": Notification.Status.SMS_SE
 WAIT, FAIL_ALL = "wait", "fail_all"
 RETRY_MARK = "ارسال مجدد"      # ردیف‌های ارسال‌دوباره با این نشانه از انقضا معاف‌اند تا دوباره ارسال شوند
 RAW_MAX = 10 * 1024 * 1024
+BATCH = 40
+LOCK_KEY = "lock:process_broadcasts"
+LOCK_TTL = 90
 
 
 class AssetError(ValueError):
@@ -402,6 +407,70 @@ def _unique_short_codes(n):
         taken = set(Notification.objects.filter(short_code__in=codes).values_list("short_code", flat=True))
         codes -= taken
     return list(codes)
+
+
+def run_process_broadcasts(*, max_seconds=120, heartbeat=None):
+    """دسته‌های ۴۰تایی پشت‌سرهم تا صف خالی شود یا زمان تمام شود.
+    finalized: ردیفی که از PENDING بیرون رفت (ارسال‌شده، ناموفق، فقط داخل برنامه)
+    waiting:   ردیفی که به‌خاطر خطای موقت PENDING ماند (دور بعد دوباره نوبت می‌گیرد)
+    more:      کار مانده و فقط زمان تمام شد؛ فراخوان باید دوباره صف کند
+    heartbeat: callable بدون آرگومان؛ پیش از هر ردیف صدا زده می‌شود (تمدید قفل)."""
+    deadline = time.monotonic() + max_seconds
+    stats = {"finalized": 0, "waiting": 0, "expired": expire_stale(), "more": False}
+    assets, blocked = {}, set()
+    while True:
+        open_channels = [c for c in ("push", "sms") if channel_open(c) and c not in blocked]
+        rows = list(
+            Notification.objects.filter(status=Notification.Status.PENDING, broadcast__isnull=False)
+            .filter(Q(broadcast__is_dry_run=True) | Q(broadcast__channel__in=open_channels))
+            .order_by("pk").values_list("pk", "broadcast__channel", "broadcast__is_dry_run")[:BATCH])
+        if not rows:
+            break
+        final_in_batch = 0
+        for pk, channel, dry in rows:
+            if channel in blocked and not dry:
+                continue
+            if heartbeat:
+                heartbeat()
+            signal, broadcast_id = None, None
+            try:
+                with transaction.atomic():
+                    n = (Notification.objects.select_for_update(skip_locked=True, of=("self",))
+                         .select_related("broadcast", "user")
+                         .filter(pk=pk, status=Notification.Status.PENDING).first())
+                    if n is None:
+                        continue
+                    broadcast_id = n.broadcast_id
+                    if broadcast_id not in assets:
+                        assets[broadcast_id] = load_assets(n.broadcast)
+                    signal = deliver_one(n, assets[broadcast_id])
+                    if signal == FAIL_ALL:
+                        fail_pending(n.broadcast_id, n.error_text or "خطای سراسری")
+            except AssetError as e:
+                fail_pending(broadcast_id, str(e))
+                final_in_batch += 1
+                continue
+            except Exception:
+                logger.exception("broadcast deliver failed %s", pk)
+                # نتیجه‌ی ارسال نامعلوم است؛ برای جلوگیری از ارسال تکراری FAILED می‌شود (مدیر دستی «ارسال دوباره» می‌زند)
+                Notification.objects.filter(pk=pk, status=Notification.Status.PENDING).update(
+                    status=Notification.Status.FAILED, error_text="خطای داخلی")
+                final_in_batch += 1
+                continue
+            if signal == WAIT:
+                stats["waiting"] += 1
+                blocked.add(channel)
+            else:
+                final_in_batch += 1
+                if signal == FAIL_ALL:
+                    blocked.add(channel)
+        stats["finalized"] += final_in_batch
+        if final_in_batch == 0:            # فقط ردیف‌های منتظر/قفل‌شده مانده؛ حلقه‌ی بی‌نهایت نشود
+            break
+        if time.monotonic() >= deadline:
+            stats["more"] = True
+            break
+    return stats
 
 
 def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, ttl_hours,
