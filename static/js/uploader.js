@@ -129,30 +129,37 @@
   document.body && document.body.addEventListener('htmx:afterSwap', initAll);
 
   // فرمی که فایل را بعد از ثبت می‌فرستد: <form data-deferred-upload> با <div data-upload-error class="hidden alert alert-soft alert-error">
+  // data-always-ajax: حتی بدون فایل با XHR ارسال شود (خطا = ورودی‌های کاربر می‌ماند)
+  // data-entity: نام موجودیت در پیام‌ها (پیش‌فرض «پروژه»)
   document.addEventListener('submit', function (e) {
     var form = e.target;
     if (e.defaultPrevented || !form.hasAttribute || !form.hasAttribute('data-deferred-upload')) return;
     var zone = form.querySelector('[data-dropzone]'), dz = zone && zone._dropzone;
-    if (!dz || !dz.hasFiles()) return;   // بدون فایل: ارسال معمولی
+    var hasFiles = !!(dz && dz.hasFiles());
+    if (!hasFiles && !form.hasAttribute('data-always-ajax')) return;   // ارسال معمولی
     e.preventDefault();
+    var entity = form.dataset.entity || 'پروژه';
     var err = form.querySelector('[data-upload-error]');
-    function reset() { form.querySelectorAll('button[type=submit]').forEach(function (b) { b.disabled = false; var s = b.querySelector('.loading'); if (s) s.remove(); }); }
-    function show(msg, projectUrl, retry) {
+    var buttons = form.querySelectorAll('button[type=submit]');
+    function lock(on) { buttons.forEach(function (b) { b.disabled = on; var s = b.querySelector('.loading'); if (!on && s) s.remove(); }); }
+    function show(msg, goUrl, retry) {
       err.textContent = msg; err.classList.remove('hidden');
       if (retry) {
         var r = el('button', 'btn btn-soft btn-sm', 'تلاش دوباره'); r.type = 'button'; r.addEventListener('click', retry);
-        var a = el('a', 'btn btn-ghost btn-sm', 'رفتن به پروژه'); a.href = projectUrl;
+        var a = el('a', 'btn btn-ghost btn-sm', 'رفتن به ' + entity); a.href = goUrl;
         err.appendChild(r); err.appendChild(a);
       }
     }
     err.classList.add('hidden');
+    lock(true);
     send(form.action, new FormData(form)).then(function (res) {
-      if (!res.ok) { show(res.error || 'ثبت انجام نشد.'); reset(); return; }
+      if (!res.ok) { show(res.error || 'ثبت انجام نشد.'); lock(false); return; }
+      if (!hasFiles) { window.location.href = res.redirect; return; }
       function run() {
         err.classList.add('hidden');
         dz.uploadAll(res.upload_url).then(function (failed) {
           if (!failed) { window.location.href = res.redirect; return; }
-          show('پروژه ثبت شد، ولی ارسال ' + fa(failed) + ' فایل انجام نشد.', res.project_url, run);
+          show(entity + ' ثبت شد، ولی ارسال ' + fa(failed) + ' فایل انجام نشد.', res.project_url, run);
         });
       }
       run();

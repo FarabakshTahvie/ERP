@@ -1,0 +1,27 @@
+<dialog id="img-zoom" class="modal">
+    <div class="modal-box max-w-4xl p-2">
+        <img id="img-zoom-el" alt="" class="w-full max-h-[80vh] object-contain">
+        <div class="flex items-center justify-between gap-2 p-2">
+            <p id="img-zoom-name" class="text-xs fb-muted" dir="auto"></p>
+            <a id="img-zoom-dl" href="#" download class="btn btn-soft btn-xs">دانلود</a>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+<script>
+(function () {
+    if (window.__fbZoomBound) return;
+    window.__fbZoomBound = true;
+    document.addEventListener('click', function (e) {
+        var z = e.target.closest('[data-zoom]');
+        if (!z) return;
+        var name = z.dataset.zoomName || '';
+        document.getElementById('img-zoom-el').src = z.dataset.zoom;
+        document.getElementById('img-zoom-name').textContent = name;
+        var dl = document.getElementById('img-zoom-dl');
+        dl.href = z.dataset.zoom;
+        dl.setAttribute('download', name);
+        document.getElementById('img-zoom').showModal();
+    });
+})();
+</script>

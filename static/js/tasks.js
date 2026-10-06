@@ -1,78 +1,58 @@
 (function () {
+  var FA = '۰۱۲۳۴۵۶۷۸۹';
+  function fa(n) { return String(n).replace(/\d/g, function (d) { return FA[d]; }); }
+  function say(card, msg) {
+    var e = card.querySelector('[data-task-error]');
+    if (!e) return;
+    e.textContent = msg || '';
+    e.classList.toggle('hidden', !msg);
+  }
+  function lock(card, on) {
+    card.querySelectorAll('[data-task-check]').forEach(function (c) { c.disabled = on; });
+  }
+  function sync(card, res) {
+    var checked = {};
+    (res.checked || []).forEach(function (id) { checked[String(id)] = true; });
+    card.querySelectorAll('[data-subtask-id]').forEach(function (cb) { cb.checked = !!checked[cb.dataset.subtaskId]; });
+    var main = card.querySelector('[data-task-main-check]');
+    if (main) main.checked = !!res.main_checked;
+    var btn = card.querySelector('[data-task-submit-btn]');
+    if (btn) btn.disabled = !res.main_checked;
+    var prog = card.querySelector('[data-task-progress]');
+    if (prog && res.total) prog.textContent = fa((res.checked || []).length) + ' از ' + fa(res.total);
+  }
+
   document.addEventListener('change', function (ev) {
-    var checkbox = ev.target.closest('[data-task-check]');
-    if (!checkbox) return;
-
-    var taskId = checkbox.dataset.taskId;
-    var subtaskId = checkbox.dataset.subtaskId || '';
-    var done = checkbox.checked ? '1' : '0';
-    var url = '/tasks/' + taskId + '/check/';
-
-    checkbox.disabled = true;
-
-    var fd = new FormData();
-    if (subtaskId) {
-      fd.append('subtask_id', subtaskId);
-    }
-    fd.append('done', done);
-
-    window.fbSend(url, fd, window.FB_CSRF)
-      .then(function (res) {
-        checkbox.disabled = false;
-        if (!res.ok) {
-          checkbox.checked = !checkbox.checked;
-          alert(res.error || 'خطا در ثبت تیک');
-          return;
-        }
-        // همگام‌سازی وضعیت در صورت نیاز
-        var card = checkbox.closest('.collapse');
-        if (card) {
-          // به‌روزرسانی پیشرفت یا چک‌باکس اصلی
-          var mainCheck = card.querySelector('[data-task-main-check]');
-          if (mainCheck) {
-            mainCheck.checked = res.main_checked;
-          }
-          // فعال/غیرفعال کردن دکمه ثبت
-          var submitBtn = card.querySelector('[data-task-submit-btn]');
-          if (submitBtn) {
-            submitBtn.disabled = !res.main_checked;
-          }
-        }
-      })
-      .catch(function () {
-        checkbox.disabled = false;
-        checkbox.checked = !checkbox.checked;
-        alert('خطای شبکه');
-      });
+    var cb = ev.target.closest('[data-task-check]');
+    if (!cb || !window.fbSend) return;
+    var card = cb.closest('[data-task-card]');
+    if (!card) return;
+    var fd = new FormData(), before = !cb.checked;
+    if (cb.dataset.subtaskId) fd.append('subtask_id', cb.dataset.subtaskId);
+    fd.append('done', cb.checked ? '1' : '0');
+    lock(card, true); say(card, '');
+    window.fbSend(card.dataset.checkUrl, fd, window.FB_CSRF).then(function (res) {
+      lock(card, false);
+      if (res.ok) { sync(card, res); return; }
+      cb.checked = before;
+      say(card, res.error || 'ثبت تیک انجام نشد.');
+    });
   });
 
   document.addEventListener('click', function (ev) {
     var btn = ev.target.closest('[data-task-submit-action]');
-    if (!btn) return;
+    if (!btn || !window.fbSend) return;
     ev.preventDefault();
-
-    var taskId = btn.dataset.taskId;
-    var card = btn.closest('.collapse');
-    var noteInput = card ? card.querySelector('[data-task-note-input]') : null;
-    var note = noteInput ? noteInput.value : '';
-    var url = '/tasks/' + taskId + '/submit/';
-
+    var card = btn.closest('[data-task-card]');
+    if (!card) return;
+    var note = card.querySelector('[data-task-note-input]');
     var fd = new FormData();
-    fd.append('note', note);
-
-    btn.disabled = true;
-    window.fbSend(url, fd, window.FB_CSRF)
-      .then(function (res) {
-        if (!res.ok) {
-          btn.disabled = false;
-          alert(res.error || 'خطا در ثبت نهایی');
-          return;
-        }
-        window.location.reload();
-      })
-      .catch(function () {
-        btn.disabled = false;
-        alert('خطای شبکه');
-      });
+    fd.append('note', note ? note.value : '');
+    btn.disabled = true; say(card, '');
+    window.fbSend(card.dataset.submitUrl, fd, window.FB_CSRF).then(function (res) {
+      if (res.ok) { window.location.reload(); return; }
+      btn.disabled = false;
+      say(card, res.error || 'ثبت نهایی انجام نشد.');
+    });
   });
 })();

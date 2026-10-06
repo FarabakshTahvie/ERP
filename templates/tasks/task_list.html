@@ -1,29 +1,30 @@
 {% extends "base.html" %}
-{% block title %}مدیریت وظایف | فرابخش{% endblock %}
+{% load custom_tags %}
+{% block title %}وظایف | فرابخش{% endblock %}
 {% block content %}
-<div class="fb-page">
-    <div class="flex items-center justify-between mb-4">
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
-            <h1 class="fb-page-title text-base-content">وظایف</h1>
-            <p class="fb-page-sub text-base-content/75">مدیریت و پیگیری وظایف محوله به تکنسین‌ها</p>
+            <h1 class="fb-page-title">وظایف</h1>
+            <p class="fb-page-sub">وظایفی که خودتان برای تکنسین‌ها ثبت کرده‌اید و وضعیت انجامشان.</p>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('task-create-card').classList.toggle('hidden')">ثبت وظیفه‌ی جدید</button>
+        <button type="button" class="btn btn-primary btn-sm"
+                onclick="document.getElementById('task-create-card').classList.toggle('hidden')">
+            {% icon "plus" "w-4 h-4" %} ثبت وظیفه‌ی جدید
+        </button>
     </div>
 
-    <!-- فرم ثبت وظیفه بازشونده -->
-    <div id="task-create-card" class="fb-card p-4 mb-6 hidden">
-        <h2 class="font-bold text-sm mb-3">ثبت وظیفه‌ی جدید</h2>
+    <section id="task-create-card" class="fb-card fb-pad hidden">
+        <h2 class="fb-section-title mb-3">ثبت وظیفه‌ی جدید</h2>
         {% include "tasks/partials/task_form.html" %}
-    </div>
+    </section>
 
-    <!-- تب‌ها -->
-    <div role="tablist" class="tabs tabs-border mb-4">
-        <a role="tab" class="tab {% if active_tab == 'open' %}tab-active font-bold{% endif %}" hx-get="{% url 'tasks:open_table' %}" hx-target="#task-table-container" hx-push-url="?tab=open" onclick="document.querySelectorAll('[role=tab]').forEach(t=>t.classList.remove('tab-active','font-bold')); this.classList.add('tab-active','font-bold'); document.getElementById('task-table-container').setAttribute('hx-get', '{% url 'tasks:open_table' %}');">وظایف در جریان</a>
-        <a role="tab" class="tab {% if active_tab == 'done' %}tab-active font-bold{% endif %}" hx-get="{% url 'tasks:done_table' %}" hx-target="#task-table-container" hx-push-url="?tab=done" onclick="document.querySelectorAll('[role=tab]').forEach(t=>t.classList.remove('tab-active','font-bold')); this.classList.add('tab-active','font-bold'); document.getElementById('task-table-container').setAttribute('hx-get', '{% url 'tasks:done_table' %}');">انجام‌شده</a>
-    </div>
-
-    <div id="task-table-container" hx-get="{% if active_tab == 'done' %}{% url 'tasks:done_table' %}{% else %}{% url 'tasks:open_table' %}{% endif %}" hx-trigger="load">
-        {% include "utils/partials/generic_table.html" with table=table %}
-    </div>
+    {% include "utils/partials/tab_panels.html" %}
 </div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/line_editor.js' %}"></script>
+<script src="{% static_v 'js/task_form.js' %}"></script>
 {% endblock %}

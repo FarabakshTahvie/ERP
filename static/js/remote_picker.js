@@ -2,7 +2,7 @@
   // opts: {url, name, multi, placeholder, ariaLabel, onSelect}
   window.fbRemotePicker = function (opts) {
     var container = document.createElement('div');
-    container.className = 'space-y-2';
+    container.className = 'flex flex-col gap-2';
 
     var wrap = document.createElement('div');
     wrap.className = 'relative';
@@ -59,7 +59,7 @@
       selectedIds.add(String(item.id));
 
       var chip = document.createElement('span');
-      chip.className = 'badge badge-sm badge-neutral gap-1 pl-1 py-2 font-medium';
+      chip.className = 'fb-badge fb-badge-neutral gap-1';
       chip.textContent = item.name;
 
       var hiddenInput = document.createElement('input');
@@ -202,6 +202,7 @@
       }
     });
 
+    (opts.initial || []).forEach(addChip);
     return container;
   };
 })();
