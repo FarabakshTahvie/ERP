@@ -9,6 +9,9 @@
             <p class="fb-page-sub">خلاصه‌ی کارها و پروژه‌های شما</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            {% if caps.tasks_manage %}
+            <a href="{% url 'tasks:list' %}" class="btn btn-soft btn-sm">{% icon "check-square" "w-4 h-4" %} وظایف</a>
+            {% endif %}
             {% if can_review_payments %}
             <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
                 {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها
@@ -64,4 +67,9 @@
 
     {% include "utils/partials/tab_panels.html" %}
 </div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/tasks.js' %}"></script>
 {% endblock %}

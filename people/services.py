@@ -48,6 +48,8 @@ PAGE_LABELS = {
     "inventory:bulk_reconciliation": "انبارگردانی",
     "people:staff": "افراد",
     "tasks:list": "وظایف",
+    "tasks:detail": "جزئیات وظیفه",
+    "tasks:edit": "ویرایش وظیفه",
     "accounts:change_password": "تغییر رمز عبور",
     "notifications:center": "اعلان‌ها",
     "notifications:broadcast_form": "ارسال پیام",

@@ -135,11 +135,7 @@ def _my_tasks_table_context(request):
 @login_required
 @user_passes_test(_is_technician)
 def dashboard_my_tasks_table(request):
-    from tasks.models import TaskAssignment
-    ctx = _my_tasks_table_context(request)
-    ctx["task_assignments"] = TaskAssignment.objects.filter(user=request.user, submitted_at__isnull=True).select_related("task__created_by").prefetch_related("task__subtasks", "task__assignments", "checks", "task__attachments")
-    ctx["is_done_panel"] = False
-    return render_table(request, ctx, template="tasks/partials/my_tasks_panel.html")
+    return render_table(request, _my_tasks_table_context(request))
 
 
 def _claimable_base_qs(request):
@@ -221,11 +217,7 @@ def _completed_table_context(request):
 @login_required
 @user_passes_test(_is_technician)
 def dashboard_completed_table(request):
-    from tasks.models import TaskAssignment
-    ctx = _completed_table_context(request)
-    ctx["task_assignments"] = TaskAssignment.objects.filter(user=request.user, submitted_at__isnull=False).select_related("task__created_by").prefetch_related("task__subtasks", "task__assignments", "checks", "task__attachments").order_by("-submitted_at")[:50]
-    ctx["is_done_panel"] = True
-    return render_table(request, ctx, template="tasks/partials/my_tasks_panel.html")
+    return render_table(request, _completed_table_context(request))
 
 
 def _my_projects_base_qs(request):
@@ -288,6 +280,9 @@ def technician_home_view(request, user):
 
     low_stock_count = low_stock_items_count() if can_manage_inventory else 0
 
+    from tasks import views as task_views
+    from tasks.models import TaskAssignment
+
     def _eager(context_builder):
         return lambda: render_to_string(
             "utils/partials/generic_table.html", context_builder(request), request=request,
@@ -296,10 +291,11 @@ def technician_home_view(request, user):
     tabs = [
         {
             "key": "my_tasks", "label": "کارهای من",
-            "count_builder": lambda: _my_tasks_base_qs(request).count(),
-            "url": reverse("projects:dashboard_my_tasks_table"),
+            "count_builder": lambda: (_my_tasks_base_qs(request).count()
+                                      + TaskAssignment.objects.filter(user=user, submitted_at__isnull=True).count()),
+            "url": reverse("tasks:my_panel"),
             "container_id": "tab-panel-mytasks",
-            "eager_render": _eager(_my_tasks_table_context),
+            "eager_render": lambda: task_views.eager_panel(request, done=False),
         },
         {
             "key": "claimable", "label": "قابل برداشتن",
@@ -310,10 +306,11 @@ def technician_home_view(request, user):
         },
         {
             "key": "completed", "label": "انجام‌شده",
-            "count_builder": lambda: _completed_base_qs(request).count(),
-            "url": reverse("projects:dashboard_completed_table"),
+            "count_builder": lambda: (_completed_base_qs(request).count()
+                                      + TaskAssignment.objects.filter(user=user, submitted_at__isnull=False).count()),
+            "url": reverse("tasks:done_panel"),
             "container_id": "tab-panel-completed",
-            "eager_render": _eager(_completed_table_context),
+            "eager_render": lambda: task_views.eager_panel(request, done=True),
         },
     ]
     if can_create:
