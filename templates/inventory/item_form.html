@@ -95,7 +95,7 @@
     <form method="post" action="{% url 'inventory:item_toggle_active' item.id %}" data-fb-once class="fb-card fb-pad flex items-center justify-between gap-3">
         {% csrf_token %}
         <span class="text-xs fb-muted">{% if item.is_active %}کالای غیرفعال در فرم‌های خرید و مصرف دیده نمی‌شود. فقط اگر موجودی صفر باشد امکان‌پذیر است.{% else %}این کالا در فرم‌های خرید و مصرف دیده نمی‌شود.{% endif %}</span>
-        <button type="submit" class="btn btn-soft btn-sm {% if item.is_active %}btn-error{% endif %}">{% if item.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+        <button type="submit" class="btn btn-soft btn-sm {% if item.is_active %}btn-soft btn-error{% endif %}">{% if item.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
     </form>
     {% endif %}
 </div>

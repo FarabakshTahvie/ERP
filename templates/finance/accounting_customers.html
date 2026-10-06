@@ -22,26 +22,6 @@
         {% endif %}
     </div>
 
-    <script src="{% static 'js/remote_picker.js' %}"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var container = document.getElementById('party-picker-container');
-            if (container && window.fbRemotePicker) {
-                var picker = window.fbRemotePicker({
-                    url: "{% url 'people:search' %}?kind=parties",
-                    multi: false,
-                    placeholder: 'نام یا شماره مشتری را جستجو کنید...',
-                    onSelect: function (item) {
-                        if (item && item.id) {
-                            window.location.href = "?client_id=" + item.id;
-                        }
-                    }
-                });
-                container.appendChild(picker);
-            }
-        });
-    </script>
-
     {% if selected_client %}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="fb-card fb-pad">
@@ -119,4 +99,18 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/remote_picker.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var container = document.getElementById('party-picker-container');
+    if (!container || !window.fbRemotePicker) return;
+    container.appendChild(window.fbRemotePicker({
+        url: "{% url 'people:search' %}?kind=parties", multi: false,
+        placeholder: 'نام یا شماره‌ی مشتری را جستجو کنید...', ariaLabel: 'جستجوی مشتری',
+        onSelect: function (item) { if (item && item.id) window.location.href = "?client_id=" + item.id; }
+    }));
+});
+</script>
 {% endblock %}

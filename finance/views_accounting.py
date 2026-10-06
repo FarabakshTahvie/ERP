@@ -447,7 +447,8 @@ def customers_center_page(request):
     if client_id:
         if not client_id.isdigit():
             raise Http404
-        selected_client = get_object_or_404(Party.objects.filter(invoices__isnull=False), pk=int(client_id))
+        selected_client = get_object_or_404(
+            Party.objects.filter(is_internal=False, invoices__isnull=False).distinct(), pk=int(client_id))
         aging_summary, aging_rows = get_customer_aging_data(selected_client)
         payments = (Payment.objects.filter(invoice__billed_party=selected_client)
                     .select_related("invoice").order_by("-created_at")[:50])
