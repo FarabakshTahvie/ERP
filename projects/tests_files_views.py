@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 from django.core.files.uploadedfile import SimpleUploadedFile
+from utils.test_helpers import make_image_file
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
@@ -39,17 +40,17 @@ class StageFilesAndViewsTests(TestCase):
 
         # Unauthorized user (403)
         self.client.force_login(self.other_tech)
-        resp = self.client.post(url, {"file": SimpleUploadedFile("test.png", b"filecontent")})
+        resp = self.client.post(url, {"file": make_image_file("test.png")})
         self.assertEqual(resp.status_code, 403)
         self.assertFalse(resp.json()["ok"])
 
         # Success upload
         self.client.force_login(self.creator)
-        resp = self.client.post(url, {"file": SimpleUploadedFile("test.png", b"filecontent")})
+        resp = self.client.post(url, {"file": make_image_file("test.png")})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["ok"])
-        self.assertEqual(data["name"], "test.png")
+        self.assertTrue(data["name"].endswith(".webp") or data["name"] == "test.png")
 
     def test_cut_set_view(self):
         # Create gcode stage and file with cut_count=3
@@ -157,7 +158,7 @@ class StageFileUploadUrlRegressionTests(TestCase):
         client = Client()
         client.force_login(self.creator)
         url = reverse("projects:stage_file_upload", args=[self.stage.id])
-        resp = client.post(url, {"file": SimpleUploadedFile("site.jpg", b"x", content_type="image/jpeg")},
+        resp = client.post(url, {"file": make_image_file("site.jpg")},
                             HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["ok"])
@@ -193,7 +194,7 @@ class NewProjectUploaderScriptRegressionTests(TestCase):
         data = resp.json()
         self.assertTrue(data["ok"])
         self.assertTrue(data["upload_url"])
-        up_resp = client.post(data["upload_url"], {"file": SimpleUploadedFile("map.jpg", b"x", content_type="image/jpeg")},
+        up_resp = client.post(data["upload_url"], {"file": make_image_file("map.jpg")},
                                HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertEqual(up_resp.status_code, 200)
         self.assertTrue(up_resp.json()["ok"])

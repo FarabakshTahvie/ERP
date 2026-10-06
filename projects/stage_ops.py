@@ -2,6 +2,7 @@ import os
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from accounts.models import User
+from utils.image_utils import optimize_named
 from utils.utils import guess_file_kind
 from .models import CutDone, Project, ProjectFile, ProjectStage, StageEvent, StageKind
 from .services import advance_stage, user_is_accountant
@@ -46,6 +47,7 @@ def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None):
             raise ValueError("فایل فقط در مرحله‌ی «در حال انجام» قابل ارسال است.")
         if locked.files.count() >= MAX_STAGE_FILES:
             raise ValueError(f"حداکثر {MAX_STAGE_FILES} فایل برای هر مرحله مجاز است.")
+        uploaded, name = optimize_named(uploaded, name)
         return ProjectFile.objects.create(
             stage=stage, file=uploaded, kind=guess_file_kind(name), original_name=name,
             uploaded_by=uploader, is_attachment=True, cut_count=cut_count,

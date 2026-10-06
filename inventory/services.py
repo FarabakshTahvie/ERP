@@ -240,6 +240,9 @@ def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=Non
 
     _validate_invoice_file(invoice_file)
     supplier = _resolve_supplier_party(party_id=supplier_party_id, party_data=supplier_party_data)
+    if invoice_file:
+        from utils.image_utils import optimize_named
+        invoice_file, _name = optimize_named(invoice_file, invoice_file.name or "")
 
     purchase = Purchase.objects.create(
         supplier=supplier,

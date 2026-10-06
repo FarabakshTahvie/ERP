@@ -42,9 +42,9 @@ def optimize_image(django_file, profile_name="default"):
 
 
 MAX_SIDE, MAX_PIXELS = 2400, 80_000_000
-QUALITY_LADDER, TARGET_BYTES = (85, 78, 70), 700 * 1024
-MIN_GAIN, SKIP_BELOW = 0.9, 120 * 1024
+QUALITY_LADDER, TARGET_BYTES, MIN_GAIN = (85, 78, 70), 700 * 1024, 0.9
 OPTIMIZABLE_EXT = ("jpg", "jpeg", "png", "webp", "bmp")   # heic/gif/svg دست‌نخورده می‌مانند
+_BAD_IMAGE = (UnidentifiedImageError, OSError, SyntaxError, EOFError, Image.DecompressionBombError)
 
 
 def _sensitive_exif(image):
@@ -68,39 +68,48 @@ def optimize_upload(django_file):
             django_file.seek(0)
             return django_file, False
         sensitive = _sensitive_exif(image)
-        if fmt == "WEBP" and max(image.size) <= MAX_SIDE and original_size <= SKIP_BELOW and not sensitive:
+        if fmt == "WEBP" and max(image.size) <= MAX_SIDE and original_size <= TARGET_BYTES and not sensitive:
             django_file.seek(0)
             return django_file, False                    # از قبل بهینه
         if fmt == "JPEG":
             image.draft("RGB", (MAX_SIDE, MAX_SIDE))     # رمزگشایی کم‌حافظه
         image.load()
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
+        image = ImageOps.exif_transpose(image)
+        resized = max(image.size) > MAX_SIDE
+        if resized:
+            image.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+        has_alpha = image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
+        if has_alpha:
+            rgba = image.convert("RGBA")
+            flat = Image.new("RGB", rgba.size, (255, 255, 255))
+            flat.paste(rgba, mask=rgba.getchannel("A"))
+            image = flat
+        else:
+            image = image.convert("RGB")
+        data = b""
+        for q in QUALITY_LADDER:                          # از کیفیت بالا؛ فقط تا رسیدن به حجم هدف پایین می‌آید
+            buf = BytesIO()
+            image.save(buf, format="WEBP", quality=q, method=6)
+            data = buf.getvalue()
+            if len(data) <= TARGET_BYTES:
+                break
+    except _BAD_IMAGE:
         raise ValueError("فایل بارگذاری‌شده تصویر معتبری نیست.")
-
-    image = ImageOps.exif_transpose(image)
-    resized = max(image.size) > MAX_SIDE
-    if resized:
-        image.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
-    has_alpha = image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
-    if has_alpha:
-        rgba = image.convert("RGBA")
-        flat = Image.new("RGB", rgba.size, (255, 255, 255))
-        flat.paste(rgba, mask=rgba.getchannel("A"))
-        image = flat
-    else:
-        image = image.convert("RGB")
-
-    data = b""
-    for q in QUALITY_LADDER:                              # کیفیت از بالا؛ فقط تا رسیدن به حجم هدف پایین می‌آید
-        buf = BytesIO()
-        image.save(buf, format="WEBP", quality=q, method=6)
-        data = buf.getvalue()
-        if len(data) <= TARGET_BYTES:
-            break
     if not (resized or sensitive or has_alpha) and len(data) > original_size * MIN_GAIN:
         django_file.seek(0)
         return django_file, False                         # سود کمتر از ۱۰٪: دوباره‌فشرده‌سازی نمی‌کنیم
     return ContentFile(data, name="image.webp"), True
+
+
+def optimize_named(uploaded, name):
+    """اگر پسوند قابل‌بهینه‌سازی است: (فایل، نام). نام کاربر عوض نمی‌شود، فقط پسوند وقتی فرمت عوض شد (تا دانلود با پسوند درست باشد)."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext not in OPTIMIZABLE_EXT:
+        return uploaded, name
+    uploaded, changed = optimize_upload(uploaded)
+    if changed:
+        name = name.rsplit(".", 1)[0] + ".webp"
+    return uploaded, name
 
 
 RECEIPT_MAX_SIDE = MAX_SIDE
