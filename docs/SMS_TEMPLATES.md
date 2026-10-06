@@ -6,3 +6,6 @@
 | تایید طرح | `design_approval_request` | `name`, `LINK` | سلام %name%، طرح جدید پروژه آماده تایید است. لینک: farabakhshtahvieh.com/%LINK% |
 | تایید پرداخت | `payment_confirmed` | `name`, `number`, `remaining` | سلام %name%، پرداخت شما برای پیش‌فاکتور %number% تایید شد. مانده: %remaining% |
 | رد پرداخت | `payment_rejected` | `name`, `number`, `LINK` | سلام %name%، رسید پرداخت پیش‌فاکتور %number% نیازمند بررسی مجدد است. لینک: farabakhshtahvieh.com/%LINK% |
+
+## پیامک بدون قالب (آزاد) و پنل ارسال
+ارسال پیامک بدون قالب صرفاً از طریق پنل مدیریت ارسال پیام (`notifications/broadcast.py`) و منحصراً زمانی که متغیر تنظیمات `SMS_FREE_TEXT_ENABLED=True` باشد انجام می‌شود. ارسال خودکار و سیستمی همچنان منحصراً از طریق قالب‌های تاییدشده انجام می‌گیرد.

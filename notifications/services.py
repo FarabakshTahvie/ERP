@@ -132,6 +132,8 @@ def resend_notification(notification, *, actor):
         raise ValueError("فقط اطلاع‌رسانی ناموفق دوباره فرستاده می‌شود.")
     if notification.notification_type == NotificationType.INVOICE_ISSUED:
         raise ValueError("پیامک پیش‌فاکتور حاوی رمز است و دوباره فرستاده نمی‌شود؛ از «بازنشانی رمز» در بخش افراد استفاده کنید.")
+    if notification.notification_type == NotificationType.BROADCAST:
+        raise ValueError("ارسال دوباره‌ی پیام همگانی از این بخش مجاز نیست؛ از صفحه‌ی جزئیات پیام همگانی اقدام کنید.")
     Notification.objects.filter(pk=notification.pk).update(status=Notification.Status.PENDING)
     notification.refresh_from_db()
     dispatch_notification(notification)

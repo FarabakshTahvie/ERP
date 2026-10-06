@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}فهرست پیام‌های همگانی | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">تاریخچه و آمار پیام‌ها</h1>
+            <p class="fb-page-sub">پیام‌های همگانی ارسال‌شده، نرخ دیده‌شدن و کلیک</p>
+        </div>
+        <a href="{% url 'notifications:broadcast_form' %}" class="btn btn-primary btn-sm">
+            {% icon "plus" "w-4 h-4" %} ارسال پیام جدید
+        </a>
+    </div>
+
+    <!-- کارت‌های آمار ماه جاری -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {% include "finance/partials/stat_card.html" with label="ارسال‌های این ماه" value=stats.total_broadcasts tone="text-primary" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="مجموع گیرندگان" value=stats.total_recipients tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="درصد دیده‌شده" value=stats.seen_rate tone="text-success" hint="درصد" %}
+        {% include "finance/partials/stat_card.html" with label="درصد کلیک" value=stats.click_rate tone="text-accent" hint="درصد" %}
+    </div>
+
+    <!-- جدول ارسال‌ها -->
+    <div class="fb-card">
+        {% include "utils/partials/generic_table.html" with table=table %}
+    </div>
+</div>
+{% endblock %}
