@@ -57,4 +57,4 @@ jobs:
           HOST: ${{ secrets.DEPLOY_HOST }}
           PORT: ${{ secrets.DEPLOY_PORT }}
           USER: ${{ secrets.DEPLOY_USER }}
-        run: ssh -i ~/.ssh/id_deploy -p "$PORT" "$USER@$HOST" "sudo /var/www/farabakhsh/app/deploy/update.sh"
+        run: ssh -i ~/.ssh/id_deploy -p "$PORT" "$USER@$HOST" "sudo bash /var/www/farabakhsh/app/deploy/update.sh"
