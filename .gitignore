@@ -42,6 +42,7 @@ staticfiles/
 venv/
 ENV/
 env/
+win_venv/
 env.bak/
 venv.bak/
 
