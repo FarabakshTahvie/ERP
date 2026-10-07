@@ -49,6 +49,29 @@ sudo -u www-data "$VENV_DIR/bin/python" manage.py migrate --noinput
 echo "=== Restarting Farabakhsh Service ==="
 systemctl restart farabakhsh
 
+echo "=== Installing and restarting Celery services ==="
+install -m 644 "$APP_DIR/deploy/farabakhsh-celery.service" /etc/systemd/system/farabakhsh-celery.service
+install -m 644 "$APP_DIR/deploy/farabakhsh-celerybeat.service" /etc/systemd/system/farabakhsh-celerybeat.service
+systemctl daemon-reload
+systemctl enable farabakhsh-celery farabakhsh-celerybeat >/dev/null 2>&1
+systemctl restart farabakhsh-celery farabakhsh-celerybeat
+
+CELERY_OK=0
+for i in {1..10}; do
+    if systemctl is-active --quiet farabakhsh-celery && systemctl is-active --quiet farabakhsh-celerybeat \
+       && sudo -u www-data "$VENV_DIR/bin/celery" -A config inspect ping --timeout 5 >/dev/null 2>&1; then
+        CELERY_OK=1
+        break
+    fi
+    echo "Celery check attempt $i/10 not ready yet"
+    sleep 3
+done
+if [ "$CELERY_OK" -ne 1 ]; then
+    echo "ERROR: Celery worker/beat is not healthy (the website itself is up)."
+    systemctl --no-pager status farabakhsh-celery farabakhsh-celerybeat | tail -n 40 || true
+    exit 1
+fi
+
 echo "=== Running Health Check ==="
 HEALTH_PASS=0
 for i in {1..10}; do

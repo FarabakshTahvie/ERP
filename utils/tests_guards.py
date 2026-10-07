@@ -185,6 +185,15 @@ class SourceGuardTests(TestCase):
                         self.assertTrue(node.value is None or (isinstance(node.value, ast.Constant) and node.value.value is None),
                                         f"{rel}:{fn.name} مقدار بازگشتی دارد")
 
-
-
-
+    def test_celery_deploy_files_are_consistent(self):
+        self.assertTrue((BASE / "deploy" / "farabakhsh-celery.service").is_file())
+        self.assertTrue((BASE / "deploy" / "farabakhsh-celerybeat.service").is_file())
+        beat = (BASE / "deploy" / "farabakhsh-celerybeat.service").read_text(encoding="utf-8")
+        self.assertIn("--schedule=/var/lib/", beat)
+        self.assertIn("StateDirectory=", beat)
+        worker = (BASE / "deploy" / "farabakhsh-celery.service").read_text(encoding="utf-8")
+        self.assertIn("-A config worker", worker)
+        update = (BASE / "deploy" / "update.sh").read_text(encoding="utf-8")
+        self.assertIn("farabakhsh-celery.service", update)
+        self.assertIn("daemon-reload", update)
+        self.assertIn("inspect ping", update)

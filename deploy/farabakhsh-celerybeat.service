@@ -1,0 +1,19 @@
+[Unit]
+Description=Farabakhsh Celery Beat
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/farabakhsh/app
+StateDirectory=farabakhsh-celery
+ExecStart=/var/www/farabakhsh/venv/bin/celery -A config beat --loglevel=INFO --schedule=/var/lib/farabakhsh-celery/celerybeat-schedule
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
