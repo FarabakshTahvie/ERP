@@ -73,12 +73,17 @@ class Revision3RegressionTests(TestCase):
         self.assertIn("قبلاً", r2.content.decode("utf-8"))
 
     @patch("utils.sms.SMSService.send_otp")
-    def test_otp_failure_clears_cooldown(self, mock_send_otp):
-        mock_send_otp.return_value = {"success": False, "error": "SMS failed"}
+    def test_otp_failure_marks_code_used_and_next_request_sends_again(self, mock_send_otp):
+        mock_send_otp.side_effect = [{"success": False, "error": "SMS failed"}, {"success": True}]
         client = Client()
 
         resp = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertIn("ارسال پیامک ناموفق بود", resp.content.decode("utf-8"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(OTPCode.objects.filter(phone_number="09151112233", is_used=True).exists())
+
+        resp2 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(mock_send_otp.call_count, 2)
 
     def test_push_device_register_csrf_protection(self):
         valid_uuid = str(uuid.uuid4())

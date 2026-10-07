@@ -1,8 +1,13 @@
+import logging
+
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from utils.sms import SMSService
 from utils.utils import generate_random_code
 from .models import User, OTPCode
+
+logger = logging.getLogger(__name__)
 
 
 @transaction.atomic
@@ -58,3 +63,19 @@ def otp_remaining_seconds(phone_number, purpose):
     if not otp:
         return 0
     return max(int((otp.expires_at - timezone.now()).total_seconds()), 0)
+
+
+def dispatch_otp_sms(otp, raw_code):
+    """True: پیامک در صف رفت (یا مستقیم فرستاده شد). False: ارسال ممکن نبود؛ کد پاک شد و کاربر خطا می‌بیند.
+    اگر Celery/ردیس در دسترس نباشد همان مسیر قبلی (ارسال مستقیم) اجرا می‌شود تا ورود هرگز نخوابد."""
+    from .celery_tasks import send_otp_sms_task
+    try:
+        send_otp_sms_task.delay(otp.pk, otp.phone_number, raw_code)
+        return True
+    except Exception:
+        logger.exception("OTP sms could not be queued; sending directly")
+    result = SMSService().send_otp(mobile=otp.phone_number, code=raw_code)
+    if result.get("success"):
+        return True
+    otp.delete()
+    return False
