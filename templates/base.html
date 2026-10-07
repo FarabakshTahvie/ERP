@@ -174,9 +174,9 @@
     {% endif %}
 
     {% if messages %}
-    <div class="toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full">
+    <div class="toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full pointer-events-none">
         {% for message in messages %}
-        <div role="alert" class="alert alert-soft {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg animate-shake">
+        <div role="alert" class="alert alert-soft {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg animate-shake pointer-events-auto">
             {% if message.tags == 'error' %}
                 {% icon "alert-circle" "w-5 h-5 shrink-0" %}
             {% elif message.tags == 'success' %}
@@ -184,7 +184,8 @@
             {% else %}
                 {% icon "bell" "w-5 h-5 shrink-0" %}
             {% endif %}
-            <span class="text-sm font-medium">{{ message }}</span>
+            <span class="text-sm font-medium flex-1">{{ message }}</span>
+            <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label="بستن پیام" onclick="this.closest('.alert').remove()">×</button>
         </div>
         {% endfor %}
     </div>

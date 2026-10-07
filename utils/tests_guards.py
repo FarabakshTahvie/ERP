@@ -197,3 +197,10 @@ class SourceGuardTests(TestCase):
         self.assertIn("farabakhsh-celery.service", update)
         self.assertIn("daemon-reload", update)
         self.assertIn("inspect ping", update)
+
+    def test_toast_container_does_not_capture_clicks(self):
+        text = (BASE / "templates" / "base.html").read_text(encoding="utf-8")
+        self.assertIn("toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full pointer-events-none", text)
+        self.assertIn("pointer-events-auto", text)
+        self.assertIn('aria-label="بستن پیام"', text)
+
