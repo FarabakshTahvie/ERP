@@ -466,6 +466,7 @@ class TableToolbarRegressionTests(TestCase):
     def test_no_hardcoded_push_url_attribute_in_table(self):
         content = self.client.get(self.url).content.decode("utf-8")
         self.assertNotIn("hx-push-url", content)
+        self.assertNotIn("hx-replace-url", content)
 
     def test_search_form_preserves_sort_filter_and_resets_page(self):
         content = self.client.get(self.url, {
@@ -476,28 +477,31 @@ class TableToolbarRegressionTests(TestCase):
         self.assertNotIn('name="py_page" value="3"', content)
         self.assertIn('name="py_page" value="1"', content)
 
-    def test_push_url_header_targets_host_page_and_merges_params(self):
+    def test_replace_url_header_targets_host_page_and_merges_params(self):
         from urllib.parse import urlsplit, parse_qs
         resp = self.client.get(
             self.url, {"py_q": "abc"},
             headers={"HX-Request": "true",
                      "HX-Current-URL": "http://testserver/payments/?py_page=3&other=1&tab=claimable"},
         )
-        parts = urlsplit(resp["HX-Push-Url"])
+        self.assertNotIn("HX-Push-Url", resp.headers)
+        parts = urlsplit(resp["HX-Replace-Url"])
         self.assertEqual(parts.path, "/payments/")
         self.assertEqual(parse_qs(parts.query), {"other": ["1"], "py_q": ["abc"], "tab": ["claimable"]})
 
-    def test_tab_click_request_sets_new_tab_in_push_url(self):
+    def test_tab_click_request_sets_new_tab_in_replace_url(self):
         from urllib.parse import urlsplit, parse_qs
         resp = self.client.get(
             self.url, {"tab": "stock"},
             headers={"HX-Request": "true", "HX-Current-URL": "http://testserver/?tab=my_tasks"},
         )
-        self.assertEqual(parse_qs(urlsplit(resp["HX-Push-Url"]).query), {"tab": ["stock"]})
+        self.assertNotIn("HX-Push-Url", resp.headers)
+        self.assertEqual(parse_qs(urlsplit(resp["HX-Replace-Url"]).query), {"tab": ["stock"]})
 
-    def test_no_push_header_without_htmx(self):
+    def test_no_history_header_without_htmx(self):
         resp = self.client.get(self.url)
         self.assertNotIn("HX-Push-Url", resp.headers)
+        self.assertNotIn("HX-Replace-Url", resp.headers)
 
 
 class TestModulesIntegrityTests(TestCase):

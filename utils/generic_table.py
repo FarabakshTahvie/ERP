@@ -210,7 +210,7 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
 
 def render_table(request, context, template="utils/partials/generic_table.html"):
     """
-    رندر اندپوینت‌های تکه‌ای جدول + تنظیم HX-Push-Url روی «آدرس صفحه‌ی میزبان»
+    رندر اندپوینت‌های تکه‌ای جدول + تنظیم HX-Replace-Url روی «آدرس صفحه‌ی میزبان»
     (نه آدرس خودِ اندپوینت). آدرس فعلی مرورگر از هدر HX-Current-URL می‌آید؛ پارامترهای
     همین جدول (همه‌ی کلیدهای با param_prefix) با مقدار جدید جایگزین می‌شوند و بقیه
     (جدول‌های دیگر و تب فعال) دست‌نخورده می‌مانند. param_prefix باید غیرخالی باشد.
@@ -232,5 +232,5 @@ def render_table(request, context, template="utils/partials/generic_table.html")
     tab = request.GET.get("tab") or dict(current_pairs).get("tab")
     if tab:
         pairs.append(("tab", tab))
-    response["HX-Push-Url"] = parts.path + ("?" + urlencode(pairs) if pairs else "")
+    response["HX-Replace-Url"] = parts.path + ("?" + urlencode(pairs) if pairs else "")
     return response
