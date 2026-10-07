@@ -7,7 +7,7 @@
     <div class="fb-card fb-pad flex flex-col gap-3">
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div>
-                <a href="{% url 'projects:staff_project_overview' project.id %}" class="link link-hover text-xs fb-muted">بازگشت به نمای پروژه</a>
+                <a href="{% nav_url 'projects:staff_project_overview' project.id %}" class="link link-hover text-xs fb-muted">بازگشت به نمای پروژه</a>
                 <h1 class="fb-page-title mt-1">بازبینی نهایی پروژه: {{ project.name }}</h1>
             </div>
             <div class="flex items-center gap-2">

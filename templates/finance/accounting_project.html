@@ -12,9 +12,9 @@
             <span class="fb-badge fb-badge-neutral">{{ pnl.state_label }}</span>
         </div>
         <div class="flex flex-wrap gap-2 mt-3">
-            <a href="{% url 'projects:staff_project_overview' project.id %}" class="btn btn-soft btn-sm">نمای پروژه</a>
-            {% if has_final_review %}<a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>{% endif %}
-            {% if invoice %}<a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">فاکتور</a>{% endif %}
+            <a href="{% nav_url 'projects:staff_project_overview' project.id %}" class="btn btn-soft btn-sm">نمای پروژه</a>
+            {% if has_final_review %}<a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>{% endif %}
+            {% if invoice %}<a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">فاکتور</a>{% endif %}
             <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">ویرایشگر پیش‌فاکتور</a>
         </div>
     </div>
@@ -93,7 +93,7 @@
             </table>
         </div>
         {% for p in payments %}
-        <a href="{% url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
+        <a href="{% nav_url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
             <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.created_at|to_jalali:"%Y/%m/%d" }}</span></span>
             <span class="flex items-center gap-2">
                 <span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>

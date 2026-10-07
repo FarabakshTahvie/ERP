@@ -129,7 +129,7 @@
 
         {% if is_owner %}
             {% if pending_approval %}
-            <a href="{% url 'projects:portal_stage_approval' pending_approval.id %}" class="btn btn-primary w-full md:w-80 md:self-center">
+            <a href="{% nav_url 'projects:portal_stage_approval' pending_approval.id %}" class="btn btn-primary w-full md:w-80 md:self-center">
                 {% icon "check-circle" "w-4 h-4" %} تایید و پرداخت
             </a>
             {% elif invoice.remaining_amount > 0 and invoice.status != 'cancelled' %}

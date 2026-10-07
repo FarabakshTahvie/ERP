@@ -13,7 +13,7 @@
     </div>
     <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
         <div class="flex justify-between gap-2"><span class="fb-muted">گیرنده</span>
-            <a href="{% url 'people:user_detail' n.user_id %}" class="link link-hover">{{ n.user.get_full_name|default:n.user.username }}</a></div>
+            <a href="{% nav_url 'people:user_detail' n.user_id %}" class="link link-hover">{{ n.user.get_full_name|default:n.user.username }}</a></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">ساخته‌شده</span><span class="font-technical">{{ n.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">پوش</span><span class="font-technical">{% if n.push_sent_at %}{{ n.push_sent_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}—{% endif %}</span></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">پیامک</span><span class="font-technical">{% if n.sms_sent_at %}{{ n.sms_sent_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}—{% endif %}</span></div>
@@ -35,7 +35,7 @@
     {% elif n.broadcast_id %}
     <div class="fb-card fb-pad flex flex-col gap-2">
         <p class="fb-hint">این اعلان بخشی از یک پیام همگانی است؛ ارسال دوباره از صفحه‌ی جزئیات همان پیام انجام می‌شود.</p>
-        <a href="{% url 'notifications:broadcast_detail' n.broadcast_id %}" class="btn btn-soft btn-sm self-start">مشاهده‌ی پیام همگانی</a>
+        <a href="{% nav_url 'notifications:broadcast_detail' n.broadcast_id %}" class="btn btn-soft btn-sm self-start">مشاهده‌ی پیام همگانی</a>
     </div>
     {% elif n.status == 'failed' %}
     <p class="fb-hint">این پیام دوباره فرستاده نمی‌شود (پیامک پیش‌فاکتور رمز دارد). از «بازنشانی رمز» در افراد استفاده کن.</p>

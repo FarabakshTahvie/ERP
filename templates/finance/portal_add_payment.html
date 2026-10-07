@@ -4,7 +4,7 @@
 {% block content %}
 <div class="fb-page fb-page--sm">
     <div>
-        <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-hover text-sm fb-muted">بازگشت به فاکتور</a>
+        <a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-hover text-sm fb-muted">بازگشت به فاکتور</a>
         <h1 class="fb-page-title mt-2">افزودن پرداخت</h1>
         <p class="fb-page-sub">فاکتور <span class="font-technical">{{ invoice.number|fa_digits }}</span> — مانده: <span class="font-technical font-bold">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</p>
     </div>

@@ -14,7 +14,7 @@
         <div class="flex justify-between gap-2"><span class="fb-muted">مسئول فعلی</span>
             <span>{% if stage.assigned_to %}{{ stage.assigned_to.get_full_name|default:stage.assigned_to.username }}{% elif stage.candidate_users.all %}در استخر{% else %}ندارد{% endif %}</span></div>
         {% if specialty %}<div class="flex justify-between gap-2"><span class="fb-muted">تخصص مرحله</span><span>{{ specialty.name }}</span></div>{% endif %}
-        <a href="{% url 'projects:staff_project_overview' stage.project_id %}" class="btn btn-soft btn-sm self-start">نمای پروژه</a>
+        <a href="{% nav_url 'projects:staff_project_overview' stage.project_id %}" class="btn btn-soft btn-sm self-start">نمای پروژه</a>
     </section>
 
     {% if not can_assign %}

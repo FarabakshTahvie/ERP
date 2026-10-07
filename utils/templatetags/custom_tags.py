@@ -142,3 +142,15 @@ def sort_next_dir(current_sort_field, current_sort_dir, col_field):
     if current_sort_field == col_field and current_sort_dir == "asc":
         return "desc"
     return "asc"
+
+
+@register.simple_tag(takes_context=True)
+def nav_url(context, name, *args):
+    """مثل {% url %} ولی آدرس صفحه‌ی فعلی را به‌صورت ?next اضافه می‌کند (برای صفحه‌های چندورودی)."""
+    from utils.navigation import nav_reverse
+    request = context.get("request")
+    if request is None:
+        from django.urls import reverse
+        return reverse(name, args=args)
+    return nav_reverse(request, name, args=args)
+

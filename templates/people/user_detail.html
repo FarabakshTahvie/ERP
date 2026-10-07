@@ -13,7 +13,7 @@
         </div>
         <div class="flex flex-wrap gap-2 mt-3">
             {% if can_edit %}<a href="{% url 'people:user_edit' person.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش اطلاعات</a>{% endif %}
-            {% if person.party %}<a href="{% url 'people:party_detail' person.party_id %}" class="btn btn-soft btn-sm">پرونده‌ی طرف‌حساب</a>{% endif %}
+            {% if person.party %}<a href="{% nav_url 'people:party_detail' person.party_id %}" class="btn btn-soft btn-sm">پرونده‌ی طرف‌حساب</a>{% endif %}
         </div>
     </div>
 
@@ -29,7 +29,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">کارهای در دست اجرا ({{ active_stages|length|fa_digits }})</h2>
         {% for s in active_stages %}
-        <a href="{% url 'projects:staff_project_overview' s.project_id %}" class="fb-inset text-xs hover:bg-base-300">{{ s.project.name }} — {{ s.title }}</a>
+        <a href="{% nav_url 'projects:staff_project_overview' s.project_id %}" class="fb-inset text-xs hover:bg-base-300">{{ s.project.name }} — {{ s.title }}</a>
         {% empty %}<p class="fb-hint">کار فعالی ندارد.</p>{% endfor %}
         <p class="fb-hint">مرحله‌ی تکمیل‌شده توسط او: <span class="font-technical">{{ done_count|fa_digits }}</span></p>
     </section>
@@ -38,7 +38,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پروژه‌هایی که ثبت کرده</h2>
         {% for p in created_projects %}
-        <a href="{% url 'projects:staff_project_overview' p.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+        <a href="{% nav_url 'projects:staff_project_overview' p.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
             <span>{{ p.name }}</span><span class="fb-badge fb-badge-neutral">{{ p.get_status_display }}</span>
         </a>
         {% endfor %}

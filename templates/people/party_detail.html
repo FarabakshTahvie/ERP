@@ -31,7 +31,7 @@
                 <tbody>
                 {% for r in aging_rows %}
                     <tr>
-                        <td><a href="{% url 'finance:accounting_project' r.invoice.project_id %}" class="link link-hover font-technical">{{ r.invoice.number|fa_digits }}</a></td>
+                        <td><a href="{% nav_url 'finance:accounting_project' r.invoice.project_id %}" class="link link-hover font-technical">{{ r.invoice.number|fa_digits }}</a></td>
                         <td>{{ r.invoice.project.name }}</td>
                         <td class="font-technical font-semibold">{{ r.remaining|intcomma_fa }}</td>
                         <td class="font-technical">{{ r.delta_days|fa_digits }} روز</td>
@@ -46,7 +46,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پروژه‌ها</h2>
         {% for p in projects %}
-        <a href="{% url 'projects:staff_project_overview' p.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+        <a href="{% nav_url 'projects:staff_project_overview' p.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
             <span>{{ p.name }} <span class="font-technical fb-muted">{{ p.code|fa_digits }}</span></span>
             <span class="fb-badge fb-badge-neutral">{{ p.get_status_display }}</span>
         </a>
@@ -56,7 +56,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پرداخت‌های ثبت‌شده</h2>
         {% for p in payments %}
-        <a href="{% url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
+        <a href="{% nav_url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
             <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.created_at|to_jalali:"%Y/%m/%d" }}</span></span>
             <span class="flex items-center gap-2"><span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>
                 <span class="fb-badge fb-badge-{{ p.status_variant }}">{{ p.status_label }}</span></span>
@@ -67,7 +67,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">حساب‌های ورود</h2>
         {% for u in accounts %}
-        <a href="{% url 'people:user_detail' u.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+        <a href="{% nav_url 'people:user_detail' u.id %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
             <span>{{ u.get_full_name|default:u.username }}</span>
             <span class="fb-badge {% if u.is_active %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{% if u.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
         </a>

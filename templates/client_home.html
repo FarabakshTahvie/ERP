@@ -97,7 +97,7 @@
                     </a>
                     {% with invoice=invoices_map|get_item:project.id %}
                     {% if invoice %}
-                    <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">
+                    <a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">
                         {% icon "receipt" "w-4 h-4" %} پیش‌فاکتور / فاکتور
                     </a>
                     {% endif %}

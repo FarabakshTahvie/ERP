@@ -99,8 +99,9 @@ def _payments_table_context(request):
     ).order_by("review_rank", "-created_at")
 
     def row_builder(p):
+        from utils.navigation import nav_reverse
         return {
-            "url": reverse("finance:payment_detail", args=[p.id]),
+            "url": nav_reverse(request, "finance:payment_detail", args=[p.id]),
             "cells": [
                 {"type": "text", "value": p.invoice.project.name},
                 {"type": "muted", "value": to_fa_digits(p.invoice.number)},

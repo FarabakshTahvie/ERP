@@ -20,7 +20,7 @@
             <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور</a>
             {% endif %}
             {% if can_final_review %}
-            <a href="{% url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>
+            <a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>
             {% endif %}
             {% if can_move %}
             <button type="button" class="btn btn-soft btn-sm" {% if not move_current %}disabled{% endif %} onclick="document.getElementById('move-dialog').showModal()">انتقال مرحله</button>
@@ -139,7 +139,7 @@
                 {% if s.kind == 'proforma' %}
                 <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-primary btn-sm">ورود به ویرایشگر پیش‌فاکتور</a>
                 {% elif s.kind == 'final_review' %}
-                <a href="{% url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
+                <a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
                 {% else %}
                 <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3">
                     {% csrf_token %}

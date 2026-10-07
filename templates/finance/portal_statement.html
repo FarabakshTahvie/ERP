@@ -20,7 +20,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پیش‌فاکتورهای منتظر تایید شما</h2>
         {% for i in waiting %}
-        <a href="{% url 'finance:portal_invoice_detail' i.uuid %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+        <a href="{% nav_url 'finance:portal_invoice_detail' i.uuid %}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
             <span>{{ i.project.name }} — <span class="font-technical">{{ i.number|fa_digits }}</span></span>
             <span class="font-technical font-semibold">{{ i.total_amount|intcomma_fa }}</span>
         </a>
@@ -36,7 +36,7 @@
                 <tbody>
                 {% for i in debts %}
                     <tr>
-                        <td><a href="{% url 'finance:portal_invoice_detail' i.uuid %}" class="link link-hover font-technical">{{ i.number|fa_digits }}</a></td>
+                        <td><a href="{% nav_url 'finance:portal_invoice_detail' i.uuid %}" class="link link-hover font-technical">{{ i.number|fa_digits }}</a></td>
                         <td>{{ i.project.name }}</td>
                         <td class="font-technical">{{ i.issue_date|to_jalali }}</td>
                         <td class="font-technical">{{ i.total_amount|intcomma_fa }}</td>

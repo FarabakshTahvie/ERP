@@ -82,7 +82,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پروژه‌های منتظر بازبینی نهایی</h2>
         {% for r in review_queue %}
-        <a href="{% url 'finance:accounting_project' r.project.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-sm hover:bg-base-300">
+        <a href="{% nav_url 'finance:accounting_project' r.project.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-sm hover:bg-base-300">
             <span class="font-semibold">{{ r.project.name }}</span>
             <span class="flex flex-wrap items-center gap-1.5">
                 {% if r.pending_parts %}<span class="fb-badge fb-badge-warning">درخواست قطعه: {{ r.pending_parts|fa_digits }}</span>{% endif %}

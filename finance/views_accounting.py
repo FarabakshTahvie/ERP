@@ -68,7 +68,8 @@ def _projects_ctx(request):
     qs = accounting.projects_financial_queryset().order_by("-created_at")
 
     def row_builder(p):
-        return {"url": reverse("finance:accounting_project", args=[p.id]), "cells": [
+        from utils.navigation import nav_reverse
+        return {"url": nav_reverse(request, "finance:accounting_project", args=[p.id]), "cells": [
             {"type": "text", "value": p.name},
             {"type": "muted", "value": to_fa_digits(p.code)},
             {"type": "badge", "value": p.get_status_display(), "variant": PROJECT_STATUS_VARIANT.get(p.status, "neutral")},
@@ -123,7 +124,8 @@ def _stock_ctx(request):
     def row_builder(m):
         related = m.related_object
         if isinstance(related, Project):
-            project_cell = {"type": "link", "value": related.name, "url": reverse("finance:accounting_project", args=[related.id])}
+            from utils.navigation import nav_reverse
+            project_cell = {"type": "link", "value": related.name, "url": nav_reverse(request, "finance:accounting_project", args=[related.id])}
         else:
             project_cell = {"type": "muted", "value": "—"}
         return {"url": None, "cells": [

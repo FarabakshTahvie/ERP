@@ -17,7 +17,7 @@
         <div class="flex justify-between gap-2"><span class="fb-muted">پروژه</span><span class="font-semibold">{{ invoice.project.name }}</span></div>
         <div class="flex justify-between gap-2">
             <span class="fb-muted">شماره فاکتور</span>
-            <a href="{% url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-primary font-technical">{{ invoice.number|fa_digits }}</a>
+            <a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="link link-primary font-technical">{{ invoice.number|fa_digits }}</a>
         </div>
         <div class="flex justify-between gap-2"><span class="fb-muted">طرف‌حساب</span><span>{{ invoice.billed_party.name }}</span></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">مبلغ کل</span><span class="font-technical">{{ invoice.total_amount|intcomma_fa }} تومان</span></div>

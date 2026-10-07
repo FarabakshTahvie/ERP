@@ -42,7 +42,8 @@ def staff_ctx(request):
             p = getattr(u, "presence", None)
             cells.append({"type": "muted", "value": services.seen_text(p)})
             cells.append({"type": "muted", "value": services.page_label(p.view_name) if p else "—"})
-        return {"url": reverse("people:user_detail", args=[u.id]), "cells": cells}
+        from utils.navigation import nav_reverse
+        return {"url": nav_reverse(request, "people:user_detail", args=[u.id]), "cells": cells}
 
     columns = [
         {"label": "نام", "sort_field": "last_name"},
@@ -84,7 +85,8 @@ def customers_ctx(request):
           .order_by("name"))
 
     def row_builder(p):
-        return {"url": reverse("people:party_detail", args=[p.id]), "cells": [
+        from utils.navigation import nav_reverse
+        return {"url": nav_reverse(request, "people:party_detail", args=[p.id]), "cells": [
             {"type": "text", "value": p.name},
             {"type": "muted", "value": to_fa_digits(p.phone_number) or "—"},
             {"type": "muted", "value": _roles_text(p)},
@@ -152,7 +154,12 @@ def user_detail(request, user_id):
             days = 30
         days = days if days in services.FEED_DAYS else 30
         presence = getattr(person, "presence", None)
-        ctx.update(feed=services.activity_feed(person, days=days), days=days, days_choices=services.FEED_DAYS,
+        feed = services.activity_feed(person, days=days)
+        from utils.navigation import with_next
+        for item in feed:
+            if item.get("url"):
+                item["url"] = with_next(request, item["url"])
+        ctx.update(feed=feed, days=days, days_choices=services.FEED_DAYS,
                    presence=presence, seen=services.seen_text(presence),
                    page=services.page_label(presence.view_name) if presence else "—",
                    history=services.account_history(person))

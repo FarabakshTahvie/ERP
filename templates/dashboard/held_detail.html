@@ -171,7 +171,7 @@
         <div class="flex items-center justify-between text-sm">
             <div class="flex items-center gap-2">
                 <span>شماره فاکتور: {{ invoice.number|fa_digits }}</span>
-                <a href="{% url 'finance:accounting_project' project.id %}" class="link link-primary text-xs">پرونده‌ی مالی</a>
+                <a href="{% nav_url 'finance:accounting_project' project.id %}" class="link link-primary text-xs">پرونده‌ی مالی</a>
             </div>
             <span class="fb-badge {% if invoice.status == 'cancelled' %}fb-badge-error{% else %}fb-badge-info{% endif %}">{{ invoice.get_status_display }}</span>
         </div>

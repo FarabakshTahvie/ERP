@@ -204,3 +204,63 @@ class SourceGuardTests(TestCase):
         self.assertIn("pointer-events-auto", text)
         self.assertIn('aria-label="بستن پیام"', text)
 
+    def test_multi_entry_links_use_nav_url(self):
+        """در همه‌ی تمپلیت‌ها (به‌جز base.html، admin/ و dev_test) هیچ {% url 'N' با N در MULTI_ENTRY وجود نداشته باشد."""
+        from utils.navigation import MULTI_ENTRY
+        import re
+
+        pattern = re.compile(r"{%\s*url\s+['\"]([\w:]+)['\"]")
+        # تمپلیت‌های ویرایش/ویرایشگر که والد ثابتشان همان صفحه جزئیات است
+        allowed_templates = {
+            "people/user_edit.html",
+            "people/party_edit.html",
+            "people/password_reset_done.html",
+        }
+        violations = []
+
+        for path in (BASE / "templates").rglob("*.html"):
+            rel = str(path.relative_to(BASE / "templates")).replace("\\", "/")
+            if rel == "base.html" or rel.startswith("admin/") or "dev_test" in rel or rel in allowed_templates:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for m in pattern.finditer(text):
+                name = m.group(1)
+                if name in MULTI_ENTRY:
+                    violations.append(f"{rel}: {name}")
+
+        self.assertEqual(violations, [])
+
+    def test_multi_entry_reverse_in_python_goes_through_navigation(self):
+        """در فایل‌های *views*.py، */services.py و utils/generic_table.py هیچ reverse("N" با N در MULTI_ENTRY نباشد (به‌جز فایل‌های استثنا)."""
+        from utils.navigation import MULTI_ENTRY
+        import re
+
+        pattern = re.compile(r"reverse\(\s*['\"]([\w:]+)['\"]")
+        allowed_files = {
+            "utils/navigation.py",
+            "people/services.py",  # activity_feed
+            "projects/services.py",  # notification targets
+            "projects/views.py",  # redirects after POST
+            "dashboard/services.py",  # notification targets
+            "dashboard/views.py",  # redirects after POST
+            "notifications/broadcast_views.py",  # redirects after POST
+        }
+        violations = []
+
+        for path in BASE.rglob("*.py"):
+            if any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles")) or path.name.startswith("test"):
+                continue
+            rel = str(path.relative_to(BASE)).replace("\\", "/")
+            if not (rel.endswith("views.py") or "views" in rel or rel.endswith("services.py") or rel == "utils/generic_table.py"):
+                continue
+            if rel in allowed_files:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for m in pattern.finditer(text):
+                name = m.group(1)
+                if name in MULTI_ENTRY:
+                    violations.append(f"{rel}: {name}")
+
+        self.assertEqual(violations, [])
+
+

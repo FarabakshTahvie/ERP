@@ -191,3 +191,21 @@ class NavigationHeaderIntegrationTests(TestCase):
                 self.assertEqual(res.status_code, 200)
                 self.assertNotContains(res, 'data-fb-back')
 
+    def test_multi_entry_link_in_table_includes_next_param(self):
+        from unittest.mock import patch
+        with patch("core.capabilities.capabilities_for", return_value={"accounting_access": True, "people_view": True}):
+            self.client.force_login(self.user)
+            # GET روی لیست افراد شامل nav_url یا لینک چندورودی به user_detail
+            res = self.client.get("/people/")
+            self.assertEqual(res.status_code, 200)
+            self.assertContains(res, '?next=%2Fpeople%2F')
+
+            # درخواست HTMX با HX-Current-URL
+            res_htmx = self.client.get(
+                "/people/table/",
+                headers={"HX-Request": "true", "HX-Current-URL": "http://testserver/people/?pe_q=test"},
+            )
+            self.assertEqual(res_htmx.status_code, 200)
+            self.assertContains(res_htmx, '?next=%2Fpeople%2F%3Fpe_q%3Dtest')
+
+
