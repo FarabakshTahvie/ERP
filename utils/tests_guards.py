@@ -159,6 +159,32 @@ class SourceGuardTests(TestCase):
             names = {c.func.id for c in ast.walk(node) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
             self.assertTrue(names & {"optimize_named", "optimize_upload"}, f"{rel}:{func}")
 
+    def test_celery_publish_calls_only_in_known_places(self):
+        allowed = {"notifications/broadcast.py", "notifications/celery_tasks.py", "accounts/services.py"}
+        found = set()
+        for path in BASE.rglob("*.py"):
+            if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
+                    or path.name.startswith("test")):
+                continue
+            if re.search(r"\.(delay|apply_async)\(", path.read_text(encoding="utf-8")):
+                found.add(str(path.relative_to(BASE)).replace("\\", "/"))
+        self.assertEqual(found, allowed)
+
+    def test_celery_tasks_ignore_results_and_return_nothing(self):
+        import ast
+        for rel in ("notifications/celery_tasks.py", "accounts/celery_tasks.py"):
+            tree = ast.parse((BASE / rel).read_text(encoding="utf-8"))
+            tasks = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+                     and any("shared_task" in ast.dump(d) for d in n.decorator_list)]
+            self.assertTrue(tasks, rel)
+            for fn in tasks:
+                deco = " ".join(ast.dump(d) for d in fn.decorator_list)
+                self.assertIn("ignore_result", deco, f"{rel}:{fn.name}")
+                for node in ast.walk(fn):
+                    if isinstance(node, ast.Return):
+                        self.assertTrue(node.value is None or (isinstance(node.value, ast.Constant) and node.value.value is None),
+                                        f"{rel}:{fn.name} مقدار بازگشتی دارد")
+
 
 
 
