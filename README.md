@@ -73,6 +73,8 @@ python manage.py seed_demo_data
 
 ## ساختار اپ‌ها
 
+هر URL تازه باید در یکی از سه فهرست `TOP_LEVEL`، `PAGE_PARENTS` یا `NON_PAGE` در `utils/navigation.py` قرار گیرد و اگر چندورودی است در `MULTI_ENTRY` ثبت شود.
+
 | اپ | مسئولیت |
 |---|---|
 | `core` | طرف‌حساب‌ها (`Party`)، رابط‌ها، مکان، تخصص |

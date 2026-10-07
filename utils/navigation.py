@@ -7,7 +7,7 @@ NEXT_PARAM = "next"
 MAX_NEXT = 800
 
 # صفحه‌های ریشه: دکمه‌ی برگشت ندارند
-TOP_LEVEL = {"home", "dashboard:overview", "accounts:login", "accounts:force_set_password"}
+TOP_LEVEL = {"home", "dashboard:overview", "projects:my_tasks", "accounts:login", "accounts:force_set_password"}
 
 # نام صفحه ← (نام والد، [نام kwargهای والد که از kwargهای همین صفحه می‌آیند]، {query ثابت})
 PAGE_PARENTS = {
@@ -102,7 +102,7 @@ NON_PAGE = {
     "projects:ship_check", "projects:stage_file_upload", "protected_media",
     "tasks:attachment_delete", "tasks:attachment_upload", "tasks:check", "tasks:done_panel",
     "tasks:done_table", "tasks:my_panel", "tasks:open_table", "tasks:save", "tasks:submit",
-    "utils:dev_test_calendar", "utils/dev_test_design_system", "utils:dev_test_map",
+    "utils:dev_test_calendar", "utils:dev_test_design_system", "utils:dev_test_map",
     "utils:register_push_device",
 }
 

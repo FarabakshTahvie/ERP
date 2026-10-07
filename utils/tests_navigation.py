@@ -209,3 +209,31 @@ class NavigationHeaderIntegrationTests(TestCase):
             self.assertContains(res_htmx, '?next=%2Fpeople%2F%3Fpe_q%3Dtest')
 
 
+def all_url_names():
+    from django.urls import URLPattern, URLResolver, get_resolver
+    out = set()
+    def walk(patterns, ns):
+        for p in patterns:
+            if isinstance(p, URLResolver):
+                walk(p.url_patterns, ns + ([p.namespace] if p.namespace else []))
+            elif isinstance(p, URLPattern) and p.name:
+                out.add(":".join(ns + [p.name]))
+    walk(get_resolver().url_patterns, [])
+    return {n for n in out if not n.startswith("admin:")}
+
+
+class NavigationClassificationTests(SimpleTestCase):
+    def test_every_url_name_is_classified_exactly_once(self):
+        from utils.navigation import NON_PAGE, PAGE_PARENTS, TOP_LEVEL
+        names = all_url_names()
+        known = set(PAGE_PARENTS) | TOP_LEVEL | NON_PAGE
+        self.assertEqual(sorted(names - known), [], "URL بدون طبقه‌بندی")
+        self.assertEqual(sorted(known - names), [], "مدخل قدیمی در فهرست ناوبری")
+        self.assertFalse(set(PAGE_PARENTS) & TOP_LEVEL | set(PAGE_PARENTS) & NON_PAGE | TOP_LEVEL & NON_PAGE)
+
+    def test_multi_entry_pages_are_real_pages(self):
+        from utils.navigation import MULTI_ENTRY, PAGE_PARENTS
+        self.assertFalse(MULTI_ENTRY - set(PAGE_PARENTS))
+
+
+
