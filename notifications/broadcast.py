@@ -473,6 +473,16 @@ def run_process_broadcasts(*, max_seconds=120, heartbeat=None):
     return stats
 
 
+def kick_broadcasts():
+    """بعد از commit صدا زده می‌شود. هر خطا (مثلاً ردیس پایین) فقط لاگ می‌شود؛
+    ثبت پیام خراب نمی‌شود و beat ظرف ۶۰ ثانیه ردیف‌ها را برمی‌دارد."""
+    try:
+        from notifications.celery_tasks import process_broadcasts_task
+        process_broadcasts_task.delay()
+    except Exception:
+        logger.exception("process_broadcasts could not be queued")
+
+
 def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, ttl_hours,
                      audience_kind, audience_ids, created_by, buttons=None, digest=None, is_test=False):
     if channel == "sms":
@@ -547,6 +557,7 @@ def create_broadcast(*, channel, title, body, link_path, icon_name, image_name, 
                 broadcast=broadcast, short_code=code,
             ) for user, code in zip(users, codes)
         ])
+        transaction.on_commit(kick_broadcasts)
 
     return broadcast
 
@@ -557,4 +568,6 @@ def retry_failed(broadcast):
             broadcast=broadcast,
             status=Notification.Status.FAILED
         ).update(status=Notification.Status.PENDING, error_text=RETRY_MARK, provider_ref="")
+        if updated:
+            transaction.on_commit(kick_broadcasts)
         return updated
