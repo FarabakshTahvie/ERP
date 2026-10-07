@@ -14,8 +14,7 @@ from django_htmx.http import HttpResponseClientRedirect
 
 from .forms import StaffRegistrationForm
 from .models import User, OTPCode
-from .services import create_staff_account, get_or_create_active_otp, otp_remaining_seconds
-from utils.sms import SMSService
+from .services import create_staff_account, get_or_create_active_otp, otp_remaining_seconds, dispatch_otp_sms
 from utils.request_meta import get_client_ip
 
 OTP_LOGIN_BACKEND = "django.contrib.auth.backends.ModelBackend"
@@ -73,9 +72,7 @@ def request_otp_login(request):
             return render(request, "accounts/partials/otp_phone_form.html", {
                 "error": error, "phone_number": phone_number, "next": next_url,
             })
-        result = SMSService().send_otp(mobile=phone_number, code=raw_code)
-        if not result.get("success"):
-            otp.delete()
+        if not dispatch_otp_sms(otp, raw_code):
             return render(request, "accounts/partials/otp_phone_form.html", {
                 "error": "ارسال پیامک ناموفق بود، دوباره تلاش کنید.",
                 "phone_number": phone_number, "next": next_url,
@@ -162,9 +159,7 @@ def request_password_reset(request):
                 return render(request, "accounts/partials/pwreset_phone_form.html", {
                     "error": error, "phone_number": phone_number,
                 })
-            result = SMSService().send_otp(mobile=phone_number, code=raw_code)
-            if not result.get("success"):
-                otp.delete()
+            if not dispatch_otp_sms(otp, raw_code):
                 return render(request, "accounts/partials/pwreset_phone_form.html", {
                     "error": "ارسال پیامک ناموفق بود، دوباره تلاش کنید.", "phone_number": phone_number,
                 })

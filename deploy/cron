@@ -1,11 +1,9 @@
+# توجه: این فایل روی سرور نصب نیست. ارسال پیام همگانی با Celery انجام می‌شود (deploy/farabakhsh-celery*.service).
 # Fallback notification processing every 5 minutes
 */5 * * * * www-data cd /var/www/farabakhsh/app && /var/www/farabakhsh/venv/bin/python manage.py process_notification_fallbacks >> /var/log/farabakhsh_cron.log 2>&1
 
 # Pending notifications processing every minute
 * * * * * www-data cd /var/www/farabakhsh/app && /var/www/farabakhsh/venv/bin/python manage.py process_pending_notifications >> /var/log/farabakhsh_cron.log 2>&1
-
-# Broadcast processing every minute
-* * * * * www-data cd /var/www/farabakhsh/app && /var/www/farabakhsh/venv/bin/python manage.py process_broadcasts >> /var/log/farabakhsh_cron.log 2>&1
 
 # Daily backup (database + media)
 30 3 * * * root bash /var/www/farabakhsh/app/deploy/backup.sh >> /var/log/farabakhsh_backup.log 2>&1

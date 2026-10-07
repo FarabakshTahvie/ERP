@@ -111,7 +111,17 @@ core → accounts → catalog → inventory → projects → finance → notific
 1. `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در `.env` بگذارید.
 2. IP خروجی سرور را در پنل نجوا وایت‌لیست کنید (بدون آن خطای ۴۱۶ می‌گیرید). دستور `python manage.py najva_check` همین IP را چاپ می‌کند.
 3. `NAJVA_ENABLED=True` برای پوش و `SMS_FREE_TEXT_ENABLED=True` برای پیامک بدون قالب از پنل «ارسال پیام». `BROADCAST_DRY_RUN=True` فقط روی لوکال (با DEBUG) برای آزمایش بدون تماس بیرونی.
-4. ارسال پیام‌های همگانی با دستور `python manage.py process_broadcasts` انجام می‌شود (در پروداکشن با cron، هر دقیقه؛ فایل `deploy/cron`).
+4. ارسال پیام‌های همگانی و پیامک کد ورود با Celery انجام می‌شود (worker و beat با systemd؛ فایل‌های deploy/farabakhsh-celery*.service). برای ارسال دستی: `python manage.py process_broadcasts`.
+
+## Celery
+- **بروکر:** ردیس دیتابیس ۱ (تنظیم‌شده با `CELERY_BROKER_URL` در `.env`).
+- **سرویس‌ها:** دو سرویس systemd برای worker و beat در `deploy/farabakhsh-celery*.service`.
+- **دستورات عیب‌یابی:**
+  ```bash
+  celery -A config inspect ping
+  journalctl -u farabakhsh-celery -n 50
+  ```
+- **وابستگی:** اعلان‌های سیستمی به Celery وابسته نیستند؛ فقط ارسال پیام همگانی و کد ورود (OTP) از طریق Celery (با fallback به ارسال مستقیم) مدیریت می‌شوند.
 
 ## پیامک و پوش
 پیامک و پوش فعال است. سیاست هر نوع پیام با دستور `python manage.py setup_notification_policies` ساخته و از پنل مدیریت قابل تغییر است. وضعیت پیام‌ها در داشبورد مدیر ← اطلاع‌رسانی‌ها.
