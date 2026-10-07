@@ -1,4 +1,4 @@
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import URLPattern, URLResolver, get_resolver, resolve, reverse
 
 from utils.navigation import (
@@ -128,3 +128,66 @@ class NavigationTests(SimpleTestCase):
                 self.assertTrue(url.startswith("/"))
             except Exception as e:
                 self.fail(f"Failed to reverse parent {parent_name} with kwargs {sample_kwargs}: {e}")
+
+
+class NavigationHeaderIntegrationTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="manager_nav",
+            phone_number="09123456789",
+            first_name="مدیر",
+            role="manager",
+        )
+
+    def test_back_link_rendered_with_parent_href(self):
+        from unittest.mock import patch
+        with patch("core.capabilities.capabilities_for", return_value={"accounting_access": True}):
+            self.client.force_login(self.user)
+            res = self.client.get("/manager/stages/")
+            self.assertEqual(res.status_code, 200)
+            self.assertContains(res, 'data-fb-back')
+            self.assertContains(res, 'href="/manager/"')
+
+    def test_back_link_uses_valid_next_and_ignores_evil_next(self):
+        from unittest.mock import patch
+        with patch("core.capabilities.capabilities_for", return_value={"accounting_access": True}):
+            self.client.force_login(self.user)
+            res1 = self.client.get("/manager/stages/?next=/people/")
+            self.assertContains(res1, 'href="/people/"')
+
+            res2 = self.client.get("/manager/stages/?next=https://evil.com/")
+            self.assertContains(res2, 'href="/manager/"')
+
+    def test_no_back_link_on_home_and_login(self):
+        from unittest.mock import patch
+        with patch("core.capabilities.capabilities_for", return_value={"accounting_access": True}):
+            self.client.force_login(self.user)
+            res_home = self.client.get("/")
+            self.assertNotContains(res_home, 'data-fb-back')
+
+        self.client.logout()
+        res_login = self.client.get("/accounts/login/")
+        self.assertNotContains(res_login, 'data-fb-back')
+
+    def test_standalone_markers_present(self):
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        html = (base / "templates" / "base.html").read_text(encoding="utf-8")
+        self.assertIn("fb-standalone", html)
+        self.assertIn("fb_standalone", html)
+
+        css = (base / "static" / "src" / "input.css").read_text(encoding="utf-8")
+        self.assertIn("html:not(.fb-standalone) .fb-back { display: none; }", css)
+
+    def test_back_url_failure_never_breaks_page(self):
+        from unittest.mock import patch
+        with patch("core.capabilities.capabilities_for", return_value={"accounting_access": True}):
+            self.client.force_login(self.user)
+            with patch("utils.navigation.reverse", side_effect=Exception("Reverse failed")):
+                res = self.client.get("/manager/stages/")
+                self.assertEqual(res.status_code, 200)
+                self.assertNotContains(res, 'data-fb-back')
+

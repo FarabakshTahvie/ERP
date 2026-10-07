@@ -304,3 +304,6 @@
 .brand-gradient {
   background: linear-gradient(135deg, var(--color-primary) 0%, color-mix(in oklab, var(--color-primary) 65%, #000) 100%);
 }
+
+/* دکمه‌ی برگشت فقط در PWA نصب‌شده دیده می‌شود (کلاس را اسکریپت head می‌گذارد) */
+html:not(.fb-standalone) .fb-back { display: none; }

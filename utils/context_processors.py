@@ -25,6 +25,8 @@ def site_info(request):
     }
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:
+        from utils.navigation import resolve_back
+        ctx["back_url"] = resolve_back(request)
         caps = {name.replace(".", "_"): ok for name, ok in capabilities_for(user).items()}
         ctx["caps"] = caps                       # در تمپلیت: {% if caps.people_edit %}
         ctx["can_access_accounting"] = caps["accounting_access"]

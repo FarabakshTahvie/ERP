@@ -26,6 +26,15 @@
             } catch (e) {}
         })();
     </script>
+    <script>
+        (function () {
+            try {
+                var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+                if (/[?&]fbstandalone=1(&|$)/.test(location.search)) sessionStorage.setItem('fb_standalone', '1');   // فقط برای تست در مرورگر
+                if (standalone || sessionStorage.getItem('fb_standalone') === '1') document.documentElement.classList.add('fb-standalone');
+            } catch (e) {}
+        })();
+    </script>
 
     <link rel="preload" href="{% static 'fonts/Vazirmatn[wght].woff2' %}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{% static_v 'dist/output.css' %}">
@@ -70,7 +79,12 @@
     <header class="sticky top-0 z-40 w-full bg-base-100 border-b border-base-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="navbar min-h-14 px-0 gap-2">
-                <div class="flex-1">
+                <div class="flex-1 flex items-center">
+                    {% if back_url %}
+                    <a href="{{ back_url }}" data-fb-back class="fb-back btn btn-ghost btn-sm btn-square me-1" aria-label="بازگشت">
+                        {% icon "arrow-right" "w-4 h-4" %}
+                    </a>
+                    {% endif %}
                     <a href="{% url 'home' %}" class="inline-flex items-center" aria-label="صفحه اصلی">
                         <img src="{% static 'icons/logo.svg' %}" alt="فرابخش"
                              class="w-9 h-9 object-contain bg-white rounded-field p-1 border border-base-300">
