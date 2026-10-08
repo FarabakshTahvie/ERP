@@ -10,7 +10,7 @@ from messenger import services
 from messenger.tests import Base
 
 ICONS = ("message-circle", "reply", "check-check", "bell-off", "arrow-down", "send", "x", "check", "pencil",
-         "trash-2", "copy", "users", "search", "bell", "clock", "refresh-cw", "arrow-right")
+         "trash-2", "copy", "users", "search", "bell", "clock", "refresh-cw", "arrow-right", "pin")
 
 
 class PageTests(Base):

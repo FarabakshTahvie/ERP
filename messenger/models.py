@@ -45,6 +45,9 @@ class Message(models.Model):
     edited_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)   # فقط با save() عوض می‌شود، نه update()
+    pinned_at = models.DateTimeField(null=True, blank=True)     # با update() ست می‌شود تا updated_at (نشان ویرایش) عوض نشود
+    pinned_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name="+")
 
     class Meta:
         verbose_name = "پیام"

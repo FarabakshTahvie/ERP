@@ -96,6 +96,15 @@ def api_delete(request, message_id):
 
 
 @cap_required("messenger.use")
+@require_POST
+def api_pin(request, message_id):
+    def run():
+        msg = services.set_pinned(request.user, message_id, request.POST.get("pinned") == "1")
+        return {"pins": services.pins_of(msg.conversation)}
+    return _json(run)
+
+
+@cap_required("messenger.use")
 @never_cache
 def page_inbox(request):
     return render(request, "messenger/inbox.html", {"inbox": services.inbox(request.user)})

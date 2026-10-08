@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 MAIN_TITLE = "فراگرام"
 MAX_TEXT = 4000
 EDIT_WINDOW_HOURS = 48
+MAX_PINS = 5
 RATE_LIMIT, RATE_WINDOW = 30, 60          # حداکثر ۳۰ پیام در دقیقه برای هر کاربر
 PAGE, PAGE_NEW = 30, 100
 # کاراکتر کنترلی و bidi-override (۲۰۲۰۲ تا ۲۰۲۲E و ۲۰۶۶ تا ۲۰۶۹) حذف می‌شوند؛ نیم‌فاصله و RLM/LRM می‌مانند
@@ -183,7 +184,7 @@ def inbox(user):
 
 
 def unread_total(user):
-    """مجموع نخوانده‌های بی‌صدانشده (برای نشان کنار آیکون هدر)؛ باید با inbox()["total_unread"] برابر باشد."""
+    """مجموع نخوانده‌های بی‌صدانشده (برای نشان کنار آیکون هدر)؛ باید با inbox()[\"total_unread\"] برابر باشد."""
     state = ChatState.objects.filter(conversation=OuterRef("conversation_id"), user=user)
     return (Message.objects.filter(is_deleted=False)
             .filter(Q(conversation__is_main=True) | Q(conversation__user_low=user) | Q(conversation__user_high=user))
@@ -238,7 +239,15 @@ def fetch_messages(user, conv, *, after=None, before=None, since=None):
         "messages": [serialize_message(m, user) for m in rows],
         "updates": [serialize_message(m, user) for m in updates],
         "has_more": has_more, "now": now, "peer_read_id": peer_read,
+        "pins": pins_of(conv),
     }
+
+
+def pins_of(conv):
+    """پیام‌های پین‌شده (تازه‌ترین پین اول)؛ حداکثر MAX_PINS."""
+    qs = (conv.messages.filter(pinned_at__isnull=False, is_deleted=False)
+          .select_related("sender").order_by("-pinned_at", "-id")[:MAX_PINS])
+    return [{"id": m.id, "name": display_name(m.sender), "snippet": _snippet(m)} for m in qs]
 
 
 # ---------- نوشتن ----------
@@ -326,13 +335,30 @@ def edit_message(user, message_id, text):
 
 @transaction.atomic
 def delete_message(user, message_id):
-    """فرستنده؛ و مدیر فقط در گروه اصلی (نظارت). حذف نرم است و متن پاک می‌شود."""
+    """فرستنده؛ و مدیر فقط در گروه اصلی (نظارت). حذف نرم است؛ متن پاک و پین برداشته می‌شود."""
     m = _editable(user, message_id)
     if m.sender_id != user.pk and not (m.conversation.is_main and can(user, "dashboard.manager")):
         raise ValueError("شما اجازه‌ی حذف این پیام را ندارید.")
     if not m.is_deleted:
-        m.is_deleted, m.text = True, ""
-        m.save(update_fields=["is_deleted", "text", "updated_at"])
+        m.is_deleted, m.text, m.pinned_at, m.pinned_by = True, "", None, None
+        m.save(update_fields=["is_deleted", "text", "pinned_at", "pinned_by", "updated_at"])
+    return m
+
+
+@transaction.atomic
+def set_pinned(user, message_id, pinned):
+    """هر عضو همان گفت‌وگو می‌تواند پین کند یا بردارد. غیرعضو ← ۴۰۴."""
+    m = _editable(user, message_id)
+    if m.is_deleted:
+        raise ValueError("پیام حذف شده است.")
+    Conversation.objects.select_for_update(of=("self",)).get(pk=m.conversation_id)   # قفل برای شمارش سقف
+    if pinned:
+        if m.pinned_at is None:
+            if m.conversation.messages.filter(pinned_at__isnull=False).count() >= MAX_PINS:
+                raise ValueError("حداکثر ۵ پیام را می‌توان پین کرد؛ ابتدا یکی را بردارید.")
+            Message.objects.filter(pk=m.pk).update(pinned_at=timezone.now(), pinned_by=user)
+    elif m.pinned_at is not None:
+        Message.objects.filter(pk=m.pk).update(pinned_at=None, pinned_by=None)
     return m
 
 

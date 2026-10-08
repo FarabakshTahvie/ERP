@@ -101,4 +101,17 @@
       b.classList.toggle('hidden', !n);
     });
   };
+
+  // مودال تایید مشترک (dialog باید در صفحه‌ی میزبان باشد)
+  M.confirm = function (opts, onOk) {
+    var dlg = document.querySelector('[data-msgr-confirm]');
+    if (!dlg) return;
+    dlg.querySelector('[data-confirm-title]').textContent = opts.title || '';
+    dlg.querySelector('[data-confirm-text]').textContent = opts.text || '';
+    var ok = dlg.querySelector('[data-confirm-ok]');
+    ok.textContent = opts.ok || 'تایید';
+    ok.className = 'btn btn-sm ' + (opts.danger ? 'btn-soft btn-error' : 'btn-primary');
+    ok.onclick = function () { dlg.close(); onOk(); };
+    dlg.showModal();
+  };
 })();

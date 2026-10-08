@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/c/<int:conv_id>/mute/", views.api_mute, name="api_mute"),
     path("api/m/<int:message_id>/edit/", views.api_edit, name="api_edit"),
     path("api/m/<int:message_id>/delete/", views.api_delete, name="api_delete"),
+    path("api/m/<int:message_id>/pin/", views.api_pin, name="api_pin"),
 ]

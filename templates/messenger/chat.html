@@ -19,6 +19,7 @@
      data-mute-url="{% url 'messenger:api_mute' conv.id %}"
      data-edit-url="{% url 'messenger:api_edit' 0 %}"
      data-delete-url="{% url 'messenger:api_delete' 0 %}"
+     data-pin-url="{% url 'messenger:api_pin' 0 %}"
      class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
 
     <aside class="hidden lg:block lg:w-96 lg:border-e border-base-300 min-h-0">
@@ -41,6 +42,16 @@
             </div>
             <button type="button" data-msgr-mute class="btn btn-ghost btn-sm btn-circle"></button>
         </header>
+
+        <div data-msgr-pins class="hidden border-b border-base-300 bg-base-100">
+            <button type="button" data-pin-open class="flex items-center gap-2 w-full px-3 py-2 text-start hover:bg-base-200">
+                <span class="shrink-0 text-primary">{% icon "pin" "w-4 h-4" %}</span>
+                <span class="flex-1 min-w-0 border-s-2 border-primary ps-2 text-xs">
+                    <span data-pin-title class="block font-semibold text-primary truncate"></span>
+                    <span data-pin-text class="block truncate fb-muted"></span>
+                </span>
+            </button>
+        </div>
 
         <div class="relative flex-1 min-h-0 bg-base-200">
             <div data-msgr-scroll class="absolute inset-0 overflow-y-auto overscroll-contain px-3 py-4">
@@ -68,12 +79,25 @@
         </div>
 
         <form data-msgr-form class="flex items-end gap-2 p-2 border-t border-base-300 bg-base-100 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <button type="submit" class="btn btn-primary btn-circle" aria-label="ارسال">{% icon "send" "w-5 h-5" %}</button>
             <textarea rows="1" maxlength="4000" placeholder="پیام..." aria-label="متن پیام"
                       class="textarea flex-1 min-w-0 min-h-0 resize-none leading-6 py-2"></textarea>
-            <button type="submit" class="btn btn-primary btn-circle" aria-label="ارسال">{% icon "send" "w-5 h-5 -scale-x-100" %}</button>
         </form>
     </section>
 </div>
+
+<dialog data-msgr-confirm class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 data-confirm-title class="font-bold text-base mb-1"></h3>
+        <p data-confirm-text class="text-sm fb-muted mb-4"></p>
+        <div class="modal-action">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('dialog').close()">انصراف</button>
+            <button type="button" data-confirm-ok class="btn btn-sm"></button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 {{ initial|json_script:"msgr-chat-initial" }}
 {% endblock %}
 {% block extra_js %}

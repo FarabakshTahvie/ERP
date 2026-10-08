@@ -16,6 +16,9 @@
   var firstId = 0, lastId = 0, hasMore = !!init.has_more, since = init.now, peerRead = init.peer_read_id;
   var loadingOlder = false, replyTo = null, editing = null, sentRead = 0, unseen = 0, muted = ds.muted === '1';
   var pendings = {}, errTimer = null;
+  var menu = null, menuFor = null, pinList = init.pins || [], pinIdx = 0, pinSet = {};
+  var pinBar = root.querySelector('[data-msgr-pins]');
+  var pinTitle = pinBar.querySelector('[data-pin-title]'), pinText = pinBar.querySelector('[data-pin-text]');
   var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
 
   function url(key, id) { return ds[key].replace('/0/', '/' + id + '/'); }
@@ -82,6 +85,7 @@
       if (m.mine) { var t = M.el('span'); t.dataset.tick = '1'; foot.appendChild(t); }
     }
     wrap.appendChild(foot);
+    paintPinMark(wrap);
     return wrap;
   }
 
@@ -123,26 +127,104 @@
     return true;
   }
 
-  // ---------- عملیات روی پیام ----------
-  function closeActions() { feed.querySelectorAll('[data-actions]').forEach(function (n) { n.remove(); }); }
+  // ---------- منوی پیام ----------
+  function closeMenu() {
+    if (menu) menu.remove();
+    menu = null; menuFor = null;
+  }
+  function closeActions() { closeMenu(); }
 
-  function toggleActions(wrap) {
-    var had = wrap.querySelector('[data-actions]');
-    closeActions();
+  function menuItem(icon, label, fn, danger) {
+    var li = M.el('li');
+    var b = M.el('button', 'flex items-center gap-2 text-sm' + (danger ? ' text-error' : ''));
+    b.type = 'button';
+    b.appendChild(M.icon(icon, 'w-4 h-4'));
+    b.appendChild(M.el('span', null, label));
+    b.addEventListener('click', function (e) { e.stopPropagation(); closeMenu(); fn(); });
+    li.appendChild(b);
+    return li;
+  }
+
+  function toggleMenu(wrap) {
+    if (menuFor === wrap) { closeMenu(); return; }
+    closeMenu();
     var m = wrap._m;
-    if (had || !m || !m.id || m.deleted) return;
-    var row = M.el('div', 'flex flex-wrap gap-1 mt-1');
-    row.dataset.actions = '1';
-    row.appendChild(small('reply', 'پاسخ', function () { startReply(m); }));
-    row.appendChild(small('copy', 'کپی', function (b) {
-      if (navigator.clipboard) navigator.clipboard.writeText(m.text).then(function () {
-        b.lastChild.textContent = 'کپی شد';
-        setTimeout(function () { b.lastChild.textContent = 'کپی'; }, 1200);
-      });
+    if (!m || !m.id || m.deleted) return;
+    var ul = M.el('ul', 'menu menu-sm fixed z-50 w-44 p-1 bg-base-100 border border-base-300 rounded-box shadow-lg');
+    ul.appendChild(menuItem('reply', 'پاسخ', function () { startReply(m); }));
+    ul.appendChild(menuItem('copy', 'کپی', function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(m.text).catch(function () {});
     }));
-    if (m.mine && Date.now() / 1000 - m.ts < 48 * 3600) row.appendChild(small('pencil', 'ویرایش', function () { startEdit(m); }));
-    if (m.mine || (isMain && canModerate)) row.appendChild(small('trash-2', 'حذف', function () { removeMsg(m); }, 'text-error'));
-    wrap.appendChild(row);
+    ul.appendChild(menuItem('pin', pinSet[m.id] ? 'برداشتن پین' : 'پین‌کردن', function () { togglePin(m); }));
+    if (m.mine && Date.now() / 1000 - m.ts < 48 * 3600) ul.appendChild(menuItem('pencil', 'ویرایش', function () { startEdit(m); }));
+    if (m.mine || (isMain && canModerate)) ul.appendChild(menuItem('trash-2', 'حذف', function () { removeMsg(m); }, true));
+    root.appendChild(ul);
+    var br = wrap.querySelector('.chat-bubble').getBoundingClientRect();
+    var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var w = ul.offsetWidth, h = ul.offsetHeight;
+    var top = br.bottom + 4;
+    if (top + h > vh - 8) top = br.top - h - 4;
+    top = Math.min(Math.max(8, top), vh - h - 8);
+    var left = Math.min(Math.max(8, br.left + br.width / 2 - w / 2), vw - w - 8);
+    ul.style.top = top + 'px';
+    ul.style.left = left + 'px';
+    menu = ul; menuFor = wrap;
+  }
+  document.addEventListener('click', function (e) {
+    if (menu && !menu.contains(e.target) && !(menuFor && menuFor.contains(e.target))) closeMenu();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+  window.addEventListener('resize', closeMenu);
+
+  // ---------- پین ----------
+  function paintPinMark(n) {
+    var foot = n.querySelector('.chat-footer');
+    if (!foot) return;
+    var mark = foot.querySelector('[data-pinmark]');
+    var on = !!pinSet[+n.dataset.id];
+    if (on && !mark) {
+      var s = M.el('span', 'opacity-60');
+      s.dataset.pinmark = '1';
+      s.appendChild(M.icon('pin', 'w-3 h-3'));
+      foot.insertBefore(s, foot.firstChild);
+    } else if (!on && mark) {
+      mark.remove();
+    }
+  }
+  function applyPins(list) {
+    pinList = list || [];
+    pinSet = {};
+    pinList.forEach(function (p) { pinSet[p.id] = true; });
+    if (pinIdx >= pinList.length) pinIdx = 0;
+    pinBar.classList.toggle('hidden', !pinList.length);
+    if (pinList.length) {
+      var p = pinList[pinIdx];
+      pinTitle.textContent = pinList.length > 1
+        ? 'پیام پین‌شده ' + M.fa(pinIdx + 1) + ' از ' + M.fa(pinList.length) : 'پیام پین‌شده';
+      pinText.textContent = p.name + ': ' + p.snippet;
+    }
+    feed.querySelectorAll('[data-msg]').forEach(paintPinMark);
+  }
+  function togglePin(m) {
+    M.api(url('pinUrl', m.id), { pinned: pinSet[m.id] ? '0' : '1' }).then(function (r) {
+      if (r.ok) applyPins(r.pins); else flash(r.error);
+    });
+  }
+  pinBar.querySelector('[data-pin-open]').addEventListener('click', function () {
+    var p = pinList[pinIdx];
+    if (!p) return;
+    jumpToId(p.id);
+    pinIdx = (pinIdx + 1) % pinList.length;
+    applyPins(pinList);
+  });
+
+  // اگر پیام هنوز بارگذاری نشده، صفحه‌های قدیمی‌تر را (حداکثر ۱۰ صفحه) می‌آورد
+  function jumpToId(id, tries) {
+    if (feed.querySelector('[data-id="' + id + '"]')) { jumpTo(id); return; }
+    tries = tries || 0;
+    if (loadingOlder) { setTimeout(function () { jumpToId(id, tries); }, 300); return; }
+    if (!hasMore || tries >= 10) { flash('پیام پیدا نشد؛ شاید خیلی قدیمی باشد.'); return; }
+    loadOlder(function () { jumpToId(id, tries + 1); });
   }
 
   function setBar(title, text) {
@@ -169,10 +251,13 @@
     ta.focus();
   }
   function removeMsg(m) {
-    closeActions();
-    if (!window.confirm('این پیام حذف شود؟')) return;
-    M.api(url('deleteUrl', m.id), {}).then(function (r) {
-      if (r.ok) { upsert(r.message); updateTicks(); } else flash(r.error);
+    M.confirm({ title: 'حذف پیام', text: 'این پیام برای همه حذف می‌شود و برگشت‌پذیر نیست.', ok: 'حذف', danger: true }, function () {
+      M.api(url('deleteUrl', m.id), {}).then(function (r) {
+        if (r.ok) {
+          upsert(r.message); updateTicks();
+          applyPins(pinList.filter(function (p) { return p.id !== m.id; }));
+        } else flash(r.error);
+      });
     });
   }
 
@@ -186,16 +271,16 @@
 
   feed.addEventListener('click', function (e) {
     var q = e.target.closest('[data-reply-to]');
-    if (q) { e.stopPropagation(); jumpTo(+q.dataset.replyTo); return; }
-    if (e.target.closest('a, button, [data-actions]')) return;
+    if (q) { e.stopPropagation(); closeMenu(); jumpToId(+q.dataset.replyTo); return; }
+    if (e.target.closest('a, button')) return;
     var w = e.target.closest('[data-msg]');
-    if (w) toggleActions(w);
+    if (w) toggleMenu(w);
   });
 
   // ---------- ارسال ----------
   function paint(p, extra) {
     var fresh = build(Object.assign({}, p.m, extra || {}));
-    var old = feed.querySelector('[data-uid="' + p.uid + '"]');
+    var old = feed.querySelector('[data-uid=\"' + p.uid + '\"]');
     if (old) old.replaceWith(fresh); else feed.appendChild(fresh);
   }
   function submit(p) {
@@ -212,7 +297,7 @@
   function retry(uid) { if (pendings[uid]) submit(pendings[uid]); }
   function discard(uid) {
     delete pendings[uid];
-    var n = feed.querySelector('[data-uid="' + uid + '"]');
+    var n = feed.querySelector('[data-uid=\"' + uid + '\"]');
     if (n) n.remove();
     refreshSeparators();
   }
@@ -275,7 +360,7 @@
     jumpCount.classList.toggle('hidden', !unseen);
   }
 
-  function loadOlder() {
+  function loadOlder(done) {
     if (!hasMore || loadingOlder || !firstId) return;
     loadingOlder = true;
     var h = scroll.scrollHeight, t = scroll.scrollTop;
@@ -290,11 +375,13 @@
       feed.insertBefore(frag, feed.firstChild);
       refreshSeparators(); updateTicks();
       scroll.scrollTop = t + (scroll.scrollHeight - h);
+      if (typeof done === 'function') done();
     });
   }
-  olderBtn.querySelector('button').addEventListener('click', loadOlder);
+  olderBtn.querySelector('button').addEventListener('click', function () { loadOlder(); });
 
   scroll.addEventListener('scroll', function () {
+    closeMenu();
     if (scroll.scrollTop < 80) loadOlder();
     var near = nearBottom();
     jump.classList.toggle('hidden', near);
@@ -314,6 +401,8 @@
         if (n) n.replaceWith(build(m));
       });
       refreshSeparators(); updateTicks();
+      applyPins(r.pins);
+      if (menuFor && !menuFor.isConnected) closeMenu();
       if (added && near) { toBottom(); markRead(); }
       else if (added) { unseen += added; setJump(); jump.classList.remove('hidden'); }
     });
@@ -338,6 +427,7 @@
 
   // ---------- شروع ----------
   init.messages.forEach(upsert);
+  applyPins(init.pins);
   refreshSeparators(); updateTicks(); paintMute();
   olderBtn.classList.toggle('hidden', !hasMore);
   toBottom(); markRead();
