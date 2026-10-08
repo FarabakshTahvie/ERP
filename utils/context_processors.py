@@ -17,6 +17,11 @@ def _pending_payments_count():
     return Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY).count()
 
 
+def _messenger_unread(user):
+    from messenger.services import unread_total
+    return unread_total(user)
+
+
 def site_info(request):
     ctx = {
         "CONTACT": settings.COMPANY_CONTACT,
@@ -33,4 +38,6 @@ def site_info(request):
         if caps["accounting_access"]:
             ctx["pending_payments_nav_count"] = SimpleLazyObject(_pending_payments_count)
         ctx["unread_notifications_count"] = SimpleLazyObject(lambda: _unread_notifications_count(user))
+        if caps.get("messenger_use"):
+            ctx["messenger_unread_count"] = SimpleLazyObject(lambda: _messenger_unread(user))
     return ctx

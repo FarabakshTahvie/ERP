@@ -122,6 +122,12 @@
                 </nav>
 
                 <div class="flex-none flex items-center gap-1">
+                    {% if caps.messenger_use %}
+                    <a href="{% url 'messenger:inbox' %}" class="btn btn-ghost btn-circle btn-sm relative" aria-label="پیام‌رسان">
+                        {% icon "message-circle" "w-4 h-4" %}
+                        <span data-msgr-badge class="fb-badge fb-badge-warning absolute -top-1 -left-1{% if not messenger_unread_count %} hidden{% endif %}">{{ messenger_unread_count|fa_digits }}</span>
+                    </a>
+                    {% endif %}
                     <a href="{% url 'notifications:center' %}" class="btn btn-ghost btn-circle btn-sm relative" aria-label="اعلان‌ها">
                         {% icon "bell" "w-4 h-4" %}
                         {% if unread_notifications_count %}<span class="fb-badge fb-badge-warning absolute -top-1 -left-1">{{ unread_notifications_count|fa_digits }}</span>{% endif %}
@@ -209,6 +215,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% block footer %}
     <footer class="mt-auto border-t border-base-300 bg-base-100 text-xs">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4 flex-wrap">
             <div class="flex items-center gap-2">
@@ -219,6 +226,7 @@
             <span class="fb-muted">پشتیبانی: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display }}</span></span>
         </div>
     </footer>
+    {% endblock %}
 
     <script>
         function fbAttachToastFade(root) {

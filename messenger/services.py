@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from django.conf import settings
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max, OuterRef, Q, Subquery, Value
+from django.db.models import Count, F, Max, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.utils import timezone
@@ -132,6 +132,7 @@ def serialize_message(m, viewer):
         "conv_id": m.conversation_id,
         "sender": {"id": m.sender_id, "name": display_name(m.sender)},
         "mine": m.sender_id == viewer.pk,
+        "uid": m.client_uid if m.sender_id == viewer.pk else "",
         "text": "" if m.is_deleted else m.text,
         "deleted": m.is_deleted,
         "edited": bool(m.edited_at),
@@ -179,6 +180,32 @@ def inbox(user):
     rest.sort(key=lambda i: (i["ts"] is None, -(i["ts"] or 0), i["title"]))
     items += rest
     return {"items": items, "total_unread": sum(i["unread"] for i in items if not i["muted"])}
+
+
+def unread_total(user):
+    """مجموع نخوانده‌های بی‌صدانشده (برای نشان کنار آیکون هدر)؛ باید با inbox()["total_unread"] برابر باشد."""
+    state = ChatState.objects.filter(conversation=OuterRef("conversation_id"), user=user)
+    return (Message.objects.filter(is_deleted=False)
+            .filter(Q(conversation__is_main=True) | Q(conversation__user_low=user) | Q(conversation__user_high=user))
+            .exclude(sender=user)
+            .annotate(lr=Coalesce(Subquery(state.values("last_read_id")[:1]), Value(0)),
+                      mu=Coalesce(Subquery(state.values("muted")[:1]), Value(False)))
+            .filter(id__gt=F("lr"), mu=False)
+            .count())
+
+
+def chat_meta(user, conv):
+    """سرتیتر صفحه‌ی چت."""
+    muted = ChatState.objects.filter(conversation=conv, user=user, muted=True).exists()
+    if conv.is_main:
+        return {"key": "main", "title": conv.title, "is_main": True, "members": staff_qs().count(),
+                "sub": "", "muted": muted}
+    peer_id = _peer_id(conv, user)
+    peer = User.objects.filter(pk=peer_id).first()
+    names = list(peer.specialties.values_list("name", flat=True)) if peer else []
+    is_boss = bool(peer and (peer.is_superuser or peer.role == User.Role.ADMIN))
+    return {"key": f"u{peer_id}", "title": display_name(peer), "is_main": False, "members": None,
+            "sub": "مدیر" if is_boss else ("، ".join(names) or "تکنسین"), "muted": muted}
 
 
 def _since_dt(since):

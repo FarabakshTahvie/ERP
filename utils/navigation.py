@@ -65,6 +65,8 @@ PAGE_PARENTS = {
     "finance:portal_invoice_detail": ("home", [], {}),
     "finance:portal_add_payment": ("finance:portal_invoice_detail", ["invoice_uuid"], {}),
     "finance:portal_statement": ("home", [], {}),
+    "messenger:inbox": ("home", [], {}),
+    "messenger:chat": ("messenger:inbox", [], {}),
 }
 
 # صفحه‌های چندورودی؛ لینک به آن‌ها باید ?next بگیرد.

@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
-from core.capabilities import cap_required
+from core.capabilities import can, cap_required
 
 from . import services
 
@@ -93,3 +93,22 @@ def api_delete(request, message_id):
         msg = services.delete_message(request.user, message_id)
         return {"message": services.serialize_message(msg, request.user)}
     return _json(run)
+
+
+@cap_required("messenger.use")
+@never_cache
+def page_inbox(request):
+    return render(request, "messenger/inbox.html", {"inbox": services.inbox(request.user)})
+
+
+@cap_required("messenger.use")
+@never_cache
+def page_chat(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+    return render(request, "messenger/chat.html", {
+        "conv": conv,
+        "meta": services.chat_meta(request.user, conv),
+        "initial": services.fetch_messages(request.user, conv),
+        "inbox": services.inbox(request.user),
+        "can_moderate": can(request.user, "dashboard.manager"),
+    })

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}{{ meta.title }} | پیام‌رسان{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+<div data-msgr-root data-msgr-chat
+     data-sprite="{% static 'icons/sprite.svg' %}"
+     data-me="{{ request.user.id }}"
+     data-is-main="{% if meta.is_main %}1{% else %}0{% endif %}"
+     data-can-moderate="{% if can_moderate %}1{% else %}0{% endif %}"
+     data-muted="{% if meta.muted %}1{% else %}0{% endif %}"
+     data-active-key="{{ meta.key }}"
+     data-inbox-url="{% url 'messenger:api_inbox' %}"
+     data-chat-url="{% url 'messenger:chat' 0 %}"
+     data-open-url="{% url 'messenger:api_open' 0 %}"
+     data-messages-url="{% url 'messenger:api_messages' conv.id %}"
+     data-send-url="{% url 'messenger:api_send' conv.id %}"
+     data-read-url="{% url 'messenger:api_read' conv.id %}"
+     data-mute-url="{% url 'messenger:api_mute' conv.id %}"
+     data-edit-url="{% url 'messenger:api_edit' 0 %}"
+     data-delete-url="{% url 'messenger:api_delete' 0 %}"
+     class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
+
+    <aside class="hidden lg:block lg:w-96 lg:border-e border-base-300 min-h-0">
+        {% include "messenger/partials/chat_list.html" %}
+    </aside>
+
+    <section class="flex-1 min-w-0 min-h-0 flex flex-col">
+        <header class="flex items-center gap-3 px-3 py-2 border-b border-base-300 bg-base-100">
+            <a href="{% url 'messenger:inbox' %}" class="btn btn-ghost btn-sm btn-square lg:hidden [.fb-standalone_&]:hidden" aria-label="بازگشت به فهرست">
+                {% icon "arrow-right" "w-4 h-4" %}
+            </a>
+            <div class="avatar avatar-placeholder shrink-0">
+                <div class="{% if meta.is_main %}bg-primary text-primary-content{% else %}bg-neutral text-neutral-content{% endif %} w-10 rounded-full">
+                    {% if meta.is_main %}{% icon "users" "w-5 h-5" %}{% else %}<span>{{ meta.title|slice:":1" }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm truncate">{{ meta.title }}</div>
+                <div class="text-xs fb-muted truncate">{% if meta.is_main %}{{ meta.members|fa_digits }} عضو{% else %}{{ meta.sub }}{% endif %}</div>
+            </div>
+            <button type="button" data-msgr-mute class="btn btn-ghost btn-sm btn-circle"></button>
+        </header>
+
+        <div class="relative flex-1 min-h-0 bg-base-200">
+            <div data-msgr-scroll class="absolute inset-0 overflow-y-auto overscroll-contain px-3 py-4">
+                <div data-msgr-older class="hidden text-center mb-3">
+                    <button type="button" class="btn btn-ghost btn-xs">پیام‌های قدیمی‌تر</button>
+                </div>
+                <div data-msgr-feed class="flex flex-col gap-1"></div>
+            </div>
+            <button type="button" data-msgr-jump class="btn btn-circle btn-sm absolute bottom-3 end-3 hidden" aria-label="رفتن به آخرین پیام">
+                {% icon "arrow-down" "w-4 h-4" %}
+                <span data-jump-count class="fb-badge fb-badge-warning absolute -top-2 -start-2 hidden"></span>
+            </button>
+        </div>
+
+        <div data-msgr-error role="alert" class="hidden alert alert-soft alert-error text-xs mx-2 mb-1 py-2"></div>
+
+        <div data-msgr-bar class="hidden">
+            <div class="flex items-center gap-2 px-3 py-2 border-t border-base-300 bg-base-100 text-xs">
+                <div class="flex-1 min-w-0 border-s-2 border-primary ps-2">
+                    <div data-bar-title class="font-semibold text-primary truncate"></div>
+                    <div data-bar-text class="truncate fb-muted"></div>
+                </div>
+                <button type="button" data-bar-cancel class="btn btn-ghost btn-xs btn-circle" aria-label="انصراف">{% icon "x" "w-4 h-4" %}</button>
+            </div>
+        </div>
+
+        <form data-msgr-form class="flex items-end gap-2 p-2 border-t border-base-300 bg-base-100 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <textarea rows="1" maxlength="4000" placeholder="پیام..." aria-label="متن پیام"
+                      class="textarea flex-1 min-w-0 min-h-0 resize-none leading-6 py-2"></textarea>
+            <button type="submit" class="btn btn-primary btn-circle" aria-label="ارسال">{% icon "send" "w-5 h-5 -scale-x-100" %}</button>
+        </form>
+    </section>
+</div>
+{{ initial|json_script:"msgr-chat-initial" }}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/messenger_common.js' %}"></script>
+<script src="{% static_v 'js/messenger_inbox.js' %}"></script>
+<script src="{% static_v 'js/messenger_chat.js' %}"></script>
+{% endblock %}

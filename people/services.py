@@ -55,6 +55,8 @@ PAGE_LABELS = {
     "notifications:broadcast_form": "ارسال پیام",
     "notifications:broadcast_history": "فهرست پیام‌های همگانی",
     "notifications:broadcast_detail": "جزئیات پیام همگانی",
+    "messenger:inbox": "پیام‌رسان",
+    "messenger:chat": "پیام‌رسان",
 }
 
 

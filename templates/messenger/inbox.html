@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}پیام‌رسان | فرابخش{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+<div data-msgr-root data-active-key=""
+     data-sprite="{% static 'icons/sprite.svg' %}"
+     data-inbox-url="{% url 'messenger:api_inbox' %}"
+     data-chat-url="{% url 'messenger:chat' 0 %}"
+     data-open-url="{% url 'messenger:api_open' 0 %}"
+     class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
+    <aside class="w-full lg:w-96 lg:border-e border-base-300 min-h-0">
+        {% include "messenger/partials/chat_list.html" %}
+    </aside>
+    <section class="hidden lg:flex flex-1 items-center justify-center bg-base-200">
+        <div class="flex flex-col items-center gap-2 fb-muted">
+            {% icon "message-circle" "w-10 h-10 opacity-40" %}
+            <span class="text-sm">یک گفت‌وگو را انتخاب کنید.</span>
+        </div>
+    </section>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/messenger_common.js' %}"></script>
+<script src="{% static_v 'js/messenger_inbox.js' %}"></script>
+{% endblock %}

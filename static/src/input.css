@@ -4,6 +4,9 @@
 @source "../js/tasks.js";
 @source "../js/task_form.js";
 @source "../js/broadcast_form.js";
+@source "../js/messenger_common.js";
+@source "../js/messenger_inbox.js";
+@source "../js/messenger_chat.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
