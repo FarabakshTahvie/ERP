@@ -14,7 +14,8 @@ from django.utils import timezone
 from accounts.models import User
 from core.capabilities import SPECIALTY_ACCOUNTANT, can
 
-from .models import ChatState, Conversation, Message
+from . import media
+from .models import Attachment, ChatState, Conversation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,11 @@ def _rate_limit(user):
 def _snippet(m):
     if m is None:
         return ""
-    return "پیام حذف شد" if m.is_deleted else m.text[:80]
+    if m.is_deleted:
+        return "پیام حذف شد"
+    if m.text:
+        return m.text[:80]
+    return media.label_for(m.attachments.all())
 
 
 def serialize_message(m, viewer):
@@ -137,6 +142,7 @@ def serialize_message(m, viewer):
         "text": "" if m.is_deleted else m.text,
         "deleted": m.is_deleted,
         "edited": bool(m.edited_at),
+        "files": [] if m.is_deleted else [media.serialize_attachment(a) for a in m.attachments.all()],
         "reply": ({"id": r.id, "name": display_name(r.sender), "snippet": _snippet(r)} if r else None),
         "at": timezone.localtime(m.created_at).isoformat(),
         "ts": m.created_at.timestamp(),
@@ -171,6 +177,7 @@ def inbox(user):
     convs = list(
         Conversation.objects.filter(Q(is_main=True) | Q(user_low=user) | Q(user_high=user))
         .select_related("last_message__sender")
+        .prefetch_related("last_message__attachments")
         .annotate(lr=Coalesce(Subquery(state.values("last_read_id")[:1]), Value(0)),
                   is_muted=Coalesce(Subquery(state.values("muted")[:1]), Value(False)))
         .annotate(unread=Coalesce(Subquery(unread_sq), Value(0))))
@@ -219,7 +226,8 @@ def _since_dt(since):
 def fetch_messages(user, conv, *, after=None, before=None, since=None):
     """after: پیام‌های تازه‌تر (+ ویرایش/حذف‌های اخیر با since) | before: صفحه‌ی قدیمی‌تر | هیچ‌کدام: آخرین صفحه."""
     now = timezone.now().timestamp()
-    base = conv.messages.select_related("sender", "reply_to__sender")
+    base = (conv.messages.select_related("sender", "reply_to__sender")
+            .prefetch_related("attachments", "reply_to__attachments"))
     updates, has_more = [], False
     if after is not None:
         rows = list(base.filter(id__gt=after).order_by("id")[:PAGE_NEW])
@@ -246,7 +254,7 @@ def fetch_messages(user, conv, *, after=None, before=None, since=None):
 def pins_of(conv):
     """پیام‌های پین‌شده (تازه‌ترین پین اول)؛ حداکثر MAX_PINS."""
     qs = (conv.messages.filter(pinned_at__isnull=False, is_deleted=False)
-          .select_related("sender").order_by("-pinned_at", "-id")[:MAX_PINS])
+          .select_related("sender").prefetch_related("attachments").order_by("-pinned_at", "-id")[:MAX_PINS])
     return [{"id": m.id, "name": display_name(m.sender), "snippet": _snippet(m)} for m in qs]
 
 
@@ -272,17 +280,22 @@ def kick_push(message_id):
         logger.exception("messenger push could not be queued")
 
 
-@transaction.atomic
-def send_message(user, conv, *, text, reply_to_id=None, client_uid=""):
-    """خروجی: (پیام، ساخته_شد؟). با client_uid تکراری همان پیام قبلی برمی‌گردد."""
+def check_can_post(user, conv):
     if not can(user, "messenger.use"):
         raise ValueError("شما اجازه‌ی استفاده از پیام‌رسان را ندارید.")
     if not conv.is_main:
         other = User.objects.filter(pk=_peer_id(conv, user), is_active=True).first()
         if other is None or not can_direct(user, other):
             raise ValueError("امکان ارسال پیام به این کاربر وجود ندارد.")
+
+
+@transaction.atomic
+def send_message(user, conv, *, text, reply_to_id=None, client_uid="", attachment_ids=None):
+    """خروجی: (پیام، ساخته_شد؟). با client_uid تکراری همان پیام قبلی برمی‌گردد."""
+    check_can_post(user, conv)
     text = clean_text(text)
-    if not text:
+    ids = media.clean_ids(attachment_ids)
+    if not text and not ids:
         raise ValueError("متن پیام خالی است.")
     uid = _clean_uid(client_uid)
     if uid:
@@ -300,6 +313,7 @@ def send_message(user, conv, *, text, reply_to_id=None, client_uid=""):
             msg = Message.objects.create(conversation=conv, sender=user, text=text, reply_to=reply, client_uid=uid)
     except IntegrityError:   # دو ارسال هم‌زمان با یک client_uid
         return Message.objects.get(sender=user, client_uid=uid), False
+    media.attach(user, conv, msg, ids)     # خطا ← کل ارسال برمی‌گردد
     Conversation.objects.filter(pk=conv.pk).update(last_message=msg, last_message_at=msg.created_at)
     mark_read(user, conv, msg.pk)
     transaction.on_commit(lambda: kick_push(msg.pk))
@@ -325,7 +339,7 @@ def edit_message(user, message_id, text):
     if timezone.now() - m.created_at > timedelta(hours=EDIT_WINDOW_HOURS):
         raise ValueError("بیش از ۴۸ ساعت از ارسال پیام گذشته و ویرایش ممکن نیست.")
     text = clean_text(text)
-    if not text:
+    if not text and not m.attachments.exists():
         raise ValueError("متن پیام خالی است.")
     if text != m.text:
         m.text, m.edited_at = text, timezone.now()
@@ -342,6 +356,7 @@ def delete_message(user, message_id):
     if not m.is_deleted:
         m.is_deleted, m.text, m.pinned_at, m.pinned_by = True, "", None, None
         m.save(update_fields=["is_deleted", "text", "pinned_at", "pinned_by", "updated_at"])
+        media.delete_for_message(m)
     return m
 
 
@@ -378,8 +393,21 @@ def push_recipient_ids(msg):
 def push_payload(msg):
     name = display_name(msg.sender)
     title = f"{MAIN_TITLE} · {name}" if msg.conversation.is_main else name
-    return title, (msg.text[:120] or "پیام جدید")
+    return title, (msg.text[:120] or media.label_for(msg.attachments.all()) or "پیام جدید")
 
 
 def push_url(msg):
     return f"{settings.SITE_BASE_URL.rstrip('/')}/messenger/c/{msg.conversation_id}/"
+
+
+def can_view_media(user, rel):
+    """دسترسی به فایل پیام‌رسان: عضو همان گفت‌وگو؛ پیوست یتیم فقط برای آپلودکننده."""
+    if not can(user, "messenger.use"):
+        return False
+    att = Attachment.objects.filter(Q(file=rel) | Q(thumb=rel)).select_related("conversation").first()
+    if att is None:
+        return False
+    conv = att.conversation
+    if not (conv.is_main or user.pk in (conv.user_low_id, conv.user_high_id)):
+        return False
+    return att.message_id is not None or att.uploader_id == user.pk

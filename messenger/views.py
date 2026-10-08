@@ -6,7 +6,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from core.capabilities import can, cap_required
 
-from . import services
+from . import media, services
 
 User = get_user_model()
 
@@ -56,7 +56,7 @@ def api_send(request, conv_id):
     def run():
         msg, created = services.send_message(
             request.user, conv, text=request.POST.get("text"), reply_to_id=_int(request.POST.get("reply_to")),
-            client_uid=request.POST.get("client_uid", ""))
+            client_uid=request.POST.get("client_uid", ""), attachment_ids=request.POST.get("attachment_ids"))
         return {"message": services.serialize_message(msg, request.user), "created": created}
     return _json(run)
 
@@ -101,6 +101,19 @@ def api_pin(request, message_id):
     def run():
         msg = services.set_pinned(request.user, message_id, request.POST.get("pinned") == "1")
         return {"pins": services.pins_of(msg.conversation)}
+    return _json(run)
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_upload(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+
+    def run():
+        services.check_can_post(request.user, conv)
+        att = media.save_upload(request.user, conv, request.FILES.get("file"),
+                                voice=request.POST.get("voice") == "1", duration=request.POST.get("duration"))
+        return {"attachment": media.serialize_attachment(att)}
     return _json(run)
 
 

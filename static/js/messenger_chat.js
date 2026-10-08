@@ -16,6 +16,7 @@
   var firstId = 0, lastId = 0, hasMore = !!init.has_more, since = init.now, peerRead = init.peer_read_id;
   var loadingOlder = false, replyTo = null, editing = null, sentRead = 0, unseen = 0, muted = ds.muted === '1';
   var pendings = {}, errTimer = null;
+  var mediaUid = null;
   var menu = null, menuFor = null, pinList = init.pins || [], pinIdx = 0, pinSet = {};
   var pinBar = root.querySelector('[data-msgr-pins]');
   var pinTitle = pinBar.querySelector('[data-pin-title]'), pinText = pinBar.querySelector('[data-pin-text]');
@@ -64,10 +65,13 @@
       bubble.textContent = 'این پیام حذف شد';
     } else {
       if (m.reply) bubble.appendChild(quote(m.reply));
-      var p = M.el('div', 'whitespace-pre-wrap [overflow-wrap:anywhere]');
-      p.dir = 'auto';
-      M.fill(p, m.text);
-      bubble.appendChild(p);
+      if (m.files && m.files.length) bubble.appendChild(M.renderFiles(m.files));
+      if (m.text) {
+        var p = M.el('div', 'whitespace-pre-wrap [overflow-wrap:anywhere]');
+        p.dir = 'auto';
+        M.fill(p, m.text);
+        bubble.appendChild(p);
+      }
     }
     wrap.appendChild(bubble);
 
@@ -152,7 +156,7 @@
     if (!m || !m.id || m.deleted) return;
     var ul = M.el('ul', 'menu menu-sm fixed z-50 w-44 p-1 bg-base-100 border border-base-300 rounded-box shadow-lg');
     ul.appendChild(menuItem('reply', 'پاسخ', function () { startReply(m); }));
-    ul.appendChild(menuItem('copy', 'کپی', function () {
+    if (m.text) ul.appendChild(menuItem('copy', 'کپی', function () {
       if (navigator.clipboard) navigator.clipboard.writeText(m.text).catch(function () {});
     }));
     ul.appendChild(menuItem('pin', pinSet[m.id] ? 'برداشتن پین' : 'پین‌کردن', function () { togglePin(m); }));
@@ -239,12 +243,13 @@
   }
   function startReply(m) {
     cancelBar(); closeActions();
-    replyTo = { id: m.id, name: m.sender.name, snippet: m.text.slice(0, 80) };
-    setBar('پاسخ به ' + m.sender.name, m.text.slice(0, 80));
+    replyTo = { id: m.id, name: m.sender.name, snippet: M.snippetOf(m) };
+    setBar('پاسخ به ' + m.sender.name, M.snippetOf(m));
     ta.focus();
   }
   function startEdit(m) {
     cancelBar(); closeActions();
+    M.media.clear();
     editing = m;
     ta.value = m.text; autosize();
     setBar('ویرایش پیام', m.text.slice(0, 80));
@@ -272,7 +277,7 @@
   feed.addEventListener('click', function (e) {
     var q = e.target.closest('[data-reply-to]');
     if (q) { e.stopPropagation(); closeMenu(); jumpToId(+q.dataset.replyTo); return; }
-    if (e.target.closest('a, button')) return;
+    if (e.target.closest('a, button, video, audio')) return;
     var w = e.target.closest('[data-msg]');
     if (w) toggleMenu(w);
   });
@@ -312,10 +317,33 @@
     });
   }
 
+  function sendWithMedia(text) {
+    mediaUid = mediaUid || M.uuid();
+    sendBtn.disabled = true;
+    M.api(ds.sendUrl, { text: text, client_uid: mediaUid, reply_to: replyTo ? replyTo.id : '',
+                        attachment_ids: M.media.ids().join(',') }).then(function (r) {
+      sendBtn.disabled = false;
+      if (!r.ok) { flash(r.error); return; }
+      mediaUid = null;
+      M.media.clear();
+      ta.value = ''; autosize(); cancelBar();
+      upsert(r.message); refreshSeparators(); updateTicks(); toBottom(); markRead();
+    });
+  }
+  M.media.autoSend = function () { sendWithMedia(''); };
+
   function send() {
     var text = ta.value.trim();
-    if (!text) return;
-    if (editing) { doEdit(text); return; }
+    if (editing) {
+      if (!text && !(editing.files && editing.files.length)) return;
+      doEdit(text);
+      return;
+    }
+    var mm = M.media;
+    if (mm.busy()) { flash('صبر کنید تا آپلود فایل‌ها تمام شود.'); return; }
+    if (mm.hasError()) { flash('فایل ناموفق را دوباره بفرستید یا از فهرست حذف کنید.'); return; }
+    if (!text && !mm.hasItems()) return;
+    if (mm.hasItems()) { sendWithMedia(text); return; }
     var uid = M.uuid(), reply = replyTo;
     var p = { uid: uid, text: text, reply: reply };
     p.m = { mine: true, text: text, uid: uid, reply: reply, ts: Date.now() / 1000, at: new Date().toISOString(),

@@ -15,6 +15,7 @@
      data-open-url="{% url 'messenger:api_open' 0 %}"
      data-messages-url="{% url 'messenger:api_messages' conv.id %}"
      data-send-url="{% url 'messenger:api_send' conv.id %}"
+     data-upload-url="{% url 'messenger:api_upload' conv.id %}"
      data-read-url="{% url 'messenger:api_read' conv.id %}"
      data-mute-url="{% url 'messenger:api_mute' conv.id %}"
      data-edit-url="{% url 'messenger:api_edit' 0 %}"
@@ -78,10 +79,26 @@
             </div>
         </div>
 
+        <div data-msgr-tray class="hidden">
+            <div data-tray-list class="flex flex-col gap-1.5 px-3 py-2 border-t border-base-300 bg-base-100 max-h-44 overflow-y-auto"></div>
+        </div>
+
+        <div data-msgr-rec class="hidden">
+            <div class="flex items-center gap-2 px-3 py-2 border-t border-base-300 bg-base-100 text-sm">
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-error animate-pulse"></span>
+                <span data-rec-time class="font-technical">۰:۰۰</span>
+                <span class="flex-1 min-w-0 text-xs fb-muted truncate">در حال ضبط؛ برای ارسال دکمه‌ی سمت چپ را بزنید.</span>
+                <button type="button" data-rec-cancel class="btn btn-ghost btn-xs">لغو</button>
+            </div>
+        </div>
+
         <form data-msgr-form class="flex items-end gap-2 p-2 border-t border-base-300 bg-base-100 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <button type="submit" class="btn btn-primary btn-circle" aria-label="ارسال">{% icon "send" "w-5 h-5" %}</button>
+            <button type="button" data-msgr-clip class="btn btn-ghost btn-circle" aria-label="پیوست فایل">{% icon "paperclip" "w-5 h-5" %}</button>
+            <input type="file" data-msgr-file multiple class="hidden" aria-label="انتخاب فایل">
             <textarea rows="1" maxlength="4000" placeholder="پیام..." aria-label="متن پیام"
                       class="textarea flex-1 min-w-0 min-h-0 resize-none leading-6 py-2"></textarea>
+            <button type="button" data-msgr-mic class="btn btn-ghost btn-circle" aria-label="ضبط پیام صوتی">{% icon "mic" "w-5 h-5" %}</button>
         </form>
     </section>
 </div>
@@ -89,10 +106,25 @@
 <dialog data-msgr-confirm class="modal">
     <div class="modal-box max-w-sm">
         <h3 data-confirm-title class="font-bold text-base mb-1"></h3>
-        <p data-confirm-text class="text-sm fb-muted mb-4"></p>
+        <p data-confirm-text class="text-sm fb-muted mb-4\"></p>
         <div class="modal-action">
             <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('dialog').close()">انصراف</button>
             <button type="button" data-confirm-ok class="btn btn-sm"></button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog data-msgr-viewer class="modal">
+    <div class="modal-box max-w-4xl p-2 flex flex-col gap-2">
+        <img data-view-img alt="" class="w-full max-h-[75vh] object-contain">
+        <div class="flex items-center justify-between gap-2 p-1">
+            <div class="flex items-center gap-1">
+                <button type="button" data-view-prev class="btn btn-ghost btn-sm">قبلی</button>
+                <span data-view-count class="text-xs fb-muted"></span>
+                <button type="button" data-view-next class="btn btn-ghost btn-sm">بعدی</button>
+            </div>
+            <a data-view-dl href="#" download class="btn btn-soft btn-sm">{% icon "download" "w-4 h-4" %} دانلود</a>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -103,5 +135,7 @@
 {% block extra_js %}
 <script src="{% static_v 'js/messenger_common.js' %}"></script>
 <script src="{% static_v 'js/messenger_inbox.js' %}"></script>
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/messenger_media.js' %}"></script>
 <script src="{% static_v 'js/messenger_chat.js' %}"></script>
 {% endblock %}

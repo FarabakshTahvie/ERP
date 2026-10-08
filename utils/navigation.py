@@ -108,6 +108,7 @@ NON_PAGE = {
     "utils:register_push_device",
     "messenger:api_inbox", "messenger:api_open", "messenger:api_messages", "messenger:api_send",
     "messenger:api_read", "messenger:api_mute", "messenger:api_edit", "messenger:api_delete", "messenger:api_pin",
+    "messenger:api_upload",
 }
 
 
