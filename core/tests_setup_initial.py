@@ -17,6 +17,8 @@ def run(**kw):
 class SetupInitialDataTests(TestCase):
     def test_creates_everything_and_is_idempotent(self):
         run(); run()
+        from messenger.models import Conversation
+        self.assertEqual(Conversation.objects.filter(is_main=True).count(), 1)
         self.assertEqual(Warehouse.objects.filter(is_default=True).count(), 1)
         self.assertEqual(Party.objects.filter(is_internal=True).count(), 1)
         self.assertEqual(NotificationPolicy.objects.count(), 7)

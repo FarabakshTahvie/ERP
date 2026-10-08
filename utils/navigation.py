@@ -104,6 +104,8 @@ NON_PAGE = {
     "tasks:done_table", "tasks:my_panel", "tasks:open_table", "tasks:save", "tasks:submit",
     "utils:dev_test_calendar", "utils:dev_test_design_system", "utils:dev_test_map",
     "utils:register_push_device",
+    "messenger:api_inbox", "messenger:api_open", "messenger:api_messages", "messenger:api_send",
+    "messenger:api_read", "messenger:api_mute", "messenger:api_edit", "messenger:api_delete",
 }
 
 

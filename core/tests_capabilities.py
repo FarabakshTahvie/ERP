@@ -24,6 +24,8 @@ EXPECTED = {
     "inventory.manage": {"warehouse", "accountant"},
     "projects.create": {"reception", "accountant"},
     "broadcast.use": MGR | {"accountant", "reception"},
+    "messenger.use": MGR | {"accountant", "reception", "warehouse", "installer"},
+    "messenger.reach_all": MGR_ACC,
 }
 
 

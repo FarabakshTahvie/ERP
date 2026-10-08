@@ -1,0 +1,95 @@
+from django.contrib.auth import get_user_model
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
+
+from core.capabilities import cap_required
+
+from . import services
+
+User = get_user_model()
+
+
+def _json(action):
+    try:
+        data = action()
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, **(data or {})})
+
+
+def _int(raw):
+    raw = (raw or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+@cap_required("messenger.use")
+@never_cache
+@require_GET
+def api_inbox(request):
+    return JsonResponse({"ok": True, **services.inbox(request.user)})
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_open(request, user_id):
+    other = get_object_or_404(User, pk=user_id, is_active=True)
+    return _json(lambda: {"conv_id": services.open_direct(request.user, other).pk})
+
+
+@cap_required("messenger.use")
+@never_cache
+@require_GET
+def api_messages(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+    data = services.fetch_messages(request.user, conv, after=_int(request.GET.get("after")),
+                                   before=_int(request.GET.get("before")), since=request.GET.get("since"))
+    return JsonResponse({"ok": True, **data})
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_send(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+
+    def run():
+        msg, created = services.send_message(
+            request.user, conv, text=request.POST.get("text"), reply_to_id=_int(request.POST.get("reply_to")),
+            client_uid=request.POST.get("client_uid", ""))
+        return {"message": services.serialize_message(msg, request.user), "created": created}
+    return _json(run)
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_read(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+    services.mark_read(request.user, conv, _int(request.POST.get("up_to")))
+    return JsonResponse({"ok": True})
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_mute(request, conv_id):
+    conv = services.get_conversation(request.user, conv_id)
+    services.set_muted(request.user, conv, request.POST.get("muted") == "1")
+    return JsonResponse({"ok": True})
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_edit(request, message_id):
+    def run():
+        msg = services.edit_message(request.user, message_id, request.POST.get("text"))
+        return {"message": services.serialize_message(msg, request.user)}
+    return _json(run)
+
+
+@cap_required("messenger.use")
+@require_POST
+def api_delete(request, message_id):
+    def run():
+        msg = services.delete_message(request.user, message_id)
+        return {"message": services.serialize_message(msg, request.user)}
+    return _json(run)

@@ -36,6 +36,8 @@ class Command(BaseCommand):
 
         call_command("setup_workflow_v2", make_default=True)
         call_command("setup_notification_policies", force=True)
+        from messenger.services import ensure_main_group
+        ensure_main_group()
 
         raw = (opts["margin"] or "").strip()
         if raw:

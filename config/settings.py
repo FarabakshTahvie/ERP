@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'dashboard',
     'people',
     'tasks',
+    'messenger',
 ]
 
 MIDDLEWARE = [

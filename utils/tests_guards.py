@@ -160,7 +160,7 @@ class SourceGuardTests(TestCase):
             self.assertTrue(names & {"optimize_named", "optimize_upload"}, f"{rel}:{func}")
 
     def test_celery_publish_calls_only_in_known_places(self):
-        allowed = {"notifications/broadcast.py", "notifications/celery_tasks.py", "accounts/services.py"}
+        allowed = {"notifications/broadcast.py", "notifications/celery_tasks.py", "accounts/services.py", "messenger/services.py"}
         found = set()
         for path in BASE.rglob("*.py"):
             if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
@@ -172,7 +172,7 @@ class SourceGuardTests(TestCase):
 
     def test_celery_tasks_ignore_results_and_return_nothing(self):
         import ast
-        for rel in ("notifications/celery_tasks.py", "accounts/celery_tasks.py"):
+        for rel in ("notifications/celery_tasks.py", "accounts/celery_tasks.py", "messenger/celery_tasks.py"):
             tree = ast.parse((BASE / rel).read_text(encoding="utf-8"))
             tasks = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
                      and any("shared_task" in ast.dump(d) for d in n.decorator_list)]

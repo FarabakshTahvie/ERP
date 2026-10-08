@@ -62,6 +62,9 @@ CAPABILITIES = {
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
     "projects.create": lambda f: f.employee and bool(f.names & {SPECIALTY_INTAKE, SPECIALTY_ACCOUNTANT}),
     "broadcast.use": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_ACCOUNTANT, SPECIALTY_INTAKE})),
+    # --- پیام‌رسان ---
+    "messenger.use": lambda f: f.manager or f.employee,
+    "messenger.reach_all": _manager_or_accountant,   # با همه‌ی کارکنان چت خصوصی دارد؛ بقیه فقط با اینان
 }
 
 
