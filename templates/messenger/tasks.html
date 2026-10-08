@@ -2,13 +2,15 @@
 {% load static custom_tags %}
 {% block title %}وظایف | پیام‌رسان{% endblock %}
 {% block footer %}{% endblock %}
+{% block body_class %}h-dvh overflow-hidden{% endblock %}
+{% block main_class %}flex-1 min-h-0 flex flex-col{% endblock %}
 {% block content %}
 <div data-msgr-root data-active-key="tasks"
      data-sprite="{% static 'icons/sprite.svg' %}"
      data-inbox-url="{% url 'messenger:api_inbox' %}"
      data-chat-url="{% url 'messenger:chat' 0 %}"
      data-open-url="{% url 'messenger:api_open' 0 %}"
-     class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
+     class="mx-auto w-full max-w-5xl flex-1 min-h-0 flex bg-base-100 md:border-x border-base-300">
 
     <aside class="hidden lg:block lg:w-96 lg:border-e border-base-300 min-h-0">
         {% include "messenger/partials/chat_list.html" %}

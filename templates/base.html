@@ -43,7 +43,7 @@
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="min-h-full flex flex-col bg-base-200 font-sans text-base-content antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="{% block body_class %}min-h-full{% endblock %} flex flex-col bg-base-200 font-sans text-base-content antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 <div id="fb-splash" class="fb-splash" aria-hidden="true">
     <img id="fb-splash-img" data-src="{% static 'icons/logo-animated.svg' %}" alt="" width="500" height="500">
 </div>
@@ -211,7 +211,7 @@
     </div>
     {% endif %}
 
-    <main class="flex-1">
+    <main class="{% block main_class %}flex-1{% endblock %}">
         {% block content %}{% endblock %}
     </main>
 

@@ -2,6 +2,8 @@
 {% load static custom_tags %}
 {% block title %}{{ meta.title }} | پیام‌رسان{% endblock %}
 {% block footer %}{% endblock %}
+{% block body_class %}h-dvh overflow-hidden{% endblock %}
+{% block main_class %}flex-1 min-h-0 flex flex-col{% endblock %}
 {% block content %}
 <div data-msgr-root data-msgr-chat
      data-sprite="{% static 'icons/sprite.svg' %}"
@@ -21,7 +23,7 @@
      data-edit-url="{% url 'messenger:api_edit' 0 %}"
      data-delete-url="{% url 'messenger:api_delete' 0 %}"
      data-pin-url="{% url 'messenger:api_pin' 0 %}"
-     class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
+     class="mx-auto w-full max-w-5xl flex-1 min-h-0 flex bg-base-100 md:border-x border-base-300">
 
     <aside class="hidden lg:block lg:w-96 lg:border-e border-base-300 min-h-0">
         {% include "messenger/partials/chat_list.html" %}
