@@ -5,24 +5,31 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Max, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.http import Http404
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
 from core.capabilities import SPECIALTY_ACCOUNTANT, can
+from tasks.models import TaskAssignment
+from utils.jalali import to_fa_digits
 
 from . import media
-from .models import Attachment, ChatState, Conversation, Message
+from .models import Attachment, ChatState, Conversation, Message, Profile
 
 logger = logging.getLogger(__name__)
 
-MAIN_TITLE = "فراگرام"
+MAIN_TITLE = "فرابخش گروه"
 MAX_TEXT = 4000
 EDIT_WINDOW_HOURS = 48
 MAX_PINS = 5
+MAX_NAME = 40
+HANDLE_RE = re.compile(r"^[a-z][a-z0-9_]{2,23}$")
 RATE_LIMIT, RATE_WINDOW = 30, 60          # حداکثر ۳۰ پیام در دقیقه برای هر کاربر
 PAGE, PAGE_NEW = 30, 100
 # کاراکتر کنترلی و bidi-override (۲۰۲۰۲ تا ۲۰۲۲E و ۲۰۶۶ تا ۲۰۶۹) حذف می‌شوند؛ نیم‌فاصله و RLM/LRM می‌مانند
@@ -30,8 +37,32 @@ _CONTROL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u202a-\u202e\u2066-\u2069
 
 
 # ---------- کاربران و دسترسی ----------
+def _profile(user):
+    if user is None:
+        return None
+    try:
+        return user.messenger_profile
+    except ObjectDoesNotExist:
+        return None
+
+
 def display_name(user):
-    return (user.get_full_name() or user.username) if user is not None else "کاربر حذف‌شده"
+    if user is None:
+        return "کاربر حذف‌شده"
+    p = _profile(user)
+    if p is not None and p.display_name:
+        return p.display_name
+    return user.get_full_name() or user.username
+
+
+def handle_of(user):
+    p = _profile(user)
+    return p.handle if p is not None else ""
+
+
+def avatar_url(user):
+    p = _profile(user)
+    return media.media_url(p.avatar.name) if p is not None and p.avatar else ""
 
 
 def staff_qs():
@@ -47,7 +78,7 @@ def reach_all_qs():
 
 
 def peers_for(user):
-    qs = staff_qs().exclude(pk=user.pk)
+    qs = staff_qs().exclude(pk=user.pk).select_related("messenger_profile")
     if not can(user, "messenger.reach_all"):
         qs = qs.filter(pk__in=reach_all_qs().values("pk"))
     return qs.order_by("first_name", "last_name", "username")
@@ -64,6 +95,9 @@ def can_direct(user, other):
 def ensure_main_group():
     conv = Conversation.objects.filter(is_main=True).first()
     if conv:
+        if conv.title != MAIN_TITLE:          # نام قدیمی («فراگرام») خودکار اصلاح می‌شود
+            Conversation.objects.filter(pk=conv.pk).update(title=MAIN_TITLE)
+            conv.title = MAIN_TITLE
         return conv
     try:
         with transaction.atomic():
@@ -94,6 +128,57 @@ def get_conversation(user, conv_id):
     if user.pk not in (conv.user_low_id, conv.user_high_id):
         raise Http404
     return conv
+
+
+# ---------- پروفایل ----------
+def get_profile(user):
+    profile, _ = Profile.objects.get_or_create(user=user)
+    return profile
+
+
+def update_profile(user, *, display_name, handle):
+    if not can(user, "messenger.use"):
+        raise ValueError("شما اجازه‌ی استفاده از پیام‌رسان را ندارید.")
+    name = " ".join(_CONTROL.sub("", str(display_name or "")).split())
+    if len(name) > MAX_NAME:
+        raise ValueError("نام نمایشی حداکثر ۴۰ کاراکتر است.")
+    h = str(handle or "").strip().lstrip("@").lower()
+    if h and not HANDLE_RE.match(h):
+        raise ValueError("شناسه باید ۳ تا ۲۴ نویسه باشد، با حرف انگلیسی شروع شود و فقط حرف کوچک انگلیسی، عدد و _ داشته باشد.")
+    profile = get_profile(user)
+    if h and Profile.objects.filter(handle=h).exclude(pk=profile.pk).exists():
+        raise ValueError("این شناسه را شخص دیگری گرفته است.")
+    profile.display_name, profile.handle = name, h
+    try:
+        with transaction.atomic():
+            profile.save(update_fields=["display_name", "handle"])
+    except IntegrityError:
+        raise ValueError("این شناسه را شخص دیگری گرفته است.")
+    return profile
+
+
+@transaction.atomic
+def set_avatar(user, uploaded):
+    if not can(user, "messenger.use"):
+        raise ValueError("شما اجازه‌ی استفاده از پیام‌رسان را ندارید.")
+    media._rate(user)
+    data = media.prepare_avatar(uploaded)
+    profile = get_profile(user)
+    old = profile.avatar.name if profile.avatar else ""
+    profile.avatar.save("avatar.webp", data, save=False)
+    profile.save(update_fields=["avatar"])
+    if old and old != profile.avatar.name:
+        default_storage.delete(old)
+    return profile
+
+
+def remove_avatar(user):
+    profile = get_profile(user)
+    if profile.avatar:
+        name = profile.avatar.name
+        profile.avatar = ""
+        profile.save(update_fields=["avatar"])
+        default_storage.delete(name)
 
 
 # ---------- متن ----------
@@ -136,7 +221,7 @@ def serialize_message(m, viewer):
     return {
         "id": m.id,
         "conv_id": m.conversation_id,
-        "sender": {"id": m.sender_id, "name": display_name(m.sender)},
+        "sender": {"id": m.sender_id, "name": display_name(m.sender), "avatar": avatar_url(m.sender)},
         "mine": m.sender_id == viewer.pk,
         "uid": m.client_uid if m.sender_id == viewer.pk else "",
         "text": "" if m.is_deleted else m.text,
@@ -164,6 +249,8 @@ def _item(conv, user, peer=None):
         "ts": conv.last_message_at.timestamp() if conv is not None and conv.last_message_at else None,
         "unread": getattr(conv, "unread", 0) if conv is not None else 0,
         "muted": bool(getattr(conv, "is_muted", False)) if conv is not None else False,
+        "avatar": avatar_url(peer) if peer is not None else "",
+        "handle": handle_of(peer) if peer is not None else "",
     }
 
 
@@ -175,8 +262,8 @@ def inbox(user):
                  .exclude(sender=user).order_by().values("conversation_id")
                  .annotate(n=Count("id")).values("n"))
     convs = list(
-        Conversation.objects.filter(Q(is_main=True) | Q(user_low=user) | Q(user_high=user))
-        .select_related("last_message__sender")
+         Conversation.objects.filter(Q(is_main=True) | Q(user_low=user) | Q(user_high=user))
+        .select_related("last_message__sender__messenger_profile")
         .prefetch_related("last_message__attachments")
         .annotate(lr=Coalesce(Subquery(state.values("last_read_id")[:1]), Value(0)),
                   is_muted=Coalesce(Subquery(state.values("muted")[:1]), Value(False)))
@@ -187,7 +274,21 @@ def inbox(user):
     rest = [_item(by_peer.get(p.pk), user, peer=p) for p in peers_for(user)]
     rest.sort(key=lambda i: (i["ts"] is None, -(i["ts"] or 0), i["title"]))
     items += rest
-    return {"items": items, "total_unread": sum(i["unread"] for i in items if not i["muted"])}
+    total = sum(i["unread"] for i in items if not i["muted"])
+    items.insert(1, tasks_item(user))
+    return {"items": items, "total_unread": total}
+
+
+def tasks_item(user):
+    """ردیف ثابت «وظایف» در لیست چت‌ها؛ عددش وظایف انجام‌نشده‌ی تکنسین است."""
+    employee = user.role == User.Role.EMPLOYEE
+    pending = (TaskAssignment.objects.filter(user=user, submitted_at__isnull=True).count()
+               if employee else 0)
+    text = (to_fa_digits(f"{pending} وظیفه‌ی انجام‌نشده") if pending
+            else ("وظیفه‌ی بازی ندارید" if employee else "مدیریت وظایف"))
+    return {"key": "tasks", "is_main": False, "is_tasks": True, "conv_id": None, "peer_id": None,
+            "title": "وظایف", "last": None, "ts": None, "unread": pending, "muted": False,
+            "preview": text, "url": reverse("messenger:tasks"), "avatar": "", "handle": ""}
 
 
 def unread_total(user):
@@ -207,13 +308,14 @@ def chat_meta(user, conv):
     muted = ChatState.objects.filter(conversation=conv, user=user, muted=True).exists()
     if conv.is_main:
         return {"key": "main", "title": conv.title, "is_main": True, "members": staff_qs().count(),
-                "sub": "", "muted": muted}
+                "sub": "", "muted": muted, "avatar": ""}
     peer_id = _peer_id(conv, user)
-    peer = User.objects.filter(pk=peer_id).first()
+    peer = User.objects.filter(pk=peer_id).select_related("messenger_profile").first()
     names = list(peer.specialties.values_list("name", flat=True)) if peer else []
     is_boss = bool(peer and (peer.is_superuser or peer.role == User.Role.ADMIN))
     return {"key": f"u{peer_id}", "title": display_name(peer), "is_main": False, "members": None,
-            "sub": "مدیر" if is_boss else ("، ".join(names) or "تکنسین"), "muted": muted}
+            "sub": "مدیر" if is_boss else (", ".join(names) or "تکنسین"), "muted": muted,
+            "avatar": avatar_url(peer)}
 
 
 def _since_dt(since):
@@ -226,7 +328,7 @@ def _since_dt(since):
 def fetch_messages(user, conv, *, after=None, before=None, since=None):
     """after: پیام‌های تازه‌تر (+ ویرایش/حذف‌های اخیر با since) | before: صفحه‌ی قدیمی‌تر | هیچ‌کدام: آخرین صفحه."""
     now = timezone.now().timestamp()
-    base = (conv.messages.select_related("sender", "reply_to__sender")
+    base = (conv.messages.select_related("sender__messenger_profile", "reply_to__sender__messenger_profile")
             .prefetch_related("attachments", "reply_to__attachments"))
     updates, has_more = [], False
     if after is not None:
@@ -254,7 +356,7 @@ def fetch_messages(user, conv, *, after=None, before=None, since=None):
 def pins_of(conv):
     """پیام‌های پین‌شده (تازه‌ترین پین اول)؛ حداکثر MAX_PINS."""
     qs = (conv.messages.filter(pinned_at__isnull=False, is_deleted=False)
-          .select_related("sender").prefetch_related("attachments").order_by("-pinned_at", "-id")[:MAX_PINS])
+          .select_related("sender__messenger_profile").prefetch_related("attachments").order_by("-pinned_at", "-id")[:MAX_PINS])
     return [{"id": m.id, "name": display_name(m.sender), "snippet": _snippet(m)} for m in qs]
 
 
@@ -404,6 +506,8 @@ def can_view_media(user, rel):
     """دسترسی به فایل پیام‌رسان: عضو همان گفت‌وگو؛ پیوست یتیم فقط برای آپلودکننده."""
     if not can(user, "messenger.use"):
         return False
+    if rel.startswith("messenger/avatars/"):
+        return Profile.objects.filter(avatar=rel).exists()
     att = Attachment.objects.filter(Q(file=rel) | Q(thumb=rel)).select_related("conversation").first()
     if att is None:
         return False

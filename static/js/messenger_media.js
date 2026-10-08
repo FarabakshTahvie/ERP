@@ -75,7 +75,7 @@
           wrap.appendChild(nm0);
         }
         var a = M.el('audio', 'w-full h-10');
-        a.controls = true; a.preload = 'none'; a.src = f.url;
+        a.controls = true; a.preload = 'metadata'; a.src = f.url;
         wrap.appendChild(a);
         box.appendChild(wrap);
       } else {

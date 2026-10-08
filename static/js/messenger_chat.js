@@ -57,7 +57,12 @@
     if (m.id) wrap.dataset.id = m.id;
     if (m.uid) wrap.dataset.uid = m.uid;
     if (m.pending || m.failed) wrap.dataset.pending = '1';
-    if (!m.mine && isMain) wrap.appendChild(M.el('div', 'chat-header text-xs fb-muted', m.sender.name));
+    if (!m.mine && isMain) {
+      wrap.appendChild(M.el('div', 'chat-header text-xs fb-muted', m.sender.name));
+      var av = M.avatar(m.sender.name, false, 'w-8', m.sender.avatar);
+      av.classList.add('chat-image');
+      wrap.appendChild(av);
+    }
 
     var bubble = M.el('div', 'chat-bubble max-w-[85%] sm:max-w-[70%] cursor-pointer' + (m.mine ? ' chat-bubble-primary' : ''));
     if (m.deleted) {

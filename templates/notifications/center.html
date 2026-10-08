@@ -13,6 +13,19 @@
             <button type="submit" class="btn btn-soft btn-sm">همه دیده شد</button>
         </form>
     </div>
+
+    <section data-notify-guide data-devices="{{ push_devices }}" class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">اعلان‌های همین دستگاه</h2>
+            <span data-notify-badge class="fb-badge fb-badge-neutral">در حال بررسی...</span>
+        </div>
+        <p data-notify-text class="text-xs fb-muted"></p>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" data-notify-enable class="btn btn-primary btn-sm hidden">فعال‌سازی اعلان</button>
+            <button type="button" data-notify-open class="btn btn-soft btn-sm">{% icon "info" "w-4 h-4" %} راهنمای فعال‌سازی</button>
+        </div>
+    </section>
+
     {% for n in items %}
     <div class="fb-card fb-pad flex flex-col gap-1.5">
         <div class="flex items-center justify-between gap-2">
@@ -29,4 +42,20 @@
     <div class="fb-card"><div class="fb-empty">اعلانی ندارید.</div></div>
     {% endfor %}
 </div>
+
+<dialog data-notify-dialog class="modal">
+    <div class="modal-box max-w-md">
+        <h3 class="font-bold text-base mb-1">راهنمای فعال‌سازی اعلان</h3>
+        <p data-guide-detected class="text-xs fb-muted mb-3"></p>
+        <ol data-guide-steps class="flex flex-col gap-2 text-sm list-decimal ps-5"></ol>
+        <p data-guide-note class="fb-hint mt-3"></p>
+        <div class="modal-action">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('dialog').close()">بستن</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/notify_guide.js' %}"></script>
 {% endblock %}

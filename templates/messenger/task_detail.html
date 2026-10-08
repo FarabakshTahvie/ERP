@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ task.title }} | وظایف{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'messenger:tasks' %}" class="link link-hover text-sm fb-muted">بازگشت به وظایف</a>
+        <h1 class="fb-page-title mt-2">{{ task.title }}</h1>
+        <div class="flex flex-wrap gap-2 mt-2">
+            {% if a.submitted_at %}<span class="fb-badge fb-badge-success">ثبت شد</span>{% else %}<span class="fb-badge fb-badge-info">در حال انجام</span>{% endif %}
+            <span class="fb-badge fb-badge-neutral">از {{ creator }}</span>
+        </div>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <div class="flex justify-between gap-2"><span class="fb-muted">ددلاین</span>
+            <span class="font-technical">{% if task.due_at %}{{ task.due_at|to_jalali:"%Y/%m/%d %H:%M" }}{% else %}بدون ددلاین{% endif %}</span></div>
+        {% if a.submitted_at %}<div class="flex justify-between gap-2"><span class="fb-muted">زمان ثبت</span>
+            <span class="font-technical">{{ a.submitted_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>{% endif %}
+        {% if task.description %}<p class="fb-inset text-xs whitespace-pre-line">{{ task.description }}</p>{% endif %}
+    </section>
+
+    {% if subtasks %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">زیروظیفه‌ها</h2>
+        {% for s in subtasks %}
+        <div class="fb-inset flex items-center gap-2 text-xs">
+            {% if s.checked %}<span class="text-success">{% icon "check" "w-4 h-4" %}</span>{% else %}<span class="fb-muted">{% icon "clock" "w-4 h-4" %}</span>{% endif %}
+            <span>{{ s.obj.title }}</span>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if a.note %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">توضیح شما</h2>
+        <p class="fb-inset text-xs whitespace-pre-line">{{ a.note }}</p>
+    </section>
+    {% endif %}
+
+    {% if attachments %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">پیوست‌ها</h2>
+        {% for att in attachments %}
+        <a href="{{ att.file.url }}" download="{{ att.original_name }}" class="fb-inset flex items-center justify-between gap-2 text-xs hover:bg-base-300">
+            <span class="break-all" dir="auto">{{ att.original_name }}</span>
+            {% icon "download" "w-4 h-4 shrink-0" %}
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

@@ -37,7 +37,7 @@ class Base(TestCase):
         return c
 
     def keys(self, user):
-        return [i["key"] for i in services.inbox(user)["items"]]
+        return [i["key"] for i in services.inbox(user)["items"] if i["key"] != "tasks"]
 
     def send(self, user, conv, text="x", **kw):
         return services.send_message(user, conv, text=text, **kw)[0]
@@ -260,7 +260,7 @@ class PushTests(Base):
         send.assert_called_once()
         self.assertEqual(set(send.call_args.kwargs["subscriber_tokens"]),
                          {self.tok[self.manager.pk], self.tok[self.acc.pk]})
-        self.assertIn("فراگرام", send.call_args.kwargs["title"])
+        self.assertIn(services.MAIN_TITLE, send.call_args.kwargs["title"])
 
     def test_direct_push_goes_only_to_peer(self):
         conv = services.open_direct(self.t1, self.acc)

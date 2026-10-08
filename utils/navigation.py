@@ -67,6 +67,9 @@ PAGE_PARENTS = {
     "finance:portal_statement": ("home", [], {}),
     "messenger:inbox": ("home", [], {}),
     "messenger:chat": ("messenger:inbox", [], {}),
+    "messenger:profile": ("messenger:inbox", [], {}),
+    "messenger:tasks": ("messenger:inbox", [], {}),
+    "messenger:task_detail": ("messenger:tasks", [], {}),
 }
 
 # صفحه‌های چندورودی؛ لینک به آن‌ها باید ?next بگیرد.
@@ -109,6 +112,7 @@ NON_PAGE = {
     "messenger:api_inbox", "messenger:api_open", "messenger:api_messages", "messenger:api_send",
     "messenger:api_read", "messenger:api_mute", "messenger:api_edit", "messenger:api_delete", "messenger:api_pin",
     "messenger:api_upload",
+    "messenger:tasks_done_table",
 }
 
 

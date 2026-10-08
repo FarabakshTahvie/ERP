@@ -6,7 +6,7 @@ from django.conf import settings
 from utils.models import PushDevice
 from utils.push_notification import NajvaService
 
-from . import services
+from . import cleanup, services
 from .models import Message
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ def send_push_task(self, message_id):
     # مقدار بازگشتی نداریم. پیام گروه = یک درخواست بولک برای همه‌ی اعضا؛ خصوصی = فقط طرف مقابل.
     if not settings.NAJVA_ENABLED or getattr(settings, "BROADCAST_DRY_RUN", False):
         return None
-    msg = (Message.objects.select_related("sender", "conversation")
+    msg = (Message.objects.select_related("sender__messenger_profile", "conversation")
            .filter(pk=message_id, is_deleted=False).first())
     if msg is None:
         return None
@@ -40,4 +40,13 @@ def send_push_task(self, message_id):
         PushDevice.objects.filter(registration_id__in=invalid).update(is_active=False)
     if not result.get("success") and _transient(result) and self.request.retries < self.max_retries:
         raise self.retry(countdown=10)
+    return None
+
+
+@shared_task(name="messenger.cleanup_old", ignore_result=True, soft_time_limit=250, time_limit=300)
+def cleanup_old_task():
+    # مقدار بازگشتی نداریم.
+    removed = cleanup.purge_old()
+    if removed:
+        logger.info("messenger cleanup removed %s messages", removed)
     return None

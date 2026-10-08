@@ -9,6 +9,7 @@
   function chatUrl(id) { return root.dataset.chatUrl.replace('/0/', '/' + id + '/'); }
 
   function preview(it) {
+    if (it.preview) return it.preview;
     if (!it.last) return 'هنوز پیامی نیست';
     var who = it.last.mine ? 'شما: ' : (it.is_main ? it.last.sender + ': ' : '');
     return who + it.last.text;
@@ -24,8 +25,8 @@
     var li = M.el('li');
     var a = M.el('a', 'flex items-center gap-3 px-4 py-3 border-b border-base-200 hover:bg-base-200' +
                  (it.key === activeKey ? ' bg-base-200' : ''));
-    a.href = it.conv_id ? chatUrl(it.conv_id) : '#';
-    a.appendChild(M.avatar(it.title, it.is_main, 'w-12'));
+    a.href = it.url || (it.conv_id ? chatUrl(it.conv_id) : '#');
+    a.appendChild(M.avatar(it.title, it.is_main, 'w-12', it.avatar, it.is_tasks ? 'check-square' : ''));
     var body = M.el('div', 'flex-1 min-w-0 flex flex-col gap-0.5');
     var top = M.el('div', 'flex items-center justify-between gap-2');
     top.appendChild(M.el('span', 'font-semibold text-sm truncate', it.title));
@@ -38,7 +39,7 @@
     bottom.appendChild(tail);
     body.appendChild(top); body.appendChild(bottom);
     a.appendChild(body);
-    if (!it.conv_id) a.addEventListener('click', function (e) { e.preventDefault(); openDirect(it); });
+    if (!it.conv_id && !it.url) a.addEventListener('click', function (e) { e.preventDefault(); openDirect(it); });
     li.appendChild(a);
     return li;
   }
@@ -47,7 +48,9 @@
     data = d;
     M.setBadge(d.total_unread || 0);
     list.textContent = '';
-    var shown = d.items.filter(function (it) { return !term || M.norm(it.title).indexOf(term) !== -1; });
+    var shown = d.items.filter(function (it) {
+      return !term || M.norm(it.title).indexOf(term) !== -1 || M.norm(it.handle || '').indexOf(term) !== -1;
+    });
     if (!shown.length) { list.appendChild(M.el('li', 'p-6 text-center text-sm fb-muted', 'موردی پیدا نشد.')); return; }
     shown.forEach(function (it) { list.appendChild(row(it)); });
   }

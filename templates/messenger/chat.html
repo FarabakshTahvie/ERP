@@ -32,11 +32,15 @@
             <a href="{% url 'messenger:inbox' %}" class="btn btn-ghost btn-sm btn-square lg:hidden [.fb-standalone_&]:hidden" aria-label="بازگشت به فهرست">
                 {% icon "arrow-right" "w-4 h-4" %}
             </a>
+            {% if meta.avatar %}
+            <div class="avatar shrink-0"><div class="w-10 rounded-full"><img src="{{ meta.avatar }}" alt=""></div></div>
+            {% else %}
             <div class="avatar avatar-placeholder shrink-0">
                 <div class="{% if meta.is_main %}bg-primary text-primary-content{% else %}bg-neutral text-neutral-content{% endif %} w-10 rounded-full">
                     {% if meta.is_main %}{% icon "users" "w-5 h-5" %}{% else %}<span>{{ meta.title|slice:":1" }}</span>{% endif %}
                 </div>
             </div>
+            {% endif %}
             <div class="flex-1 min-w-0">
                 <div class="font-semibold text-sm truncate">{{ meta.title }}</div>
                 <div class="text-xs fb-muted truncate">{% if meta.is_main %}{{ meta.members|fa_digits }} عضو{% else %}{{ meta.sub }}{% endif %}</div>

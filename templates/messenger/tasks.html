@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}وظایف | پیام‌رسان{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+<div data-msgr-root data-active-key="tasks"
+     data-sprite="{% static 'icons/sprite.svg' %}"
+     data-inbox-url="{% url 'messenger:api_inbox' %}"
+     data-chat-url="{% url 'messenger:chat' 0 %}"
+     data-open-url="{% url 'messenger:api_open' 0 %}"
+     class="mx-auto w-full max-w-5xl h-[calc(100dvh-3.5rem-1px)] flex bg-base-100 md:border-x border-base-300">
+
+    <aside class="hidden lg:block lg:w-96 lg:border-e border-base-300 min-h-0">
+        {% include "messenger/partials/chat_list.html" %}
+    </aside>
+
+    <section class="flex-1 min-w-0 min-h-0 flex flex-col">
+        <header class="flex items-center gap-3 px-3 py-2 border-b border-base-300 bg-base-100">
+            <a href="{% url 'messenger:inbox' %}" class="btn btn-ghost btn-sm btn-square lg:hidden [.fb-standalone_&]:hidden" aria-label="بازگشت به فهرست">
+                {% icon "arrow-right" "w-4 h-4" %}
+            </a>
+            <div class="avatar avatar-placeholder shrink-0">
+                <div class="bg-info text-info-content w-10 rounded-full">{% icon "check-square" "w-5 h-5" %}</div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm truncate">وظایف</div>
+                <div class="text-xs fb-muted truncate">کارهایی که برایتان ثبت شده</div>
+            </div>
+            {% if can_manage_tasks %}
+            <a href="{% url 'tasks:list' %}" class="btn btn-soft btn-sm">وظایف ثبت‌شده توسط من</a>
+            {% endif %}
+        </header>
+
+        <div class="flex-1 min-h-0 overflow-y-auto bg-base-200 p-3 flex flex-col gap-4">
+            {% if cards %}
+            {% include "tasks/partials/my_tasks_panel.html" %}
+            {% else %}
+            <div class="fb-card"><div class="fb-empty">وظیفه‌ی انجام‌نشده‌ای ندارید.</div></div>
+            {% endif %}
+
+            <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+                <input type="checkbox" aria-label="وظایف انجام‌شده"
+                       hx-get="{{ done_url }}" hx-trigger="change once" hx-target="#msgr-done-box">
+                <div class="collapse-title text-sm font-semibold">انجام‌شده</div>
+                <div class="collapse-content">
+                    <div id="msgr-done-box"><div class="flex justify-center py-4"><span class="loading loading-spinner loading-sm"></span></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}
+{% block extra_js %}
+<script src="{% static_v 'js/messenger_common.js' %}"></script>
+<script src="{% static_v 'js/messenger_inbox.js' %}"></script>
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/tasks.js' %}"></script>
+{% endblock %}

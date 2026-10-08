@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image, ImageOps
 
-from utils.image_utils import optimize_named
+from utils.image_utils import optimize_image, optimize_named
 
 from .models import Attachment
 
@@ -25,6 +25,10 @@ AUDIO_EXT = {"mp3", "m4a", "ogg", "opus", "wav", "aac"}
 VOICE_EXT = AUDIO_EXT | {"webm", "mp4"}
 LABELS = {"image": "عکس", "video": "ویدیو", "audio": "فایل صوتی", "voice": "پیام صوتی", "file": "فایل"}
 _BAD_IMAGE = (OSError, SyntaxError, EOFError, ValueError, Image.DecompressionBombError)
+
+AVATAR_EXT = {"jpg", "jpeg", "png", "webp", "bmp"}
+MAX_AVATAR_BYTES = 5 * 1024 * 1024
+MAX_AVATAR_PIXELS = 40_000_000
 
 
 def ext_of(name):
@@ -176,3 +180,31 @@ def attach(user, conv, message, ids):
         done = Attachment.objects.filter(pk=pk, message__isnull=True).update(message=message, order=order)
         if done != 1:
             raise ValueError("یکی از فایل‌ها قبلاً استفاده شده است.")
+
+
+def prepare_avatar(uploaded):
+    """عکس پروفایل ← ContentFile مربع ۵۱۲ با فرمت webp؛ فایل خراب ← ValueError فارسی."""
+    bad = "فایل بارگذاری‌شده تصویر معتبری نیست."
+    if uploaded is None:
+        raise ValueError("عکسی انتخاب نشده است.")
+    if uploaded.size > MAX_AVATAR_BYTES:
+        raise ValueError("حجم عکس بیشتر از ۵ مگابایت است.")
+    if ext_of(uploaded.name) not in AVATAR_EXT:
+        raise ValueError("فرمت عکس مجاز نیست؛ JPG، PNG یا WEBP بفرستید.")
+    try:
+        uploaded.seek(0)
+        probe = Image.open(uploaded)
+        pixels = probe.width * probe.height
+    except _BAD_IMAGE:
+        raise ValueError(bad)
+    if pixels > MAX_AVATAR_PIXELS:
+        raise ValueError("ابعاد عکس بیش از حد بزرگ است.")
+    try:
+        uploaded.seek(0)
+        out = optimize_image(uploaded, profile_name="avatar")
+        out.seek(0)
+        data = out.read()
+        Image.open(BytesIO(data)).verify()
+    except _BAD_IMAGE:
+        raise ValueError(bad)
+    return ContentFile(data, name="avatar.webp")

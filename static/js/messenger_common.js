@@ -20,11 +20,21 @@
     svg.appendChild(use);
     return svg;
   };
-  M.avatar = function (name, isGroup, width) {
+  M.avatar = function (name, isGroup, width, src, icon) {
+    var w = width || 'w-10';
+    if (src) {
+      var wrap = M.el('div', 'avatar shrink-0');
+      var circle = M.el('div', 'rounded-full ' + w);
+      var im = M.el('img');
+      im.src = src; im.alt = ''; im.loading = 'lazy';
+      circle.appendChild(im); wrap.appendChild(circle);
+      return wrap;
+    }
     var box = M.el('div', 'avatar avatar-placeholder shrink-0');
-    var c = M.el('div', (isGroup ? 'bg-primary text-primary-content' : 'bg-neutral text-neutral-content') +
-                 ' rounded-full ' + (width || 'w-10'));
-    if (isGroup) c.appendChild(M.icon('users', 'w-5 h-5'));
+    var tone = icon ? 'bg-info text-info-content' : (isGroup ? 'bg-primary text-primary-content' : 'bg-neutral text-neutral-content');
+    var c = M.el('div', tone + ' rounded-full ' + w);
+    if (icon) c.appendChild(M.icon(icon, 'w-5 h-5'));
+    else if (isGroup) c.appendChild(M.icon('users', 'w-5 h-5'));
     else c.appendChild(M.el('span', null, String(name || '?').trim().charAt(0)));
     box.appendChild(c);
     return box;

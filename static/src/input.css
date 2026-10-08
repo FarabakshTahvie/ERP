@@ -8,6 +8,7 @@
 @source "../js/messenger_inbox.js";
 @source "../js/messenger_chat.js";
 @source "../js/messenger_media.js";
+@source "../js/notify_guide.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

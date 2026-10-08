@@ -1,6 +1,7 @@
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
@@ -133,4 +134,39 @@ def page_chat(request, conv_id):
         "initial": services.fetch_messages(request.user, conv),
         "inbox": services.inbox(request.user),
         "can_moderate": can(request.user, "dashboard.manager"),
+    })
+
+
+@cap_required("messenger.use")
+@never_cache
+def page_profile(request):
+    action = request.POST.get("action", "info")
+    info_form = action not in ("avatar", "avatar_remove")
+    values = None
+    if request.method == "POST":
+        try:
+            if action == "avatar":
+                services.set_avatar(request.user, request.FILES.get("avatar"))
+                ok = "عکس پروفایل ذخیره شد."
+            elif action == "avatar_remove":
+                services.remove_avatar(request.user)
+                ok = "عکس پروفایل حذف شد."
+            else:
+                services.update_profile(request.user, display_name=request.POST.get("display_name"),
+                                        handle=request.POST.get("handle"))
+                ok = "اطلاعات ذخیره شد."
+        except ValueError as e:
+            messages.error(request, str(e))
+            if info_form:
+                values = {"display_name": request.POST.get("display_name", ""),
+                          "handle": request.POST.get("handle", "")}
+        else:
+            messages.success(request, ok)
+            return redirect("messenger:profile")
+    profile = services.get_profile(request.user)
+    real_name = request.user.get_full_name() or request.user.username
+    return render(request, "messenger/profile.html", {
+        "values": values or {"display_name": profile.display_name, "handle": profile.handle},
+        "avatar": services.avatar_url(request.user), "real_name": real_name,
+        "initial": (profile.display_name or real_name)[:1],
     })

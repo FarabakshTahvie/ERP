@@ -57,6 +57,9 @@ PAGE_LABELS = {
     "notifications:broadcast_detail": "جزئیات پیام همگانی",
     "messenger:inbox": "پیام‌رسان",
     "messenger:chat": "پیام‌رسان",
+    "messenger:profile": "پیام‌رسان",
+    "messenger:tasks": "پیام‌رسان",
+    "messenger:task_detail": "پیام‌رسان",
 }
 
 

@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 import environ
+from celery.schedules import crontab
 from django.urls import reverse_lazy
 from django.templatetags.static import static
 
@@ -152,6 +153,7 @@ CELERY_BROKER_CONNECTION_TIMEOUT = 3
 CELERY_TASK_PUBLISH_RETRY_POLICY = {"max_retries": 1, "interval_start": 0, "interval_step": 0.2, "interval_max": 0.5}
 CELERY_BEAT_SCHEDULE = {
     "process-broadcasts": {"task": "notifications.process_broadcasts", "schedule": 60.0},   # شبکه‌ی ایمنی
+    "messenger-cleanup": {"task": "messenger.cleanup_old", "schedule": crontab(hour=3, minute=30)},
 }
 
 if 'test' in sys.argv:

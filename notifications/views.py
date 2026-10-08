@@ -43,8 +43,12 @@ def track_and_redirect(request, code):
 
 @login_required
 def center(request):
+    from utils.models import PushDevice
     items = list(Notification.objects.filter(user=request.user).order_by("-created_at")[:50])
-    return render(request, "notifications/center.html", {"items": items})
+    return render(request, "notifications/center.html", {
+        "items": items,
+        "push_devices": PushDevice.objects.filter(user=request.user, is_active=True).count(),
+    })
 
 
 @login_required

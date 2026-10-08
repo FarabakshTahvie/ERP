@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}پروفایل پیام‌رسان | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'messenger:inbox' %}" class="link link-hover text-sm fb-muted">بازگشت به پیام‌رسان</a>
+        <h1 class="fb-page-title mt-2">پروفایل پیام‌رسان</h1>
+        <p class="fb-page-sub">این اطلاعات فقط در پیام‌رسان دیده می‌شود و نام ورود شما را عوض نمی‌کند.</p>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-4">
+        <h2 class="fb-section-title">عکس پروفایل</h2>
+        <div class="avatar avatar-placeholder">
+            <div class="bg-neutral text-neutral-content w-20 rounded-full">
+                {% if avatar %}<img src="{{ avatar }}" alt="">{% else %}<span class="text-2xl">{{ initial }}</span>{% endif %}
+            </div>
+        </div>
+        <form method="post" enctype="multipart/form-data" data-fb-once class="flex flex-col gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="avatar">
+            <input type="file" name="avatar" accept=".jpg,.jpeg,.png,.webp" required aria-label="انتخاب عکس" class="file-input w-full">
+            <span class="fb-hint">JPG، PNG یا WEBP تا ۵ مگابایت؛ خودکار مربع و سبک می‌شود.</span>
+            <button type="submit" class="btn btn-soft btn-sm self-start">ذخیره‌ی عکس</button>
+        </form>
+        {% if avatar %}
+        <form method="post" data-fb-once>
+            {% csrf_token %}
+            <input type="hidden" name="action" value="avatar_remove">
+            <button type="submit" class="btn btn-soft btn-error btn-sm">حذف عکس</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="info">
+        <div class="fb-field">
+            <label class="fb-label" for="pf-name">نام نمایشی</label>
+            <input type="text" id="pf-name" name="display_name" value="{{ values.display_name }}" maxlength="40"
+                   placeholder="{{ real_name }}" class="input w-full">
+            <span class="fb-hint">اگر خالی بماند، نام حساب شما نشان داده می‌شود.</span>
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="pf-handle">شناسه (username)</label>
+            <input type="text" id="pf-handle" name="handle" value="{{ values.handle }}" maxlength="24" dir="ltr"
+                   autocomplete="off" placeholder="ali_95" class="input w-full font-technical">
+            <span class="fb-hint">۳ تا ۲۴ نویسه: حرف کوچک انگلیسی، عدد و _ ؛ با حرف شروع شود. همکاران با این شناسه شما را جستجو می‌کنند.</span>
+        </div>
+        <button type="submit" class="btn btn-primary self-start">ذخیره</button>
+    </form>
+</div>
+{% endblock %}

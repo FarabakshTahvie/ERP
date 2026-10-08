@@ -20,6 +20,10 @@ def thumb_path(instance, filename):
     return f"messenger/{instance.conversation_id}/t_{uuid.uuid4().hex}.webp"
 
 
+def avatar_path(instance, filename):
+    return f"messenger/avatars/{instance.user_id}_{uuid.uuid4().hex[:12]}.webp"
+
+
 class Conversation(models.Model):
     """گروه اصلی (is_main) یا گفت‌وگوی خصوصی بین دو نفر (user_low.pk < user_high.pk)."""
 
@@ -124,3 +128,19 @@ class Attachment(models.Model):
         verbose_name_plural = "پیوست‌ها"
         ordering = ["order", "id"]
         indexes = [models.Index(fields=["message", "order"])]
+
+
+class Profile(models.Model):
+    """پروفایل پیام‌رسان؛ مستقل از حساب اصلی. خالی‌بودن هر فیلد یعنی «از اطلاعات حساب استفاده کن»."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="messenger_profile")
+    display_name = models.CharField(max_length=40, blank=True)
+    handle = models.CharField(max_length=24, blank=True)          # همیشه با حروف کوچک ذخیره می‌شود
+    avatar = models.FileField(upload_to=avatar_path, max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "پروفایل پیام‌رسان"
+        verbose_name_plural = "پروفایل‌های پیام‌رسان"
+        constraints = [
+            models.UniqueConstraint(fields=["handle"], condition=~Q(handle=""), name="uniq_messenger_handle"),
+        ]

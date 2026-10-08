@@ -59,7 +59,7 @@ class PageTests(Base):
         meta = services.chat_meta(self.t1, conv)
         self.assertEqual((meta["key"], meta["title"], meta["is_main"]), (f"u{self.acc.pk}", "ms_acc", False))
         main = services.chat_meta(self.t1, self.main)
-        self.assertEqual((main["key"], main["title"], main["members"]), ("main", "فراگرام", 4))
+        self.assertEqual((main["key"], main["title"], main["members"]), ("main", services.MAIN_TITLE, 4))
 
     def test_push_link_resolves_to_chat_page(self):
         msg = self.send(self.t1, self.main, "x")

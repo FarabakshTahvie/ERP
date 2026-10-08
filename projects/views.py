@@ -306,11 +306,10 @@ def technician_home_view(request, user):
         },
         {
             "key": "completed", "label": "انجام‌شده",
-            "count_builder": lambda: (_completed_base_qs(request).count()
-                                      + TaskAssignment.objects.filter(user=user, submitted_at__isnull=False).count()),
-            "url": reverse("tasks:done_panel"),
+            "count_builder": lambda: _completed_base_qs(request).count(),
+            "url": reverse("projects:dashboard_completed_table"),
             "container_id": "tab-panel-completed",
-            "eager_render": lambda: task_views.eager_panel(request, done=True),
+            "eager_render": _eager(_completed_table_context),
         },
     ]
     if can_create:
