@@ -313,3 +313,31 @@
 
 /* دکمه‌ی برگشت فقط در PWA نصب‌شده دیده می‌شود (کلاس را اسکریپت head می‌گذارد) */
 html:not(.fb-standalone) .fb-back { display: none; }
+
+/* پخش‌کننده‌ی پیام‌رسان (Media Chrome خودمیزبان)؛ رنگ‌ها از تم و رنگ حباب می‌آید */
+media-controller.msgr-player {
+  --msgr-fg: var(--color-base-content);
+  --media-primary-color: var(--msgr-fg);
+  --media-secondary-color: transparent;
+  --media-text-color: var(--msgr-fg);
+  --media-control-background: transparent;
+  --media-control-hover-background: color-mix(in oklab, var(--msgr-fg) 15%, transparent);
+  --media-range-bar-color: var(--msgr-fg);
+  --media-range-track-background: color-mix(in oklab, var(--msgr-fg) 25%, transparent);
+  --media-font-family: var(--font-sans);
+  --media-font-size: 12px;
+  --media-tooltip-display: none;
+  display: block;
+  width: 100%;
+  direction: ltr;
+  border-radius: var(--radius-field);
+  overflow: hidden;
+}
+.chat-bubble-primary media-controller.msgr-player { --msgr-fg: var(--color-primary-content); }
+.chat-bubble media-controller.msgr-player.msgr-player-video {
+  --msgr-fg: #fff;
+  --media-control-background: rgb(0 0 0 / 0.55);
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+media-controller.msgr-player-video video { object-fit: contain; }

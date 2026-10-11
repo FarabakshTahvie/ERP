@@ -38,6 +38,59 @@
     dlg.showModal();
   };
 
+  // ---------- پخش‌کننده (Media Chrome خودمیزبان: static/js/vendor/media-chrome.js) ----------
+  // آن فایل قبل از این فایل لود می‌شود؛ اگر لود نشد، پخش‌کننده‌ی خود مرورگر می‌آید.
+  function hasPlayer() {
+    return !!(window.customElements && window.customElements.get('media-controller'));
+  }
+  function tag(name, attrs) {
+    var e = document.createElement(name);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+  function videoPlayer(f) {
+    var v = M.el('video');
+    v.preload = 'metadata'; v.playsInline = true; v.src = f.url;
+    if (!hasPlayer()) {
+      v.className = 'w-full max-h-72 rounded-field bg-black';
+      v.controls = true;
+      return v;
+    }
+    v.setAttribute('slot', 'media');
+    var ctl = tag('media-controller', { nohotkeys: '' });
+    ctl.className = 'msgr-player msgr-player-video';
+    ctl.appendChild(v);
+    ctl.appendChild(tag('media-loading-indicator', { slot: 'centered-chrome' }));
+    var bar = tag('media-control-bar');
+    bar.appendChild(tag('media-play-button'));
+    bar.appendChild(tag('media-time-range'));
+    bar.appendChild(tag('media-time-display', { showduration: '' }));
+    bar.appendChild(tag('media-mute-button'));
+    bar.appendChild(tag('media-fullscreen-button'));
+    ctl.appendChild(bar);
+    return ctl;
+  }
+  function audioPlayer(f) {
+    var a = M.el('audio');
+    a.preload = 'metadata'; a.src = f.url;
+    if (!hasPlayer()) {
+      a.className = 'w-full h-10';
+      a.controls = true;
+      return a;
+    }
+    a.setAttribute('slot', 'media');
+    var ctl = tag('media-controller', { audio: '', nohotkeys: '' });
+    ctl.className = 'msgr-player';
+    ctl.appendChild(a);
+    var bar = tag('media-control-bar');
+    bar.appendChild(tag('media-play-button'));
+    bar.appendChild(tag('media-time-display'));
+    bar.appendChild(tag('media-time-range'));
+    bar.appendChild(tag('media-duration-display'));
+    ctl.appendChild(bar);
+    return ctl;
+  }
+
   M.renderFiles = function (files) {
     var box = M.el('div', 'flex flex-col gap-1 mb-1 w-64 sm:w-72 max-w-full');
     var imgs = files.filter(function (f) { return f.kind === 'image'; });
@@ -59,9 +112,7 @@
     files.forEach(function (f) {
       if (f.kind === 'image') return;
       if (f.kind === 'video') {
-        var v = M.el('video', 'w-full max-h-72 rounded-field bg-black');
-        v.controls = true; v.preload = 'metadata'; v.playsInline = true; v.src = f.url;
-        box.appendChild(v);
+        box.appendChild(videoPlayer(f));
       } else if (f.kind === 'audio' || f.kind === 'voice') {
         var wrap = M.el('div', 'flex flex-col gap-0.5');
         if (f.kind === 'voice') {
@@ -74,9 +125,7 @@
           nm0.dir = 'auto';
           wrap.appendChild(nm0);
         }
-        var a = M.el('audio', 'w-full h-10');
-        a.controls = true; a.preload = 'metadata'; a.src = f.url;
-        wrap.appendChild(a);
+        wrap.appendChild(audioPlayer(f));
         box.appendChild(wrap);
       } else {
         var d = M.el('a', 'flex items-center gap-2 rounded-field bg-base-100/20 px-2 py-1.5 no-underline');
@@ -105,6 +154,13 @@
   var recBar = root.querySelector('[data-msgr-rec]'), recTime = recBar.querySelector('[data-rec-time]');
   var errBox = root.querySelector('[data-msgr-error]'), errTimer = null;
   var items = [], rec = null, api = M.media = { autoSend: null };
+
+  // هم‌زمان فقط یک صوت یا ویدیو پخش شود (رویداد play حباب نمی‌شود، پس با capture می‌گیریم)
+  root.addEventListener('play', function (e) {
+    var t = e.target;
+    if (!t || (t.tagName !== 'AUDIO' && t.tagName !== 'VIDEO')) return;
+    root.querySelectorAll('audio, video').forEach(function (m) { if (m !== t && !m.paused) m.pause(); });
+  }, true);
 
   M.flash = function (msg) {
     errBox.textContent = msg || 'ثبت نشد.';

@@ -282,7 +282,7 @@
   feed.addEventListener('click', function (e) {
     var q = e.target.closest('[data-reply-to]');
     if (q) { e.stopPropagation(); closeMenu(); jumpToId(+q.dataset.replyTo); return; }
-    if (e.target.closest('a, button, video, audio')) return;
+    if (e.target.closest('a, button, video, audio, media-controller')) return;
     var w = e.target.closest('[data-msg]');
     if (w) toggleMenu(w);
   });
