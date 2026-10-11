@@ -1,11 +1,11 @@
 from core.models import Specialty
-from .models import WorkflowTemplate, WorkflowStepTemplate, StageKind
+from .models import ProjectStage, StageKind, WorkflowStepTemplate, WorkflowTemplate
 
-TEMPLATE_NAME = "گردش‌کار v2"
+TEMPLATE_NAME = "گردش‌کار v3"
+LEGACY_V2_NAME = "گردش‌کار v2"
 VISITOR_SPECIALTY_NAME = "بازدیدکننده"
-A = WorkflowStepTemplate.ApprovalBy
-
 ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
+A = WorkflowStepTemplate.ApprovalBy
 
 STEPS = [
     dict(title="بازدید کارگاهی", client_label="بازدید و اندازه‌گیری", kind=StageKind.VISIT,
@@ -16,8 +16,6 @@ STEPS = [
          approval_by=A.CHOOSE_AT_RUNTIME, requires_payment_selection=True),
     dict(title="طراحی اولیه اتوکد", client_label="طراحی اولیه", kind=StageKind.DESIGN_INITIAL,
          specialty="طراح اتوکد", allows_file_upload=True, estimated_duration_hours=8),
-    dict(title="تایید طرح اولیه", client_label="تایید نقشه اولیه", kind=StageKind.DESIGN_APPROVAL,
-         approval_by=A.CHOOSE_AT_RUNTIME),
     dict(title="تکمیل طراحی", client_label="طراحی نهایی", specialty="طراح اتوکد",
          allows_file_upload=True, estimated_duration_hours=8),
     dict(title="جی‌کدگیری", client_label="آماده‌سازی برش (جی‌کدگیری)", kind=StageKind.GCODE,
@@ -35,24 +33,31 @@ STEPS = [
 
 BASE = dict(kind=StageKind.GENERIC, assign_to_project_creator=False, approval_by=A.NONE,
             requires_payment_selection=False, allows_file_upload=False, client_visible=True,
-            estimated_duration_hours=None, client_label="")
+            estimated_duration_hours=None, client_label="", on_reject_go_to=None)
 
 
-def build_workflow_v2(*, make_default=False):
-    """idempotent و اصلاح‌کننده: اجرای دوباره، مراحل موجود قالب را طبق STEPS به‌روز می‌کند. خروجی: (template, created)"""
+def build_workflow_v3(*, make_default=False):
+    """idempotent: اجرای دوباره، مراحل قالب را طبق STEPS به‌روز می‌کند. خروجی: (template, created)"""
     template, created = WorkflowTemplate.objects.get_or_create(name=TEMPLATE_NAME)
-    made = []
     for order, spec in enumerate(STEPS, start=1):
         spec = dict(spec)
         name = spec.pop("specialty", None)
         specialty = Specialty.objects.get_or_create(name=name)[0] if name else None
-        step, _ = WorkflowStepTemplate.objects.update_or_create(
+        WorkflowStepTemplate.objects.update_or_create(
             template=template, order=order, defaults={**BASE, "responsible_specialty": specialty, **spec})
-        made.append(step)
-    made[4].on_reject_go_to = made[3]   # رد تایید طرح ← برگشت به طراحی اولیه
-    made[4].save(update_fields=["on_reject_go_to"])
     if make_default:
         WorkflowTemplate.objects.exclude(pk=template.pk).update(is_default=False)
         template.is_default = True
         template.save(update_fields=["is_default"])
     return template, created
+
+
+def drop_unused_v2():
+    """قالب v2 را فقط وقتی هیچ پروژه یا مرحله‌ای به آن وصل نیست پاک می‌کند. خروجی: True اگر پاک شد."""
+    old = WorkflowTemplate.objects.filter(name=LEGACY_V2_NAME).first()
+    if old is None:
+        return False
+    if old.projects.exists() or ProjectStage.objects.filter(step_template__template=old).exists():
+        return False
+    old.delete()
+    return True

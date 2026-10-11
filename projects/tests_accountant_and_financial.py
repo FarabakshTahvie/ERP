@@ -8,7 +8,7 @@ from catalog.models import Service, Item
 from inventory.models import Warehouse
 from inventory.services import receive_stock, user_can_manage_inventory
 from projects.models import Project, ProjectStage, StageKind
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import (
     create_project_from_technician_intake, advance_stage,
     user_can_create_projects, user_is_accountant,
@@ -48,7 +48,7 @@ class FinalReviewThreePersonAccessTests(TestCase):
         self.manager = User.objects.create_user(username="fr_manager", password="pw", role=User.Role.ADMIN, is_superuser=True)
         self.other_tech = User.objects.create_user(username="fr_other", password="pw", role=User.Role.EMPLOYEE)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_date=timezone.localdate(), issue_proforma=False,
         )
@@ -96,7 +96,7 @@ class FinalReviewManualConsumeTests(TestCase):
         self.item = Item.objects.create(name="کالای تست مصرف نهایی", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
         receive_stock(item=self.item, warehouse=self.wh, qty=10, unit_cost=1000, received_at=timezone.now())
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_date=timezone.localdate(), issue_proforma=False,
         )
@@ -150,7 +150,7 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         self.accountant.specialties.add(self.sp_accountant)
         self.service = Service.objects.create(name="خدمت تست پرداخت نهایی")
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_date=timezone.localdate(), issue_proforma=False,
         )

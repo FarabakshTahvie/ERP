@@ -8,7 +8,7 @@ from accounts.models import User
 from core.models import Party, Specialty
 from catalog.models import Service, Item, ItemCategory, MarginRule
 from projects.models import Project, ProjectStage, StageKind, ProjectService, ProjectServiceMaterial
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import (
     create_project_from_technician_intake,
     advance_stage,
@@ -48,7 +48,7 @@ class ProformaPricingTests(TestCase):
             valid_from=timezone.now() - timezone.timedelta(days=1),
         )
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator,
             party_id=self.partner.id,
@@ -161,7 +161,7 @@ class ProformaViewTests(TestCase):
         self.service = Service.objects.create(name="سرویس ۱")
         self.item = Item.objects.create(name="کالا ۱", moving_average_cost=Decimal("1000"))
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )

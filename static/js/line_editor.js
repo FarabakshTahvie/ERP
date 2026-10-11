@@ -54,6 +54,8 @@
       if (col.type !== 'text') {
         input.setAttribute('inputmode', col.type === 'money' ? 'numeric' : 'decimal');
         input.dir = 'ltr';
+        input.setAttribute(col.type === 'money' ? 'data-money' : 'data-decimal', '1');
+        if (col.type === 'money') input.maxLength = 12;
       }
       if (value != null) input.value = value;
       input.addEventListener('input', notify);

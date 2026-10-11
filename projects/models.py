@@ -12,7 +12,6 @@ class StageKind(models.TextChoices):
     VISIT = "visit", "بازدید"
     PROFORMA = "proforma", "صدور پیش‌فاکتور"
     DESIGN_INITIAL = "design_initial", "طراحی اولیه"
-    DESIGN_APPROVAL = "design_approval", "تایید طرح اولیه"
     GCODE = "gcode", "جی‌کدگیری"
     CUTTING = "cutting", "برش‌کاری"
     SHIPPING = "shipping", "ارسال"
@@ -254,6 +253,7 @@ class ProjectStage(TimeStampedModel):
         verbose_name="افراد واجد شرایط (تا زمانی که کسی کار را برندارد)",
     )
     client_visible = models.BooleanField(default=True, verbose_name="قابل نمایش به کارفرما")
+    client_preview = models.BooleanField(default=False, verbose_name="فایل‌های این مرحله برای مشتری نمایش داده می‌شود")
     started_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان شروع")
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان اتمام")
     completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="completed_stages", verbose_name="انجام‌دهنده")

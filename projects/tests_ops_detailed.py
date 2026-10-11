@@ -13,7 +13,7 @@ from projects.models import (
     Project, ProjectStage, StageKind, ProjectFile, ShipmentCheck, ExtraShipment,
     InstallLine, PartRequest, ProjectCost, StageEvent,
 )
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import add_stage_file, complete_stage, stage_completion_problem
@@ -43,7 +43,7 @@ class ShippingCheckTests(TestCase):
         self.item = Item.objects.create(name="کالای ارسال", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("1000"))
         MarginRule.objects.create(scope=MarginRule.Scope.GLOBAL, value_type=MarginRule.ValueType.PERCENT, value=Decimal("20"), valid_from=timezone.now() - timezone.timedelta(days=1))
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False)
 
         # VISIT -> Done
@@ -145,7 +145,7 @@ class InstallLinesTests(TestCase):
         self.item = Item.objects.create(name="کالای تست", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("500"))
         MarginRule.objects.create(scope=MarginRule.Scope.GLOBAL, value_type=MarginRule.ValueType.PERCENT, value=Decimal("20"), valid_from=timezone.now() - timezone.timedelta(days=1))
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False)
 
         st1 = self.project.stages.get(order=1)
@@ -208,7 +208,7 @@ class ProjectCostAndReviewTests(TestCase):
         self.accountant.specialties.add(self.acc_spec)
         self.other_user = User.objects.create_user(username="other_rev", password="pw", role=User.Role.EMPLOYEE)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False)
 
     def test_complete_stage_final_review_requires_via_review(self):

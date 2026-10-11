@@ -4,7 +4,7 @@ from django.utils import timezone
 from accounts.models import User
 from core.models import Party, Specialty
 from projects.models import ProjectStage, StageKind, StageEvent
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.stage_move import move_to_stage
 
@@ -18,7 +18,7 @@ class StageMoveReturnModeTests(TestCase):
         self.creator = User.objects.create_user(username="mv_creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.sp_intake)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_date=timezone.localdate(), issue_proforma=False,
         )

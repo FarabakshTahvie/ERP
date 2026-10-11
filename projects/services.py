@@ -38,6 +38,18 @@ def clean_project_notes(raw):
     return text
 
 
+PROJECT_NAME_MAX = 255
+
+
+def clean_project_name(raw):
+    name = " ".join((raw or "").split())
+    if not name:
+        raise ValueError("نام پروژه را بنویسید.")
+    if len(name) > PROJECT_NAME_MAX:
+        raise ValueError(f"نام پروژه نباید بیش از {PROJECT_NAME_MAX} نویسه باشد.")
+    return name
+
+
 from core.capabilities import can, is_accountant
 
 
@@ -707,7 +719,6 @@ def send_stage_for_approval(stage, party=None, sent_by=None):
 
     user = party.users.first()
     if user:
-        # TODO(پیامک design_approval_request): فقط برای مرحله‌ی kind=DESIGN_APPROVAL؛ بعد از ساخت قالب.
         from notifications.services import create_notification
         from notifications.models import NotificationType
         create_notification(
@@ -807,10 +818,10 @@ def attach_project_files(project, stage, files, *, uploader):
         )
 
 
-def _require_v2_template(template):
+def _require_current_template(template):
     first = template.steps.order_by("order").first()
     if not first or first.kind != StageKind.VISIT:
-        raise ValueError("گردش‌کار پیش‌فرض نسخه‌ی جدید نیست؛ ابتدا دستور setup_workflow_v2 --make-default اجرا شود.")
+        raise ValueError("گردش‌کار پیش‌فرض نسخه‌ی جدید نیست؛ ابتدا دستور setup_workflow_v3 --make-default اجرا شود.")
 
 
 @transaction.atomic
@@ -840,7 +851,7 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
                                            service_lines=None, material_lines=None,
                                            installation_fee_raw="", shipping_fee_raw="", extra_fee_raw="",
                                            contract_date=None, notes="", send_sms=False, visit_date=None, visit_at=None,
-                                           uploaded_files=None, issue_proforma=True):
+                                           uploaded_files=None, issue_proforma=True, project_name=None):
     from core.models import Party, Location
     from catalog.models import Service, Item
     if visit_date is None and visit_at is not None:
@@ -851,6 +862,7 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     shipping_fee = parse_fee(shipping_fee_raw, label="هزینه ارسال")
     extra_fee = parse_fee(extra_fee_raw, label="هزینه مازاد")
     notes = clean_project_notes(notes)
+    explicit_name = None if project_name is None else clean_project_name(project_name)
     if not issue_proforma and visit_date is None:
         raise ValueError("تاریخ بازدید را مشخص کنید.")
 
@@ -887,14 +899,15 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     if not template:
         raise ValueError("هیچ قالب گردش‌کار پیش‌فرضی تعریف نشده است.")
     if not issue_proforma:
-        _require_v2_template(template)
+        _require_current_template(template)
 
     internal_party = Party.objects.filter(is_internal=True).first()
     if not internal_party:
         raise ValueError("طرف‌حساب داخلی شرکت تعریف نشده است.")
     partner = party if party.is_partner else internal_party
 
-    proj_name = (party_data.get("brand_name") or party_data["name"]) if party_data else (party.brand_name or party.name)
+    proj_name = explicit_name or (
+        (party_data.get("brand_name") or party_data["name"]) if party_data else (party.brand_name or party.name))
 
     project = Project.objects.create(
         name=proj_name, partner=partner, owner=owner, location=location,
@@ -935,13 +948,9 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     return project, invoice, account_conflict
 
 
-def approval_design_files(approval_stage):
-    """فایل‌های طرحی که مشتری باید ببیند: فایل‌های نزدیک‌ترین «طراحی اولیه»ی قبل از مرحله‌ی تایید،
-    بدون جی‌کد. جدیدترین اول."""
-    if approval_stage.kind != StageKind.DESIGN_APPROVAL:
+def client_preview_files(stage):
+    """فایل‌هایی که مشتری روی صفحه‌ی پروژه می‌بیند: فقط مرحله‌ای که طراح «نمایش به مشتری» زده؛ جی‌کد هرگز."""
+    if not (stage.client_preview and stage.client_visible):
         return []
-    source = (approval_stage.project.stages
-              .filter(kind=StageKind.DESIGN_INITIAL, order__lt=approval_stage.order).order_by("-order").first())
-    if source is None:
-        return []
-    return list(source.files.exclude(kind="gcode").order_by("-created_at", "-pk"))
+    from .models import ProjectFile
+    return list(stage.files.exclude(kind=ProjectFile.Kind.GCODE).order_by("created_at", "pk"))

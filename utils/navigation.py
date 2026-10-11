@@ -103,7 +103,7 @@ NON_PAGE = {
     "projects:install_line", "projects:move_stage", "projects:my_task_claim",
     "projects:my_task_complete", "projects:my_task_transfer", "projects:new_project_party_search",
     "projects:new_project_submit", "projects:part_request_cancel", "projects:part_request_create",
-    "projects:part_request_decide", "projects:part_requests_table", "projects:portal_stage_file",
+    "projects:part_request_decide", "projects:part_requests_table", "projects:portal_project_file",
     "projects:ship_check", "projects:stage_file_upload", "protected_media",
     "tasks:attachment_delete", "tasks:attachment_upload", "tasks:check", "tasks:done_panel",
     "tasks:done_table", "tasks:my_panel", "tasks:open_table", "tasks:save", "tasks:submit",

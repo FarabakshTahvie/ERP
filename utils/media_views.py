@@ -41,7 +41,7 @@ def _allowed(user, rel):
         return can(user, "accounting.access") or bool(party and p.invoice.billed_party_id == party.id)
     if head == "purchases":
         return can(user, "accounting.access") or can(user, "inventory.manage")
-    if head == "projects":      # مشتری فقط از مسیر پرتال (portal_stage_file) فایل طرح می‌گیرد
+    if head == "projects":
         return user.is_superuser or user.role in (User.Role.ADMIN, User.Role.EMPLOYEE)
     if head == "messenger":
         from messenger.services import can_view_media

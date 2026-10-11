@@ -144,13 +144,10 @@
                 <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3">
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
-                    {% if s.kind == 'design_initial' and not s.return_to_id %}
+                    {% if s.kind == 'design_initial' %}
                     <div class="fb-field">
-                        <span class="fb-label">آیا این طرح نیاز به تایید مشتری دارد؟ (اجباری)</span>
-                        <div class="flex flex-wrap gap-2">
-                            <label class="fb-choice"><input type="radio" name="needs_approval" value="1" class="sr-only" required> بله، برای تایید ارسال شود</label>
-                            <label class="fb-choice"><input type="radio" name="needs_approval" value="0" class="sr-only"> نه، مستقیم به تکمیل طراحی برود</label>
-                        </div>
+                        <label class="fb-choice justify-start"><input type="checkbox" name="show_to_client" value="1" class="sr-only" {% if s.client_preview %}checked{% endif %}> نمایش طرح به مشتری (فقط برای دیدن)</label>
+                        <span class="fb-hint">فایل‌های این مرحله در صفحه‌ی پروژه‌ی مشتری دیده می‌شود و تایید مشتری لازم نیست. حداقل یک عکس یا PDF لازم است.</span>
                     </div>
                     {% endif %}
                     <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>

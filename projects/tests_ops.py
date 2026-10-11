@@ -14,7 +14,7 @@ from projects.models import (
     Project, ProjectStage, StageKind, ProjectFile, ShipmentCheck, ExtraShipment,
     InstallLine, PartRequest, ProjectCost,
 )
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import add_stage_file, complete_stage, stage_completion_problem
@@ -56,7 +56,7 @@ class InstallShortageExcessTests(TestCase):
             valid_from=timezone.now() - timezone.timedelta(days=1),
         )
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator,
             party_id=self.partner.id,
@@ -142,7 +142,7 @@ class PartRequestIssueTests(TestCase):
             valid_from=timezone.now() - timezone.timedelta(days=1),
         )
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )

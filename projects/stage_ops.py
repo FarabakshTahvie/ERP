@@ -1,10 +1,9 @@
 import os
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 from accounts.models import User
 from utils.image_utils import optimize_named
 from utils.utils import guess_file_kind
-from .models import CutDone, Project, ProjectFile, ProjectStage, StageEvent, StageKind
+from .models import CutDone, Project, ProjectFile, ProjectStage, StageKind
 from .services import advance_stage, user_is_accountant
 
 MAX_STAGE_FILES = 200
@@ -100,7 +99,7 @@ def set_cut(*, file, index, done, actor):
         CutDone.objects.filter(file=file, index=index).delete()
 
 
-def stage_completion_problem(stage, *, needs_approval=None):
+def stage_completion_problem(stage, *, show_to_client=False):
     """پیام خطا یا None. تنها منبع شرط‌های تکمیل؛ فاز ۳ چک‌لیست‌های ارسال و نصب را همین‌جا اضافه می‌کند."""
     need = upload_requirement(stage)
     files = stage.files.all()
@@ -114,11 +113,9 @@ def stage_completion_problem(stage, *, needs_approval=None):
             return "فایل جی‌کدی با تعداد برش برای این پروژه ثبت نشده است."
         if done < total:
             return f"هنوز {total - done} برش از {total} برش علامت نخورده است."
-    if stage.kind == StageKind.DESIGN_INITIAL and needs_approval is None and not stage.return_to_id:
-        return "مشخص کنید این طرح نیاز به تایید مشتری دارد یا نه."
-    if stage.kind == StageKind.DESIGN_INITIAL and needs_approval and not files.filter(
+    if stage.kind == StageKind.DESIGN_INITIAL and show_to_client and not files.filter(
             kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
-        return "برای ارسال به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید؛ فایل اتوکد را مشتری نمی‌تواند ببیند."
+        return "برای نمایش به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید تا مشتری بتواند بدون نرم‌افزار ببیند."
     from . import ops
     if stage.kind == StageKind.SHIPPING:
         problem = ops.shipping_problem(stage)
@@ -134,7 +131,7 @@ def stage_completion_problem(stage, *, needs_approval=None):
 
 
 @transaction.atomic
-def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=False):
+def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=False):
     stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project").get(pk=stage.pk)
     if stage.kind == StageKind.PROFORMA:
         raise ValueError("این مرحله فقط با «صدور پیش‌فاکتور» از صفحه‌ی ویرایشگر تکمیل می‌شود.")
@@ -145,25 +142,13 @@ def complete_stage(*, stage, actor, comment, needs_approval=None, via_review=Fal
     if (actor.role == User.Role.EMPLOYEE and stage.assigned_to_id != actor.id
             and not (stage.kind == StageKind.FINAL_REVIEW and user_is_accountant(actor))):
         raise ValueError("ابتدا این کار را برای خودتان بردارید.")
-    problem = stage_completion_problem(stage, needs_approval=needs_approval)
+    problem = stage_completion_problem(stage, show_to_client=show_to_client)
     if problem:
         raise ValueError(problem)
 
     note = comment
-    if stage.kind == StageKind.DESIGN_INITIAL and not stage.return_to_id:
-        note = f"{comment}\n[{'نیاز به تایید مشتری دارد' if needs_approval else 'بدون نیاز به تایید مشتری'}]"
-        if not needs_approval:
-            approval = stage.project.stages.filter(
-                kind=StageKind.DESIGN_APPROVAL, order__gt=stage.order,
-                status__in=(ProjectStage.Status.PENDING, ProjectStage.Status.REJECTED),
-            ).order_by("order").first()
-            if approval:   # قبل از تمام‌کردن طراحی: advance_stage مرحله‌ی بعدیِ «انجام‌نشده» را فعال می‌کند
-                old = approval.status
-                approval.status = ProjectStage.Status.DONE
-                approval.completed_at, approval.completed_by = timezone.now(), actor
-                approval.client_visible = False
-                approval.save()
-                StageEvent.objects.create(
-                    stage=approval, actor=actor, from_status=old, to_status=approval.status,
-                    comment="بدون نیاز به تایید مشتری (تصمیم طراح)")
+    if stage.kind == StageKind.DESIGN_INITIAL:
+        stage.client_preview = bool(show_to_client)
+        stage.save(update_fields=["client_preview", "updated_at"])
+        note = f"{comment}\n[{'طرح برای مشتری نمایش داده می‌شود' if show_to_client else 'طرح برای مشتری نمایش داده نمی‌شود'}]"
     return advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note)

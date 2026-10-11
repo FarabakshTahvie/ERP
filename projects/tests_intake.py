@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from unittest import mock
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -6,6 +7,8 @@ from accounts.models import User
 from core.models import Party, Specialty
 from catalog.models import Service, Item
 from projects.models import Project, WorkflowTemplate, WorkflowStepTemplate
+from projects.services import create_project_from_technician_intake
+from projects.workflow_v3 import build_workflow_v3
 from finance.models import Invoice
 from notifications.models import NotificationPolicy
 
@@ -52,13 +55,14 @@ class NewProjectIntakeTests(TestCase):
 
     @mock.patch("notifications.services.SMSService.send_invoice_issued")
     def test_submit_new_project_creates_project_invoice_and_notifies(self, mock_sms):
-        from projects.workflow_v2 import build_workflow_v2
-        build_workflow_v2(make_default=True)
+        from projects.workflow_v3 import build_workflow_v3
+        build_workflow_v3(make_default=True)
         mock_sms.return_value = {"success": True, "message_id": "1001"}
         client = Client()
         client.force_login(self.tech)
 
         post_data = {
+            "project_name": "پروژه‌ی مشتری جدید",
             "phone_number": "09120000093",
             "party_name": "مشتری جدید تست",
             "entity_type": "individual",
@@ -71,7 +75,7 @@ class NewProjectIntakeTests(TestCase):
         resp = client.post(reverse("projects:new_project_submit"), post_data)
         self.assertRedirects(resp, reverse("home"))
 
-        project = Project.objects.get(name="مشتری جدید تست")
+        project = Project.objects.get(name="پروژه‌ی مشتری جدید")
         self.assertEqual(project.owner.phone_number, "09120000093")
         self.assertIsNotNone(project.location)
         self.assertIsNotNone(project.visit_date)
@@ -153,4 +157,55 @@ class PartySearchForPurchaseTests(TestCase):
         content = resp.content.decode("utf-8")
         self.assertNotIn("کارفرما", content)
         self.assertNotIn("شریک تجاری", content)
+
+
+class ProjectNameFieldTests(TestCase):
+    def setUp(self):
+        from projects.workflow_v3 import build_workflow_v3
+        Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
+        build_workflow_v3(make_default=True)
+        self.tech = User.objects.create_user(username="pn_tech", phone_number="09120000191", password="pw",
+                                             role=User.Role.EMPLOYEE)
+        self.tech.specialties.add(Specialty.objects.get_or_create(name="پذیرش")[0])
+        self.party = Party.objects.create(name="مشتری نام‌پروژه", phone_number="09120000192", is_client=True)
+        self.web = Client()
+        self.web.force_login(self.tech)
+        self.url = reverse("projects:new_project_submit")
+
+    def post(self, **extra):
+        data = {"party_id": self.party.id, "visit_date": "1405/07/20"}
+        data.update(extra)
+        return self.web.post(self.url, data, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+
+    def test_form_has_required_project_name_field(self):
+        html = self.web.get(reverse("projects:new_project_form")).content.decode("utf-8")
+        self.assertRegex(html, r'<input[^>]*name="project_name"[^>]*required')
+
+    def test_missing_or_blank_name_is_rejected_on_server(self):
+        for extra in ({}, {"project_name": ""}, {"project_name": "   "}):
+            resp = self.post(**extra)
+            self.assertFalse(resp.json()["ok"])
+            self.assertIn("نام پروژه", resp.json()["error"])
+        self.assertEqual(Project.objects.count(), 0)
+
+    def test_typed_name_is_used_and_whitespace_normalized(self):
+        resp = self.post(project_name="  برج    نگین  ")
+        self.assertTrue(resp.json()["ok"])
+        self.assertEqual(Project.objects.get().name, "برج نگین")
+
+    def test_too_long_name_is_rejected(self):
+        resp = self.post(project_name="الف" * 256)
+        self.assertFalse(resp.json()["ok"])
+        self.assertEqual(Project.objects.count(), 0)
+
+    def test_service_without_name_keeps_old_behaviour(self):
+        project, _, _ = create_project_from_technician_intake(
+            created_by=self.tech, party_id=self.party.id, visit_date=date(2026, 10, 11), issue_proforma=False)
+        self.assertEqual(project.name, self.party.name)
+
+    def test_service_blank_name_raises(self):
+        with self.assertRaises(ValueError):
+            create_project_from_technician_intake(
+                created_by=self.tech, party_id=self.party.id, visit_date=date(2026, 10, 11),
+                issue_proforma=False, project_name="   ")
 

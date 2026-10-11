@@ -15,7 +15,7 @@ SPECIALTIES = ["بازدیدکننده", "کانال‌کش", "طراح اتوک
 
 class Command(BaseCommand):
     help = ("ساخت داده‌ی اولیه‌ی لازم (idempotent؛ داده‌ی موجود را خراب نمی‌کند): تخصص‌ها، طرف‌حساب داخلی، "
-            "انبار پیش‌فرض، گردش‌کار v2 (پیش‌فرض)، سیاست‌های اطلاع‌رسانی و در صورت دادن --margin قانون سود سراسری.")
+            "انبار پیش‌فرض، گردش‌کار v3 (پیش‌فرض)، سیاست‌های اطلاع‌رسانی و در صورت دادن --margin قانون سود سراسری.")
 
     def add_arguments(self, parser):
         parser.add_argument("--margin", default="", help="درصد سود سراسری؛ فقط اگر قانون سراسری فعالی نباشد ساخته می‌شود")
@@ -34,7 +34,7 @@ class Command(BaseCommand):
             else:
                 Warehouse.objects.create(name="انبار مرکزی", is_default=True)
 
-        call_command("setup_workflow_v2", make_default=True)
+        call_command("setup_workflow_v3", make_default=True)
         call_command("setup_notification_policies", force=True)
         from messenger.services import ensure_main_group
         ensure_main_group()

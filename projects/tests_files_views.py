@@ -9,7 +9,7 @@ from accounts.models import User
 from core.models import Party, Specialty
 from catalog.models import Service, Item
 from projects.models import Project, ProjectStage, StageKind, ProjectFile
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.stage_ops import add_stage_file, set_cut, cuts_summary
 
@@ -24,7 +24,7 @@ class StageFilesAndViewsTests(TestCase):
         self.other_tech = User.objects.create_user(username="other_v", password="pw", role=User.Role.EMPLOYEE)
         self.admin = User.objects.create_user(username="admin_v", password="pw", role=User.Role.ADMIN, is_staff=True)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )
@@ -89,6 +89,7 @@ class StageFilesAndViewsTests(TestCase):
 
         # Validation error without XHR header (standard redirect to new_project_form)
         resp_no_xhr = self.client.post(url, {
+            "project_name": "پروژه‌ی آزمایشی",
             "party_id": self.partner.id,
             "visit_date": "",
         })
@@ -97,6 +98,7 @@ class StageFilesAndViewsTests(TestCase):
 
         # Validation error via AJAX
         resp = self.client.post(url, {
+            "project_name": "پروژه‌ی آزمایشی",
             "party_id": self.partner.id,
             "visit_date": "",
         }, **{"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"})
@@ -106,6 +108,7 @@ class StageFilesAndViewsTests(TestCase):
 
         # Success via AJAX
         resp = self.client.post(url, {
+            "project_name": "پروژه‌ی آزمایشی",
             "party_id": self.partner.id,
             "visit_date": "1405/07/20",
             "notes": "پروژه ایجکس",
@@ -123,7 +126,7 @@ class StageFileUploadUrlRegressionTests(TestCase):
         self.sp_intake, _ = Specialty.objects.get_or_create(name="پذیرش")
         self.creator = User.objects.create_user(username="up_creator", password="pw", role=User.Role.EMPLOYEE)
         self.creator.specialties.add(self.sp_intake)
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_date=timezone.localdate(), issue_proforma=False,
         )
@@ -184,10 +187,11 @@ class NewProjectUploaderScriptRegressionTests(TestCase):
         creator = User.objects.create_user(username="np_creator2", password="pw", role=User.Role.EMPLOYEE)
         creator.specialties.add(sp_intake)
         party = Party.objects.create(name="کارفرمای آپلود جدید", phone_number="09121114455", is_client=True)
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         client = Client()
         client.force_login(creator)
         resp = client.post(reverse("projects:new_project_submit"), {
+            "project_name": "پروژه‌ی آزمایشی",
             "party_id": party.id, "visit_date": "1405/07/20",
         }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertEqual(resp.status_code, 200)

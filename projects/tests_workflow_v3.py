@@ -1,15 +1,17 @@
+from io import StringIO
 from decimal import Decimal
 from datetime import date
 from unittest import mock
 import jdatetime
 from django.test import TestCase
+from django.core.management import call_command
 from accounts.models import User
 from core.models import Party, Specialty
 from projects.models import (
     Project, ProjectStage, WorkflowTemplate, WorkflowStepTemplate,
     ProjectFile, StageKind, StageApproval,
 )
-from projects.workflow_v2 import build_workflow_v2, TEMPLATE_NAME
+from projects.workflow_v3 import build_workflow_v3, TEMPLATE_NAME, LEGACY_V2_NAME
 from projects.services import (
     create_project_from_technician_intake,
     _assign_stage_responsible,
@@ -45,7 +47,7 @@ class MonthlyCodeTests(TestCase):
             self.assertEqual(p2.code, "P0507-02")
 
 
-class WorkflowV2Tests(TestCase):
+class WorkflowV3Tests(TestCase):
     def setUp(self):
         self.internal = Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09120000001")
@@ -53,24 +55,25 @@ class WorkflowV2Tests(TestCase):
         self.tech = User.objects.create_user(username="tech1", password="pw", role=User.Role.EMPLOYEE)
         self.tech.specialties.add(self.intake_spec)
 
-    def test_build_workflow_v2_idempotent(self):
-        tmpl1, created1 = build_workflow_v2(make_default=True)
+    def test_build_workflow_v3_idempotent(self):
+        tmpl1, created1 = build_workflow_v3(make_default=True)
         self.assertTrue(created1)
-        self.assertEqual(tmpl1.steps.count(), 12)
+        self.assertEqual(tmpl1.steps.count(), 11)
         self.assertTrue(tmpl1.is_default)
-
-        tmpl2, created2 = build_workflow_v2(make_default=True)
+        tmpl2, created2 = build_workflow_v3(make_default=True)
         self.assertFalse(created2)
-        self.assertEqual(tmpl2.steps.count(), 12)
-
+        self.assertEqual(tmpl2.steps.count(), 11)
         steps = list(tmpl1.steps.order_by("order"))
-        self.assertEqual(steps[0].kind, StageKind.VISIT)
-        self.assertEqual(steps[1].kind, StageKind.PROFORMA)
-        self.assertEqual(steps[4].on_reject_go_to, steps[3])
+        self.assertEqual((steps[0].kind, steps[1].kind), (StageKind.VISIT, StageKind.PROFORMA))
+        self.assertTrue(steps[2].requires_payment_selection)
+        self.assertEqual(steps[3].kind, StageKind.DESIGN_INITIAL)
+        self.assertEqual(steps[-1].kind, StageKind.FINAL_REVIEW)
+        self.assertFalse(any(s.on_reject_go_to_id for s in steps))
+        self.assertNotIn("design_approval", StageKind.values)
 
     def test_make_default_unsets_other_templates(self):
         other = WorkflowTemplate.objects.create(name="دیگر", is_default=True)
-        v2, _ = build_workflow_v2(make_default=True)
+        v2, _ = build_workflow_v3(make_default=True)
         other.refresh_from_db()
         self.assertFalse(other.is_default)
         self.assertTrue(v2.is_default)
@@ -110,8 +113,8 @@ class WorkflowV2Tests(TestCase):
         self.assertIn(emp1, candidates)
         self.assertTrue(stage.candidate_users.filter(pk=emp1.pk).exists())
 
-    def test_new_intake_workflow_v2(self):
-        build_workflow_v2(make_default=True)
+    def test_new_intake_workflow_v3(self):
+        build_workflow_v3(make_default=True)
         visit_time = timezone_now = jdatetime.datetime.now()
         from django.utils import timezone
         now_dt = timezone.now()
@@ -145,7 +148,7 @@ class WorkflowV2Tests(TestCase):
         self.assertEqual({f.original_name for f in files}, {"map1.dwg", "map2.dwg", "map3.dwg"})
 
     def test_new_intake_without_visit_date_fails(self):
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         with self.assertRaises(ValueError):
             create_project_from_technician_intake(
                 created_by=self.tech,
@@ -168,7 +171,7 @@ class WorkflowV2Tests(TestCase):
             )
 
     def test_update_visit_date(self):
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         v_date = date(2026, 10, 11)
         project, _, _ = create_project_from_technician_intake(
             created_by=self.tech, party_id=self.partner.id, visit_date=v_date, issue_proforma=False,
@@ -185,3 +188,22 @@ class WorkflowV2Tests(TestCase):
 
         with self.assertRaises(ValueError):
             update_visit_at(project=project, actor=self.tech, visit_date=v_date)
+
+
+class WorkflowV3SetupTests(TestCase):
+    def test_command_builds_v3_and_drops_unused_v2(self):
+        old = WorkflowTemplate.objects.create(name=LEGACY_V2_NAME, is_default=True)
+        WorkflowStepTemplate.objects.create(template=old, order=1, title="قدیمی")
+        call_command("setup_workflow_v3", "--make-default", stdout=StringIO())
+        self.assertFalse(WorkflowTemplate.objects.filter(name=LEGACY_V2_NAME).exists())
+        v3 = WorkflowTemplate.objects.get(is_default=True)
+        self.assertEqual((v3.name, v3.steps.count()), (TEMPLATE_NAME, 11))
+
+    def test_used_v2_is_kept_but_no_longer_default(self):
+        old = WorkflowTemplate.objects.create(name=LEGACY_V2_NAME, is_default=True)
+        partner = Party.objects.create(name="شریک قدیمی", is_partner=True)
+        Project.objects.create(name="پروژه‌ی قدیمی", partner=partner, workflow_template=old)
+        call_command("setup_workflow_v3", "--make-default", stdout=StringIO())
+        old.refresh_from_db()
+        self.assertFalse(old.is_default)
+        self.assertEqual(WorkflowTemplate.objects.get(is_default=True).name, TEMPLATE_NAME)

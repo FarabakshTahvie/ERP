@@ -10,7 +10,7 @@ from core.models import Party, Specialty
 from projects.models import Project, ProjectStage, StageKind, ExtraShipment
 from projects.proforma import save_proforma, issue_proforma
 from projects.services import create_project_from_technician_intake, advance_stage
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 
 
 class P2RolesTests(TestCase):
@@ -30,7 +30,7 @@ class P2RolesTests(TestCase):
         self.item = Item.objects.create(name="کالای نقش", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("1000"))
         self.service = Service.objects.create(name="خدمت نقش")
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id,
             visit_date=timezone.localdate(), issue_proforma=False,
@@ -80,7 +80,7 @@ class P2ExtraLinesTests(TestCase):
         self.accountant.specialties.add(self.sp_accountant)
         self.service = Service.objects.create(name="سرویس کانال")
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.accountant, party_id=self.partner.id,
             visit_date=timezone.localdate(), issue_proforma=False,

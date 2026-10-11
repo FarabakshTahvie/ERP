@@ -12,6 +12,15 @@
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">نام پروژه</h2>
+            <div class="fb-field">
+                <label class="fb-label" for="project-name">نام پروژه (اجباری)</label>
+                <input type="text" id="project-name" name="project_name" required maxlength="255" autocomplete="off"
+                       placeholder="مثلاً: برج مسکونی نگین" class="input w-full">
+            </div>
+        </section>
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
             <h2 class="fb-section-title">طرف‌حساب</h2>
             <div class="fb-field">
                 <label class="fb-label" for="party-phone-search">شماره موبایل طرف‌حساب</label>

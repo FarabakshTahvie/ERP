@@ -16,7 +16,7 @@ from finance.services import approve_payment, cancel_invoice, create_customer_pa
 from projects.models import Project, ProjectStage
 from projects.proforma import issue_proforma, save_proforma
 from projects.services import advance_stage, create_project_from_technician_intake
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 
 
 class InvoiceBase(TestCase):
@@ -200,7 +200,7 @@ class ProformaIssueSentTests(TestCase):
         acc = User.objects.create_user(username="sent_acc", password="pw", role=User.Role.EMPLOYEE)
         acc.specialties.add(Specialty.objects.get_or_create(name="حسابدار")[0])
         service = Service.objects.create(name="خدمت ارسال")
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         project, _, _ = create_project_from_technician_intake(
             created_by=acc, party_id=partner.id, visit_date=timezone.localdate(), issue_proforma=False)
         advance_stage(project.stages.first(), actor=acc, new_status=ProjectStage.Status.DONE, comment="بازدید شد")

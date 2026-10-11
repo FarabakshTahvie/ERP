@@ -15,7 +15,7 @@ from projects.models import (
 )
 from projects.ops import ensure_install_lines, set_install_line
 from projects.services import advance_stage, create_project_from_technician_intake
-from projects.workflow_v2 import build_workflow_v2
+from projects.workflow_v3 import build_workflow_v3
 from finance.models import Invoice, InvoiceLine, Payment, AccountingEvent
 from finance import accounting
 from utils.test_helpers import make_image_file
@@ -47,7 +47,7 @@ class P2BaseScenarioMixin:
 
         self.service = Service.objects.create(name="خدمت فلنج‌کاری")
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id,
             visit_date=timezone.localdate(), issue_proforma=False,

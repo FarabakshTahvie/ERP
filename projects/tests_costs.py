@@ -242,11 +242,12 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertIn("visit_date", resp.content.decode("utf-8"))
 
     def test_view_new_project_submit_success(self):
-        from projects.workflow_v2 import build_workflow_v2
-        build_workflow_v2(make_default=True)
+        from projects.workflow_v3 import build_workflow_v3
+        build_workflow_v3(make_default=True)
         client = Client()
         client.force_login(self.creator)
         resp = client.post(reverse("projects:new_project_submit"), {
+            "project_name": "پروژه‌ی آزمایشی",
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
             "visit_date": "1405/07/20",
@@ -262,6 +263,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.force_login(self.creator)
         count_before = Project.objects.count()
         client.post(reverse("projects:new_project_submit"), {
+            "project_name": "پروژه‌ی آزمایشی",
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
             "visit_date": "",
@@ -273,6 +275,7 @@ class ProjectCostsAndContractTests(TestCase):
         client.force_login(self.creator)
         count_before = Project.objects.count()
         client.post(reverse("projects:new_project_submit"), {
+            "project_name": "پروژه‌ی آزمایشی",
             "phone_number_search": "09121111113",
             "party_id": self.party.id,
             "visit_date": "1405/13/01",

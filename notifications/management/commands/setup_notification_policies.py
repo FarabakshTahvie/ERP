@@ -6,7 +6,7 @@ from notifications.models import ChannelPolicy as C, NotificationPolicy, Notific
 # notifications/services.py::SMS_TEMPLATE_TYPES عوض می‌شود.
 DEFAULTS = {
     T.INVOICE_ISSUED: (C.SMS_ONLY, 15),
-    T.STAGE_APPROVAL_REQUEST: (C.PUSH_ONLY, 15),   # TODO(پیامک design_approval_request)
+    T.STAGE_APPROVAL_REQUEST: (C.PUSH_ONLY, 15),
     T.STAGE_ASSIGNED: (C.PUSH_ONLY, 15),
     T.PART_REQUEST: (C.PUSH_ONLY, 15),
     T.LOW_STOCK: (C.PUSH_ONLY, 15),

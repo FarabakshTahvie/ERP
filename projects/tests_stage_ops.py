@@ -11,8 +11,8 @@ from catalog.models import Service, Item, ItemCategory, MarginRule
 from inventory.models import Warehouse
 from inventory.services import receive_stock
 from projects.models import Project, ProjectStage, StageKind, ProjectFile, ProjectService, ProjectServiceMaterial
-from projects.workflow_v2 import build_workflow_v2
-from projects.services import create_project_from_technician_intake, advance_stage
+from projects.workflow_v3 import build_workflow_v3
+from projects.services import create_project_from_technician_intake, advance_stage, client_preview_files
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import (
     add_stage_file, stage_completion_problem, complete_stage,
@@ -20,7 +20,7 @@ from projects.stage_ops import (
 )
 
 
-class DesignApprovalDecisionTests(TestCase):
+class DesignPreviewDecisionTests(TestCase):
     def setUp(self):
         self.partner = Party.objects.create(name="شریک آزمایشی", is_partner=True, phone_number="09121112233")
         self.intake_spec = Specialty.objects.create(name="پذیرش")
@@ -34,7 +34,7 @@ class DesignApprovalDecisionTests(TestCase):
         self.designer = User.objects.create_user(username="designer", password="pw", role=User.Role.EMPLOYEE)
         self.designer.specialties.add(self.design_spec)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )
@@ -71,39 +71,46 @@ class DesignApprovalDecisionTests(TestCase):
         add_stage_file(stage=stage, uploaded=SimpleUploadedFile("پیش‌نمایش.pdf", b"x"), uploader=self.designer)
         return stage
 
-    def test_no_approval_skips_approval_stage_and_hides_it(self):
-        complete_stage(stage=self._stage(), actor=self.designer, comment="تمام", needs_approval=False)
-        approval = self.project.stages.get(kind=StageKind.DESIGN_APPROVAL)
-        self.assertEqual(approval.status, ProjectStage.Status.DONE)
-        self.assertFalse(approval.client_visible)
-        self.assertFalse(approval.approvals.exists())
-        self.assertEqual(self.project.stages.get(order=6).status, ProjectStage.Status.IN_PROGRESS)
-
-    def test_needs_approval_none_is_rejected_and_yes_goes_to_customer(self):
+    def test_unticked_completes_and_shows_nothing(self):
         stage = self._stage()
-        with self.assertRaises(ValueError):
-            complete_stage(stage=stage, actor=self.designer, comment="تمام", needs_approval=None)
-        complete_stage(stage=stage, actor=self.designer, comment="تمام", needs_approval=True)
-        approval = self.project.stages.get(kind=StageKind.DESIGN_APPROVAL)
-        self.assertEqual(approval.status, ProjectStage.Status.WAITING_APPROVAL)
-        self.assertTrue(approval.approvals.filter(decision="pending").exists())
+        complete_stage(stage=stage, actor=self.designer, comment="تمام")
+        stage.refresh_from_db()
+        self.assertEqual(stage.status, ProjectStage.Status.DONE)
+        self.assertFalse(stage.client_preview)
+        self.assertEqual(client_preview_files(stage), [])
+        self.assertEqual(self.project.stages.get(order=5).status, ProjectStage.Status.IN_PROGRESS)
 
-
-    def test_rejection_path_and_second_rejection_decision(self):
-        stage = self._stage()
-        complete_stage(stage=stage, actor=self.designer, comment="ارسال برای مشتری", needs_approval=True)
-        approval = self.project.stages.get(kind=StageKind.DESIGN_APPROVAL)
-
-        # Reject approval stage
-        advance_stage(approval, actor=self.creator, new_status=ProjectStage.Status.REJECTED, comment="رد شد.")
+    def test_ticked_needs_a_previewable_file(self):
+        stage = self.project.stages.get(kind=StageKind.DESIGN_INITIAL)
+        add_stage_file(stage=stage, uploaded=SimpleUploadedFile("فقط.dwg", b"x"), uploader=self.designer)
+        self.assertIsNone(stage_completion_problem(stage))
+        with self.assertRaises(ValueError) as cm:
+            complete_stage(stage=stage, actor=self.designer, comment="تمام", show_to_client=True)
+        self.assertIn("عکس یا PDF", str(cm.exception))
         stage.refresh_from_db()
         self.assertEqual(stage.status, ProjectStage.Status.IN_PROGRESS)
 
-        # Complete design again with needs_approval=False
-        complete_stage(stage=stage, actor=self.designer, comment="اصلاح شد بدون تایید", needs_approval=False)
-        approval.refresh_from_db()
-        self.assertEqual(approval.status, ProjectStage.Status.DONE)
-        self.assertFalse(approval.client_visible)
+    def test_ticked_marks_stage_and_exposes_every_file_except_gcode(self):
+        stage = self._stage()
+        add_stage_file(stage=stage, uploaded=SimpleUploadedFile("cut.nc", b"x"), uploader=self.designer)
+        complete_stage(stage=stage, actor=self.designer, comment="تمام", show_to_client=True)
+        stage.refresh_from_db()
+        self.assertTrue(stage.client_preview)
+        self.assertEqual({f.original_name for f in client_preview_files(stage)}, {"نقشه ۱.dwg", "پیش‌نمایش.pdf"})
+
+    def test_no_customer_approval_is_created_and_project_flows_on(self):
+        stage = self._stage()
+        complete_stage(stage=stage, actor=self.designer, comment="تمام", show_to_client=True)
+        self.assertFalse(self.project.stages.filter(status=ProjectStage.Status.WAITING_APPROVAL).exists())
+        self.assertEqual(self.project.stages.get(order=5).status, ProjectStage.Status.IN_PROGRESS)
+
+    def test_view_checkbox_sets_preview(self):
+        stage = self._stage()
+        c = Client()
+        c.force_login(self.designer)
+        c.post(reverse("projects:my_task_complete", args=[stage.id]), {"comment": "تمام", "show_to_client": "1"})
+        stage.refresh_from_db()
+        self.assertTrue(stage.client_preview)
 
 
 class StageOpsDetailedTests(TestCase):
@@ -116,7 +123,7 @@ class StageOpsDetailedTests(TestCase):
         self.other_tech = User.objects.create_user(username="other_ops", password="pw", role=User.Role.EMPLOYEE)
         self.admin = User.objects.create_user(username="admin_ops", password="pw", role=User.Role.ADMIN, is_staff=True)
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )
@@ -257,7 +264,7 @@ class SnapshotImmutabilityTests(TestCase):
         self.item = Item.objects.create(name="ورق گالوانیزه", moving_average_cost=Decimal("200000"))
         MarginRule.objects.create(scope="global", value_type="percent", value=Decimal("20"), valid_from=timezone.now() - timezone.timedelta(days=1))
 
-        build_workflow_v2(make_default=True)
+        build_workflow_v3(make_default=True)
         self.project, _, _ = create_project_from_technician_intake(
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )

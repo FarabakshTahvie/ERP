@@ -23,13 +23,13 @@ from catalog.services import has_global_margin, resolve_margin_percents
 from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile
 from .stage_ops import can_upload_to_stage, add_stage_file, upload_requirement, complete_stage, cut_files, cuts_summary, set_cut
 from .services import (
-    approval_design_files,
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
     decide_stage_approval, can_edit_project, can_edit_pricing, project_prices_editable,
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
     update_visit_date, user_is_accountant, user_can_access_accounting,
+    client_preview_files,
 )
 from .proforma import (
     parse_service_rows, parse_extra_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
@@ -454,8 +454,7 @@ def portal_stage_approval(request, approval_id):
 
     def render_page(**extra):
         ctx = {"approval": approval, "stage": stage, "invoice": invoice,
-               "needs_payment": needs_payment, "readonly": not is_owner,
-               "design_files": approval_design_files(stage)}
+               "needs_payment": needs_payment, "readonly": not is_owner}
         ctx.update(extra)
         return render(request, "projects/portal_stage_approval.html", ctx)
 
@@ -519,23 +518,6 @@ def portal_stage_approval(request, approval_id):
 
 
 @login_required
-def portal_stage_file(request, approval_id, file_id):
-    from core.capabilities import can
-    approval = get_object_or_404(StageApproval.objects.select_related("stage__project"), pk=approval_id)
-    party = getattr(request.user, "party", None)
-    is_owner = bool(party and party.id == approval.sent_to_party_id)
-    if not is_owner and not can(request.user, "accounting.access"):
-        raise Http404
-    f = next((x for x in approval_design_files(approval.stage) if x.pk == file_id), None)
-    if f is None:
-        raise Http404
-    inline = f.kind in ("pdf", "image")
-    response = FileResponse(f.file.open("rb"), as_attachment=not inline, filename=f.display_name)
-    response["X-Content-Type-Options"] = "nosniff"
-    return response
-
-
-@login_required
 def project_progress(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     party = getattr(request.user, "party", None)
@@ -552,8 +534,27 @@ def project_progress(request, project_id):
             "hint": _duration_hint(s.step_template.estimated_duration_hours),
             "action_url": action_url,
             "action_label": action_label,
+            "files": [{
+                "name": f.display_name, "kind": f.kind, "inline": f.kind in ("pdf", "image"),
+                "url": reverse("projects:portal_project_file", args=[project.id, f.id]),
+            } for f in client_preview_files(s)],
         })
     return render(request, "projects/portal_progress.html", {"project": project, "stages": stages})
+
+
+@login_required
+def portal_project_file(request, project_id, file_id):
+    project = get_object_or_404(Project, id=project_id)
+    party = getattr(request.user, "party", None)
+    if not party or party.id not in (project.partner_id, project.owner_id):
+        raise Http404
+    f = ProjectFile.objects.filter(pk=file_id, stage__project=project).select_related("stage").first()
+    if f is None or f not in client_preview_files(f.stage):
+        raise Http404
+    inline = f.kind in ("pdf", "image")
+    response = FileResponse(f.file.open("rb"), as_attachment=not inline, filename=f.display_name)
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @login_required
@@ -618,10 +619,9 @@ def cut_set(request, file_id):
 def my_task_complete(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     if request.method == "POST":
-        needs_approval = {"1": True, "0": False}.get(request.POST.get("needs_approval"))
         try:
             complete_stage(stage=stage, actor=request.user, comment=request.POST.get("comment", "").strip(),
-                           needs_approval=needs_approval)
+                           show_to_client=request.POST.get("show_to_client") == "1")
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:my_task_detail", stage_id=stage.id)
@@ -754,6 +754,10 @@ def new_project_submit(request):
             return JsonResponse({"ok": True, "redirect": url, "upload_url": upload_url, "project_url": project_url})
         return redirect(url)
 
+    project_name = " ".join((request.POST.get("project_name") or "").split())
+    if not project_name:
+        return fail("نام پروژه را بنویسید.")
+
     party_id = request.POST.get("party_id") or None
     party_data = None
     if not party_id:
@@ -808,6 +812,7 @@ def new_project_submit(request):
             visit_date=visit_date,
             uploaded_files=request.FILES.getlist("project_files"),
             issue_proforma=False,
+            project_name=project_name,
         )
         messages.success(request, "پروژه ثبت شد.")
         first = project.stages.order_by("order").first()

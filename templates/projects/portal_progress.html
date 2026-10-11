@@ -42,6 +42,24 @@
                     {% if stage.action_url %}
                     <a href="{{ stage.action_url }}" class="btn btn-primary btn-sm self-start">{{ stage.action_label }}</a>
                     {% endif %}
+                    {% if stage.files %}
+                    <p class="fb-hint">برای دیدن طرح روی فایل بزنید؛ نیازی به تایید شما نیست.</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {% for f in stage.files %}
+                        <div class="fb-inset flex flex-col gap-2 min-w-0">
+                            {% if f.kind == 'image' %}
+                            <a href="{{ f.url }}" target="_blank" rel="noopener">
+                                <img src="{{ f.url }}" alt="{{ f.name }}" loading="lazy" class="w-full h-24 object-cover rounded-field bg-base-300">
+                            </a>
+                            {% else %}
+                            <div class="w-full h-24 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>
+                            {% endif %}
+                            <span class="text-xs break-all line-clamp-2" dir="auto">{{ f.name }}</span>
+                            <a href="{{ f.url }}" {% if f.inline %}target="_blank" rel="noopener"{% endif %} class="btn btn-soft btn-xs">{% if f.inline %}مشاهده{% else %}دانلود{% endif %}</a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </li>
             {% empty %}

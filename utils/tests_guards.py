@@ -263,4 +263,38 @@ class SourceGuardTests(TestCase):
 
         self.assertEqual(violations, [])
 
+    def test_money_inputs_accept_digits_only(self):
+        fees = (BASE / "templates" / "projects" / "partials" / "proforma_fees.html").read_text(encoding="utf-8")
+        for name in ("installation_fee", "shipping_fee", "extra_fee"):
+            tag = re.search(r'<input[^>]*name="%s"[^>]*>' % name, fees).group(0)
+            self.assertIn("data-money", tag, name)
+            self.assertIn('maxlength="12"', tag, name)
+            self.assertNotIn('type="number"', tag, name)
+        js = (BASE / "static" / "js" / "money_input.js").read_text(encoding="utf-8")
+        self.assertIn("input[data-money]", js)
+        self.assertIn("input[data-decimal]", js)
+        self.assertIn("}, true);", js)           # فاز capture
+        editor = (BASE / "static" / "js" / "line_editor.js").read_text(encoding="utf-8")
+        self.assertIn("data-money", editor)
+        self.assertIn("data-decimal", editor)
+        base = (BASE / "templates" / "base.html").read_text(encoding="utf-8")
+        self.assertIn("js/money_input.js", base)
+        css = (BASE / "static" / "src" / "input.css").read_text(encoding="utf-8")
+        self.assertIn("money_input.js", css)
+
+    def test_design_approval_leftovers_are_gone(self):
+        words = ("DESIGN_APPROVAL", "design_approval", "approval_design_files", "portal_stage_file",
+                 "needs_approval", "workflow_v2", "setup_workflow_v2", "build_workflow_v2", "_require_v2_template")
+        problems = []
+        files = list(BASE.rglob("*.py")) + list((BASE / "templates").rglob("*.html"))
+        for path in files:
+            if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
+                    or path.name.startswith("test")):
+                continue
+            text = path.read_text(encoding="utf-8")
+            for w in words:
+                if w in text:
+                    problems.append(f"{path.relative_to(BASE)}: {w}")
+        self.assertEqual(problems, [])
+
 

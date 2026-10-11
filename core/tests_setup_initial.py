@@ -23,7 +23,7 @@ class SetupInitialDataTests(TestCase):
         self.assertEqual(Party.objects.filter(is_internal=True).count(), 1)
         self.assertEqual(NotificationPolicy.objects.count(), 7)
         tpl = WorkflowTemplate.objects.get(is_default=True)
-        self.assertEqual((tpl.name, tpl.steps.count()), ("گردش‌کار v2", 12))
+        self.assertEqual((tpl.name, tpl.steps.count()), ("گردش‌کار v3", 11))
         self.assertTrue(Specialty.objects.filter(name__in=["حسابدار", "انباردار", "پذیرش"]).count() == 3)
         self.assertEqual(MarginRule.objects.count(), 0)
 
