@@ -340,12 +340,6 @@ media-controller.msgr-player {
   aspect-ratio: 16 / 9;
   background: #000;
 }
-media-controller.msgr-player-video[mediaisfullscreen],
-media-controller.msgr-player-video:fullscreen {
-  aspect-ratio: auto !important;
-  max-width: 100vw !important;
-  max-height: 100vh !important;
-}
 media-controller.msgr-player-video video { object-fit: contain; }
 
 /* پخش‌کننده‌ی پیام‌رسان (M5b): صوت بدون زمینه‌ی سیاه، شکل موج، فاصله‌ی زمان */

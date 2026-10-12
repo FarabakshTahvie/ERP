@@ -111,6 +111,5 @@ class PlayerPolishSourceTests(SimpleTestCase):
     def test_audio_background_is_transparent_and_wave_styles_exist(self):
         css = read("static", "src", "input.css")
         for needle in ("--media-background-color: transparent", ".msgr-wave {", ".msgr-wave-bar {",
-                       ".msgr-wave-on", "--media-control-padding: 0 6px",
-                       "media-controller.msgr-player-video[mediaisfullscreen]", "max-height: 100vh !important"):
+                       ".msgr-wave-on", "--media-control-padding: 0 6px"):
             self.assertIn(needle, css, needle)
