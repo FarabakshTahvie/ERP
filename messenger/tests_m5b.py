@@ -112,5 +112,5 @@ class PlayerPolishSourceTests(SimpleTestCase):
         css = read("static", "src", "input.css")
         for needle in ("--media-background-color: transparent", ".msgr-wave {", ".msgr-wave-bar {",
                        ".msgr-wave-on", "--media-control-padding: 0 6px",
-                       "media-controller.msgr-player-video[mediaisfullscreen]", "aspect-ratio: auto !important"):
+                       "media-controller.msgr-player-video[mediaisfullscreen]", "max-height: 100vh !important"):
             self.assertIn(needle, css, needle)
