@@ -341,3 +341,36 @@ media-controller.msgr-player {
   background: #000;
 }
 media-controller.msgr-player-video video { object-fit: contain; }
+
+/* پخش‌کننده‌ی پیام‌رسان (M5b): صوت بدون زمینه‌ی سیاه، شکل موج، فاصله‌ی زمان */
+media-controller.msgr-player:not(.msgr-player-video) {
+  --media-background-color: transparent;
+  background: transparent;
+}
+media-time-display.msgr-time {
+  --media-control-padding: 0 6px;
+}
+.msgr-wave {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  color: var(--msgr-fg);
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  border-radius: var(--radius-field);
+}
+.msgr-wave:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.msgr-wave-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.msgr-wave-bar.msgr-wave-on { opacity: 1; }

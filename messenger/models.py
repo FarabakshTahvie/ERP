@@ -120,6 +120,7 @@ class Attachment(models.Model):
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
     duration = models.PositiveSmallIntegerField(null=True, blank=True)
+    peaks = models.JSONField(null=True, blank=True)     # شکل موج صوت: ۸ تا ۶۴ عدد ۰ تا ۱۰۰؛ فقط ظاهری
     order = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

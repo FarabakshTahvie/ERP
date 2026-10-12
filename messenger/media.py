@@ -18,6 +18,9 @@ MAX_VOICE_SECONDS = 300
 UPLOAD_LIMIT, UPLOAD_WINDOW = 40, 60  # حداکثر ۴۰ آپلود در دقیقه برای هر کاربر
 ORPHAN_HOURS = 24
 THUMB_SIDE = 480
+MAX_POSTER_BYTES = 1024 * 1024        # عکس شاخص ویدیو (ساخته‌ی مرورگر) فقط تزئینی است
+MAX_POSTER_PIXELS = 4_000_000
+MIN_PEAKS, MAX_PEAKS = 8, 64
 
 IMAGE_EXT = {"jpg", "jpeg", "png", "webp", "gif", "bmp"}
 VIDEO_EXT = {"mp4", "webm", "mov", "m4v"}
@@ -56,7 +59,7 @@ def serialize_attachment(a):
     return {
         "id": a.id, "kind": a.kind, "name": a.original_name, "size": a.size,
         "url": media_url(a.file.name), "thumb": media_url(a.thumb.name) if a.thumb else "",
-        "w": a.width, "h": a.height, "dur": a.duration,
+        "w": a.width, "h": a.height, "dur": a.duration, "peaks": a.peaks or [],
     }
 
 
@@ -119,6 +122,44 @@ def _image_info(f):
         raise ValueError("فایل بارگذاری‌شده تصویر معتبری نیست.")
 
 
+def _poster_thumb(poster):
+    """عکس شاخص ویدیو (ساخته‌ی مرورگر فرستنده) ← webp کوچک. فقط تزئینی است؛ خراب یا بزرگ باشد بی‌صدا نادیده گرفته می‌شود."""
+    if poster is None or poster.size > MAX_POSTER_BYTES:
+        return None
+    try:
+        poster.seek(0)
+        img = Image.open(poster)
+        if img.width * img.height > MAX_POSTER_PIXELS:
+            return None
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, format="WEBP", quality=75, method=4)
+        return ContentFile(buf.getvalue(), name="t.webp")
+    except _BAD_IMAGE:
+        return None
+
+
+def _clean_size(width, height):
+    """ابعاد ویدیو (از مرورگر)؛ نامعتبر ← (None, None)."""
+    try:
+        w, h = int(width), int(height)
+    except (TypeError, ValueError):
+        return None, None
+    return (w, h) if 1 <= w <= 10000 and 1 <= h <= 10000 else (None, None)
+
+
+def _clean_peaks(raw):
+    """شکل موج: رشته‌ی اعداد ۰ تا ۱۰۰ با کاما، ۸ تا ۶۴ عدد؛ نامعتبر ← None (نادیده)."""
+    try:
+        vals = [int(x) for x in str(raw or "").split(",")]
+    except ValueError:
+        return None
+    if not (MIN_PEAKS <= len(vals) <= MAX_PEAKS) or any(v < 0 or v > 100 for v in vals):
+        return None
+    return vals
+
+
 def delete_attachment(a):
     a.file.delete(save=False)
     if a.thumb:
@@ -137,7 +178,8 @@ def delete_for_message(message):
         delete_attachment(a)
 
 
-def save_upload(user, conv, uploaded, *, voice=False, duration=None):
+def save_upload(user, conv, uploaded, *, voice=False, duration=None, poster=None, width=None, height=None,
+                peaks=None):
     """آپلود یک فایل به‌صورت پیوست یتیم. عضویت و اجازه‌ی ارسال را فراخوان چک کرده است."""
     _rate(user)
     if uploaded is None:
@@ -146,7 +188,7 @@ def save_upload(user, conv, uploaded, *, voice=False, duration=None):
         raise ValueError("حجم فایل بیشتر از ۲۴ مگابایت است.")
     name = os.path.basename((uploaded.name or "").replace("\\", "/")).strip()[:255] or "file"
     kind = kind_for(name, voice)
-    dur = w = h = thumb = None
+    dur = w = h = thumb = wave = None
     if kind == Attachment.Kind.VOICE:
         try:
             dur = int(duration)
@@ -156,9 +198,14 @@ def save_upload(user, conv, uploaded, *, voice=False, duration=None):
     if kind == Attachment.Kind.IMAGE:
         uploaded, name = optimize_named(uploaded, name)
         w, h, thumb = _image_info(uploaded)
+    elif kind == Attachment.Kind.VIDEO:
+        w, h = _clean_size(width, height)
+        thumb = _poster_thumb(poster)
+    if kind in (Attachment.Kind.AUDIO, Attachment.Kind.VOICE):
+        wave = _clean_peaks(peaks)
     cleanup_orphans()
     att = Attachment(conversation=conv, uploader=user, kind=kind, original_name=name,
-                     size=uploaded.size, width=w, height=h, duration=dur)
+                     size=uploaded.size, width=w, height=h, duration=dur, peaks=wave)
     att.file.save(name, uploaded, save=False)
     if thumb is not None:
         att.thumb.save("t.webp", thumb, save=False)

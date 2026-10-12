@@ -48,9 +48,79 @@
     Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
     return e;
   }
+  // اعداد زمان (داخل shadowRoot خود کتابخانه) فارسی می‌شوند؛ فقط متن عوض می‌شود
+  function persianDigits(el) {
+    function convert(root) {
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), node;
+      while ((node = walker.nextNode())) {
+        if (/[0-9]/.test(node.nodeValue)) node.nodeValue = M.fa(node.nodeValue);
+      }
+    }
+    [el.shadowRoot, el].forEach(function (root) {
+      if (!root) return;
+      convert(root);
+      new MutationObserver(function () { convert(root); })
+        .observe(root, { childList: true, characterData: true, subtree: true });
+    });
+  }
+  function faTag(name, attrs) {
+    var e = tag(name, attrs);
+    persianDigits(e);
+    return e;
+  }
+
+  // شکل موج قابل‌کلیک و کشیدن؛ مستقیم روی خود عنصر صوت کار می‌کند
+  function waveSeek(a, f) {
+    var wave = M.el('div', 'msgr-wave');
+    wave.setAttribute('role', 'slider');
+    wave.setAttribute('tabindex', '0');
+    wave.setAttribute('aria-label', 'جابه‌جایی در پیام صوتی');
+    wave.setAttribute('aria-valuemin', '0');
+    var bars = f.peaks.map(function (p) {
+      var b = M.el('span', 'msgr-wave-bar');
+      b.style.height = Math.max(12, Math.min(100, p)) + '%';
+      wave.appendChild(b);
+      return b;
+    });
+    function total() { return isFinite(a.duration) && a.duration > 0 ? a.duration : (f.dur || 0); }
+    function paintWave() {
+      var t = total(), r = t ? Math.min(1, a.currentTime / t) : 0, lit = Math.round(r * bars.length);
+      bars.forEach(function (b, i) { b.classList.toggle('msgr-wave-on', i < lit); });
+      wave.setAttribute('aria-valuemax', String(Math.round(t)));
+      wave.setAttribute('aria-valuenow', String(Math.round(a.currentTime)));
+    }
+    function seekTo(e) {
+      var t = total();
+      if (!t) return;
+      var rect = wave.getBoundingClientRect();
+      a.currentTime = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * t;
+      paintWave();
+    }
+    var drag = false;
+    wave.addEventListener('pointerdown', function (e) {
+      drag = true;
+      try { wave.setPointerCapture(e.pointerId); } catch (err) {}
+      seekTo(e);
+    });
+    wave.addEventListener('pointermove', function (e) { if (drag) seekTo(e); });
+    ['pointerup', 'pointercancel'].forEach(function (ev) { wave.addEventListener(ev, function () { drag = false; }); });
+    wave.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      var t = total();
+      if (t) { a.currentTime = Math.min(t, Math.max(0, a.currentTime + (e.key === 'ArrowRight' ? 5 : -5))); paintWave(); }
+    });
+    ['timeupdate', 'seeked', 'loadedmetadata', 'durationchange', 'ended'].forEach(function (ev) {
+      a.addEventListener(ev, paintWave);
+    });
+    paintWave();
+    return wave;
+  }
+
   function videoPlayer(f) {
     var v = M.el('video');
     v.preload = 'metadata'; v.playsInline = true; v.src = f.url;
+    if (f.thumb) v.poster = f.thumb;
     if (!hasPlayer()) {
       v.className = 'w-full max-h-72 rounded-field bg-black';
       v.controls = true;
@@ -59,12 +129,13 @@
     v.setAttribute('slot', 'media');
     var ctl = tag('media-controller', { nohotkeys: '' });
     ctl.className = 'msgr-player msgr-player-video';
+    if (f.w && f.h) ctl.style.aspectRatio = Math.min(1.78, Math.max(0.7, f.w / f.h)).toFixed(3);
     ctl.appendChild(v);
     ctl.appendChild(tag('media-loading-indicator', { slot: 'centered-chrome' }));
     var bar = tag('media-control-bar');
     bar.appendChild(tag('media-play-button'));
     bar.appendChild(tag('media-time-range'));
-    bar.appendChild(tag('media-time-display', { showduration: '' }));
+    bar.appendChild(faTag('media-time-display', { showduration: '' }));
     bar.appendChild(tag('media-mute-button'));
     bar.appendChild(tag('media-fullscreen-button'));
     ctl.appendChild(bar);
@@ -84,9 +155,14 @@
     ctl.appendChild(a);
     var bar = tag('media-control-bar');
     bar.appendChild(tag('media-play-button'));
-    bar.appendChild(tag('media-time-display'));
-    bar.appendChild(tag('media-time-range'));
-    bar.appendChild(tag('media-duration-display'));
+    if (f.peaks && f.peaks.length >= 8) {
+      bar.appendChild(waveSeek(a, f));
+      bar.appendChild(faTag('media-time-display', { showduration: '', class: 'msgr-time' }));
+    } else {
+      bar.appendChild(faTag('media-time-display'));
+      bar.appendChild(tag('media-time-range'));
+      bar.appendChild(faTag('media-duration-display'));
+    }
     ctl.appendChild(bar);
     return ctl;
   }
@@ -200,6 +276,82 @@
     });
   }
 
+  // عکس شاخص ویدیو: یک فریم نزدیک ابتدا، حداکثر ۴۸۰ پیکسل. شکست یا فریم سیاه = بدون عکس (ارسال مختل نمی‌شود)
+  function videoPoster(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file), v = document.createElement('video'), done = false, timer;
+      function finish(result) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        v.removeAttribute('src');
+        v.load();
+        URL.revokeObjectURL(url);
+        resolve(result);
+      }
+      timer = setTimeout(function () { finish(null); }, 8000);
+      v.muted = true; v.playsInline = true; v.preload = 'metadata';
+      v.onerror = function () { finish(null); };
+      v.onloadedmetadata = function () {
+        var d = isFinite(v.duration) ? v.duration : 0;
+        v.currentTime = d > 0 ? Math.min(1, d / 10) : 0.1;
+      };
+      v.onseeked = function () {
+        try {
+          var w = v.videoWidth, h = v.videoHeight;
+          if (!w || !h) return finish(null);
+          var probe = document.createElement('canvas'), pg, i;
+          probe.width = probe.height = 8;
+          pg = probe.getContext('2d');
+          pg.drawImage(v, 0, 0, 8, 8);
+          var px = pg.getImageData(0, 0, 8, 8).data, sum = 0;
+          for (i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
+          if (sum / 192 < 6) return finish(null);
+          var k = Math.min(1, 480 / Math.max(w, h)), c = document.createElement('canvas');
+          c.width = Math.round(w * k); c.height = Math.round(h * k);
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          c.toBlob(function (b) { finish(b ? { blob: b, w: w, h: h } : null); }, 'image/jpeg', 0.8);
+        } catch (e) { finish(null); }
+      };
+      v.src = url;
+    });
+  }
+
+  var PEAK_BARS = 32, PEAK_MAX_BYTES = 5 * 1024 * 1024;
+
+  // شکل موج: میانگین دامنه در ۳۲ بازه (۰ تا ۱۰۰). فایل بزرگ یا ناپشتیبانی‌شده = بدون شکل موج
+  function audioPeaks(file) {
+    var Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx || !file.arrayBuffer || file.size > PEAK_MAX_BYTES) return Promise.resolve(null);
+    return file.arrayBuffer().then(function (buf) {
+      var ctx;
+      try { ctx = new Ctx(1, 1, 16000); } catch (e) { ctx = new Ctx(1, 1, 44100); }
+      return new Promise(function (resolve, reject) {
+        var timer = setTimeout(reject, 10000);
+        var ok = function (x) { clearTimeout(timer); resolve(x); };
+        var fail = function (e) { clearTimeout(timer); reject(e); };
+        var p = ctx.decodeAudioData(buf, ok, fail);
+        if (p && p.catch) p.catch(fail);
+      });
+    }).then(function (audio) {
+      var chans = [], c, i, j;
+      for (c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
+      var len = audio.length, per = Math.floor(len / PEAK_BARS), out = [], max = 0;
+      if (per < 64) return null;
+      for (i = 0; i < PEAK_BARS; i++) {
+        var from = i * per, to = i === PEAK_BARS - 1 ? len : from + per, sum = 0, n = 0;
+        for (j = from; j < to; j += 4) {
+          for (c = 0; c < chans.length; c++) { sum += Math.abs(chans[c][j]); n++; }
+        }
+        var avg = n ? sum / n : 0;
+        out.push(avg);
+        if (avg > max) max = avg;
+      }
+      if (!max) return null;
+      return out.map(function (v) { return Math.round(Math.pow(v / max, 0.6) * 100); });
+    }).catch(function () { return null; });
+  }
+
   function buildRow(it) {
     var row = M.el('div', 'fb-inset flex items-center gap-2');
     var thumb;
@@ -264,6 +416,8 @@
     var fd = new FormData();
     fd.append('file', it.file, it.file.name);
     if (it.voice) { fd.append('voice', '1'); fd.append('duration', String(it.dur || 1)); }
+    if (it.poster) { fd.append('poster', it.poster.blob, 'poster.jpg'); fd.append('width', String(it.poster.w)); fd.append('height', String(it.poster.h)); }
+    if (it.peaks) fd.append('peaks', it.peaks.join(','));
     window.fbSend(ds.uploadUrl, fd, window.FB_CSRF, function (p) { it.pct = p; paint(it); }).then(function (res) {
       if (it.removed) return;
       if (res.ok) { it.state = 'done'; it.attId = res.attachment.id; it.pct = 100; }
@@ -281,7 +435,12 @@
         it.state = 'error'; it.fatal = true; it.err = 'حجم فایل بیشتر از ۲۴ مگابایت است.';
         paint(it); return;
       }
-      it.state = 'ready'; paint(it); pump();
+      var extra = it.kind === 'video' ? videoPoster(f) : (it.kind === 'audio' ? audioPeaks(f) : Promise.resolve(null));
+      extra.then(function (x) {
+        if (it.removed) return;
+        if (it.kind === 'video') it.poster = x; else if (it.kind === 'audio') it.peaks = x;
+        it.state = 'ready'; paint(it); pump();
+      });
     });
   }
 

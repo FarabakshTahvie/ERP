@@ -113,7 +113,9 @@ def api_upload(request, conv_id):
     def run():
         services.check_can_post(request.user, conv)
         att = media.save_upload(request.user, conv, request.FILES.get("file"),
-                                voice=request.POST.get("voice") == "1", duration=request.POST.get("duration"))
+                                voice=request.POST.get("voice") == "1", duration=request.POST.get("duration"),
+                                poster=request.FILES.get("poster"), width=request.POST.get("width"),
+                                height=request.POST.get("height"), peaks=request.POST.get("peaks"))
         return {"attachment": media.serialize_attachment(att)}
     return _json(run)
 
