@@ -21,7 +21,16 @@ from core.models import Party
 from catalog.models import Service, Item
 from catalog.services import has_global_margin, resolve_margin_percents
 from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile
-from .stage_ops import can_upload_to_stage, add_stage_file, upload_requirement, complete_stage, cut_files, cuts_summary, set_cut
+from .stage_ops import (
+    can_upload_to_stage,
+    add_stage_file,
+    upload_requirement,
+    complete_stage,
+    cut_files,
+    cuts_summary,
+    set_cut,
+    prepare_voice,
+)
 from .services import (
     claim_stage, advance_stage, transfer_stage, get_transfer_candidates,
     create_project_from_technician_intake, user_can_create_projects,
@@ -620,8 +629,10 @@ def my_task_complete(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     if request.method == "POST":
         try:
+            voice = prepare_voice(request.FILES.get("voice"), request.POST.get("voice_duration"),
+                                  request.POST.get("voice_peaks"))
             complete_stage(stage=stage, actor=request.user, comment=request.POST.get("comment", "").strip(),
-                           show_to_client=request.POST.get("show_to_client") == "1")
+                           show_to_client=request.POST.get("show_to_client") == "1", voice=voice)
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:my_task_detail", stage_id=stage.id)

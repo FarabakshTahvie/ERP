@@ -278,6 +278,10 @@ class ProjectStage(TimeStampedModel):
         return f"{self.project.name} / {self.title}"
 
 
+def stage_voice_path(instance, filename):
+    return f"projects/{instance.stage.project_id}/voice/{filename}"
+
+
 class StageEvent(models.Model):
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="events", verbose_name="مرحله")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="stage_events", verbose_name="انجام‌دهنده")
@@ -285,6 +289,9 @@ class StageEvent(models.Model):
     to_status = models.CharField(max_length=20, verbose_name="وضعیت جدید")
     comment = models.TextField(blank=True, verbose_name="توضیح")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان")
+    voice = models.FileField(upload_to=stage_voice_path, blank=True, verbose_name="پیام صوتی")
+    voice_duration = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="مدت پیام صوتی (ثانیه)")
+    voice_peaks = models.CharField(max_length=256, blank=True, verbose_name="شکل موج")
 
     class Meta:
         verbose_name = "رویداد مرحله"
