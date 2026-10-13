@@ -141,7 +141,7 @@
                 {% elif s.kind == 'final_review' %}
                 <a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
                 {% else %}
-                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3">
+                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3" data-complete-form>
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
                     {% if s.kind == 'design_initial' %}
@@ -151,6 +151,7 @@
                     </div>
                     {% endif %}
                     <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>
+                    <p class="fb-error hidden" data-complete-error></p>
                     <div class="flex flex-wrap gap-2">
                         <button class="btn btn-primary btn-sm flex-1 min-w-0">تکمیل شد</button>
                         {% if s.transfer_candidates %}
@@ -267,6 +268,36 @@ document.addEventListener('DOMContentLoaded', function() {
             } else { fail(res.error || 'ثبت نشد.'); }
         }).catch(function () { fail('اتصال برقرار نشد؛ دوباره تلاش کنید.'); })
           .finally(function () { cb.disabled = false; });
+    });
+})();
+</script>
+<script>
+(function () {
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (e.defaultPrevented || !form.hasAttribute || !form.hasAttribute('data-complete-form')) return;
+        if (form._uploadsDone) { form._uploadsDone = false; return; }
+        var stage = form.closest('[id^="stage-"]');
+        var zone = stage && stage.querySelector('[data-dropzone]');
+        var dz = zone && zone._dropzone;
+        if (!dz || !dz.hasFiles()) return;
+        e.preventDefault();
+        var err = form.querySelector('[data-complete-error]');
+        var buttons = form.querySelectorAll('button');
+        function lock(on) { buttons.forEach(function (b) { b.disabled = on; }); }
+        err.classList.add('hidden');
+        lock(true);
+        dz.uploadAll(zone.dataset.url).then(function (failed) {
+            lock(false);
+            if (failed) {
+                err.textContent = 'ارسال ' + String(failed).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }) +
+                                  ' فایل انجام نشد؛ مرحله تکمیل نشد. فایل‌ها را بررسی و دوباره تلاش کنید.';
+                err.classList.remove('hidden');
+                return;
+            }
+            form._uploadsDone = true;
+            if (form.requestSubmit) form.requestSubmit(); else form.submit();
+        });
     });
 })();
 </script>
