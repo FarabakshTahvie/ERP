@@ -374,3 +374,39 @@ media-time-display.msgr-time {
   transition: opacity 0.15s;
 }
 .msgr-wave-bar.msgr-wave-on { opacity: 1; }
+
+/* تمام‌صفحه‌ی ویدیو (M5d): کامل و بدون برش، عمودی یا افقی */
+media-controller.msgr-player-video:fullscreen {
+  aspect-ratio: auto !important;
+  border-radius: 0;
+  background: #000;
+  --media-object-fit: contain;
+  --media-object-position: center;
+}
+media-controller.msgr-player-video:-webkit-full-screen {
+  aspect-ratio: auto !important;
+  border-radius: 0;
+  background: #000;
+  --media-object-fit: contain;
+  --media-object-position: center;
+}
+media-controller.msgr-player-video:fullscreen video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  object-position: center;
+}
+media-controller.msgr-player-video:-webkit-full-screen video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  object-position: center;
+}
