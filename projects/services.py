@@ -313,7 +313,7 @@ def create_project_stages_from_template(project):
 
 
 @transaction.atomic
-def advance_stage(stage, actor, new_status, comment):
+def advance_stage(stage, actor, new_status, comment, voice=None):
     if stage.project.status == Project.Status.CANCELLED:
         raise ValueError("این پروژه لغو شده است.")
     if not comment or not comment.strip():
@@ -358,6 +358,7 @@ def advance_stage(stage, actor, new_status, comment):
         from_status=old_status,
         to_status=stage.status,
         comment=comment,
+        **(voice or {}),
     )
 
     if new_status == ProjectStage.Status.DONE:

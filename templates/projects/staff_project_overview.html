@@ -119,6 +119,9 @@
                         {% if ev.comment %}
                         <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor.get_full_name|default:ev.actor.username }}</div>
                         {% endif %}
+                        {% if ev.voice %}
+                        <div data-voice-player data-src="{{ ev.voice.url }}" data-dur="{{ ev.voice_duration|default_if_none:'' }}" data-peaks="{{ ev.voice_peaks }}" class="mt-1 w-64 max-w-full"></div>
+                        {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -141,7 +144,7 @@
                 {% elif s.kind == 'final_review' %}
                 <a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
                 {% else %}
-                <form method="post" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3" data-complete-form>
+                <form method="post" enctype="multipart/form-data" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3" data-complete-form>
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
                     {% if s.kind == 'design_initial' %}
@@ -150,7 +153,11 @@
                         <span class="fb-hint">فایل‌های این مرحله در صفحه‌ی پروژه‌ی مشتری دیده می‌شود و تایید مشتری لازم نیست. حداقل یک عکس یا PDF لازم است.</span>
                     </div>
                     {% endif %}
-                    <textarea name="comment" required class="textarea textarea-sm w-full" rows="2" placeholder="توضیحات (اجباری)"></textarea>
+                    <div class="fb-field">
+                        <label class="fb-label" for="complete-comment-{{ s.id }}">توضیحات (نوشته یا پیام صوتی)</label>
+                        <textarea id="complete-comment-{{ s.id }}" name="comment" required data-complete-comment class="textarea textarea-sm w-full" rows="2" placeholder="بنویسید یا پیام صوتی ضبط کنید"></textarea>
+                    </div>
+                    <div data-voice-recorder data-sprite="{% static 'icons/sprite.svg' %}"></div>
                     <p class="fb-error hidden" data-complete-error></p>
                     <div class="flex flex-wrap gap-2">
                         <button class="btn btn-primary btn-sm flex-1 min-w-0">تکمیل شد</button>
@@ -239,6 +246,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{% static_v 'js/uploader.js' %}"></script>
 <script src="{% static_v 'js/item_picker.js' %}"></script>
 <script src="{% static_v 'js/checklist.js' %}"></script>
+<script src="{% static_v 'js/vendor/media-chrome.js' %}"></script>
+<script src="{% static_v 'js/voice_note.js' %}"></script>
 {{ ops_items|json_script:"ops-items" }}
 <script>
 (function () {

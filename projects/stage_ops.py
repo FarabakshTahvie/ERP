@@ -1,4 +1,5 @@
 import os
+import uuid
 from django.db import IntegrityError, transaction
 from accounts.models import User
 from utils.image_utils import optimize_named
@@ -27,6 +28,55 @@ def parse_cut_count(raw):
     if not text.isdigit() or not (1 <= int(text) <= MAX_CUTS):
         raise ValueError(f"تعداد برش باید عددی صحیح بین ۱ تا {MAX_CUTS} باشد.")
     return int(text)
+
+
+VOICE_MAX_BYTES = 12 * 1024 * 1024
+VOICE_MAX_SECONDS = 300
+VOICE_ONLY_COMMENT = "پیام صوتی"
+
+
+def _voice_ext(head):
+    """پسوند از فرمت واقعی فایل (نه نام آن)."""
+    if head[:4] == b"\x1a\x45\xdf\xa3":
+        return "webm"
+    if head[:4] == b"OggS":
+        return "ogg"
+    if head[4:8] == b"ftyp":
+        return "m4a"
+    return None
+
+
+def _clean_peaks(raw):
+    parts = [p for p in str(raw or "").split(",") if p.strip()]
+    try:
+        values = [int(p) for p in parts]
+    except ValueError:
+        return ""
+    if not (8 <= len(values) <= 64) or any(v < 0 or v > 100 for v in values):
+        return ""
+    return ",".join(str(v) for v in values)
+
+
+def prepare_voice(uploaded, duration_raw, peaks_raw):
+    """None اگر صدایی نیست؛ وگرنه dict آماده‌ی StageEvent. هر ایرادی ValueError فارسی."""
+    if not uploaded:
+        return None
+    if uploaded.size > VOICE_MAX_BYTES:
+        raise ValueError("حجم پیام صوتی بیشتر از حد مجاز است.")
+    head = uploaded.read(12)
+    uploaded.seek(0)
+    ext = _voice_ext(head)
+    if not ext:
+        raise ValueError("فایل صوتی معتبر نیست.")
+    try:
+        duration = int(str(duration_raw or "").translate(_FA_TO_EN).strip())
+    except ValueError:
+        raise ValueError("مدت پیام صوتی نامعتبر است.")
+    if not (1 <= duration <= VOICE_MAX_SECONDS + 5):
+        raise ValueError("مدت پیام صوتی نامعتبر است (حداکثر ۵ دقیقه).")
+    uploaded.name = f"{uuid.uuid4().hex}.{ext}"
+    return {"voice": uploaded, "voice_duration": min(duration, VOICE_MAX_SECONDS),
+            "voice_peaks": _clean_peaks(peaks_raw)}
 
 
 def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None):
@@ -131,7 +181,7 @@ def stage_completion_problem(stage, *, show_to_client=False):
 
 
 @transaction.atomic
-def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=False):
+def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=False, voice=None):
     stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project").get(pk=stage.pk)
     if stage.kind == StageKind.PROFORMA:
         raise ValueError("این مرحله فقط با «صدور پیش‌فاکتور» از صفحه‌ی ویرایشگر تکمیل می‌شود.")
@@ -146,9 +196,12 @@ def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=Fa
     if problem:
         raise ValueError(problem)
 
+    comment = (comment or "").strip()
+    if voice and not comment:
+        comment = VOICE_ONLY_COMMENT
     note = comment
     if stage.kind == StageKind.DESIGN_INITIAL:
         stage.client_preview = bool(show_to_client)
         stage.save(update_fields=["client_preview", "updated_at"])
         note = f"{comment}\n[{'طرح برای مشتری نمایش داده می‌شود' if show_to_client else 'طرح برای مشتری نمایش داده نمی‌شود'}]"
-    return advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note)
+    return advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note, voice=voice)

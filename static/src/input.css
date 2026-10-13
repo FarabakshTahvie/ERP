@@ -10,6 +10,7 @@
 @source "../js/messenger_media.js";
 @source "../js/notify_guide.js";
 @source "../js/money_input.js";
+@source "../js/voice_note.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
