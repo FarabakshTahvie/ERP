@@ -16,7 +16,7 @@ from projects.services import create_project_from_technician_intake, advance_sta
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import (
     add_stage_file, stage_completion_problem, complete_stage,
-    cuts_summary, set_cut, parse_cut_count, upload_requirement
+    parse_cut_count, upload_requirement
 )
 
 
@@ -192,39 +192,6 @@ class StageOpsDetailedTests(TestCase):
             parse_cut_count("1000")
         with self.assertRaises(ValueError):
             parse_cut_count("abc")
-
-    def test_cutting_summary_and_set_cut_idempotent(self):
-        gcode_st = self.project.stages.get(kind=StageKind.GCODE)
-        cutting_st = self.project.stages.get(kind=StageKind.CUTTING)
-        cutting_st.status = ProjectStage.Status.IN_PROGRESS
-        cutting_st.assigned_to = self.creator
-        cutting_st.save()
-
-        f1 = ProjectFile.objects.create(
-            stage=gcode_st, file=SimpleUploadedFile("f1.nc", b"x"),
-            kind=ProjectFile.Kind.GCODE, original_name="f1.nc",
-            uploaded_by=self.creator, is_attachment=True, cut_count=3
-        )
-        f2 = ProjectFile.objects.create(
-            stage=gcode_st, file=SimpleUploadedFile("f2.nc", b"x"),
-            kind=ProjectFile.Kind.GCODE, original_name="f2.nc",
-            uploaded_by=self.creator, is_attachment=True, cut_count=2
-        )
-
-        tot, done = cuts_summary(self.project)
-        self.assertEqual((tot, done), (5, 0))
-
-        set_cut(file=f1, index=1, done=True, actor=self.creator)
-        set_cut(file=f1, index=1, done=True, actor=self.creator)  # idempotent
-        tot, done = cuts_summary(self.project)
-        self.assertEqual((tot, done), (5, 1))
-
-        set_cut(file=f1, index=1, done=False, actor=self.creator)
-        tot, done = cuts_summary(self.project)
-        self.assertEqual((tot, done), (5, 0))
-
-        with self.assertRaises(ValueError):
-            set_cut(file=f1, index=4, done=True, actor=self.creator)
 
     def test_stage_completion_rules(self):
         # Visit stage

@@ -20,15 +20,17 @@ from accounts.models import User
 from core.models import Party
 from catalog.models import Service, Item
 from catalog.services import has_global_margin, resolve_margin_percents
-from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile
+from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile, FileGroup
 from .stage_ops import (
     can_upload_to_stage,
     add_stage_file,
     upload_requirement,
     complete_stage,
-    cut_files,
-    cuts_summary,
-    set_cut,
+    cut_groups,
+    project_groups,
+    groups_progress,
+    create_group,
+    set_group_cut_done,
     prepare_voice,
 )
 from .services import (
@@ -400,12 +402,11 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         s.is_gcode = s.kind == StageKind.GCODE
         s.anchor = f"stage-{s.id}"
 
-    cut_rows = []
+    cut_group_rows, gcode_groups = [], []
     if any(s.kind == StageKind.CUTTING for s in stages):
-        for f in cut_files(project):
-            done = {c.index for c in f.cuts_done.all() if 1 <= c.index <= f.cut_count}
-            cut_rows.append({"file": f, "done_count": len(done),
-                             "cells": [{"n": i, "done": i in done} for i in range(1, f.cut_count + 1)]})
+        cut_group_rows = cut_groups(project)
+    if any(s.kind == StageKind.GCODE for s in stages):
+        gcode_groups = project_groups(project)
 
     if not is_project_level_viewer and not my_stage_ids:
         raise Http404
@@ -428,7 +429,9 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
         "can_price": can_edit_pricing(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
-        "cut_rows": cut_rows,
+        "cut_groups": cut_group_rows, "cut_total": len(cut_group_rows),
+        "cut_done": sum(1 for g in cut_group_rows if g.cut_done),
+        "gcode_groups": gcode_groups,
         "can_final_review": ops.can_view_final_review(user, project) and any(s.kind == StageKind.FINAL_REVIEW for s in stages),
         "ops_items": ops_items,
         "can_move": can_move,
@@ -603,7 +606,7 @@ def stage_file_upload(request, stage_id):
         return JsonResponse({"ok": False, "error": "شما اجازه‌ی ارسال فایل در این مرحله را ندارید."}, status=403)
     try:
         f = add_stage_file(stage=stage, uploaded=request.FILES.get("file"), uploader=request.user,
-                           cut_count_raw=request.POST.get("cut_count"))
+                           cut_count_raw=request.POST.get("cut_count"), group_id=request.POST.get("group_id"))
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     return JsonResponse({"ok": True, "id": f.id, "name": f.display_name})
@@ -611,16 +614,25 @@ def stage_file_upload(request, stage_id):
 
 @login_required
 @require_POST
-def cut_set(request, file_id):
-    f = get_object_or_404(ProjectFile.objects.select_related("stage__project"), pk=file_id)
+def group_cut_set(request, group_id):
+    group = get_object_or_404(FileGroup.objects.select_related("project"), pk=group_id)
     try:
-        set_cut(file=f, index=int(request.POST.get("index", "")), done=request.POST.get("done") == "1",
-                actor=request.user)
+        set_group_cut_done(group=group, done=request.POST.get("done") == "1", actor=request.user)
     except ValueError as e:
-        return JsonResponse({"ok": False, "error": str(e) if "int()" not in str(e) else "شماره‌ی برش نامعتبر است."}, status=400)
-    total, done = cuts_summary(f.stage.project)
-    file_done = f.cuts_done.filter(index__lte=f.cut_count).count()
-    return JsonResponse({"ok": True, "total": total, "done": done, "file_done": file_done})
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    total, done = groups_progress(group.project)
+    return JsonResponse({"ok": True, "total": total, "done": done})
+
+
+@login_required
+@require_POST
+def group_create(request, stage_id):
+    stage = get_object_or_404(ProjectStage.objects.select_related("project"), pk=stage_id)
+    try:
+        group = create_group(stage=stage, title=request.POST.get("title"), actor=request.user)
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "id": group.id, "title": group.title})
 
 
 @login_required

@@ -1,0 +1,45 @@
+{% load custom_tags %}
+<div class="mt-3 flex flex-col gap-3" data-groups-box>
+    <p class="fb-hint">فایل‌های جی‌کد را داخل گروه بگذارید (مثلاً طبقه‌ی اول، طبقه‌ی دوم) و تعداد برش هر فایل را بنویسید. برای تکمیل مرحله هر فایل باید در یک گروه باشد.</p>
+
+    {% for g in gcode_groups %}
+    <details class="collapse collapse-arrow bg-base-100 border border-base-300" {% if s.can_upload %}open{% endif %}>
+        <summary class="collapse-title text-sm font-semibold">
+            {{ g.title }}
+            <span class="fb-badge fb-badge-neutral">{{ g.file_list|length|fa_digits }} فایل</span>
+            <span class="fb-badge fb-badge-neutral">{{ g.cut_total|fa_digits }} برش</span>
+        </summary>
+        <div class="collapse-content flex flex-col gap-3">
+            {% for f in g.file_list %}
+            <div class="fb-inset flex items-center justify-between gap-2 text-xs">
+                <span class="break-all" dir="auto">{{ f.display_name }}</span>
+                <span class="flex items-center gap-2 shrink-0">
+                    <span class="fb-badge fb-badge-neutral">{{ f.cut_count|fa_digits }} برش</span>
+                    <a href="{{ f.file.url }}" download="{{ f.display_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود {{ f.display_name }}">{% icon "download" "w-4 h-4" %}</a>
+                </span>
+            </div>
+            {% empty %}
+            <p class="fb-hint">هنوز فایلی در این گروه نیست.</p>
+            {% endfor %}
+            {% if s.can_upload %}
+            {% include "utils/partials/file_dropzone.html" with mode="instant" url=s.file_upload_url cuts=True anchor=s.anchor group=g.id %}
+            {% endif %}
+        </div>
+    </details>
+    {% empty %}
+    <p class="fb-hint">هنوز گروهی ساخته نشده.</p>
+    {% endfor %}
+
+    {% if s.can_upload %}
+    <form method="post" action="{% url 'projects:group_create' s.id %}" data-ops-form class="fb-inset flex flex-col gap-2">
+        {% csrf_token %}
+        <label class="fb-label" for="group-title-{{ s.id }}">گروه تازه</label>
+        <div class="flex gap-2">
+            <input type="text" id="group-title-{{ s.id }}" name="title" required maxlength="100" autocomplete="off"
+                   placeholder="مثلاً: طبقه‌ی اول" class="input input-sm flex-1 min-w-0">
+            <button type="submit" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} ساخت گروه</button>
+        </div>
+        <span data-form-error class="fb-error hidden"></span>
+    </form>
+    {% endif %}
+</div>

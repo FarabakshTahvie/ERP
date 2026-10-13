@@ -342,6 +342,8 @@ class ProjectFile(TimeStampedModel):
     replaces = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name="replaced_by", verbose_name="جایگزین نسخه")
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="uploaded_project_files", verbose_name="آپلودکننده")
     cut_count = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="تعداد برش (فقط جی‌کد)")
+    group = models.ForeignKey('FileGroup', null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name="files", verbose_name="گروه (مثلاً طبقه)")
 
     @property
     def display_name(self):
@@ -368,17 +370,26 @@ class ProjectFile(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class CutDone(models.Model):
-    """تیک «این برش انجام شد» برای برش شماره‌ی index از یک فایل جی‌کد."""
-    file = models.ForeignKey(ProjectFile, on_delete=models.CASCADE, related_name="cuts_done", verbose_name="فایل")
-    index = models.PositiveSmallIntegerField(verbose_name="شماره‌ی برش")
-    done_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
-    done_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان")
+class FileGroup(TimeStampedModel):
+    """گروه فایل‌های جی‌کد (مثلاً «طبقه‌ی اول»). در برش‌کاری هر گروه یک تیک «انجام شد» دارد."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="file_groups", verbose_name="پروژه")
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="file_groups", verbose_name="مرحله‌ی جی‌کد")
+    title = models.CharField(max_length=100, verbose_name="نام گروه")
+    cut_done = models.BooleanField(default=False, verbose_name="برش این گروه انجام شد")
+    cut_done_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+", verbose_name="ثبت‌کننده‌ی انجام برش")
+    cut_done_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان انجام برش")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="سازنده")
 
     class Meta:
-        verbose_name = "برش انجام‌شده"
-        verbose_name_plural = "برش‌های انجام‌شده"
-        constraints = [models.UniqueConstraint(fields=["file", "index"], name="unique_cut_per_file")]
+        verbose_name = "گروه فایل"
+        verbose_name_plural = "گروه‌های فایل"
+        ordering = ["created_at", "pk"]
+        constraints = [models.UniqueConstraint(fields=["stage", "title"], name="unique_group_title_per_stage")]
+
+    def __str__(self):
+        return self.title
 
 
 class ShipmentCheck(models.Model):

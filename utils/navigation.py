@@ -96,7 +96,7 @@ NON_PAGE = {
     "inventory:stock_table", "manifest", "najva_sw", "notifications:broadcast_detail_table",
     "notifications:broadcast_history_table", "notifications:broadcast_retry",
     "notifications:mark_all_seen", "notifications:track_click", "people:customers_table",
-    "people:search", "people:staff_table", "people:user_toggle_active", "projects:cut_set",
+    "people:search", "people:staff_table", "people:user_toggle_active", "projects:group_create", "projects:group_cut_set",
     "projects:dashboard_claimable_table", "projects:dashboard_completed_table",
     "projects:dashboard_my_projects_table", "projects:dashboard_my_tasks_table",
     "projects:extra_add", "projects:extra_delete", "projects:final_review_consume",

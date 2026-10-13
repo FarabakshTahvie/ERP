@@ -121,7 +121,7 @@ class HoldServicesTests(TestCase):
         tech = User.objects.create_user(username="hs_tech", role=User.Role.EMPLOYEE)
         tech.specialties.add(SPEC("برش‌کار"))
         from projects.services import advance_stage, claim_stage, transfer_stage
-        from projects.stage_ops import add_stage_file, set_cut
+        from projects.stage_ops import add_stage_file, set_group_cut_done
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         cancel_project_from_stage(self.stage, actor=self.manager, comment="لغو")
@@ -142,10 +142,11 @@ class HoldServicesTests(TestCase):
 
         gcode_step = WorkflowStepTemplate.objects.create(template=self.tpl, order=2, title="جی‌کد", kind=StageKind.GCODE)
         gcode_stage = ProjectStage.objects.create(project=self.project, step_template=gcode_step, order=2, title="جی‌کد", kind=StageKind.GCODE)
-        from projects.models import ProjectFile
-        pf = ProjectFile.objects.create(stage=gcode_stage, file="test.gcode", kind="gcode", cut_count=5)
+        from projects.models import FileGroup, ProjectFile
+        group = FileGroup.objects.create(project=self.project, stage=gcode_stage, title="طبقه اول")
+        ProjectFile.objects.create(stage=gcode_stage, group=group, file="test.gcode", kind="gcode", cut_count=5)
         with self.assertRaises(ValueError):
-            set_cut(file=pf, index=1, done=True, actor=self.manager)
+            set_group_cut_done(group=group, done=True, actor=self.manager)
 
     def test_cancel_does_not_reject_stage_and_logs_cancel_prefix(self):
         # لغو وضعیت مرحله را REJECTED نمی‌کند و رویداد با CANCEL_EVENT_PREFIX می‌گذارد

@@ -1,5 +1,7 @@
 {% load custom_tags %}
-{% if s.file_list or s.can_upload %}
+{% if s.kind == 'gcode' %}
+{% include "projects/partials/stage_groups.html" %}
+{% elif s.file_list or s.can_upload %}
 <div class="mt-3">
     <div class="collapse collapse-arrow bg-base-100 border border-base-300">
         <input type="checkbox" {% if s.can_upload %}checked{% endif %} aria-label="فایل‌های مرحله">

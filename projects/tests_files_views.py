@@ -11,7 +11,7 @@ from catalog.models import Service, Item
 from projects.models import Project, ProjectStage, StageKind, ProjectFile
 from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
-from projects.stage_ops import add_stage_file, set_cut, cuts_summary
+from projects.stage_ops import add_stage_file
 
 
 class StageFilesAndViewsTests(TestCase):
@@ -52,36 +52,37 @@ class StageFilesAndViewsTests(TestCase):
         self.assertTrue(data["ok"])
         self.assertTrue(data["name"].endswith(".webp") or data["name"] == "test.png")
 
-    def test_cut_set_view(self):
-        # Create gcode stage and file with cut_count=3
+    def test_group_cut_set_view(self):
+        from projects.models import FileGroup
         gcode_stage = self.project.stages.get(kind=StageKind.GCODE)
-        gcode_file = ProjectFile.objects.create(
-            stage=gcode_stage, file=SimpleUploadedFile("cut.nc", b"gcode"),
+        group = FileGroup.objects.create(project=self.project, stage=gcode_stage, title="طبقه اول")
+        ProjectFile.objects.create(
+            stage=gcode_stage, group=group, file=SimpleUploadedFile("cut.nc", b"gcode"),
             kind=ProjectFile.Kind.GCODE, original_name="cut.nc",
             uploaded_by=self.creator, is_attachment=True, cut_count=3
         )
-        # Set cutting stage to in_progress and assigned_to creator
         cutting_stage = self.project.stages.get(kind=StageKind.CUTTING)
         cutting_stage.status = ProjectStage.Status.IN_PROGRESS
         cutting_stage.assigned_to = self.creator
         cutting_stage.save()
 
-        url = reverse("projects:cut_set", args=[gcode_file.id])
+        url = reverse("projects:group_cut_set", args=[group.id])
         self.client.force_login(self.creator)
-
-        # Set cut index 1 to done
-        resp = self.client.post(url, {"index": "1", "done": "1"})
+        resp = self.client.post(url, {"done": "1"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["ok"])
-        self.assertEqual(data["total"], 3)
-        self.assertEqual(data["done"], 1)
-        self.assertEqual(data["file_done"], 1)
+        self.assertEqual((data["total"], data["done"]), (1, 1))
+        group.refresh_from_db()
+        self.assertTrue(group.cut_done)
 
-        # Invalid index returns 400
-        resp_invalid = self.client.post(url, {"index": "99", "done": "1"})
-        self.assertEqual(resp_invalid.status_code, 400)
-        self.assertFalse(resp_invalid.json()["ok"])
+        resp = self.client.post(url, {"done": "0"})
+        self.assertEqual(resp.json()["done"], 0)
+
+        self.client.force_login(self.other_tech)
+        resp_other = self.client.post(url, {"done": "1"})
+        self.assertEqual(resp_other.status_code, 400)
+        self.assertFalse(resp_other.json()["ok"])
 
     def test_new_project_submit_ajax_response(self):
         self.client.force_login(self.creator)
@@ -148,6 +149,8 @@ class StageFileUploadUrlRegressionTests(TestCase):
         gcode_stage.status = ProjectStage.Status.IN_PROGRESS
         gcode_stage.assigned_to = self.creator
         gcode_stage.save()
+        from projects.models import FileGroup
+        FileGroup.objects.create(project=self.project, stage=gcode_stage, title="طبقه اول")
         client = Client()
         client.force_login(self.creator)
         resp = client.get(reverse("projects:staff_project_overview", args=[self.project.id]))
