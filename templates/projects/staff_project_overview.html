@@ -261,19 +261,18 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('img-zoom').showModal();
     });
     document.addEventListener('change', function (e) {
-        var cb = e.target.closest('[data-cut]');
+        var cb = e.target.closest('[data-group-cut]');
         if (!cb) return;
-        var row = cb.closest('[data-cut-row]'), err = document.querySelector('[data-cut-error]');
+        var row = cb.closest('[data-group-row]'), err = document.querySelector('[data-cut-error]');
         var fd = new FormData();
-        fd.append('index', cb.dataset.cut);
         fd.append('done', cb.checked ? '1' : '0');
         cb.disabled = true;
         function fail(msg) { cb.checked = !cb.checked; err.textContent = msg; err.classList.remove('hidden'); }
         window.fbSend(row.dataset.url, fd, window.FB_CSRF).then(function (res) {
             if (res.ok) {
                 err.classList.add('hidden');
-                row.querySelector('[data-file-done]').textContent =
-                    String(res.file_done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; });
+                var counter = document.querySelector('[data-groups-done]');
+                if (counter) counter.textContent = String(res.done).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; });
             } else { fail(res.error || 'ثبت نشد.'); }
         }).catch(function () { fail('اتصال برقرار نشد؛ دوباره تلاش کنید.'); })
           .finally(function () { cb.disabled = false; });
@@ -287,16 +286,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.defaultPrevented || !form.hasAttribute || !form.hasAttribute('data-complete-form')) return;
         if (form._uploadsDone) { form._uploadsDone = false; return; }
         var stage = form.closest('[id^="stage-"]');
-        var zone = stage && stage.querySelector('[data-dropzone]');
-        var dz = zone && zone._dropzone;
-        if (!dz || !dz.hasFiles()) return;
+        var zones = stage ? Array.prototype.filter.call(stage.querySelectorAll('[data-dropzone]'), function (z) {
+            return z._dropzone && z._dropzone.hasFiles();
+        }) : [];
+        if (!zones.length) return;
         e.preventDefault();
         var err = form.querySelector('[data-complete-error]');
         var buttons = form.querySelectorAll('button');
         function lock(on) { buttons.forEach(function (b) { b.disabled = on; }); }
         err.classList.add('hidden');
         lock(true);
-        dz.uploadAll(zone.dataset.url).then(function (failed) {
+        var failed = 0;
+        zones.reduce(function (chain, zone) {
+            return chain.then(function () {
+                return zone._dropzone.uploadAll(zone.dataset.url).then(function (n) { failed += n; });
+            });
+        }, Promise.resolve()).then(function () {
             lock(false);
             if (failed) {
                 err.textContent = 'ارسال ' + String(failed).replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }) +

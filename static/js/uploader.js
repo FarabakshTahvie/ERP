@@ -25,7 +25,7 @@
   window.fbSend = send;
 
   function dropzone(root) {
-    var cfg = { mode: root.dataset.mode || 'instant', url: root.dataset.url || '', cuts: root.dataset.cuts === '1', anchor: root.dataset.anchor || '' };
+    var cfg = { mode: root.dataset.mode || 'instant', url: root.dataset.url || '', cuts: root.dataset.cuts === '1', anchor: root.dataset.anchor || '', group: root.dataset.group || '' };
     var items = [], busy = false;
 
     var drop = el('div', 'fb-inset flex flex-col items-center gap-2 text-center py-5 border border-dashed border-base-300');
@@ -97,6 +97,7 @@
           active++; it.state = 'sending'; it.rm.disabled = true; it.status.className = 'text-xs fb-muted';
           var fd = new FormData(); fd.append('file', it.file, it.file.name);
           if (cut) fd.append('cut_count', cut);
+          if (cfg.group) fd.append('group_id', cfg.group);
           send(url, fd, null, function (p) { it.bar.value = p; it.status.textContent = p < 100 ? fa(p) + '٪' : 'در حال ثبت...'; }).then(function (res) {
             active--;
             if (res.ok) { it.state = 'done'; it.bar.value = 100; it.status.textContent = 'ارسال شد'; it.status.className = 'text-xs text-success'; }

@@ -1,15 +1,19 @@
 import os
 import uuid
-from django.db import IntegrityError, transaction
+from django.db import transaction
+from django.db.models import Prefetch
+from django.utils import timezone
 from accounts.models import User
 from utils.image_utils import optimize_named
 from utils.utils import guess_file_kind
-from .models import CutDone, Project, ProjectFile, ProjectStage, StageKind
+from .models import FileGroup, Project, ProjectFile, ProjectStage, StageKind
 from .services import advance_stage, user_is_accountant
 
 MAX_STAGE_FILES = 200
 MAX_FILE_BYTES = 25 * 1024 * 1024   # هم‌سقف nginx
 MAX_CUTS = 999
+GROUP_TITLE_MAX = 100
+MAX_GROUPS = 50
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
@@ -79,7 +83,15 @@ def prepare_voice(uploaded, duration_raw, peaks_raw):
             "voice_peaks": _clean_peaks(peaks_raw)}
 
 
-def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None):
+def _group_for(stage, raw):
+    text = str(raw if raw is not None else "").strip().translate(_FA_TO_EN)
+    group = FileGroup.objects.filter(pk=int(text), stage=stage).first() if text.isdigit() else None
+    if group is None:
+        raise ValueError("ابتدا گروه (مثلاً طبقه‌ی اول) را بسازید یا انتخاب کنید.")
+    return group
+
+
+def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None, group_id=None):
     if stage.project.status == Project.Status.CANCELLED:
         raise ValueError("این پروژه لغو شده است.")
     if not can_upload_to_stage(uploader, stage):
@@ -96,11 +108,15 @@ def add_stage_file(*, stage, uploaded, uploader, cut_count_raw=None):
             raise ValueError("فایل فقط در مرحله‌ی «در حال انجام» قابل ارسال است.")
         if locked.files.count() >= MAX_STAGE_FILES:
             raise ValueError(f"حداکثر {MAX_STAGE_FILES} فایل برای هر مرحله مجاز است.")
+        group = _group_for(locked, group_id) if stage.kind == StageKind.GCODE else None
         uploaded, name = optimize_named(uploaded, name)
-        return ProjectFile.objects.create(
+        created = ProjectFile.objects.create(
             stage=stage, file=uploaded, kind=guess_file_kind(name), original_name=name,
-            uploaded_by=uploader, is_attachment=True, cut_count=cut_count,
+            uploaded_by=uploader, is_attachment=True, cut_count=cut_count, group=group,
         )
+        if group is not None and group.cut_done:   # فایل تازه آمد؛ تیک «انجام شد» گروه دیگر درست نیست
+            FileGroup.objects.filter(pk=group.pk).update(cut_done=False, cut_done_by=None, cut_done_at=None)
+        return created
 
 
 def upload_requirement(stage):
@@ -116,53 +132,98 @@ def upload_requirement(stage):
 
 def cut_files(project):
     return (ProjectFile.objects.filter(stage__project=project, stage__kind=StageKind.GCODE, cut_count__gt=0)
-            .prefetch_related("cuts_done").order_by("created_at", "pk"))
+            .order_by("created_at", "pk"))
 
 
-def cuts_summary(project):
-    """(کل برش‌ها، برش‌های انجام‌شده)"""
-    total = done = 0
-    for f in cut_files(project):
-        total += f.cut_count
-        done += len({c.index for c in f.cuts_done.all() if 1 <= c.index <= f.cut_count})
-    return total, done
+def _with_files(qs):
+    files = ProjectFile.objects.select_related("uploaded_by").order_by("created_at", "pk")
+    groups = list(qs.select_related("cut_done_by").prefetch_related(
+        Prefetch("files", queryset=files, to_attr="file_list")))
+    for g in groups:
+        g.cut_total = sum((f.cut_count or 0) for f in g.file_list)
+    return groups
 
 
-def set_cut(*, file, index, done, actor):
-    """صریح و idempotent (نه toggle): دو کلیک پشت‌سرهم نتیجه‌ی مبهم نمی‌دهد."""
-    if file.stage.project.status == Project.Status.CANCELLED:
+def project_groups(project):
+    """همه‌ی گروه‌های جی‌کد پروژه (حتی خالی)؛ هر کدام file_list و cut_total دارد."""
+    return _with_files(FileGroup.objects.filter(project=project).order_by("created_at", "pk"))
+
+
+def cut_groups(project):
+    """گروه‌هایی که فایل جی‌کد با تعداد برش دارند؛ گروه خالی نمی‌آید."""
+    return [g for g in project_groups(project) if any(f.cut_count for f in g.file_list)]
+
+
+def groups_progress(project):
+    """(کل گروه‌ها، گروه‌های انجام‌شده) برای برش‌کاری"""
+    groups = cut_groups(project)
+    return len(groups), sum(1 for g in groups if g.cut_done)
+
+
+@transaction.atomic
+def create_group(*, stage, title, actor):
+    locked = ProjectStage.objects.select_for_update(of=("self",)).select_related("project").get(pk=stage.pk)
+    if locked.kind != StageKind.GCODE:
+        raise ValueError("گروه‌بندی فقط برای مرحله‌ی جی‌کدگیری است.")
+    if locked.project.status == Project.Status.CANCELLED:
         raise ValueError("این پروژه لغو شده است.")
-    cutting = file.stage.project.stages.filter(kind=StageKind.CUTTING).first()
+    if not can_upload_to_stage(actor, locked):
+        raise ValueError("شما اجازه‌ی ساخت گروه در این مرحله را ندارید.")
+    if locked.status != ProjectStage.Status.IN_PROGRESS:
+        raise ValueError("گروه فقط در مرحله‌ی «در حال انجام» ساخته می‌شود.")
+    name = " ".join(str(title or "").split())
+    if not name:
+        raise ValueError("نام گروه را بنویسید.")
+    if len(name) > GROUP_TITLE_MAX:
+        raise ValueError(f"نام گروه نباید بیش از {GROUP_TITLE_MAX} نویسه باشد.")
+    existing = list(locked.file_groups.values_list("title", flat=True))
+    if len(existing) >= MAX_GROUPS:
+        raise ValueError(f"حداکثر {MAX_GROUPS} گروه مجاز است.")
+    key = name.translate(_FA_TO_EN).casefold()
+    if any(t.translate(_FA_TO_EN).casefold() == key for t in existing):
+        raise ValueError("گروهی با این نام قبلاً ساخته شده است.")
+    return FileGroup.objects.create(project=locked.project, stage=locked, title=name, created_by=actor)
+
+
+@transaction.atomic
+def set_group_cut_done(*, group, done, actor):
+    """صریح و idempotent (نه toggle): «انجام شد» را روشن یا خاموش می‌کند."""
+    group = FileGroup.objects.select_for_update(of=("self",)).select_related("project").get(pk=group.pk)
+    if group.project.status == Project.Status.CANCELLED:
+        raise ValueError("این پروژه لغو شده است.")
+    cutting = group.project.stages.filter(kind=StageKind.CUTTING).first()
     if cutting is None or cutting.status != ProjectStage.Status.IN_PROGRESS:
         raise ValueError("مرحله‌ی برش‌کاری فعال نیست.")
     if not can_upload_to_stage(actor, cutting):
         raise ValueError("شما اجازه‌ی ثبت برش را ندارید.")
-    if file.stage.kind != StageKind.GCODE or not file.cut_count or not (1 <= index <= file.cut_count):
-        raise ValueError("شماره‌ی برش نامعتبر است.")
-    if done:
-        try:
-            with transaction.atomic():
-                CutDone.objects.get_or_create(file=file, index=index, defaults={"done_by": actor})
-        except IntegrityError:
-            pass
-    else:
-        CutDone.objects.filter(file=file, index=index).delete()
+    if not group.files.filter(cut_count__gt=0).exists():
+        raise ValueError("این گروه فایلی با تعداد برش ندارد.")
+    done = bool(done)
+    if group.cut_done == done:
+        return group
+    group.cut_done = done
+    group.cut_done_by = actor if done else None
+    group.cut_done_at = timezone.now() if done else None
+    group.save(update_fields=["cut_done", "cut_done_by", "cut_done_at", "updated_at"])
+    return group
 
 
 def stage_completion_problem(stage, *, show_to_client=False):
-    """پیام خطا یا None. تنها منبع شرط‌های تکمیل؛ فاز ۳ چک‌لیست‌های ارسال و نصب را همین‌جا اضافه می‌کند."""
+    """پیام خطا یا None. تنها منبع شرط‌های تکمیل."""
     need = upload_requirement(stage)
     files = stage.files.all()
     if need == "any" and not files.exists():
         return "برای تکمیل این مرحله حداقل یک فایل ارسال کنید."
     if need == "image" and not files.filter(kind=ProjectFile.Kind.IMAGE).exists():
         return "برای تکمیل این مرحله حداقل یک عکس ارسال کنید."
+    if stage.kind == StageKind.GCODE and files.filter(group__isnull=True).exists():
+        return "هر فایل جی‌کد باید داخل یک گروه (مثلاً طبقه‌ی اول) باشد."
     if stage.kind == StageKind.CUTTING:
-        total, done = cuts_summary(stage.project)
+        total, done = groups_progress(stage.project)
         if total == 0:
-            return "فایل جی‌کدی با تعداد برش برای این پروژه ثبت نشده است."
+            return "گروهی با فایل جی‌کد برای این پروژه ثبت نشده است."
         if done < total:
-            return f"هنوز {total - done} برش از {total} برش علامت نخورده است."
+            return f"هنوز {total - done} گروه از {total} گروه «انجام شد» نخورده است."
     if stage.kind == StageKind.DESIGN_INITIAL and show_to_client and not files.filter(
             kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
         return "برای نمایش به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید تا مشتری بتواند بدون نرم‌افزار ببیند."
