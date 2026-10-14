@@ -11,7 +11,7 @@ from catalog.models import Service, Item, MarginRule
 from inventory.models import Warehouse, StockMovement
 from inventory.services import receive_stock
 from projects.models import (
-    Project, ProjectStage, StageKind, ProjectFile, ShipmentCheck, ExtraShipment,
+    Project, ProjectStage, StageKind, ProjectFile,
     InstallLine, PartRequest, ProjectCost,
 )
 from projects.workflow_v3 import build_workflow_v3
@@ -19,7 +19,6 @@ from projects.services import create_project_from_technician_intake, advance_sta
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import add_stage_file, complete_stage, stage_completion_problem
 from projects.ops import (
-    set_shipment_check, add_extra_shipment, delete_extra_shipment,
     ensure_install_lines, set_install_line, create_part_request,
     issue_part_request, reject_part_request, cancel_part_request,
     add_project_cost, delete_project_cost, final_review_data,

@@ -9,11 +9,11 @@ from catalog.services import resolve_margin_percents
 from inventory.services import consume_stock, user_can_manage_inventory, parse_decimal_input
 from utils.image_utils import optimize_receipt_image
 from .models import (
-    ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, ShipmentCheck, StageEvent, StageKind,
+    InstallLine, PartRequest, Project, ProjectCost, ProjectFile, ProjectStage, StageEvent, StageKind,
 )
 from .proforma import material_totals
 from .services import parse_fee, user_is_accountant
-from .stage_ops import cut_files, _is_manager
+from .stage_ops import _is_manager
 
 REASON_MAX = 1000
 _ACTIVE = (ProjectStage.Status.IN_PROGRESS, ProjectStage.Status.DONE)
@@ -77,42 +77,6 @@ def _need(stage, kind):
         raise ValueError("این عملیات برای این مرحله معتبر نیست.")
 
 
-# ---------------- ارسال ----------------
-@transaction.atomic
-def set_shipment_check(*, stage, file, status, reason, actor):
-    _need(stage, StageKind.SHIPPING)
-    if not can_edit_ops(actor, stage):
-        raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
-    if status not in ShipmentCheck.Status.values:
-        raise ValueError("وضعیت نامعتبر است.")
-    if file.stage.project_id != stage.project_id or file.stage.kind != StageKind.GCODE or not file.cut_count:
-        raise ValueError("فایل نامعتبر است.")
-    not_sent = status == ShipmentCheck.Status.NOT_SENT
-    text = _reason(reason, required=not_sent, label="دلیل ارسال‌نشدن") if not_sent else ""
-    ShipmentCheck.objects.update_or_create(
-        stage=stage, file=file, defaults={"status": status, "reason": text, "checked_by": actor})
-
-
-def shipment_rows(stage):
-    checks = {c.file_id: c for c in stage.shipment_checks.all()}
-    return [{"file": f, "status": checks[f.pk].status if f.pk in checks else "", "reason": checks[f.pk].reason if f.pk in checks else ""}
-            for f in cut_files(stage.project)]
-
-
-def shipping_problem(stage):
-    total = cut_files(stage.project).count()
-    done = stage.shipment_checks.filter(file__in=cut_files(stage.project)).count()
-    if done < total:
-        return f"برای {total - done} فایل هنوز «ارسال شد» یا «ارسال نشد» ثبت نشده است."
-    return None
-
-
-def _item_price(item, qty):
-    margin = Decimal(resolve_margin_percents([item])[item.pk]).quantize(Decimal("0.01"))
-    cost, total = material_totals(item, qty, margin)
-    return cost, margin, total
-
-
 def _qty(raw):
     qty = parse_decimal_input(raw, label="مقدار").quantize(Decimal("0.0001"))
     if qty <= 0:
@@ -125,27 +89,6 @@ def _active_item(item_id):
         return Item.objects.get(pk=int(item_id), is_active=True)
     except (TypeError, ValueError, Item.DoesNotExist):
         raise ValueError("کالا را از فهرست انتخاب کنید.")
-
-
-@transaction.atomic
-def add_extra_shipment(*, stage, item_id, qty_raw, note, actor):
-    _need(stage, StageKind.SHIPPING)
-    if not can_edit_ops(actor, stage):
-        raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
-    item, qty = _active_item(item_id), _qty(qty_raw)
-    text = _reason(note, required=True, label="توضیح")
-    cost, margin, total = _item_price(item, qty)
-    return ExtraShipment.objects.create(
-        project=stage.project, stage=stage, item=item, qty=qty, cost_snapshot=cost,
-        margin_percent=margin, sale_total=total, note=text, created_by=actor)
-
-
-@transaction.atomic
-def delete_extra_shipment(*, extra, actor):
-    if not can_edit_ops(actor, extra.stage):
-        raise ValueError("شما اجازه‌ی حذف ندارید.")
-    _log(extra.stage, actor, f"کالای اضافه‌ی ارسال حذف شد: {extra.item.name} × {extra.qty.normalize():f}")
-    extra.delete()
 
 
 # ---------------- نصب ----------------
@@ -331,25 +274,16 @@ def delete_project_cost(*, cost, actor):
 
 # ---------------- نمایش ----------------
 def ops_context(user, stage):
-    """کانتکست کشوی عملیات هر مرحله؛ مبلغ‌ها فقط برای مدیر و حسابدار."""
-    if stage.kind not in (StageKind.SHIPPING, StageKind.INSTALL):
+    """کانتکست کشوی چک‌لیست نصب (جدول مصرف جداست: projects/usage.py)."""
+    if stage.kind != StageKind.INSTALL or stage.status not in _ACTIVE:
         return None
-    project = stage.project
-    money = can(user, "money.view")
-    ctx = {"can_edit": can_edit_ops(user, stage), "show_money": money}
-    if stage.kind == StageKind.SHIPPING:
-        ctx["rows"] = shipment_rows(stage)
-        ctx["extras"] = list(stage.extra_shipments.select_related("item"))
-    elif stage.status in _ACTIVE:
-        ctx["groups"] = install_groups(stage)
-        ctx["requests"] = list(stage.part_requests.select_related("item"))
-    return ctx
+    return {"can_edit": can_edit_ops(user, stage), "show_money": can(user, "money.view"),
+            "groups": install_groups(stage), "requests": list(stage.part_requests.select_related("item"))}
 
 
 def final_review_data(project):
     stages = list(project.stages.prefetch_related("events__actor", Prefetch("files", queryset=ProjectFile.objects.select_related("uploaded_by"))).order_by("order"))
     lines = list(InstallLine.objects.filter(stage__project=project).select_related("item"))
-    extras = list(project.extra_shipments.select_related("item"))
     parts = list(project.part_requests.select_related("item", "requested_by"))
     costs = list(project.recorded_costs.all())
     shortage = [l for l in lines if l.delta_qty and l.delta_qty > 0]
@@ -358,8 +292,7 @@ def final_review_data(project):
         "costs_total": sum((c.amount for c in costs), Decimal(0)),
     }
     return {
-        "stages": stages, "totals": t, "extras": extras, "parts": parts, "costs": costs,
-        "not_sent": list(ShipmentCheck.objects.filter(stage__project=project, status=ShipmentCheck.Status.NOT_SENT).select_related("file")),
+        "stages": stages, "totals": t, "parts": parts, "costs": costs,
         "not_installed": [l for l in lines if l.status == InstallLine.Status.NOT_OK],
         "shortage": shortage,
         "surplus": surplus,

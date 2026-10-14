@@ -10,10 +10,8 @@ from core.models import Party, Specialty
 from inventory.models import StockLot, StockMovement, Warehouse
 from inventory.services import receive_stock, consume_stock, record_manual_stock_change
 from projects.models import (
-    Project, ProjectStage, StageKind, ProjectService, ProjectServiceMaterial,
-    InstallLine, PartRequest, ExtraShipment,
+    Project, ProjectStage, StageKind, ProjectService, ProjectServiceMaterial, StageUsage,
 )
-from projects.ops import ensure_install_lines, set_install_line
 from projects.services import advance_stage, create_project_from_technician_intake
 from projects.workflow_v3 import build_workflow_v3
 from finance.models import Invoice, InvoiceLine, Payment, AccountingEvent
@@ -83,9 +81,7 @@ class P2BaseScenarioMixin:
         install_stage.status = ProjectStage.Status.IN_PROGRESS
         install_stage.assigned_to = self.creator
         install_stage.save()
-        ensure_install_lines(install_stage)
-        mat_line = install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
-        set_install_line(line=mat_line, status="ok", actual_qty_raw="11", reason="", actor=self.creator)
+        StageUsage.objects.create(stage=install_stage, item=self.item, qty=Decimal("11"), updated_by=self.creator)
 
         consume_stock(
             item=self.item, qty=Decimal("9"), user=self.creator,

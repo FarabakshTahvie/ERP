@@ -224,41 +224,6 @@
         </div>
     </div>
 
-    <!-- ۵. ارسال -->
-    <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">گزارش ارسال قطعات</h2>
-        {% if data.not_sent %}
-        <div class="text-xs">
-            <span class="font-semibold text-error">{{ data.not_sent|length|fa_digits }} قطعه ارسال نشده است:</span>
-            <ul class="list-disc list-inside mt-1 space-y-1">
-                {% for sc in data.not_sent %}
-                <li>{{ sc.file.display_name }} — <span class="fb-muted">دلیل:</span> {{ sc.reason }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% else %}
-        <p class="text-xs text-success">تمام قطعات ارسال شده‌اند.</p>
-        {% endif %}
-
-        <div class="pt-2 border-t border-base-300">
-            <span class="font-semibold text-xs">قطعه‌های اضافه‌ی ارسال‌شده:</span>
-            {% if data.extras %}
-            <div class="mt-1 space-y-2 text-xs">
-                {% for ex in data.extras %}
-                <div class="flex justify-between items-center gap-2 flex-wrap border-b border-base-200 pb-1.5 last:border-0 last:pb-0">
-                    <div>
-                        <span>{{ ex.item.name }} × <span class="font-technical">{{ ex.qty|floatformat:"-4"|fa_digits }}</span> — {{ ex.note }}</span>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <p class="fb-hint text-xs mt-1">مصرف واقعی این اقلام در جدول تسویه‌ی پایین صفحه تعیین می‌شود.</p>
-            {% else %}
-            <p class="fb-hint text-xs mt-1">موردی ثبت نشده.</p>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- ۶. نصب -->
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">گزارش نصب</h2>
@@ -394,23 +359,21 @@
         {% elif can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
-            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: اگر نصاب برای کالا عدد نصب‌شده زده باشد همان عدد (شامل قطعه‌ی تحویلی و اضافه‌ی ارسالی)؛ وگرنه پیش‌فاکتور + قطعه‌ی تحویلی + اضافه‌ی ارسالی. اگر عددی را عوض کنید دلیل لازم است.</p>
+            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: جمع مصرفی که تکنسین‌ها در مرحله‌ها ثبت کرده‌اند (زیر نام کالا به تفکیک مرحله آمده)؛ کالایی که از انبار کم شده ولی مصرف مرحله ندارد همان مقدار کسرشده را می‌گیرد. اگر عددی را عوض کنید دلیل لازم است.</p>
             <div class="overflow-x-auto" data-settle-root data-revenue="{{ pnl.revenue|stringformat:'d' }}" data-stock-cost="{{ pnl.stock_cost|stringformat:'d' }}" data-recorded="{{ pnl.recorded_costs|stringformat:'d' }}">
                 <table class="table table-sm text-xs">
-                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>نصب‌شده</th><th>قطعه‌ی تحویلی</th><th>اضافه‌ی ارسالی</th><th>کسرشده تاکنون</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
+                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>مصرف ثبت‌شده‌ی مرحله‌ها</th><th>کسرشده تاکنون</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
                     <tbody>
                     {% for r in recon %}
                         <tr data-net="{{ r.net_str }}" data-unit="{{ r.unit_str }}">
                             <td class="font-semibold">{{ r.item.name }}
-                                {% for e in r.extras %}<div class="fb-hint font-normal">اضافه‌ی ارسالی <span class="font-technical">{{ e.qty|floatformat:"-4"|fa_digits }}</span>: {{ e.note }}</div>{% endfor %}
+                                {% for b in r.by_stage %}<div class="fb-hint font-normal">{{ b.stage.title }}: <span class="font-technical">{{ b.qty|floatformat:"-4"|fa_digits }}</span></div>{% endfor %}
                             </td>
                             <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
-                            <td class="font-technical">{% if r.basis == 'install' %}{{ r.installed|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
-                            <td class="font-technical">{{ r.parts_issued|floatformat:"-4"|fa_digits }}</td>
-                            <td class="font-technical">{{ r.extras_shipped|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                             <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
                             <td>
-                                <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" required data-settle-qty data-item="{{ r.item.id }}"
+                                <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" required data-decimal data-settle-qty data-item="{{ r.item.id }}"
                                        data-suggested="{{ r.expected_input }}" dir="ltr" inputmode="decimal" aria-label="مصرف نهایی {{ r.item.name }}"
                                        class="input input-xs w-24 font-technical">
                                 <input type="text" name="reason_{{ r.item.id }}" data-settle-reason="{{ r.item.id }}" placeholder="دلیل تغییر (اجباری)"
@@ -419,7 +382,7 @@
                             <td class="font-technical" data-change>—</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="8" class="fb-empty">کالایی برای تسویه نیست.</td></tr>
+                        <tr><td colspan="6" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

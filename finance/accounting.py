@@ -17,8 +17,8 @@ from inventory.services import (
     CHANGE_KIND_RETURN, _FA_TO_EN,
 )
 from projects.models import (
-    ExtraShipment, InstallLine, PartRequest, Project, ProjectCost,
-    ProjectServiceMaterial, ProjectStage, StageKind,
+    PartRequest, Project, ProjectCost,
+    ProjectServiceMaterial, ProjectStage, StageKind, StageUsage,
 )
 from projects.services import user_can_access_accounting, project_prices_editable
 from .models import Invoice, InvoiceLine, Payment, AccountingEvent
@@ -253,40 +253,30 @@ def project_movements(project, limit=200):
 
 def project_reconciliation(project):
     """
-    مغایرت مواد هر پروژه (فقط مقدار؛ بدون قضاوت مالی).
-    «نصب‌شده» یعنی آنچه نصاب گفته واقعاً روی ساختمان رفته، از هر منبعی.
+    مغایرت مواد هر پروژه (فقط مقدار؛ بدون قضاوت مالی). فقط کالایی می‌آید که تکنسین‌ها در مرحله‌ها مصرفش
+    را ثبت کرده یا برایش خروجی از انبار ثبت شده؛ کالای پیش‌فاکتورِ بی‌مصرف نمی‌آید.
     expected (مصرف نهایی پیشنهادی):
-      ۱) کالا ردیف نصب دارد و همه‌ی ردیف‌هایش ثبت شده ← جمع نصب‌شده؛
-      ۲) وگرنه اگر پیش‌فاکتور، قطعه‌ی تحویلی یا اضافه‌ی ارسالی دارد ← مجموع این سه؛
-      ۳) وگرنه (فقط دستی مصرف شده) ← همان خالص کسرشده، یعنی دست‌نخورده.
+      ۱) کالا مصرف ثبت‌شده‌ی مرحله دارد ← جمع مصرف مرحله‌ها (by_stage به تفکیک مرحله)؛
+      ۲) وگرنه (فقط دستی کم شده) ← همان خالص کسرشده.
     unsettled = expected − net_out
     """
     ct = ContentType.objects.get_for_model(Project)
+    planned = {}
+    for m in ProjectServiceMaterial.objects.filter(service_line__project=project):
+        planned[m.item_id] = planned.get(m.item_id, ZERO) + m.qty
     rows = {}
 
     def row(item):
         return rows.setdefault(item.pk, {
-            "item": item, "planned": ZERO, "installed": ZERO, "install_lines": 0, "install_pending": 0,
-            "parts_issued": ZERO, "extras_shipped": ZERO, "extras": [],
+            "item": item, "planned": planned.get(item.pk, ZERO), "used": ZERO, "by_stage": [],
             "out_qty": ZERO, "back_qty": ZERO, "value": ZERO,
         })
 
-    for m in ProjectServiceMaterial.objects.filter(service_line__project=project).select_related("item"):
-        row(m.item)["planned"] += m.qty
-    for l in InstallLine.objects.filter(stage__project=project, kind=InstallLine.Kind.MATERIAL,
-                                        item__isnull=False).select_related("item"):
-        r = row(l.item)
-        r["install_lines"] += 1
-        if l.status == InstallLine.Status.PENDING:
-            r["install_pending"] += 1
-        elif l.status == InstallLine.Status.OK:
-            r["installed"] += l.actual_qty or ZERO
-    for p in PartRequest.objects.filter(project=project, status=PartRequest.Status.ISSUED).select_related("item"):
-        row(p.item)["parts_issued"] += p.qty
-    for e in ExtraShipment.objects.filter(project=project).select_related("item"):
-        r = row(e.item)
-        r["extras_shipped"] += e.qty
-        r["extras"].append(e)
+    for u in (StageUsage.objects.filter(stage__project=project).select_related("item", "stage")
+              .order_by("stage__order", "pk")):
+        r = row(u.item)
+        r["used"] += u.qty
+        r["by_stage"].append({"stage": u.stage, "qty": u.qty})
     for mv in StockMovement.objects.filter(related_content_type=ct, related_object_id=project.pk).select_related("item"):
         r, val = row(mv.item), mv.qty * mv.unit_cost
         if mv.direction == DIR.OUT and mv.movement_type in (MT.OUT, MT.ADJUST):
@@ -298,13 +288,9 @@ def project_reconciliation(project):
 
     result = []
     for r in rows.values():
-        install_done = r["install_lines"] > 0 and r["install_pending"] == 0
-        sources = r["planned"] + r["parts_issued"] + r["extras_shipped"]
         r["net_out"] = r["out_qty"] - r["back_qty"]
-        if install_done:
-            r["basis"], r["expected"] = "install", r["installed"]
-        elif sources > 0:
-            r["basis"], r["expected"] = "sources", sources
+        if r["used"] > 0:
+            r["basis"], r["expected"] = "usage", r["used"]
         else:
             r["basis"], r["expected"] = "manual", r["net_out"]
         r["unsettled"] = r["expected"] - r["net_out"]

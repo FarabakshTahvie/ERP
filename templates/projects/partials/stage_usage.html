@@ -1,0 +1,37 @@
+{% load custom_tags %}
+<div class="fb-inset mt-3 flex flex-col gap-3" data-usage-box data-url="{% url 'projects:usage_set' s.id %}">
+    <div class="fb-label">مصرف این مرحله</div>
+    <p class="fb-hint">فقط مصرف خودِ همین مرحله را بنویسید. اعشار مجاز است (مثلاً ۴٫۵). با خروج از کادر یا زدن Enter همان لحظه ذخیره می‌شود؛ کادر خالی یعنی مصرفی نبوده.</p>
+    <div class="overflow-x-auto">
+        <table class="table table-sm text-xs">
+            <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>مقدار مصرف</th><th></th></tr></thead>
+            <tbody>
+            {% for r in s.usage.rows %}
+                <tr data-usage-row data-item="{{ r.item.id }}"{% if r.extra %} data-extra="1"{% endif %}>
+                    <td class="font-semibold">{{ r.item.name }}{% if r.extra %} <span class="fb-badge fb-badge-neutral">خارج از پیش‌فاکتور</span>{% endif %}</td>
+                    <td>{{ r.item.get_unit_display }}</td>
+                    <td><input type="text" data-usage-qty data-decimal dir="ltr" inputmode="decimal" autocomplete="off"
+                               value="{{ r.qty }}" data-saved="{{ r.qty }}" aria-label="مقدار مصرف {{ r.item.name }}"
+                               class="input input-xs w-28 font-technical" {% if not s.usage.can_edit %}disabled{% endif %}></td>
+                    <td data-usage-msg class="text-xs"></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="fb-empty">کالایی در پیش‌فاکتور نیست؛ کالای مصرفی را از پایین اضافه کنید.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if s.usage.can_edit %}
+    <form data-usage-add class="flex flex-col gap-2 pt-2 border-t border-base-300">
+        <span class="fb-label">کالای دیگر</span>
+        <div class="flex flex-wrap items-end gap-2">
+            <div class="fb-field flex-1 min-w-48"><div data-item-picker></div><input type="hidden" name="item_id"></div>
+            <input type="text" name="qty" data-decimal dir="ltr" inputmode="decimal" autocomplete="off" aria-label="مقدار"
+                   placeholder="مقدار" class="input input-sm w-28 font-technical">
+            <button type="submit" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} افزودن</button>
+        </div>
+        <span class="fb-hint">اگر کالا در جدول هست، مقدار جدید جایش می‌نشیند.</span>
+        <span data-usage-add-error class="fb-error hidden"></span>
+    </form>
+    {% endif %}
+</div>

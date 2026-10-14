@@ -10,13 +10,13 @@ from catalog.models import Service, Item, MarginRule
 from inventory.models import Warehouse
 from inventory.services import receive_stock
 from projects.models import (
-    Project, ProjectStage, StageKind, ProjectFile, ShipmentCheck, ExtraShipment,
+    Project, ProjectStage, StageKind, ProjectFile,
     InstallLine, PartRequest, ProjectCost,
 )
 from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
-from projects.ops import ensure_install_lines, create_part_request, add_extra_shipment, add_project_cost, set_install_line
+from projects.ops import ensure_install_lines, create_part_request, add_project_cost, set_install_line
 
 
 class OpsViewsTests(TestCase):
@@ -85,29 +85,6 @@ class OpsViewsTests(TestCase):
         self.install_stage.save()
         ensure_install_lines(self.install_stage)
 
-    def test_ship_check_endpoint(self):
-        url = reverse("projects:ship_check", args=[self.ship_stage.id])
-
-        # GET method not allowed (405)
-        self.client.force_login(self.driver)
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 405)
-
-        # Invalid file ID (404)
-        resp = self.client.post(url, {"file_id": "9999", "status": "sent"})
-        self.assertEqual(resp.status_code, 404)
-
-        # Missing reason on not_sent (400)
-        resp = self.client.post(url, {"file_id": self.gcode_file.id, "status": "not_sent", "reason": ""})
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(resp.json()["ok"])
-        self.assertIn("error", resp.json())
-
-        # Success (200)
-        resp = self.client.post(url, {"file_id": self.gcode_file.id, "status": "sent", "reason": ""})
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["ok"])
-
     def test_install_line_endpoint(self):
         line = self.install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
         url = reverse("projects:install_line", args=[self.install_stage.id])
@@ -166,7 +143,6 @@ class OpsViewsTests(TestCase):
         lines_count_before = self.invoice.lines.count()
 
         # Add all phase 3 items
-        add_extra_shipment(stage=self.ship_stage, item_id=self.item.id, qty_raw="3", note="کالای مازاد ارسال", actor=self.driver)
         mat_line = self.install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
         set_install_line(line=mat_line, status="ok", actual_qty_raw="5", reason="", actor=self.installer) # delta +3
         req = create_part_request(stage=self.install_stage, item_id=self.item.id, qty_raw="2", note="نیاز به قطعه", actor=self.installer)

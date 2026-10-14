@@ -10,7 +10,7 @@ from catalog.models import Service, Item, MarginRule
 from inventory.models import Warehouse, StockMovement
 from inventory.services import receive_stock
 from projects.models import (
-    Project, ProjectStage, StageKind, ProjectFile, ShipmentCheck, ExtraShipment,
+    Project, ProjectStage, StageKind, ProjectFile,
     InstallLine, PartRequest, ProjectCost, StageEvent,
 )
 from projects.workflow_v3 import build_workflow_v3
@@ -18,113 +18,10 @@ from projects.services import create_project_from_technician_intake, advance_sta
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import add_stage_file, complete_stage, stage_completion_problem
 from projects.ops import (
-    set_shipment_check, add_extra_shipment, delete_extra_shipment,
     ensure_install_lines, set_install_line, create_part_request,
     issue_part_request, reject_part_request, cancel_part_request,
     add_project_cost, delete_project_cost, final_review_data,
 )
-
-
-class ShippingCheckTests(TestCase):
-    def setUp(self):
-        self.partner = Party.objects.create(name="شریک ۳", is_partner=True, phone_number="09121112255")
-        self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
-        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
-        self.shipping_spec = Specialty.objects.get_or_create(name="راننده")[0]
-        self.creator = User.objects.create_user(username="creator_sh", password="pw", role=User.Role.EMPLOYEE)
-        self.creator.specialties.add(self.intake_spec)
-        self.accountant = User.objects.create_user(username="acc_sh", password="pw", role=User.Role.EMPLOYEE)
-        self.accountant.specialties.add(self.acc_spec)
-        self.driver = User.objects.create_user(username="driver_sh", password="pw", role=User.Role.EMPLOYEE)
-        self.driver.specialties.add(self.shipping_spec)
-        self.wh = Warehouse.objects.create(name="انبار ۳")
-
-        self.service = Service.objects.create(name="تست ارسال")
-        self.item = Item.objects.create(name="کالای ارسال", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("1000"))
-        MarginRule.objects.create(scope=MarginRule.Scope.GLOBAL, value_type=MarginRule.ValueType.PERCENT, value=Decimal("20"), valid_from=timezone.now() - timezone.timedelta(days=1))
-
-        build_workflow_v3(make_default=True)
-        self.project, _, _ = create_project_from_technician_intake(created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False)
-
-        # VISIT -> Done
-        st1 = self.project.stages.get(order=1)
-        st1.assigned_to = self.creator
-        st1.save()
-        advance_stage(st1, actor=self.creator, new_status=ProjectStage.Status.DONE, comment="بازدید شد.")
-
-        # PROFORMA
-        rows = parse_service_rows(json.dumps([{"service_id": self.service.id, "qty": "10", "unit_price": "5000", "materials": []}]))
-        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.accountant)
-
-        self.gcode_stage = self.project.stages.get(kind=StageKind.GCODE)
-        self.gcode_file = ProjectFile.objects.create(
-            stage=self.gcode_stage, file=SimpleUploadedFile("f.nc", b"gcode"),
-            kind=ProjectFile.Kind.GCODE, original_name="f.nc", uploaded_by=self.creator,
-            is_attachment=True, cut_count=5
-        )
-
-        self.stage = self.project.stages.get(kind=StageKind.SHIPPING)
-        self.stage.assigned_to = self.driver
-        self.stage.status = ProjectStage.Status.IN_PROGRESS
-        self.stage.save()
-
-    def test_not_sent_needs_reason(self):
-        with self.assertRaises(ValueError) as cm:
-            set_shipment_check(stage=self.stage, file=self.gcode_file, status="not_sent", reason=" ", actor=self.driver)
-        self.assertIn("دلیل ارسال‌نشدن", str(cm.exception))
-
-    def test_sent_clears_previous_reason(self):
-        set_shipment_check(stage=self.stage, file=self.gcode_file, status="not_sent", reason="شکسته", actor=self.driver)
-        chk = self.stage.shipment_checks.get()
-        self.assertEqual(chk.status, "not_sent")
-        self.assertEqual(chk.reason, "شکسته")
-
-        set_shipment_check(stage=self.stage, file=self.gcode_file, status="sent", reason="دلخواه", actor=self.driver)
-        chk.refresh_from_db()
-        self.assertEqual(chk.status, "sent")
-        self.assertEqual(chk.reason, "")
-
-    def test_idempotent_creation(self):
-        set_shipment_check(stage=self.stage, file=self.gcode_file, status="sent", reason="", actor=self.driver)
-        set_shipment_check(stage=self.stage, file=self.gcode_file, status="sent", reason="", actor=self.driver)
-        self.assertEqual(self.stage.shipment_checks.count(), 1)
-
-    def test_invalid_file_rejected(self):
-        other_file = ProjectFile.objects.create(
-            stage=self.gcode_stage, file=SimpleUploadedFile("f.dwg", b"dwg"),
-            kind=ProjectFile.Kind.DWG, original_name="f.dwg", uploaded_by=self.creator,
-            is_attachment=True, cut_count=None
-        )
-        with self.assertRaises(ValueError):
-            set_shipment_check(stage=self.stage, file=other_file, status="sent", reason="", actor=self.driver)
-
-    def test_completion_problem_with_missing_checks(self):
-        # First upload image to satisfy upload requirement
-        ProjectFile.objects.create(
-            stage=self.stage, file=SimpleUploadedFile("img.jpg", b"img"),
-            kind=ProjectFile.Kind.IMAGE, original_name="img.jpg", is_attachment=True
-        )
-
-        problem = stage_completion_problem(self.stage)
-        self.assertIn("فایل هنوز «ارسال شد» یا «ارسال نشد» ثبت نشده", problem)
-
-        set_shipment_check(stage=self.stage, file=self.gcode_file, status="sent", reason="", actor=self.driver)
-        self.assertIsNone(stage_completion_problem(self.stage))
-
-    def test_extra_shipment_ops(self):
-        ex = add_extra_shipment(stage=self.stage, item_id=self.item.id, qty_raw="2.5", note="مازاد", actor=self.driver)
-        self.assertEqual(ex.qty, Decimal("2.5"))
-        self.assertEqual(ex.sale_total, Decimal("3000")) # 2.5 * 1000 * 1.2
-        self.assertEqual(self.item.current_stock, 0) # No stock movement
-
-        with self.assertRaises(ValueError):
-            add_extra_shipment(stage=self.stage, item_id=self.item.id, qty_raw="0", note="x", actor=self.driver)
-
-        # Delete extra shipment logs to StageEvent
-        delete_extra_shipment(extra=ex, actor=self.driver)
-        self.assertEqual(ExtraShipment.objects.count(), 0)
-        self.assertTrue(StageEvent.objects.filter(stage=self.stage, comment__icontains="حذف شد").exists())
 
 
 class InstallLinesTests(TestCase):

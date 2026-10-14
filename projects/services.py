@@ -777,6 +777,9 @@ def transfer_stage(stage, from_user, to_user, comment=""):
         raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id != from_user.id:
         raise ValueError("فقط مسئول فعلی این مرحله می‌تواند آن را انتقال دهد.")
+    from .usage import stage_has_progress
+    if stage_has_progress(stage):
+        raise ValueError("بعد از ثبت اولین تیک یا مصرف، مرحله به فرد دیگری واگذار نمی‌شود.")
     if to_user.role != User.Role.EMPLOYEE:
         raise ValueError("مرحله فقط قابل انتقال به یک تکنسین است.")
     if to_user.id == from_user.id:

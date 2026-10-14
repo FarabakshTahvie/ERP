@@ -14,8 +14,8 @@ from finance.models import Invoice, Payment
 from inventory.models import Purchase, PurchaseLine, StockLot, StockMovement, Warehouse
 from inventory.services import consume_stock, create_purchase_from_form, receive_stock, record_manual_stock_change
 from projects.models import (
-    ExtraShipment, InstallLine, PartRequest, Project, ProjectCost, ProjectService, ProjectServiceMaterial,
-    ProjectStage, StageKind, WorkflowStepTemplate, WorkflowTemplate,
+    Project, ProjectCost, ProjectService, ProjectServiceMaterial,
+    ProjectStage, StageKind, StageUsage, WorkflowStepTemplate, WorkflowTemplate,
 )
 from projects.services import user_can_access_accounting
 
@@ -296,65 +296,47 @@ class ReconciliationTests(BaseAccountingTestCase):
             service_line=self.service, item=self.item, qty=Decimal("10"), cost_snapshot=Decimal("1000"),
         )
 
-    def test_reconciliation_scenarios(self):
-        line = InstallLine.objects.create(
-            stage=self.stage, kind=InstallLine.Kind.MATERIAL, item=self.item, title="لوله مسی",
-            planned_qty=Decimal("10"), actual_qty=Decimal("12"), status=InstallLine.Status.OK,
-        )
-        consume_stock(item=self.item, qty=Decimal("12"), user=self.accountant, notes="مصرف ۱۲", related_object=self.project)
-        recon = accounting.project_reconciliation(self.project)
-        r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["status"], "ok")
-        self.assertEqual(r["unsettled"], Decimal("0"))
+    def row(self, item=None):
+        item = item or self.item
+        return next(r for r in accounting.project_reconciliation(self.project) if r["item"].pk == item.pk)
 
-        line.actual_qty = Decimal("12")
-        line.save()
-        StockMovement.objects.filter(related_object_id=self.project.pk).delete()
-        consume_stock(item=self.item, qty=Decimal("5"), user=self.accountant, notes="مصرف ۵", related_object=self.project)
-        recon = accounting.project_reconciliation(self.project)
-        r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["status"], "short")
-        self.assertEqual(r["unsettled"], Decimal("7"))
+    def consume(self, item, qty):
+        consume_stock(item=item, qty=Decimal(qty), user=self.accountant, notes="مصرف", related_object=self.project)
 
-        line.actual_qty = Decimal("10")
-        line.save()
-        StockMovement.objects.filter(related_object_id=self.project.pk).delete()
-        consume_stock(item=self.item, qty=Decimal("12"), user=self.accountant, notes="مصرف ۱۲", related_object=self.project)
-        recon = accounting.project_reconciliation(self.project)
-        r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["status"], "over")
+    def test_reconciliation_follows_stage_usage(self):
+        self.assertEqual(accounting.project_reconciliation(self.project), [])   # فقط پیش‌فاکتور؛ مصرفی نیست
+        StageUsage.objects.create(stage=self.stage, item=self.item, qty=Decimal("12"))
+        r = self.row()
+        self.assertEqual((r["basis"], r["planned"], r["used"], r["expected"], r["status"]),
+                         ("usage", Decimal("10"), Decimal("12"), Decimal("12"), "short"))
+        self.consume(self.item, "5")
+        r = self.row()
+        self.assertEqual((r["status"], r["unsettled"]), ("short", Decimal("7")))
+        self.consume(self.item, "7")
+        self.assertEqual(self.row()["status"], "ok")
+        self.consume(self.item, "2")
+        r = self.row()
+        self.assertEqual((r["status"], r["unsettled"]), ("over", Decimal("-2")))
 
-        InstallLine.objects.filter(stage__project=self.project).delete()
-        StockMovement.objects.filter(related_object_id=self.project.pk).delete()
-        consume_stock(item=self.item, qty=Decimal("10"), user=self.accountant, notes="مصرف ۱۰", related_object=self.project)
-        recon = accounting.project_reconciliation(self.project)
-        r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["basis"], "sources")
-        self.assertEqual(r["status"], "ok")
+    def test_usage_of_two_stages_is_summed_per_stage(self):
+        step2 = WorkflowStepTemplate.objects.create(template=self.wt, title="مرحله دوم", kind=StageKind.SHIPPING, order=2)
+        stage2 = ProjectStage.objects.create(project=self.project, step_template=step2, title="مرحله دوم",
+                                             kind=StageKind.SHIPPING, order=2)
+        StageUsage.objects.create(stage=self.stage, item=self.item, qty=Decimal("4.5"))
+        StageUsage.objects.create(stage=stage2, item=self.item, qty=Decimal("3"))
+        r = self.row()
+        self.assertEqual(r["expected"], Decimal("7.5"))
+        self.assertEqual([(b["stage"].pk, b["qty"]) for b in r["by_stage"]],
+                         [(self.stage.pk, Decimal("4.5")), (stage2.pk, Decimal("3"))])
+        self.assertEqual(r["expected_input"], "7.5")
 
-        line = InstallLine.objects.create(
-            stage=self.stage, kind=InstallLine.Kind.MATERIAL, item=self.item, title="لوله مسی",
-            planned_qty=Decimal("10"), actual_qty=Decimal("13"), status=InstallLine.Status.OK,
-        )
-        ExtraShipment.objects.create(
-            project=self.project, stage=self.stage, item=self.item, qty=Decimal("3"),
-        )
-        StockMovement.objects.filter(related_object_id=self.project.pk).delete()
-        consume_stock(item=self.item, qty=Decimal("13"), user=self.accountant, notes="مصرف ۱۳", related_object=self.project)
-        recon = accounting.project_reconciliation(self.project)
-        r = next(row for row in recon if row["item"].pk == self.item.pk)
-        self.assertEqual(r["status"], "ok")
-
-        item2 = Item.objects.create(name="پایه دیواری", category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item2, warehouse=self.warehouse, qty=Decimal("10"), unit_cost=Decimal("500"), received_at=timezone.now())
-        PartRequest.objects.create(
-            project=self.project, item=item2, qty=Decimal("2"), status=PartRequest.Status.ISSUED, stage=self.stage,
-        )
-        consume_stock(item=item2, qty=Decimal("2"), user=self.accountant, notes="تحویل قطعه", related_object=self.project)
-        recon2 = accounting.project_reconciliation(self.project)
-        r2 = next(row for row in recon2 if row["item"].pk == item2.pk)
-        self.assertEqual(r2["status"], "ok")
-        self.assertEqual(r2["unsettled"], Decimal("0"))
+    def test_manual_only_item_keeps_its_deducted_quantity(self):
+        other = Item.objects.create(name="کالای دستی", category=self.cat, unit=Item.Unit.PIECE)
+        receive_stock(item=other, warehouse=self.warehouse, qty=Decimal("10"), unit_cost=Decimal("500"),
+                      received_at=timezone.now())
+        self.consume(other, "4")
+        r = self.row(other)
+        self.assertEqual((r["basis"], r["expected"], r["status"]), ("manual", Decimal("4"), "ok"))
 
 
 class AccountantPaymentVisibilityTests(BaseAccountingTestCase):

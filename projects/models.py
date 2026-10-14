@@ -15,6 +15,7 @@ class StageKind(models.TextChoices):
     GCODE = "gcode", "جی‌کدگیری"
     CUTTING = "cutting", "برش‌کاری"
     SHIPPING = "shipping", "ارسال"
+    ASSEMBLY = "assembly", "مونتاژ"
     INSTALL = "install", "نصب"
     FINAL_REVIEW = "final_review", "بازبینی نهایی"
 
@@ -299,6 +300,22 @@ class StageEvent(models.Model):
         ordering = ["created_at"]
 
 
+class StageUsage(models.Model):
+    """مصرف ثبت‌شده توسط تکنسین هر مرحله. هر مرحله مصرف خودش را دارد؛ از انبار کم نمی‌کند (کم‌شدن فقط در بازبینی نهایی)."""
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="usages", verbose_name="مرحله")
+    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="stage_usages", verbose_name="کالا")
+    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار مصرف")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="ثبت‌کننده")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="آخرین ثبت")
+
+    class Meta:
+        verbose_name = "مصرف مرحله"
+        verbose_name_plural = "مصرف مرحله‌ها"
+        ordering = ["stage__order", "item__name"]
+        constraints = [models.UniqueConstraint(fields=["stage", "item"], name="unique_usage_per_stage_item")]
+
+
 class StageApproval(models.Model):
     class Decision(models.TextChoices):
         PENDING = "pending", "در انتظار"
@@ -392,41 +409,7 @@ class FileGroup(TimeStampedModel):
         return self.title
 
 
-class ShipmentCheck(models.Model):
-    class Status(models.TextChoices):
-        SENT = "sent", "ارسال شد"
-        NOT_SENT = "not_sent", "ارسال نشد"
 
-    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="shipment_checks", verbose_name="مرحله")
-    file = models.ForeignKey(ProjectFile, on_delete=models.CASCADE, related_name="shipment_checks", verbose_name="فایل")
-    status = models.CharField(max_length=20, choices=Status.choices, verbose_name="وضعیت")
-    reason = models.TextField(blank=True, verbose_name="دلیل ارسال‌نشدن")
-    checked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
-    checked_at = models.DateTimeField(auto_now=True, verbose_name="زمان")
-
-    class Meta:
-        verbose_name = "چک ارسال"
-        verbose_name_plural = "چک‌های ارسال"
-        constraints = [models.UniqueConstraint(fields=["stage", "file"], name="unique_shipcheck_per_file")]
-
-
-class ExtraShipment(models.Model):
-    """کالای اضافه‌ی ارسال‌شده. فقط برای بازبینی؛ روی فاکتور نمی‌آید و موجودی را کم نمی‌کند. مصرف واقعی‌اش در جدول تسویه‌ی بازبینی نهایی تعیین می‌شود."""
-
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="پروژه")
-    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="extra_shipments", verbose_name="مرحله")
-    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="extra_shipments", verbose_name="کالا")
-    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
-    cost_snapshot = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون (اسنپ‌شات)")
-    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات)")
-    sale_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش (تومان)")
-    note = models.CharField(max_length=500, verbose_name="توضیح")
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, verbose_name="ثبت‌کننده")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "کالای اضافه‌ی ارسال"
-        verbose_name_plural = "کالاهای اضافه‌ی ارسال"
 
 
 class InstallLine(models.Model):

@@ -128,6 +128,7 @@
 
             {% include "projects/partials/stage_files.html" %}
             {% if s.ops %}{% include "projects/partials/stage_ops.html" %}{% endif %}
+            {% if s.usage %}{% include "projects/partials/stage_usage.html" %}{% endif %}
             {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
 
             {% if s.is_candidate and not s.is_mine and s.status == 'in_progress' %}
@@ -163,6 +164,8 @@
                         <button class="btn btn-primary btn-sm flex-1 min-w-0">تکمیل شد</button>
                         {% if s.transfer_candidates %}
                         <button type="button" class="btn btn-soft btn-sm flex-1 min-w-0" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
+                        {% elif s.transfer_locked %}
+                        <span class="fb-hint">بعد از ثبت اولین تیک یا مصرف، واگذاری ممکن نیست.</span>
                         {% endif %}
                     </div>
                 </form>
@@ -246,6 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{% static_v 'js/uploader.js' %}"></script>
 <script src="{% static_v 'js/item_picker.js' %}"></script>
 <script src="{% static_v 'js/checklist.js' %}"></script>
+<script src="{% static_v 'js/stage_usage.js' %}"></script>
 <script src="{% static_v 'js/vendor/media-chrome.js' %}"></script>
 <script src="{% static_v 'js/voice_note.js' %}"></script>
 {{ ops_items|json_script:"ops-items" }}

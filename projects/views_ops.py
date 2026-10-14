@@ -10,8 +10,8 @@ from catalog.models import Item
 from inventory.services import user_can_manage_inventory, record_manual_stock_change
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
-from . import ops
-from .models import ExtraShipment, InstallLine, PartRequest, Project, ProjectFile, ProjectStage, StageKind
+from . import ops, usage
+from .models import InstallLine, PartRequest, Project, ProjectFile, ProjectStage, StageKind
 from .stage_ops import complete_stage
 from .stage_move import move_to_stage
 
@@ -33,11 +33,10 @@ def _obj(model, raw, **kw):
 
 @login_required
 @require_POST
-def ship_check(request, stage_id):
+def usage_set(request, stage_id):
     stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
-    f = _obj(ProjectFile.objects.select_related("stage"), request.POST.get("file_id"))
-    return _json(lambda: ops.set_shipment_check(stage=stage, file=f, status=request.POST.get("status"),
-                                                reason=request.POST.get("reason"), actor=request.user))
+    return _json(lambda: usage.set_usage(stage=stage, item_id=request.POST.get("item_id"),
+                                         qty_raw=request.POST.get("qty"), actor=request.user))
 
 
 @login_required
@@ -53,19 +52,7 @@ def install_line(request, stage_id):
     return _json(run)
 
 
-@login_required
-@require_POST
-def extra_add(request, stage_id):
-    stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
-    return _json(lambda: ops.add_extra_shipment(stage=stage, item_id=request.POST.get("item_id"),
-                                                qty_raw=request.POST.get("qty"), note=request.POST.get("note"), actor=request.user) and None)
 
-
-@login_required
-@require_POST
-def extra_delete(request, extra_id):
-    extra = _obj(ExtraShipment.objects.select_related("stage__project", "item"), extra_id)
-    return _json(lambda: ops.delete_extra_shipment(extra=extra, actor=request.user))
 
 
 @login_required

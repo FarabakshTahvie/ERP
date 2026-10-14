@@ -21,6 +21,7 @@ from core.models import Party
 from catalog.models import Service, Item
 from catalog.services import has_global_margin, resolve_margin_percents
 from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile, FileGroup
+from .usage import stage_has_progress
 from .stage_ops import (
     can_upload_to_stage,
     add_stage_file,
@@ -385,17 +386,19 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         .order_by("order")
     )
 
-    from . import ops
+    from . import ops, usage
     my_stage_ids = set()
     for s in stages:
         s.ops = ops.ops_context(user, s)
+        s.usage = usage.usage_context(user, s)
         candidate_ids = {u.id for u in s.candidate_users.all()}
         s.is_mine = s.assigned_to_id == user.id
         s.is_candidate = user.id in candidate_ids
         s.candidate_count = len(candidate_ids)
         if s.is_mine or s.is_candidate:
             my_stage_ids.add(s.id)
-        s.transfer_candidates = get_transfer_candidates(s) if s.is_mine else None
+        s.transfer_locked = bool(s.is_mine and stage_has_progress(s))
+        s.transfer_candidates = get_transfer_candidates(s) if (s.is_mine and not s.transfer_locked) else None
         s.can_upload = s.status == ProjectStage.Status.IN_PROGRESS and can_upload_to_stage(user, s)
         s.upload_req = upload_requirement(s)
         s.file_upload_url = reverse("projects:stage_file_upload", args=[s.id])
@@ -412,7 +415,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         raise Http404
 
     ops_items = []
-    if any(getattr(s, "ops", None) and s.ops.get("can_edit") for s in stages):
+    if any((getattr(s, "ops", None) and s.ops.get("can_edit")) or (getattr(s, "usage", None) and s.usage.get("can_edit")) for s in stages):
         ops_items = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)]
 
     from . import stage_move

@@ -7,7 +7,7 @@ from django.utils import timezone
 from accounts.models import User
 from catalog.models import Item, Service
 from core.models import Party, Specialty
-from projects.models import Project, ProjectStage, StageKind, ExtraShipment
+from projects.models import Project, ProjectStage, StageKind
 from projects.proforma import save_proforma, issue_proforma
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.workflow_v3 import build_workflow_v3

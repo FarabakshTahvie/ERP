@@ -228,10 +228,7 @@ def stage_completion_problem(stage, *, show_to_client=False):
             kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
         return "برای نمایش به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید تا مشتری بتواند بدون نرم‌افزار ببیند."
     from . import ops
-    if stage.kind == StageKind.SHIPPING:
-        problem = ops.shipping_problem(stage)
-        if problem:
-            return problem
+
     if stage.kind == StageKind.INSTALL:
         problem = ops.install_problem(stage)
         if problem:
