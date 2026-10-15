@@ -264,9 +264,11 @@
         {% endif %}
     </div>
 
+    {% include "projects/partials/usage_by_stage.html" %}
+
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">مصرف کالای دیگر (که در جدول تسویه نیست)</h2>
-        <p class="fb-hint">مثلاً کالایی که مصرف شده ولی نه در پیش‌فاکتور بوده نه نصب یا درخواست قطعه. بعد از ثبت، به جدول تسویه می‌آید. کالاهای جدول را همان‌جا تغییر دهید.</p>
+        <p class="fb-hint">برای کالایی که از انبار مصرف شده ولی تکنسین‌ها در مرحله‌ها ثبتش نکرده‌اند. بعد از ثبت، به جدول تسویه می‌آید. کالاهای داخل جدول را همان‌جا تغییر دهید.</p>
         <form method="post" action="{% url 'projects:final_review_consume' project.id %}" id="fr-consume-form" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
             <div class="fb-field">
@@ -277,7 +279,7 @@
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="fr-stock-qty">مقدار</label>
-                <input type="text" id="fr-stock-qty" name="qty" required dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
+                <input type="text" id="fr-stock-qty" name="qty" required data-decimal dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="fr-stock-notes">دلیل (اجباری)</label>
@@ -309,23 +311,23 @@
 
     <!-- ۱۰. تایید -->
     <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">تسویه‌ی مصرف مواد و تایید نهایی</h2>
+        <h2 class="font-bold text-sm">جمع مصرف همه‌ی مراحل و تسویه‌ی انبار</h2>
         {% if can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
             <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: جمع مصرفی که تکنسین‌ها در مرحله‌ها ثبت کرده‌اند (زیر نام کالا به تفکیک مرحله آمده)؛ کالایی که از انبار کم شده ولی مصرف مرحله ندارد همان مقدار کسرشده را می‌گیرد. اگر عددی را عوض کنید دلیل لازم است.</p>
             <div class="overflow-x-auto" data-settle-root data-revenue="{{ pnl.revenue|stringformat:'d' }}" data-stock-cost="{{ pnl.stock_cost|stringformat:'d' }}" data-recorded="{{ pnl.recorded_costs|stringformat:'d' }}">
                 <table class="table table-sm text-xs">
-                    <thead><tr class="fb-muted"><th>کالا</th><th>پیش‌فاکتور</th><th>مصرف ثبت‌شده‌ی مرحله‌ها</th><th>کسرشده تاکنون</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
+                    <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>پیش‌فاکتور</th><th>جمع مصرف مرحله‌ها</th><th>کسرشده تاکنون</th><th>موجودی انبار</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
                     <tbody>
                     {% for r in recon %}
                         <tr data-net="{{ r.net_str }}" data-unit="{{ r.unit_str }}">
-                            <td class="font-semibold">{{ r.item.name }}
-                                {% for b in r.by_stage %}<div class="fb-hint font-normal">{{ b.stage.title }}: <span class="font-technical">{{ b.qty|floatformat:"-4"|fa_digits }}</span></div>{% endfor %}
-                            </td>
+                            <td class="font-semibold">{{ r.item.name }}</td>
+                            <td>{{ r.unit_label }}</td>
                             <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
                             <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                             <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
+                            <td class="font-technical">{{ r.stock|floatformat:"-4"|fa_digits }}{% if r.stock_short %} <span class="fb-badge fb-badge-warning">کم است</span>{% endif %}</td>
                             <td>
                                 <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" required data-decimal data-settle-qty data-item="{{ r.item.id }}"
                                        data-suggested="{{ r.expected_input }}" dir="ltr" inputmode="decimal" aria-label="مصرف نهایی {{ r.item.name }}"
@@ -336,7 +338,7 @@
                             <td class="font-technical" data-change>—</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="6" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
+                        <tr><td colspan="8" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

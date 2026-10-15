@@ -90,6 +90,7 @@ def final_review(request, project_id):
         "can_cancel_now": can_cancel_now,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
         "recon": recon, "pnl": accounting.project_pnl(fin),
+        "usage_stages": usage.project_usage_by_stage(project),
         "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],
     })
 

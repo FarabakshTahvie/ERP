@@ -286,11 +286,14 @@ def project_reconciliation(project):
     result = []
     for r in rows.values():
         r["net_out"] = r["out_qty"] - r["back_qty"]
+        r["unit_label"] = r["item"].get_unit_display()
+        r["stock"] = r["item"].current_stock
         if r["used"] > 0:
             r["basis"], r["expected"] = "usage", r["used"]
         else:
             r["basis"], r["expected"] = "manual", r["net_out"]
         r["unsettled"] = r["expected"] - r["net_out"]
+        r["stock_short"] = r["unsettled"] > r["stock"]
         r["status"] = "ok" if abs(r["unsettled"]) <= QTY_EPS else ("short" if r["unsettled"] > 0 else "over")
         r["unit"] = (r["value"] / r["net_out"]) if r["net_out"] > 0 else Decimal(r["item"].moving_average_cost or 0)
         r["expected_input"] = format(r["expected"].quantize(QTY_Q).normalize(), "f")

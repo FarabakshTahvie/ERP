@@ -1,0 +1,30 @@
+{% load custom_tags %}
+<section class="fb-card fb-pad flex flex-col gap-3">
+    <h2 class="fb-section-title">مصرف ثبت‌شده‌ی هر مرحله</h2>
+    <p class="fb-hint">فقط مرحله‌هایی که تکنسینشان مصرف ثبت کرده آمده است. این اعداد هنوز از انبار کم نشده‌اند؛ کم‌شدن با تایید نهایی و طبق جدول تسویه‌ی پایین انجام می‌شود.</p>
+    {% for g in usage_stages %}
+    <div class="fb-inset flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <span class="text-sm font-semibold">{{ g.stage.order|fa_digits }}. {{ g.stage.title }}</span>
+            <span class="text-xs fb-muted">مسئول: {% if g.stage.assigned_to %}{{ g.stage.assigned_to.get_full_name|default:g.stage.assigned_to.username }}{% else %}XX{% endif %}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>مقدار مصرف</th><th>ثبت‌کننده</th></tr></thead>
+                <tbody>
+                {% for r in g.rows %}
+                    <tr>
+                        <td class="font-semibold">{{ r.item.name }}{% if r.extra %} <span class="fb-badge fb-badge-neutral">خارج از پیش‌فاکتور</span>{% endif %}</td>
+                        <td>{{ r.unit }}</td>
+                        <td class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }}</td>
+                        <td class="fb-muted">{% if r.by %}{{ r.by.get_full_name|default:r.by.username }}{% else %}XX{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% empty %}
+    <p class="fb-hint">هیچ مرحله‌ای مصرف ثبت نکرده است.</p>
+    {% endfor %}
+</section>

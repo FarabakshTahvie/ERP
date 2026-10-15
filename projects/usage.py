@@ -128,3 +128,21 @@ def install_context(user, stage):
     return {"rows": rows, "total": len(rows), "done": sum(1 for r in rows if r["done"]),
             "can_edit": can_edit_ops(user, stage)}
 
+
+def project_usage_by_stage(project):
+    """[{stage, rows: [{item, qty, unit, extra, by}]}] فقط مرحله‌هایی که مصرف ثبت کرده‌اند، به ترتیب مرحله."""
+    planned = set(Item.objects.filter(service_line_usages__service_line__project_id=project.pk)
+                  .values_list("pk", flat=True))
+    qs = (StageUsage.objects.filter(stage__project=project)
+          .select_related("item", "stage", "stage__assigned_to", "updated_by")
+          .order_by("stage__order", "item__name"))
+    out, current = [], None
+    for u in qs:
+        if current is None or current["stage"].pk != u.stage_id:
+            current = {"stage": u.stage, "rows": []}
+            out.append(current)
+        current["rows"].append({"item": u.item, "qty": u.qty, "unit": u.item.get_unit_display(),
+                                "extra": u.item_id not in planned, "by": u.updated_by})
+    return out
+
+

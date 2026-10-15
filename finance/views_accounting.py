@@ -13,6 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from inventory.models import PurchaseLine, StockMovement
 from projects import ops
+from projects.usage import project_usage_by_stage
 from projects.models import Project, ProjectCost, StageKind
 from utils.jalali_forms import JalaliDateField
 from utils.generic_table import build_table_context, render_table
@@ -529,6 +530,7 @@ def project_detail(request, project_id):
         "payments": invoice.payments.order_by("-created_at") if invoice else [],
         "recon": recon, "unsettled_count": sum(1 for r in recon if r["status"] != "ok"),
         "pnl": accounting.project_pnl(project),
+        "usage_stages": project_usage_by_stage(project),
         "data": ops.final_review_data(project),
         "moves": accounting.project_movements(project),
         "events": project.accounting_events.select_related("actor")[:50],
