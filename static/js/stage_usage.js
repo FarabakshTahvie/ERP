@@ -92,4 +92,24 @@
       if (form.requestSubmit) form.requestSubmit(); else form.submit();
     });
   });
+
+  // تیک «انجام شد» خدمت‌های نصب (ثبت لحظه‌ای)
+  document.addEventListener('change', function (e) {
+    var cb = e.target.closest ? e.target.closest('[data-install-check]') : null;
+    if (!cb) return;
+    var row = cb.closest('[data-install-row]'), err = document.querySelector('[data-install-error]');
+    var fd = new FormData();
+    fd.append('service_id', row.dataset.service);
+    fd.append('done', cb.checked ? '1' : '0');
+    cb.disabled = true;
+    function fail(text) { cb.checked = !cb.checked; err.textContent = text; err.classList.remove('hidden'); }
+    track(window.fbSend(row.dataset.url, fd, window.FB_CSRF).then(function (res) {
+      cb.disabled = false;
+      if (res.ok) {
+        err.classList.add('hidden');
+        var counter = document.querySelector('[data-install-done]');
+        if (counter) counter.textContent = fa(res.done);
+      } else { fail(res.error || 'ثبت نشد.'); }
+    }));
+  });
 })();

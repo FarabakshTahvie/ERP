@@ -127,7 +127,7 @@
             </div>
 
             {% include "projects/partials/stage_files.html" %}
-            {% if s.ops %}{% include "projects/partials/stage_ops.html" %}{% endif %}
+            {% if s.install %}{% include "projects/partials/stage_install.html" %}{% endif %}
             {% if s.usage %}{% include "projects/partials/stage_usage.html" %}{% endif %}
             {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
 
@@ -255,7 +255,6 @@ document.addEventListener('DOMContentLoaded', function() {
 {{ ops_items|json_script:"ops-items" }}
 <script>
 (function () {
-    document.querySelectorAll('[data-ops-root]').forEach(window.fbChecklistInit);
     window.fbOpsPickers(JSON.parse(document.getElementById('ops-items').textContent || '[]'));
     document.addEventListener('click', function (e) {
         var z = e.target.closest('[data-zoom]');

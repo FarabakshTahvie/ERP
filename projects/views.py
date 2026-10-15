@@ -341,14 +341,6 @@ def technician_home_view(request, user):
             "container_id": "tab-panel-stock-table",
             "eager_render": _eager(_stock_table_context),
         })
-        from .views_ops import part_requests_table_context
-        from .models import PartRequest
-        tabs.append({
-            "key": "part_requests", "label": "درخواست قطعه",
-            "count_builder": lambda: PartRequest.objects.filter(status=PartRequest.Status.REQUESTED).count(),
-            "url": reverse("projects:part_requests_table"), "container_id": "tab-panel-part-requests",
-            "eager_render": _eager(part_requests_table_context),
-        })
 
     tabs_context = build_tabs_context(request, tabs)
 
@@ -389,7 +381,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
     from . import ops, usage
     my_stage_ids = set()
     for s in stages:
-        s.ops = ops.ops_context(user, s)
+        s.install = usage.install_context(user, s)
         s.usage = usage.usage_context(user, s)
         candidate_ids = {u.id for u in s.candidate_users.all()}
         s.is_mine = s.assigned_to_id == user.id
@@ -415,7 +407,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         raise Http404
 
     ops_items = []
-    if any((getattr(s, "ops", None) and s.ops.get("can_edit")) or (getattr(s, "usage", None) and s.usage.get("can_edit")) for s in stages):
+    if any(getattr(s, "usage", None) and s.usage.get("can_edit") for s in stages):
         ops_items = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)]
 
     from . import stage_move

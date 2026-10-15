@@ -177,33 +177,6 @@ class FinalReviewPaymentHistoryAndProfitLabelTests(TestCase):
         remaining_fa = format(int(self.invoice.remaining_amount), ",").translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
         self.assertIn(remaining_fa, content)
 
-    def test_shortage_and_surplus_profit_loss_labels(self):
-        from projects.ops import ensure_install_lines, set_install_line
-        from projects.models import InstallLine
-        # ساخت متریال برای خدمت تا InstallLine از نوع MATERIAL ایجاد شود
-        mat_item = Item.objects.create(name="کالای تست نصب", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("1000"))
-        ps = self.project.services.first()
-        from projects.models import ProjectServiceMaterial
-        ProjectServiceMaterial.objects.create(
-            service_line=ps, item=mat_item, qty=Decimal("1"),
-            cost_snapshot=Decimal("1000"), margin_percent=Decimal("20")
-        )
-        install_stage = self.project.stages.get(kind=StageKind.INSTALL)
-        install_stage.status = ProjectStage.Status.IN_PROGRESS
-        install_stage.assigned_to = self.creator
-        install_stage.save()
-        ensure_install_lines(install_stage)
-        mat_line = install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
-        # delta_qty = actual - planned. برای کسری (بیشتر از planned)، actual را 2 می‌دهیم تا delta_qty = +1 شود
-        set_install_line(line=mat_line, status="ok", actual_qty_raw="2", reason="", actor=self.creator)
-
-        client = Client()
-        client.force_login(self.accountant)
-        resp = client.get(reverse("projects:final_review", args=[self.project.id]))
-        # قانون طلایی: عدم قضاوت سود و زیان
-        self.assertNotContains(resp, ">زیان<")
-        self.assertContains(resp, "بیشتر از پیش‌فاکتور")
-
 
 class AccountantHomeLinksToAccountingCenterTests(TestCase):
     def setUp(self):

@@ -13,7 +13,7 @@ from finance.reports import generate_periodic_financial_report, get_jalali_date_
 from finance.services import approve_payment
 from inventory.models import StockMovement, Warehouse
 from inventory.services import receive_stock, record_manual_stock_change
-from projects.models import Project, ProjectStage, StageApproval, WorkflowStepTemplate, WorkflowTemplate, PartRequest
+from projects.models import Project, ProjectStage, StageApproval, WorkflowStepTemplate, WorkflowTemplate
 from projects.services import create_project_from_technician_intake, update_project_from_technician_edit
 
 
@@ -177,23 +177,3 @@ class ReportsAndPagesTests(SecurityBase):
         self.assertEqual(resp.context["selected_client"], partner)
         self.assertNotIn("clients", resp.context)
         self.assertEqual(c.get(reverse("finance:accounting_customers"), {"client_id": "abc"}).status_code, 404)
-
-    def test_part_request_detail_hides_money_from_plain_keeper(self):
-        wh = Warehouse.objects.create(name="انبار ۲", is_default=True)
-        item = Item.objects.create(name="قطعه خاص", item_type=Item.ItemType.MATERIAL)
-        receive_stock(item=item, warehouse=wh, qty=10, unit_cost=1000, received_at=timezone.now())
-        stage = self.project.stages.first()
-        req = PartRequest.objects.create(project=self.project, stage=stage, item=item, qty=1, requested_by=self.tech,
-                                         status=PartRequest.Status.ISSUED, cost_total=Decimal("1000"), sale_total=Decimal("1500"))
-        c = Client()
-        c.force_login(self.keeper)
-        resp = c.get(reverse("projects:part_request_detail", args=[req.id]))
-        self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "بهای تمام‌شده")
-        self.assertNotContains(resp, "جمع فروش")
-
-        c.force_login(self.accountant)
-        resp_acc = c.get(reverse("projects:part_request_detail", args=[req.id]))
-        self.assertEqual(resp_acc.status_code, 200)
-        self.assertContains(resp_acc, "بهای تمام‌شده")
-        self.assertContains(resp_acc, "جمع فروش")

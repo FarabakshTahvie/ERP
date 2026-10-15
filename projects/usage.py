@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from catalog.models import Item
-from .models import FileGroup, ProjectStage, StageKind, StageUsage
+from .models import FileGroup, ProjectService, ProjectStage, ServiceTick, StageKind, StageUsage
 from .ops import can_edit_ops
 
 USAGE_KINDS = (StageKind.CUTTING, StageKind.ASSEMBLY, StageKind.SHIPPING, StageKind.INSTALL)
@@ -72,6 +72,8 @@ def stage_has_progress(stage):
         return True
     if stage.kind == StageKind.CUTTING:
         return FileGroup.objects.filter(project_id=stage.project_id, cut_done=True).exists()
+    if stage.kind == StageKind.INSTALL:
+        return stage.service_ticks.exists()
     return False
 
 
@@ -92,3 +94,37 @@ def usage_context(user, stage):
     if not rows and not can_edit:
         return None
     return {"rows": rows, "can_edit": can_edit}
+
+
+@transaction.atomic
+def set_service_done(*, stage, service_line_id, done, actor):
+    """صریح و idempotent: تیک «انجام شد» یک خدمت پیش‌فاکتور در مرحله‌ی نصب."""
+    stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("project").get(pk=stage.pk)
+    if stage.kind != StageKind.INSTALL:
+        raise ValueError("این عملیات فقط برای مرحله‌ی نصب است.")
+    if not can_edit_ops(actor, stage):
+        raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
+    try:
+        line = ProjectService.objects.filter(pk=int(str(service_line_id).strip().translate(_FA_TO_EN)),
+                                             project_id=stage.project_id).first()
+    except (TypeError, ValueError):
+        line = None
+    if line is None:
+        raise ValueError("خدمت نامعتبر است.")
+    if done:
+        ServiceTick.objects.get_or_create(stage=stage, service_line=line, defaults={"done_by": actor})
+    else:
+        ServiceTick.objects.filter(stage=stage, service_line=line).delete()
+    return {"done": ServiceTick.objects.filter(stage=stage).count(),
+            "total": ProjectService.objects.filter(project_id=stage.project_id).count()}
+
+
+def install_context(user, stage):
+    if stage.kind != StageKind.INSTALL or stage.status not in _SHOWN:
+        return None
+    ticked = set(ServiceTick.objects.filter(stage=stage).values_list("service_line_id", flat=True))
+    rows = [{"line": ps, "done": ps.pk in ticked}
+            for ps in ProjectService.objects.filter(project_id=stage.project_id).select_related("service").order_by("pk")]
+    return {"rows": rows, "total": len(rows), "done": sum(1 for r in rows if r["done"]),
+            "can_edit": can_edit_ops(user, stage)}
+

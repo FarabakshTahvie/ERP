@@ -11,87 +11,13 @@ from inventory.models import Warehouse, StockMovement
 from inventory.services import receive_stock
 from projects.models import (
     Project, ProjectStage, StageKind, ProjectFile,
-    InstallLine, PartRequest, ProjectCost, StageEvent,
+    ProjectCost, StageEvent,
 )
 from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects.stage_ops import add_stage_file, complete_stage, stage_completion_problem
-from projects.ops import (
-    ensure_install_lines, set_install_line, create_part_request,
-    issue_part_request, reject_part_request, cancel_part_request,
-    add_project_cost, delete_project_cost, final_review_data,
-)
-
-
-class InstallLinesTests(TestCase):
-    def setUp(self):
-        self.partner = Party.objects.create(name="شریک ۴", is_partner=True, phone_number="09121112266")
-        self.intake_spec = Specialty.objects.get_or_create(name="پذیرش")[0]
-        self.acc_spec = Specialty.objects.get_or_create(name="حسابدار")[0]
-        self.install_spec = Specialty.objects.get_or_create(name="نصاب")[0]
-        self.creator = User.objects.create_user(username="creator_ins", password="pw", role=User.Role.EMPLOYEE)
-        self.creator.specialties.add(self.intake_spec)
-        self.accountant = User.objects.create_user(username="acc_ins", password="pw", role=User.Role.EMPLOYEE)
-        self.accountant.specialties.add(self.acc_spec)
-        self.installer = User.objects.create_user(username="installer_ins", password="pw", role=User.Role.EMPLOYEE)
-        self.installer.specialties.add(self.install_spec)
-        self.wh = Warehouse.objects.create(name="انبار ۴")
-
-        self.service = Service.objects.create(name="خدمت تست", unit=Item.Unit.METER)
-        self.item = Item.objects.create(name="کالای تست", item_type=Item.ItemType.MATERIAL, moving_average_cost=Decimal("500"))
-        MarginRule.objects.create(scope=MarginRule.Scope.GLOBAL, value_type=MarginRule.ValueType.PERCENT, value=Decimal("20"), valid_from=timezone.now() - timezone.timedelta(days=1))
-
-        build_workflow_v3(make_default=True)
-        self.project, _, _ = create_project_from_technician_intake(created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False)
-
-        st1 = self.project.stages.get(order=1)
-        st1.assigned_to = self.creator
-        st1.save()
-        advance_stage(st1, actor=self.creator, new_status=ProjectStage.Status.DONE, comment="بازدید.")
-
-        rows = parse_service_rows(json.dumps([{
-            "service_id": self.service.id, "qty": "5", "unit_price": "2000",
-            "materials": [{"item_id": self.item.id, "qty": "10"}],
-        }]))
-        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
-        issue_proforma(project=self.project, actor=self.accountant)
-
-        self.stage = self.project.stages.get(kind=StageKind.INSTALL)
-        self.stage.assigned_to = self.installer
-        self.stage.status = ProjectStage.Status.IN_PROGRESS
-        self.stage.save()
-
-    def test_ensure_install_lines_idempotent(self):
-        ensure_install_lines(self.stage)
-        count_before = self.stage.install_lines.count()
-        self.assertEqual(count_before, 2) # 1 service + 1 material
-
-        ensure_install_lines(self.stage)
-        self.assertEqual(self.stage.install_lines.count(), count_before)
-
-    def test_set_install_line_validation_and_calculations(self):
-        ensure_install_lines(self.stage)
-        srv_line = self.stage.install_lines.get(kind=InstallLine.Kind.SERVICE)
-        mat_line = self.stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
-
-        # OK with empty qty defaults to planned
-        set_install_line(line=mat_line, status="ok", actual_qty_raw="", reason="", actor=self.installer)
-        mat_line.refresh_from_db()
-        self.assertEqual(mat_line.actual_qty, Decimal("10"))
-        self.assertEqual(mat_line.delta_qty, Decimal("0"))
-        self.assertEqual(mat_line.delta_sale, Decimal("0"))
-
-        # OK with custom qty
-        set_install_line(line=mat_line, status="ok", actual_qty_raw="8", reason="", actor=self.installer)
-        mat_line.refresh_from_db()
-        self.assertEqual(mat_line.actual_qty, Decimal("8"))
-        self.assertEqual(mat_line.delta_qty, Decimal("-2"))
-        self.assertEqual(mat_line.delta_sale, Decimal("-1200")) # -2 * 500 * 1.2
-
-        # Invalid qty
-        with self.assertRaises(ValueError):
-            set_install_line(line=mat_line, status="ok", actual_qty_raw="-1", reason="", actor=self.installer)
+from projects.ops import add_project_cost, delete_project_cost
 
 
 class ProjectCostAndReviewTests(TestCase):

@@ -73,7 +73,7 @@ class SourceGuardTests(TestCase):
             self.assertIsNone(re.search(r"fbSend\([^;]*,\s*csrf\s*[,)]", text), path.name)
 
     def test_no_start_margin_on_stage_blocks(self):
-        for rel in ("projects/partials/stage_files.html", "projects/partials/stage_ops.html",
+        for rel in ("projects/partials/stage_files.html", "projects/partials/stage_install.html",
                     "projects/partials/stage_cuts.html", "projects/staff_project_overview.html"):
             self.assertNotIn("ms-10", (BASE / "templates" / rel).read_text(encoding="utf-8"), rel)
 

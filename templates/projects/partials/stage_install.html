@@ -1,0 +1,18 @@
+{% load custom_tags %}
+<div class="fb-inset mt-3 flex flex-col gap-2" data-install-box>
+    <div class="flex items-center justify-between gap-2">
+        <div class="fb-label">خدمت‌های نصب</div>
+        <span class="text-xs fb-muted"><span data-install-done>{{ s.install.done|fa_digits }}</span> از {{ s.install.total|fa_digits }} انجام شد</span>
+    </div>
+    {% for r in s.install.rows %}
+    <label class="fb-inset flex items-center gap-3 text-sm cursor-pointer" data-install-row
+           data-url="{% url 'projects:install_service_set' s.id %}" data-service="{{ r.line.id }}">
+        <input type="checkbox" class="checkbox checkbox-sm" data-install-check
+               {% if r.done %}checked{% endif %} {% if not s.install.can_edit %}disabled{% endif %}>
+        <span>{{ r.line.service.name }} <span class="fb-muted text-xs font-technical">({{ r.line.qty|floatformat:"-2"|fa_digits }}{% if r.line.service.unit %} {{ r.line.service.get_unit_display }}{% endif %})</span></span>
+    </label>
+    {% empty %}
+    <p class="fb-hint">خدمتی در پیش‌فاکتور ثبت نشده.</p>
+    {% endfor %}
+    <p class="fb-error hidden" data-install-error></p>
+</div>

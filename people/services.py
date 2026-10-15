@@ -13,7 +13,7 @@ from core.capabilities import can
 from core.models import Party, Specialty
 from finance.models import AccountingEvent, Payment
 from inventory.models import StockMovement
-from projects.models import PartRequest, Project, ProjectFile, ProjectStage, StageEvent
+from projects.models import Project, ProjectFile, ProjectStage, StageEvent
 from projects.services import parse_fee
 from utils.jalali import jalali_str
 from utils.utils import generate_random_code, is_valid_national_code
@@ -35,7 +35,6 @@ PAGE_LABELS = {
     "projects:final_review": "بازبینی نهایی",
     "projects:new_project_form": "ثبت پروژه",
     "projects:project_edit": "ویرایش پروژه",
-    "projects:part_request_detail": "درخواست قطعه",
     "finance:payments_review": "پرداخت‌ها",
     "finance:payment_detail": "بررسی پرداخت",
     "finance:accounting_overview": "مرکز حسابداری",
@@ -275,11 +274,6 @@ def activity_feed(user, *, days=30, limit=150):
     for a in acc.order_by("-created_at")[:limit]:
         add(a.created_at, "حسابداری", a.text,
             reverse("finance:accounting_project", args=[a.project_id]) if a.project_id else None)
-
-    parts = PartRequest.objects.filter(requested_by=user, requested_at__gte=since).select_related("item", "project")
-    for r in parts.order_by("-requested_at")[:limit]:
-        add(r.requested_at, "درخواست قطعه", f"{r.item.name} — {r.project.name}",
-            reverse("projects:part_request_detail", args=[r.id]))
 
     for p in Project.objects.filter(created_by=user, created_at__gte=since).order_by("-created_at")[:limit]:
         add(p.created_at, "ثبت پروژه", p.name, reverse("projects:staff_project_overview", args=[p.id]))

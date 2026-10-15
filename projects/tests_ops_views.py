@@ -10,13 +10,12 @@ from catalog.models import Service, Item, MarginRule
 from inventory.models import Warehouse
 from inventory.services import receive_stock
 from projects.models import (
-    Project, ProjectStage, StageKind, ProjectFile,
-    InstallLine, PartRequest, ProjectCost,
+    Project, ProjectStage, StageKind, ProjectFile, ProjectCost,
 )
 from projects.workflow_v3 import build_workflow_v3
 from projects.services import create_project_from_technician_intake, advance_stage
 from projects.proforma import parse_service_rows, save_proforma, issue_proforma
-from projects.ops import ensure_install_lines, create_part_request, add_project_cost, set_install_line
+from projects.ops import add_project_cost
 
 
 class OpsViewsTests(TestCase):
@@ -83,24 +82,6 @@ class OpsViewsTests(TestCase):
         self.install_stage.assigned_to = self.installer
         self.install_stage.status = ProjectStage.Status.IN_PROGRESS
         self.install_stage.save()
-        ensure_install_lines(self.install_stage)
-
-    def test_install_line_endpoint(self):
-        line = self.install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
-        url = reverse("projects:install_line", args=[self.install_stage.id])
-
-        self.client.force_login(self.installer)
-
-        # Line from different stage returns 404
-        other_stage = self.project.stages.get(order=1)
-        resp = self.client.post(reverse("projects:install_line", args=[other_stage.id]), {"line_id": line.id, "status": "ok"})
-        self.assertEqual(resp.status_code, 404)
-
-        # Success update
-        resp = self.client.post(url, {"line_id": line.id, "status": "ok", "qty": "3"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["ok"])
-        self.assertEqual(resp.json()["delta"], "1.0000")
 
     def test_final_review_access_and_completion(self):
         url = reverse("projects:final_review", args=[self.project.id])
@@ -139,15 +120,11 @@ class OpsViewsTests(TestCase):
         self.assertEqual(self.project.status, Project.Status.COMPLETED)
 
     def test_financial_isolation_invoice_unaffected(self):
+        from projects.models import StageUsage
         invoice_total_before = self.invoice.total_amount
         lines_count_before = self.invoice.lines.count()
-
-        # Add all phase 3 items
-        mat_line = self.install_stage.install_lines.get(kind=InstallLine.Kind.MATERIAL)
-        set_install_line(line=mat_line, status="ok", actual_qty_raw="5", reason="", actor=self.installer) # delta +3
-        req = create_part_request(stage=self.install_stage, item_id=self.item.id, qty_raw="2", note="نیاز به قطعه", actor=self.installer)
+        StageUsage.objects.create(stage=self.install_stage, item=self.item, qty=Decimal("5"))
         add_project_cost(project=self.project, kind="part_shipping", title="ارسال قطعه", amount_raw="50000", actor=self.accountant)
-
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.total_amount, invoice_total_before)
         self.assertEqual(self.invoice.lines.count(), lines_count_before)

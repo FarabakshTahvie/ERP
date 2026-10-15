@@ -5,12 +5,7 @@ app_name = "projects"
 
 urlpatterns = [
     path("staff/stages/<int:stage_id>/usage/", views_ops.usage_set, name="usage_set"),
-    path("staff/stages/<int:stage_id>/install-line/", views_ops.install_line, name="install_line"),
-    path("staff/stages/<int:stage_id>/part-request/", views_ops.part_request_create, name="part_request_create"),
-    path("staff/part-requests/<int:req_id>/cancel/", views_ops.part_request_cancel, name="part_request_cancel"),
-    path("staff/part-requests/<int:req_id>/", views_ops.part_request_detail, name="part_request_detail"),
-    path("staff/part-requests/<int:req_id>/decide/", views_ops.part_request_decide, name="part_request_decide"),
-    path("dashboard/part-requests-table/", views_ops.part_requests_table, name="part_requests_table"),
+    path("staff/stages/<int:stage_id>/install-service/", views_ops.install_service_set, name="install_service_set"),
     path("staff/projects/<int:project_id>/final-review/", views_ops.final_review, name="final_review"),
     path("staff/projects/<int:project_id>/final-review/consume/", views_ops.final_review_consume, name="final_review_consume"),
 # Removed dashboard_financial_ledger_table

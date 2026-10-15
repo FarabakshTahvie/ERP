@@ -316,6 +316,20 @@ class StageUsage(models.Model):
         constraints = [models.UniqueConstraint(fields=["stage", "item"], name="unique_usage_per_stage_item")]
 
 
+class ServiceTick(models.Model):
+    """تیک «انجام شد» یک خدمت پیش‌فاکتور در مرحله‌ی نصب."""
+    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="service_ticks", verbose_name="مرحله‌ی نصب")
+    service_line = models.ForeignKey(ProjectService, on_delete=models.CASCADE, related_name="install_ticks", verbose_name="خدمت")
+    done_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name="+", verbose_name="ثبت‌کننده")
+    done_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان")
+
+    class Meta:
+        verbose_name = "خدمت نصب‌شده"
+        verbose_name_plural = "خدمت‌های نصب‌شده"
+        constraints = [models.UniqueConstraint(fields=["stage", "service_line"], name="unique_service_tick")]
+
+
 class StageApproval(models.Model):
     class Decision(models.TextChoices):
         PENDING = "pending", "در انتظار"
@@ -412,73 +426,6 @@ class FileGroup(TimeStampedModel):
 
 
 
-class InstallLine(models.Model):
-    class Kind(models.TextChoices):
-        SERVICE = "service", "خدمت"
-        MATERIAL = "material", "کالا"
-
-    class Status(models.TextChoices):
-        PENDING = "pending", "ثبت‌نشده"
-        OK = "ok", "نصب شد"
-        NOT_OK = "not_ok", "نصب نشد"
-
-    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="install_lines", verbose_name="مرحله")
-    kind = models.CharField(max_length=20, choices=Kind.choices)
-    service_line = models.ForeignKey(ProjectService, null=True, blank=True, on_delete=models.SET_NULL, related_name="install_lines")
-    material_line = models.ForeignKey(ProjectServiceMaterial, null=True, blank=True, on_delete=models.SET_NULL, related_name="install_lines")
-    item = models.ForeignKey('catalog.Item', null=True, blank=True, on_delete=models.PROTECT, related_name="install_lines")
-    title = models.CharField(max_length=255, verbose_name="عنوان (اسنپ‌شات)")
-    unit = models.CharField(max_length=30, blank=True)
-    planned_qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار پیش‌فاکتور")
-    actual_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="مقدار واقعی")
-    unit_cost = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="بهای واحد (اسنپ‌شات پیش‌فاکتور)")
-    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات پیش‌فاکتور)")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    reason = models.TextField(blank=True, verbose_name="دلیل")
-    delta_qty = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="اختلاف (+کسری، −اضافه)")
-    delta_sale = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="ارزش اختلاف (تومان)")
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "ردیف نصب"
-        verbose_name_plural = "ردیف‌های نصب"
-        ordering = ["service_line_id", "kind", "pk"]
-        constraints = [
-            models.UniqueConstraint(fields=["stage", "service_line"], condition=models.Q(kind="service", service_line__isnull=False), name="uniq_install_service"),
-            models.UniqueConstraint(fields=["stage", "material_line"], condition=models.Q(kind="material", material_line__isnull=False), name="uniq_install_material"),
-        ]
-
-
-class PartRequest(models.Model):
-    class Status(models.TextChoices):
-        REQUESTED = "requested", "در انتظار انباردار"
-        ISSUED = "issued", "تحویل شد"
-        REJECTED = "rejected", "رد شد"
-        CANCELLED = "cancelled", "لغو شد"
-
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="part_requests", verbose_name="پروژه")
-    stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="part_requests", verbose_name="مرحله")
-    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="part_requests", verbose_name="کالا")
-    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
-    note = models.CharField(max_length=500, verbose_name="دلیل درخواست")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REQUESTED)
-    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="part_requests_made")
-    requested_at = models.DateTimeField(auto_now_add=True)
-    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="part_requests_decided")
-    decided_at = models.DateTimeField(null=True, blank=True)
-    decision_note = models.CharField(max_length=500, blank=True)
-    cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="بهای تمام‌شده")
-    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0)
-    sale_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش")
-    photo = models.FileField(upload_to="projects/parts/", blank=True, verbose_name="عکس")
-
-    class Meta:
-        verbose_name = "درخواست قطعه"
-        verbose_name_plural = "درخواست‌های قطعه"
-        ordering = ["-requested_at"]
-
-
 class ProjectCost(models.Model):
     """هزینه‌ی ثبت‌شده‌ی پروژه (مثل ارسال قطعات جدید). روی فاکتور نمی‌آید."""
     class Kind(models.TextChoices):
@@ -492,7 +439,6 @@ class ProjectCost(models.Model):
     kind = models.CharField(max_length=30, choices=Kind.choices, verbose_name="نوع")
     title = models.CharField(max_length=255, verbose_name="شرح")
     amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
-    part_request = models.ForeignKey(PartRequest, null=True, blank=True, on_delete=models.SET_NULL, related_name="costs")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
 

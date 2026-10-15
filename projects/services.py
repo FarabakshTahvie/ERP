@@ -698,10 +698,6 @@ def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
     project.save(update_fields=["status", "updated_at"])
     StageApproval.objects.filter(stage__project=project, decision=StageApproval.Decision.PENDING).update(
         decision=StageApproval.Decision.CANCELLED, decided_at=timezone.now())
-    from .models import PartRequest
-    PartRequest.objects.filter(project=project, status=PartRequest.Status.REQUESTED).update(
-        status=PartRequest.Status.CANCELLED, decided_by=actor, decided_at=timezone.now(),
-        decision_note="پروژه لغو شد")
     stage = ProjectStage.objects.get(pk=stage.pk)
     StageEvent.objects.create(stage=stage, actor=actor, from_status=stage.status, to_status=stage.status,
                               comment=f"{CANCEL_EVENT_PREFIX}{invoice_note}: {comment}")

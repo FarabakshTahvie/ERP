@@ -13,8 +13,7 @@ from inventory.models import Warehouse
 from inventory.services import consume_stock, receive_stock
 from notifications.models import ChannelPolicy, Notification, NotificationPolicy, NotificationType
 from notifications.services import notify_users, resend_notification
-from projects.models import PartRequest, Project, ProjectStage, WorkflowStepTemplate, WorkflowTemplate
-from projects.ops import notify_part_request
+from projects.models import Project, ProjectStage, WorkflowStepTemplate, WorkflowTemplate
 from projects.services import assign_stage, notify_stage_responsible
 
 
@@ -152,15 +151,6 @@ class WarehouseNotificationTests(NotifyBase):
         with self.captureOnCommitCallbacks(execute=True):
             consume_stock(item=item, qty=1)          # ۳: دوباره خبر نده
         self.assertEqual(Notification.objects.count(), 1)
-
-    def test_part_request_notifies_keepers_only(self):
-        item = Item.objects.create(name="قطعه", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
-        st = self.stage()
-        req = PartRequest.objects.create(project=self.project, stage=st, item=item, qty=Decimal("2"),
-                                         note="کم آمد", requested_by=self.tech)
-        with self.captureOnCommitCallbacks(execute=True):
-            notify_part_request(req)
-        self.assertEqual(list(Notification.objects.values_list("user_id", flat=True)), [self.keeper.id])
 
 
 class ResendTests(NotifyBase):

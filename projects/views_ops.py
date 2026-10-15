@@ -1,17 +1,13 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Case, IntegerField, When
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.views.decorators.http import require_POST
 from catalog.models import Item
-from inventory.services import user_can_manage_inventory, record_manual_stock_change
-from utils.generic_table import build_table_context, render_table
-from utils.jalali import jalali_str, to_fa_digits
+from inventory.services import record_manual_stock_change
 from . import ops, usage
-from .models import InstallLine, PartRequest, Project, ProjectFile, ProjectStage, StageKind
+from .models import Project, ProjectStage, StageKind
 from .stage_ops import complete_stage
 from .stage_move import move_to_stage
 
@@ -41,105 +37,10 @@ def usage_set(request, stage_id):
 
 @login_required
 @require_POST
-def install_line(request, stage_id):
+def install_service_set(request, stage_id):
     stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
-    line = _obj(InstallLine, request.POST.get("line_id"), stage=stage)
-    def run():
-        l = ops.set_install_line(line=line, status=request.POST.get("status"),
-                                 actual_qty_raw=request.POST.get("qty"), reason=request.POST.get("reason"), actor=request.user)
-        pending = stage.install_lines.filter(status=InstallLine.Status.PENDING).count()
-        return {"pending": pending, "delta": str(l.delta_qty) if l.delta_qty is not None else ""}
-    return _json(run)
-
-
-
-
-
-@login_required
-@require_POST
-def part_request_create(request, stage_id):
-    stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
-    return _json(lambda: ops.create_part_request(stage=stage, item_id=request.POST.get("item_id"),
-                                                 qty_raw=request.POST.get("qty"), note=request.POST.get("note"), actor=request.user) and None)
-
-
-@login_required
-@require_POST
-def part_request_cancel(request, req_id):
-    req = _obj(PartRequest, req_id)
-    return _json(lambda: ops.cancel_part_request(req=req, actor=request.user))
-
-
-# ----- انباردار -----
-def part_requests_table_context(request):
-    qs = PartRequest.objects.select_related("project", "item", "requested_by").annotate(
-        rank=Case(When(status=PartRequest.Status.REQUESTED, then=0), default=1, output_field=IntegerField())
-    ).order_by("rank", "-requested_at")
-    variant = {"requested": "warning", "issued": "success", "rejected": "error", "cancelled": "neutral"}
-
-    def row_builder(p):
-        return {"url": reverse("projects:part_request_detail", args=[p.id]), "cells": [
-            {"type": "text", "value": p.project.name},
-            {"type": "text", "value": p.item.name},
-            {"type": "muted", "value": to_fa_digits(format(p.qty.normalize(), "f"))},
-            {"type": "muted", "value": (p.requested_by.get_full_name() or p.requested_by.username) if p.requested_by else "—"},
-            {"type": "muted", "value": jalali_str(p.requested_at, fmt="%Y/%m/%d %H:%M")},
-            {"type": "badge", "value": p.get_status_display(), "variant": variant.get(p.status, "neutral")},
-        ]}
-
-    return build_table_context(
-        request, qs,
-        columns=[
-            {"label": "پروژه", "sort_field": "project__name"}, {"label": "کالا", "sort_field": "item__name"},
-            {"label": "مقدار"}, {"label": "درخواست‌کننده"}, {"label": "تاریخ", "sort_field": "requested_at"},
-            {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
-             "choices": PartRequest.Status.choices},
-        ],
-        row_builder=row_builder, container_id="table-part-requests", param_prefix="pq_",
-        empty_icon="package", empty_text="درخواست قطعه‌ای ثبت نشده.",
-        list_url=reverse("projects:part_requests_table"), search_fields=["project__name", "item__name"],
-    )
-
-
-@login_required
-@user_passes_test(user_can_manage_inventory)
-def part_requests_table(request):
-    return render_table(request, part_requests_table_context(request))
-
-
-@login_required
-@user_passes_test(user_can_manage_inventory)
-def part_request_detail(request, req_id):
-    from core.capabilities import can
-    req = _obj(PartRequest.objects.select_related("project", "item", "requested_by", "stage"), req_id)
-    return render(request, "projects/part_request_detail.html", {
-        "req": req, "stock": req.item.current_stock, "show_money": can(request.user, "money.view"),
-    })
-
-
-@login_required
-@user_passes_test(user_can_manage_inventory)
-@require_POST
-def part_request_decide(request, req_id):
-    req = _obj(PartRequest, req_id)
-    try:
-        if request.POST.get("action") == "issue":
-            ops.issue_part_request(
-                req=req,
-                actor=request.user,
-                shipping_cost_raw=request.POST.get("shipping_cost", ""),
-                photo=request.FILES.get("photo"),
-            )
-            messages.success(request, "قطعه تحویل و از انبار کم شد.")
-        elif request.POST.get("action") == "reject":
-            ops.reject_part_request(req=req, actor=request.user, reason=request.POST.get("reason"))
-            messages.warning(request, "درخواست رد شد.")
-        else:
-            messages.error(request, "عملیات نامعتبر است.")
-    except ValueError as e:
-        messages.error(request, str(e))
-        return redirect("projects:part_request_detail", req.id)
-    return redirect("home")
+    return _json(lambda: usage.set_service_done(stage=stage, service_line_id=request.POST.get("service_id"),
+                                                done=request.POST.get("done") == "1", actor=request.user))
 
 
 def _settlement_input(post):
@@ -233,3 +134,4 @@ def move_stage(request, project_id):
     else:
         messages.success(request, f"مرحله‌ی «{target.title}» باز شد.")
     return redirect("projects:staff_project_overview", project.id)
+

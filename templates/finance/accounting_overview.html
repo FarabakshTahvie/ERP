@@ -85,7 +85,6 @@
         <a href="{% nav_url 'finance:accounting_project' r.project.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-sm hover:bg-base-300">
             <span class="font-semibold">{{ r.project.name }}</span>
             <span class="flex flex-wrap items-center gap-1.5">
-                {% if r.pending_parts %}<span class="fb-badge fb-badge-warning">درخواست قطعه: {{ r.pending_parts|fa_digits }}</span>{% endif %}
                 {% if r.unsettled %}<span class="fb-badge fb-badge-info">اقلام ناهم‌خوان: {{ r.unsettled|fa_digits }}</span>{% endif %}
             </span>
         </a>

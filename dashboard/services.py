@@ -14,7 +14,7 @@ from finance import accounting
 from finance.models import Invoice, Payment
 from inventory.services import low_stock_items_count
 from notifications.models import Notification
-from projects.models import PartRequest, Project, ProjectStage, StageApproval, StageEvent
+from projects.models import Project, ProjectStage, StageApproval, StageEvent
 from utils.jalali import to_fa_digits
 from utils.utils import separate_digits
 
@@ -165,10 +165,6 @@ def attention_items(stats, now=None):
     if label:
         add("previous_month", f"ماه {label} هنوز بسته نشده", 1, level="info", url=reverse("finance:accounting_periods"),
             hint="بعد از رسیدگی به پرداخت‌های منتظر، ماه را ببندید.")
-
-    add("part_requests", "درخواست قطعه‌ی بی‌پاسخ",
-        PartRequest.objects.filter(status=PartRequest.Status.REQUESTED).count(),
-        hint="انباردار باید تحویل یا رد کند.")
 
     integrity = stats["integrity"]
     if integrity["diff"] != 0 or integrity["unclassified_in"] != 0:

@@ -227,59 +227,19 @@
     <!-- ۶. نصب -->
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">گزارش نصب</h2>
-        {% if data.not_installed %}
-        <div class="text-xs">
-            <span class="font-semibold text-error">موارد نصب‌نشده:</span>
-            <ul class="list-disc list-inside mt-1 space-y-1">
-                {% for ni in data.not_installed %}
-                <li>{{ ni.title }} — <span class="fb-muted">دلیل:</span> {{ ni.reason }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% else %}
-        <p class="text-xs text-success">تمام خدمات و اقلام برنامه‌ریزی‌شده نصب شده‌اند.</p>
-        {% endif %}
-
-        <div class="pt-2 border-t border-base-300">
-            <span class="font-semibold text-xs">اختلاف مقادیر نصب (کسری / اضافه):</span>
-            {% if data.shortage or data.surplus %}
-            <div class="mt-1 space-y-1 text-xs">
-                {% for d in data.shortage %}
-                <div>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد بیشتر از پیش‌فاکتور</div>
-                {% endfor %}
-                {% for d in data.surplus %}
-                <div>{{ d.title }}: پیش‌فاکتور <span class="font-technical">{{ d.planned_qty|floatformat:"-4"|fa_digits }}</span>، نصب‌شده <span class="font-technical">{{ d.actual_qty|floatformat:"-4"|fa_digits }}</span> — <span class="font-technical">{{ d.delta_qty|floatformat:"-4"|cut:"-"|fa_digits }}</span> عدد کمتر از پیش‌فاکتور</div>
-                {% endfor %}
+        {% if data.has_install %}
+            {% if data.undone_services %}
+            <div class="text-xs">
+                <span class="font-semibold text-error">خدمت‌های بدون تیک «انجام شد»:</span>
+                <ul class="list-disc list-inside mt-1 space-y-1">
+                    {% for ps in data.undone_services %}<li>{{ ps.service.name }}</li>{% endfor %}
+                </ul>
             </div>
             {% else %}
-            <p class="fb-hint text-xs mt-1">اختلافی در مقادیر نصب وجود ندارد.</p>
+            <p class="text-xs text-success">همه‌ی خدمت‌های پیش‌فاکتور تیک «انجام شد» خورده‌اند.</p>
             {% endif %}
-        </div>
-    </div>
-
-    <!-- ۷. قطعات درخواستی -->
-    <div class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="font-bold text-sm">قطعات درخواستی از انبار</h2>
-        {% if data.parts %}
-        <div class="space-y-2 text-xs">
-            {% for p in data.parts %}
-            <div class="flex justify-between items-center border-b border-base-200 pb-1.5 flex-wrap gap-2">
-                <div>
-                    <span class="font-semibold">{{ p.item.name }} × <span class="font-technical">{{ p.qty|floatformat:"-4"|fa_digits }}</span></span>
-                    <span class="fb-badge {% if p.status == 'issued' %}fb-badge-success{% elif p.status == 'requested' %}fb-badge-warning{% elif p.status == 'rejected' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">{{ p.get_status_display }}</span>
-                    <span class="fb-muted ms-1">({{ p.note }})</span>
-                    {% if p.photo %}<a href="{{ p.photo.url }}" target="_blank" rel="noopener" class="link link-primary ms-1">مشاهده عکس</a>{% endif %}
-                </div>
-                {% if p.status == 'issued' %}
-                <div class="text-start">
-                    بهای تمام‌شده: <span class="font-technical">{{ p.cost_total|intcomma_fa }}</span> تومان
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
         {% else %}
-        <p class="fb-hint text-xs">هیچ قطعه‌ای درخواست نشده است.</p>
+        <p class="fb-hint text-xs">مرحله‌ی نصب برای این پروژه نیست.</p>
         {% endif %}
     </div>
 
@@ -350,13 +310,7 @@
     <!-- ۱۰. تایید -->
     <div class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="font-bold text-sm">تسویه‌ی مصرف مواد و تایید نهایی</h2>
-        {% if data.pending_parts %}
-        <div class="alert alert-soft alert-warning text-xs">
-            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-            <span>درخواست قطعه‌ی بدون پاسخ دارید.</span>
-        </div>
-        <button type="button" disabled class="btn btn-disabled w-full">تایید نهایی غیرفعال است</button>
-        {% elif can_approve %}
+        {% if can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
             <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: جمع مصرفی که تکنسین‌ها در مرحله‌ها ثبت کرده‌اند (زیر نام کالا به تفکیک مرحله آمده)؛ کالایی که از انبار کم شده ولی مصرف مرحله ندارد همان مقدار کسرشده را می‌گیرد. اگر عددی را عوض کنید دلیل لازم است.</p>

@@ -17,7 +17,7 @@ from inventory.services import (
     CHANGE_KIND_RETURN, _FA_TO_EN,
 )
 from projects.models import (
-    PartRequest, Project, ProjectCost,
+    Project, ProjectCost,
     ProjectServiceMaterial, ProjectStage, StageKind, StageUsage,
 )
 from projects.services import user_can_access_accounting, project_prices_editable
@@ -149,8 +149,6 @@ def attention_items():
     add("پرداخت منتظر تایید",
         Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY).count(),
         reverse("finance:payments_review"))
-    add("درخواست قطعه‌ی بی‌پاسخ",
-        PartRequest.objects.filter(status=PartRequest.Status.REQUESTED).count(), reverse("home") + "?tab=part_requests")
     add("پروژه‌ی تکمیل‌شده‌ی دارای مانده‌ی فاکتور",
         Invoice.objects.exclude(status=Invoice.Status.CANCELLED).filter(project__status=Project.Status.COMPLETED)
         .annotate(rem=ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
@@ -169,7 +167,6 @@ def final_review_queue(limit=20):
         p = st.project
         rows.append({
             "project": p,
-            "pending_parts": PartRequest.objects.filter(project=p, status=PartRequest.Status.REQUESTED).count(),
             "unsettled": sum(1 for r in project_reconciliation(p) if r["status"] != "ok"),
         })
     return rows

@@ -227,14 +227,6 @@ def stage_completion_problem(stage, *, show_to_client=False):
     if stage.kind == StageKind.DESIGN_INITIAL and show_to_client and not files.filter(
             kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
         return "برای نمایش به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید تا مشتری بتواند بدون نرم‌افزار ببیند."
-    from . import ops
-
-    if stage.kind == StageKind.INSTALL:
-        problem = ops.install_problem(stage)
-        if problem:
-            return problem
-    if stage.kind == StageKind.FINAL_REVIEW and ops.pending_part_requests(stage.project).exists():
-        return "درخواست قطعه‌ی بررسی‌نشده دارید؛ ابتدا تکلیفش روشن شود."
     return None
 
 
