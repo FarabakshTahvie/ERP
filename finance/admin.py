@@ -116,7 +116,7 @@ class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
     list_display = ('id', 'invoice', 'method', 'amount', 'status_badge', 'jalali_paid_at')
     list_filter = ('method', 'status')
     search_fields = ('invoice__number', 'reference_number', 'cheque_number')
-    readonly_fields = ('jalali_paid_at', 'jalali_approved_at')
+    readonly_fields = ('jalali_paid_at', 'jalali_approved_at', 'cheque_status', 'cheque_endorsed_to')
     actions = ['action_approve']
 
     jalali_paid_at = jalali_column('paid_at', 'تاریخ پرداخت')

@@ -300,11 +300,17 @@ def project_add_payment(request, project_id):
             paid_date = JalaliDateField().clean(raw_date) if raw_date else None
         except ValidationError as e:
             raise ValueError(" ".join(e.messages))
+        raw_due = (request.POST.get("cheque_due_date") or "").strip()
+        try:
+            cheque_due = JalaliDateField().clean(raw_due) if raw_due else None
+        except ValidationError as e:
+            raise ValueError(" ".join(e.messages))
         accounting.record_accountant_payment(
             invoice=invoice, method=request.POST.get("method"), amount_raw=request.POST.get("amount"),
             paid_date=paid_date, reference_number=request.POST.get("reference_number"),
             note=request.POST.get("note"), receipt_file=request.FILES.get("receipt_file"),
             cheque_number=request.POST.get("cheque_number", ""), cheque_bank=request.POST.get("cheque_bank", ""),
+            cheque_due_date=cheque_due,
             actor=request.user)
     except ValueError as e:
         messages.error(request, str(e))

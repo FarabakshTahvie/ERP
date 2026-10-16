@@ -86,6 +86,10 @@ class InvoiceLine(models.Model):
         super().save(*args, **kwargs)
 
 
+CHEQUE_ACTIVE = ("received", "deposited")      # سررسید و نتیجه‌شان باید پیگیری شود
+CHEQUE_NOT_COUNTED = ("bounced", "returned")   # پولی نیامده؛ در «پرداخت‌شده» حساب نمی‌شود
+
+
 class Payment(TimeStampedModel):
     class Method(models.TextChoices):
         GATEWAY = "gateway", "درگاه پرداخت"
@@ -99,6 +103,14 @@ class Payment(TimeStampedModel):
         PENDING = "pending", "در انتظار تایید"
         APPROVED = "approved", "تاییدشده"
         REJECTED = "rejected", "رد شده"
+
+    class ChequeStatus(models.TextChoices):
+        RECEIVED = "received", "تحویل گرفته‌شده"
+        DEPOSITED = "deposited", "واگذار به بانک"
+        COLLECTED = "collected", "وصول‌شده"
+        ENDORSED = "endorsed", "خرج‌شده"
+        BOUNCED = "bounced", "برگشتی"
+        RETURNED = "returned", "عودت‌شده به مشتری"
 
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments", verbose_name="فاکتور")
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name="روش پرداخت")
@@ -117,6 +129,8 @@ class Payment(TimeStampedModel):
     cheque_number = models.CharField(max_length=30, blank=True, verbose_name="شماره صیادی چک")
     cheque_bank = models.CharField(max_length=100, blank=True, verbose_name="بانک")
     cheque_due_date = models.DateField(null=True, blank=True, verbose_name="تاریخ سررسید چک")
+    cheque_status = models.CharField(max_length=20, choices=ChequeStatus.choices, blank=True, verbose_name="وضعیت چک (داخلی)")
+    cheque_endorsed_to = models.CharField(max_length=150, blank=True, verbose_name="خرج‌شده به")
 
     approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="approved_payments", verbose_name="تاییدکننده")
     approved_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تایید")
@@ -128,12 +142,20 @@ class Payment(TimeStampedModel):
 
     @property
     def status_label(self):
+        if self.cheque_status == "bounced":
+            return "چک برگشت خورد"
+        if self.cheque_status == "returned":
+            return "چک عودت داده شد"
         if self.method == self.Method.CREDIT and self.status == self.Status.APPROVED:
             return "اعتباری — کار ادامه می‌یابد"
         return self.get_status_display()
 
     @property
     def status_variant(self):
+        if self.cheque_status == "bounced":
+            return "error"
+        if self.cheque_status == "returned":
+            return "neutral"
         if self.method == self.Method.CREDIT and self.status == self.Status.APPROVED:
             return "info"
         return {"pending": "warning", "approved": "success", "rejected": "error"}.get(self.status, "neutral")
@@ -185,3 +207,18 @@ class AccountingEvent(models.Model):
         verbose_name = "رویداد حسابداری"
         verbose_name_plural = "رویدادهای حسابداری"
         ordering = ["-created_at", "-id"]
+
+
+class ChequeEvent(models.Model):
+    """سابقه‌ی وضعیت چک (append-only). from_status خالی = لحظه‌ی تایید."""
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name="cheque_events", verbose_name="پرداخت")
+    from_status = models.CharField(max_length=20, blank=True)
+    to_status = models.CharField(max_length=20)
+    note = models.CharField(max_length=500, blank=True, verbose_name="توضیح")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "رویداد چک"
+        verbose_name_plural = "رویدادهای چک"
+        ordering = ["created_at", "id"]

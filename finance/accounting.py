@@ -21,10 +21,10 @@ from projects.models import (
     ProjectServiceMaterial, ProjectStage, StageKind, StageUsage,
 )
 from projects.services import user_can_access_accounting, project_prices_editable
-from .models import Invoice, InvoiceLine, Payment, AccountingEvent
+from .models import Invoice, InvoiceLine, Payment, AccountingEvent, ChequeEvent
 from .services import (
     parse_amount, proof_error, prepare_receipt_file, PROOF_METHODS,
-    add_manual_invoice_line, recalculate_invoice_paid_amount,
+    add_manual_invoice_line, recalculate_invoice_paid_amount, counted_payments, clean_cheque_fields,
 )
 from utils.utils import separate_digits
 
@@ -110,7 +110,7 @@ def accounting_overview(period_key="all", today=None):
     invoices = Invoice.objects.exclude(status=Invoice.Status.CANCELLED).exclude(project_id__in=held)
     debts = debt_invoices(Invoice.objects.all())
     collected_qs = (
-        Payment.objects.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
+        counted_payments(Payment.objects.all())
         .exclude(invoice__project_id__in=held)
         .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at")).filter(_range_q("eff_at", start, end))
     )
@@ -424,8 +424,9 @@ ACCOUNTANT_PAYMENT_METHODS = (
 
 @transaction.atomic
 def record_accountant_payment(*, invoice, method, amount_raw, paid_date, reference_number, note,
-                              receipt_file, cheque_number="", cheque_bank="", actor):
-    """پرداخت واقعی توسط حسابدار؛ چون خودش تاییدکننده است مستقیم «تاییدشده» ثبت می‌شود."""
+                              receipt_file, cheque_number="", cheque_bank="", cheque_due_date=None, actor):
+    """پرداخت واقعی توسط حسابدار؛ چون خودش تاییدکننده است مستقیم «تاییدشده» ثبت می‌شود.
+    چک: شناسه‌ی صیادی و سررسید الزامی؛ وضعیت «تحویل گرفته‌شده»."""
     from core.periods import assert_open
     if not user_can_access_accounting(actor):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند پرداخت ثبت کند.")
@@ -449,6 +450,8 @@ def record_accountant_payment(*, invoice, method, amount_raw, paid_date, referen
         error = proof_error(method, has_file=bool(receipt_file), reference=reference_number)
         if error:
             raise ValueError(error)
+    if method == Payment.Method.CHEQUE:
+        cheque_number, cheque_bank = clean_cheque_fields(number=cheque_number, bank=cheque_bank, due_date=cheque_due_date)
     if Payment.objects.filter(invoice=invoice, method=method, amount=amount, reference_number=reference_number,
                               created_at__gte=timezone.now() - timezone.timedelta(seconds=60)).exists():
         raise ValueError("همین پرداخت لحظاتی پیش ثبت شده است.")
@@ -460,8 +463,12 @@ def record_accountant_payment(*, invoice, method, amount_raw, paid_date, referen
     if receipt_file:
         kwargs["receipt_file"] = prepare_receipt_file(receipt_file)
     if method == Payment.Method.CHEQUE:
-        kwargs["cheque_number"], kwargs["cheque_bank"] = (cheque_number or "").strip(), (cheque_bank or "").strip()
+        kwargs.update(cheque_number=cheque_number, cheque_bank=cheque_bank, cheque_due_date=cheque_due_date,
+                      cheque_status=Payment.ChequeStatus.RECEIVED)
     payment = Payment.objects.create(**kwargs)
+    if method == Payment.Method.CHEQUE:
+        ChequeEvent.objects.create(payment=payment, from_status="", to_status=Payment.ChequeStatus.RECEIVED,
+                                   note="ثبت توسط حسابدار", actor=actor)
     log_event(kind=AccountingEvent.Kind.PAYMENT, project=invoice.project, actor=actor, amount=amount,
               text=f"پرداخت {payment.get_method_display()} ثبت شد")
     return payment
