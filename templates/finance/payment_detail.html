@@ -42,6 +42,9 @@
             {% if payment.cheque_bank %}
             <div class="flex justify-between gap-2"><span class="fb-muted">بانک</span><span>{{ payment.cheque_bank }}</span></div>
             {% endif %}
+            {% if payment.cheque_due_date %}
+            <div class="flex justify-between gap-2"><span class="fb-muted">سررسید چک</span><span class="font-technical">{{ payment.cheque_due_date|to_jalali:"%Y/%m/%d" }}</span></div>
+            {% endif %}
         </div>
         {% if payment.note %}<p class="fb-inset text-sm whitespace-pre-line">{{ payment.note }}</p>{% endif %}
     </section>
@@ -94,6 +97,26 @@
                 <span id="amount-mismatch" class="fb-error hidden">با مبلغ اعلامی مشتری ({{ claimed_amount|intcomma_fa }} تومان) فرق دارد؛ دوباره رسید را بررسی کنید.</span>
                 <span class="fb-hint">حداکثر مبلغ قابل ثبت، مانده‌ی فاکتور است ({{ invoice.remaining_amount|intcomma_fa }} تومان).</span>
             </div>
+            {% if is_cheque %}
+            <div class="fb-inset flex flex-col gap-3">
+                <span class="fb-label">اطلاعات چک (از روی تصویر چک بنویسید یا اصلاح کنید)</span>
+                <div class="fb-field">
+                    <label class="fb-label" for="cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
+                    <input type="text" id="cheque-number" name="cheque_number" value="{{ payment.cheque_number }}" required
+                           data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="cheque-bank">بانک</label>
+                    <input type="text" id="cheque-bank" name="cheque_bank" value="{{ payment.cheque_bank }}" maxlength="100" class="input w-full">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="cheque-due">تاریخ سررسید</label>
+                    <input type="text" id="cheque-due" name="cheque_due_date" value="{{ cheque_due_value }}" required data-jalali-date
+                           dir="ltr" inputmode="none" autocomplete="off" placeholder="۱۴۰۵/۰۷/۲۰" class="input w-full font-technical">
+                    <span class="fb-hint">تاریخ گذشته مانع تایید نیست؛ فقط هشدار می‌گیرید.</span>
+                </div>
+            </div>
+            {% endif %}
             <div class="flex gap-2">
                 <button type="submit" name="action" value="approve" id="approve-btn" class="btn btn-primary flex-1">تایید و ثبت مبلغ</button>
                 <button type="button" class="btn btn-soft btn-error flex-1" onclick="document.getElementById('reject-modal').showModal()">رد</button>
@@ -162,6 +185,90 @@
         </div>
         {% endif %}
     {% endif %}
+    {% if is_cheque and payment.cheque_status %}
+    <section class="fb-card fb-pad flex flex-col gap-4" id="cheque-card">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">وضعیت چک (داخلی)</h2>
+            <span class="fb-badge fb-badge-{{ cheque_variant }}">{{ payment.get_cheque_status_display }}</span>
+        </div>
+        <p class="fb-hint">مشتری این وضعیت‌ها را نمی‌بیند؛ فقط «چک برگشت خورد» و «چک عودت داده شد» در فاکتورش دیده می‌شود.</p>
+        {% if cheque_warning %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}<span class="text-xs">{{ cheque_warning }}</span>
+        </div>
+        {% endif %}
+        <div class="fb-inset flex flex-col gap-1.5 text-sm">
+            <div class="flex justify-between gap-2"><span class="fb-muted">شناسه‌ی صیادی</span><span class="font-technical">{{ payment.cheque_number|fa_digits }}</span></div>
+            <div class="flex justify-between gap-2"><span class="fb-muted">بانک</span><span>{{ payment.cheque_bank|default:"—" }}</span></div>
+            <div class="flex justify-between gap-2"><span class="fb-muted">سررسید</span><span class="font-technical">{{ payment.cheque_due_date|to_jalali:"%Y/%m/%d" }}</span></div>
+            {% if payment.cheque_endorsed_to %}
+            <div class="flex justify-between gap-2"><span class="fb-muted">خرج‌شده به</span><span>{{ payment.cheque_endorsed_to }}</span></div>
+            {% endif %}
+        </div>
+ 
+        {% if cheque_choices %}
+        <form method="post" action="{% url 'finance:payment_cheque_status' payment.id %}" id="cheque-status-form" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="cheque-status-select">تغییر وضعیت به</label>
+                <select id="cheque-status-select" name="status" required class="select w-full">
+                    <option value="">انتخاب کنید...</option>
+                    {% for c in cheque_choices %}<option value="{{ c.value }}"{% if c.reason %} data-reason="1"{% endif %}>{{ c.label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="hidden" data-endorse-field>
+                <div class="fb-field">
+                    <label class="fb-label" for="cheque-endorsed-to">نام کسی که چک را گرفته (در صورت نیاز)</label>
+                    <input type="text" id="cheque-endorsed-to" name="endorsed_to" maxlength="150" class="input w-full">
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="cheque-note">توضیح</label>
+                <input type="text" id="cheque-note" name="note" maxlength="400" class="input w-full">
+                <span class="fb-hint">برای «برگشتی»، «عودت‌شده» و بازگشت به «تحویل گرفته‌شده» نوشتن دلیل لازم است.</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm self-start">ثبت وضعیت</button>
+        </form>
+        {% else %}
+        <p class="fb-hint">این وضعیت پایانی است و تغییر نمی‌کند.</p>
+        {% endif %}
+ 
+        <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+            <input type="checkbox" aria-label="ویرایش اطلاعات چک">
+            <div class="collapse-title text-sm font-semibold">ویرایش اطلاعات چک</div>
+            <div class="collapse-content">
+                <form method="post" action="{% url 'finance:payment_cheque_info' payment.id %}" data-fb-once class="flex flex-col gap-3">
+                    {% csrf_token %}
+                    <div class="fb-field">
+                        <label class="fb-label" for="edit-cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
+                        <input type="text" id="edit-cheque-number" name="number" value="{{ payment.cheque_number }}" required
+                               data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                    </div>
+                    <div class="fb-field">
+                        <label class="fb-label" for="edit-cheque-bank">بانک</label>
+                        <input type="text" id="edit-cheque-bank" name="bank" value="{{ payment.cheque_bank }}" maxlength="100" class="input w-full">
+                    </div>
+                    <div class="fb-field">
+                        <label class="fb-label" for="edit-cheque-due">تاریخ سررسید</label>
+                        <input type="text" id="edit-cheque-due" name="due_date" value="{{ cheque_due_value }}" required data-jalali-date
+                               dir="ltr" inputmode="none" autocomplete="off" class="input w-full font-technical">
+                    </div>
+                    <button type="submit" class="btn btn-soft btn-sm self-start">ذخیره‌ی اطلاعات</button>
+                </form>
+            </div>
+        </div>
+ 
+        <div class="flex flex-col gap-2">
+            <h3 class="fb-section-title">سابقه</h3>
+            {% for h in cheque_history %}
+            <div class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs">
+                <span><span class="fb-badge fb-badge-neutral">{{ h.title }}</span> {{ h.note }}</span>
+                <span class="fb-muted">{{ h.who }} · <span class="font-technical">{{ h.at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -188,6 +295,22 @@
         setTimeout(function () { btn.disabled = true; }, 0);   // بعد از ساخته‌شدن داده‌ی فرم، تا مقدار action ارسال شود
     });
     window.addEventListener('pageshow', function (e) { if (e.persisted) btn.disabled = false; });
+})();
+</script>
+<script>
+(function () {
+    var form = document.getElementById('cheque-status-form');
+    if (!form) return;
+    var select = form.querySelector('[name="status"]');
+    var note = form.querySelector('[name="note"]');
+    var endorse = form.querySelector('[data-endorse-field]');
+    function sync() {
+        var opt = select.options[select.selectedIndex];
+        endorse.classList.toggle('hidden', select.value !== 'endorsed');
+        note.required = !!opt && opt.dataset.reason === '1';
+    }
+    select.addEventListener('change', sync);
+    sync();
 })();
 </script>
 {% endblock %}

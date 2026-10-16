@@ -33,4 +33,6 @@ urlpatterns = [
     path("payments/table/", views.payments_table, name="payments_table"),
     path("payments/<int:payment_id>/", views.payment_detail, name="payment_detail"),
     path("payments/<int:payment_id>/decide/", views.payment_decide, name="payment_decide"),
+    path("payments/<int:payment_id>/cheque-status/", views.payment_cheque_status, name="payment_cheque_status"),
+    path("payments/<int:payment_id>/cheque-info/", views.payment_cheque_info, name="payment_cheque_info"),
 ]
