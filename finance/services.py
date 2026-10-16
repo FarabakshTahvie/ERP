@@ -5,7 +5,7 @@ from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from utils.image_utils import optimize_receipt_image
 from utils.utils import separate_digits, monthly_prefix, next_monthly_code
-from .models import Invoice, InvoiceLine, Payment
+from .models import Invoice, InvoiceLine, Payment, ChequeEvent, CHEQUE_NOT_COUNTED
 
 # روش‌هایی که مبلغشان را کارشناس از روی مدرک تایید می‌کند
 PROOF_METHODS = (Payment.Method.CARD_TO_CARD, Payment.Method.RECEIPT, Payment.Method.CHEQUE)
@@ -68,6 +68,36 @@ def prepare_receipt_file(receipt_file):
     prepared, changed = optimize_receipt_image(receipt_file)
     prepared.name = f"{token}.webp" if changed else f"{token}.{ext}"
     return prepared
+
+
+def counted_payments(qs):
+    """پرداخت‌هایی که پولشان واقعاً آمده: تاییدشده، غیراعتباری، و چکِ برگشتی یا عودت‌شده نه.
+    تنها منبع تعریف «پول واقعی»؛ همه‌ی جمع‌های پول از همین می‌گذرند."""
+    return (qs.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
+            .exclude(cheque_status__in=CHEQUE_NOT_COUNTED))
+
+
+def cheque_due_warning(due_date):
+    """تاریخ گذشته خطا نیست، فقط هشدار (ویو نشان می‌دهد)."""
+    if due_date and due_date < timezone.localdate():
+        return "تاریخ سررسید این چک گذشته است؛ ثبت شد ولی بررسی کنید."
+    return ""
+
+
+def clean_cheque_fields(*, number, bank, due_date, exclude_payment_id=None):
+    """(شناسه‌ی صیادی، بانک) یا ValueError. شناسه ۱۶ رقم و غیرتکراری؛ تاریخ الزامی ولی قدیمی‌بودنش خطا نیست."""
+    number = str(number or "").strip().translate(_FA_TO_EN).replace(" ", "")
+    if not number.isdigit() or len(number) != 16:
+        raise ValueError("شناسه‌ی صیادی چک باید ۱۶ رقم باشد.")
+    if due_date is None:
+        raise ValueError("تاریخ سررسید چک را وارد کنید.")
+    same = (Payment.objects.filter(cheque_number=number).exclude(status=Payment.Status.REJECTED)
+            .exclude(cheque_status__in=CHEQUE_NOT_COUNTED))
+    if exclude_payment_id:
+        same = same.exclude(pk=exclude_payment_id)
+    if same.exists():
+        raise ValueError("این چک قبلاً ثبت شده است.")
+    return number, (bank or "").strip()[:100]
 
 
 def create_customer_payment(*, invoice, method, amount_raw="", reference_number="", note="",
@@ -231,10 +261,13 @@ def add_manual_invoice_line(invoice, title, amount, actor, line_type=InvoiceLine
 
 
 @transaction.atomic
-def approve_payment(payment, approved_by, verified_amount=None):
+def approve_payment(payment, approved_by, verified_amount=None, *, cheque_number=None, cheque_bank=None,
+                    cheque_due_date=None):
     """
     فقط پرداخت «در انتظار» قابل تایید است. برای روش‌های دارای رسید، مبلغ واقعی (verified_amount)
     اجباری است و جای مبلغ اعلامی مشتری می‌نشیند. برای اعتباری نیازی به مبلغ نیست.
+    برای چک: شناسه‌ی صیادی و تاریخ سررسید اجباری است (None یعنی همان مقدار ثبت‌شده‌ی مشتری)؛
+    وضعیت چک «تحویل گرفته‌شده» می‌شود.
     """
     payment = Payment.objects.select_for_update().get(pk=payment.pk)
     if payment.status != Payment.Status.PENDING:
@@ -258,11 +291,26 @@ def approve_payment(payment, approved_by, verified_amount=None):
             payment.claimed_amount = payment.amount
         payment.amount = amount
 
+    is_cheque = payment.method == Payment.Method.CHEQUE
+    if is_cheque:
+        number, bank = clean_cheque_fields(
+            number=cheque_number if cheque_number is not None else payment.cheque_number,
+            bank=cheque_bank if cheque_bank is not None else payment.cheque_bank,
+            due_date=cheque_due_date or payment.cheque_due_date,
+            exclude_payment_id=payment.pk,
+        )
+        payment.cheque_number, payment.cheque_bank = number, bank
+        payment.cheque_due_date = cheque_due_date or payment.cheque_due_date
+        payment.cheque_status = Payment.ChequeStatus.RECEIVED
+
     payment.status = Payment.Status.APPROVED
     payment.approved_by = approved_by
     payment.approved_at = timezone.now()
     # TODO(پیامک payment_confirmed): فقط پرداخت‌های ثبت‌شده توسط مشتری
     payment.save()
+    if is_cheque:
+        ChequeEvent.objects.create(payment=payment, from_status="", to_status=Payment.ChequeStatus.RECEIVED,
+                                   note="تایید پرداخت", actor=approved_by)
     return payment
 
 
@@ -286,9 +334,7 @@ def reject_payment(payment, rejected_by, reason=""):
 def recalculate_invoice_paid_amount(invoice):
     if invoice.status == Invoice.Status.CANCELLED:
         return
-    real_paid = invoice.payments.filter(
-        status=Payment.Status.APPROVED,
-    ).exclude(method=Payment.Method.CREDIT).aggregate(total=models.Sum('amount'))['total'] or 0
+    real_paid = counted_payments(invoice.payments.all()).aggregate(total=models.Sum('amount'))['total'] or 0
 
     invoice.paid_amount = real_paid
     if invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount:
@@ -297,6 +343,9 @@ def recalculate_invoice_paid_amount(invoice):
             invoice.settled_at = timezone.now()
     elif invoice.paid_amount > 0:
         invoice.status = Invoice.Status.PARTIALLY_PAID
+        invoice.settled_at = None
+    elif invoice.status in (Invoice.Status.PAID, Invoice.Status.PARTIALLY_PAID):
+        invoice.status = Invoice.Status.SENT      # پول برگشت خورد؛ فاکتور دوباره باز است
         invoice.settled_at = None
     invoice.save(update_fields=["paid_amount", "status", "settled_at"])
 
@@ -380,8 +429,7 @@ def cancel_invoice(*, invoice, reason, actor):
     if invoice.status == Invoice.Status.CANCELLED:
         raise ValueError("این فاکتور قبلاً لغو شده است.")
     assert_open(invoice.issue_date, "لغو فاکتور")
-    has_real_payment = (invoice.payments.filter(status=Payment.Status.APPROVED)
-                        .exclude(method=Payment.Method.CREDIT).exists())
+    has_real_payment = counted_payments(invoice.payments.all()).exists()
     if has_real_payment:
         raise ValueError("این فاکتور پرداخت تاییدشده دارد و لغو نمی‌شود. برای اصلاح مبلغ از «ردیف دستی فاکتور» استفاده کنید.")
     for pending in list(invoice.payments.filter(status=Payment.Status.PENDING)):
@@ -441,4 +489,72 @@ def restore_invoice(*, invoice, reason, actor):
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
               amount=invoice.total_amount, text=f"فاکتور {invoice.number} برگردانده شد — {reason}")
     return invoice
+
+
+CHEQUE_TRANSITIONS = {
+    "received": {"deposited", "collected", "endorsed", "bounced", "returned"},
+    "deposited": {"collected", "bounced", "received"},
+    "endorsed": {"collected", "bounced", "received"},
+    "bounced": {"received", "returned"},
+    "collected": set(),     # پایانی
+    "returned": set(),      # پایانی
+}
+CHEQUE_REASON_REQUIRED = {"bounced", "returned", "received"}   # برگشت یا عودت یا بازگشت به «تحویل گرفته‌شده»
+
+
+def _locked_cheque(payment):
+    """قفل به ترتیب approve_payment: اول پرداخت، بعد فاکتور."""
+    payment = Payment.objects.select_for_update(of=("self",)).get(pk=payment.pk)
+    payment.invoice = Invoice.objects.select_for_update(of=("self",)).get(pk=payment.invoice_id)
+    if (payment.method != Payment.Method.CHEQUE or payment.status != Payment.Status.APPROVED
+            or not payment.cheque_status):
+        raise ValueError("وضعیت چک فقط برای چکِ تاییدشده ثبت می‌شود.")
+    return payment
+
+
+@transaction.atomic
+def set_cheque_status(*, payment, status, actor, endorsed_to="", note=""):
+    from core.capabilities import can
+    if not can(actor, "payments.review"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند وضعیت چک را تغییر دهد.")
+    payment = _locked_cheque(payment)
+    if status not in Payment.ChequeStatus.values:
+        raise ValueError("وضعیت چک معتبر نیست.")
+    if status not in CHEQUE_TRANSITIONS[payment.cheque_status]:
+        raise ValueError("این تغییر وضعیت مجاز نیست.")
+    note = (note or "").strip()[:400]
+    if status in CHEQUE_REASON_REQUIRED and not note:
+        raise ValueError("برای این وضعیت دلیل را بنویسید.")
+    name = (endorsed_to or "").strip()[:150] if status == Payment.ChequeStatus.ENDORSED else ""
+    old = payment.cheque_status
+    payment.cheque_status, payment.cheque_endorsed_to = status, name
+    payment.save(update_fields=["cheque_status", "cheque_endorsed_to", "updated_at"])   # بازمحاسبه‌ی فاکتور در save
+    text = " — ".join(x for x in ((f"به {name}" if name else ""), note) if x)
+    ChequeEvent.objects.create(payment=payment, from_status=old, to_status=status, note=text, actor=actor)
+    return payment
+
+
+@transaction.atomic
+def update_cheque_info(*, payment, number, bank, due_date, actor):
+    from core.capabilities import can
+    from utils.jalali import jalali_str
+    if not can(actor, "payments.review"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند اطلاعات چک را ویرایش کند.")
+    payment = _locked_cheque(payment)
+    number, bank = clean_cheque_fields(number=number, bank=bank, due_date=due_date, exclude_payment_id=payment.pk)
+    changes = []
+    if number != payment.cheque_number:
+        changes.append("شناسه‌ی صیادی")
+    if bank != payment.cheque_bank:
+        changes.append("بانک")
+    if due_date != payment.cheque_due_date:
+        old = jalali_str(payment.cheque_due_date, fmt="%Y/%m/%d") if payment.cheque_due_date else "ندارد"
+        changes.append(f"سررسید ({old} ← {jalali_str(due_date, fmt='%Y/%m/%d')})")
+    if not changes:
+        raise ValueError("تغییری ثبت نشد.")
+    payment.cheque_number, payment.cheque_bank, payment.cheque_due_date = number, bank, due_date
+    payment.save(update_fields=["cheque_number", "cheque_bank", "cheque_due_date", "updated_at"])
+    ChequeEvent.objects.create(payment=payment, from_status=payment.cheque_status, to_status=payment.cheque_status,
+                               note="ویرایش اطلاعات چک: " + "، ".join(changes), actor=actor)
+    return payment
 

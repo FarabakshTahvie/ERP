@@ -9,6 +9,7 @@ from catalog.models import Item
 from inventory.models import StockMovement, PurchaseLine
 from projects.models import Project, ProjectCost
 from finance.models import Payment, Invoice
+from finance.services import counted_payments
 
 def get_jalali_date_range(start_date, end_date):
     """
@@ -52,8 +53,7 @@ def generate_periodic_financial_report(start_g, end_g):
         created_at__gte=start_dt, created_at__lte=end_dt,
     ).aggregate(t=Sum("amount"))["t"] or Decimal("0")
 
-    total_received = (Payment.objects.filter(status=Payment.Status.APPROVED)
-                      .exclude(method=Payment.Method.CREDIT)
+    total_received = (counted_payments(Payment.objects.all())
                       .exclude(invoice__project_id__in=held)
                       .annotate(eff_at=Coalesce("paid_at", "approved_at", "created_at"))
                       .filter(eff_at__gte=start_dt, eff_at__lte=end_dt)
