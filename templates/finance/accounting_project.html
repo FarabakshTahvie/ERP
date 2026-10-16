@@ -136,6 +136,66 @@
     </section>
     {% endif %}
 
+    {% if invoice and invoice.status != 'cancelled' and invoice.remaining_amount > 0 %}
+    <section class="fb-card fb-pad flex flex-col gap-3" id="accountant-payment">
+        <h2 class="fb-section-title">ثبت پرداخت</h2>
+        <p class="fb-hint">برای پولی که مشتری حضوری یا خارج از پرتال داده. چون خودتان تایید می‌کنید، مستقیم «تاییدشده» ثبت می‌شود. مانده‌ی فاکتور: <span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان.</p>
+        <form method="post" action="{% url 'finance:accounting_add_payment' project.id %}" enctype="multipart/form-data" id="acc-payment-form" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-method">روش پرداخت</label>
+                    <select id="acc-method" name="method" required class="select w-full">
+                        <option value="card_to_card">کارت به کارت</option>
+                        <option value="receipt">رسید واریز</option>
+                        <option value="cheque">چک</option>
+                        <option value="cash">نقدی</option>
+                    </select>
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-amount">مبلغ (تومان)</label>
+                    <input type="text" id="acc-amount" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-paid-date">تاریخ پرداخت</label>
+                    <input type="text" id="acc-paid-date" name="paid_date" data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off" placeholder="۱۴۰۵/۰۷/۲۰" class="input w-full font-technical">
+                    <span class="fb-hint">خالی یعنی امروز؛ تاریخ آینده مجاز نیست.</span>
+                </div>
+                <div class="fb-field" id="acc-ref-wrap">
+                    <label class="fb-label" for="acc-ref">شماره پیگیری / تراکنش</label>
+                    <input type="text" id="acc-ref" name="reference_number" dir="ltr" autocomplete="off" class="input w-full font-technical">
+                </div>
+            </div>
+            <div class="fb-field" id="acc-file-wrap">
+                <label class="fb-label" for="acc-file" id="acc-file-label">تصویر رسید</label>
+                <input type="file" id="acc-file" name="receipt_file" accept="image/*,.pdf" class="file-input w-full">
+                <span class="fb-hint">برای کارت به کارت، حداقل یکی از «تصویر» یا «شماره پیگیری» لازم است.</span>
+            </div>
+            <div class="hidden" id="acc-cheque-box">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="fb-field">
+                        <label class="fb-label" for="acc-cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
+                        <input type="text" id="acc-cheque-number" name="cheque_number" data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                    </div>
+                    <div class="fb-field">
+                        <label class="fb-label" for="acc-cheque-bank">بانک</label>
+                        <input type="text" id="acc-cheque-bank" name="cheque_bank" maxlength="100" class="input w-full">
+                    </div>
+                    <div class="fb-field">
+                        <label class="fb-label" for="acc-cheque-due">تاریخ سررسید</label>
+                        <input type="text" id="acc-cheque-due" name="cheque_due_date" data-jalali-date dir="ltr" inputmode="none" autocomplete="off" class="input w-full font-technical">
+                    </div>
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="acc-note" id="acc-note-label">توضیح</label>
+                <textarea id="acc-note" name="note" rows="2" class="textarea w-full"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm self-start">ثبت پرداخت</button>
+        </form>
+    </section>
+    {% endif %}
+
     <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
         <h2 class="fb-section-title">هزینه‌ها</h2>
         {% for c in data.costs %}
@@ -218,4 +278,29 @@
         </div>
     </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('acc-payment-form');
+    if (!form) return;
+    var method = form.querySelector('#acc-method');
+    function el(id) { return form.querySelector('#' + id); }
+    function sync() {
+        var m = method.value, cheque = m === 'cheque', cash = m === 'cash';
+        el('acc-ref-wrap').classList.toggle('hidden', cash);
+        el('acc-file-wrap').classList.toggle('hidden', cash);
+        el('acc-cheque-box').classList.toggle('hidden', !cheque);
+        el('acc-file').required = m === 'receipt' || cheque;
+        el('acc-note').required = cash;
+        el('acc-cheque-number').required = cheque;
+        el('acc-cheque-due').required = cheque;
+        el('acc-file-label').textContent = cheque ? 'تصویر چک (اجباری)' : (m === 'receipt' ? 'تصویر رسید (اجباری)' : 'تصویر رسید');
+        el('acc-note-label').textContent = cash ? 'توضیح (اجباری) — مثلاً چه کسی پول را داد' : 'توضیح';
+    }
+    method.addEventListener('change', sync);
+    sync();
+})();
+</script>
 {% endblock %}
