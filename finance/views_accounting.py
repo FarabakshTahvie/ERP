@@ -21,7 +21,7 @@ from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
 
 from . import accounting
-from .services import cancel_invoice, set_invoice_due_date
+from .services import cancel_invoice, cheque_due_warning, set_invoice_due_date
 
 PROJECT_STATUS_VARIANT = {"completed": "success", "cancelled": "error", "in_progress": "info"}
 
@@ -316,6 +316,9 @@ def project_add_payment(request, project_id):
         messages.error(request, str(e))
     else:
         messages.success(request, "پرداخت ثبت شد.")
+        warning = cheque_due_warning(cheque_due) if request.POST.get("method") == "cheque" else ""
+        if warning:
+            messages.warning(request, warning)
     return redirect("finance:accounting_project", project.id)
 
 
