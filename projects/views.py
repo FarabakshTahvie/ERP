@@ -593,6 +593,7 @@ def my_task_detail(request, stage_id):
 
 @login_required
 @user_passes_test(_is_stage_worker)
+@require_POST
 def my_task_claim(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     try:

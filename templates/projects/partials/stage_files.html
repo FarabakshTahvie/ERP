@@ -20,7 +20,7 @@
                     <div class="w-full h-24 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>
                     {% endif %}
                     <span class="text-xs break-all line-clamp-2" dir="auto" title="{{ f.display_name }}">{{ f.display_name }}</span>
-                    <span class="text-xs fb-muted">{{ f.uploaded_by.get_full_name|default:f.uploaded_by.username|default:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
+                    <span class="text-xs fb-muted">{{ f.uploaded_by|person_name:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
                     {% if f.cut_count %}<span class="fb-badge fb-badge-neutral self-start">{{ f.cut_count|fa_digits }} برش</span>{% endif %}
                     <div class="flex items-center gap-1">
                         {% if f.is_displayable_image %}

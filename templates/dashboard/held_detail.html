@@ -123,7 +123,7 @@
     <section class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="fb-section-title">اطلاعات لغو پروژه</h2>
         {% if cancel_evt %}
-        <p class="fb-inset text-sm">دلیل لغو: {{ cancel_evt.comment }} (توسط {{ cancel_evt.actor.get_full_name|default:cancel_evt.actor.username }})</p>
+        <p class="fb-inset text-sm">دلیل لغو: {{ cancel_evt.comment }} (توسط {{ cancel_evt.actor|person_name:"سیستم" }})</p>
         {% endif %}
 
         {% if not caps.projects_restore %}
@@ -195,7 +195,7 @@
                     <tr>
                         <td>{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M"|fa_digits }}</td>
                         <td>{{ ev.stage.title }}</td>
-                        <td>{{ ev.actor.get_full_name|default:ev.actor.username|default:"—" }}</td>
+                        <td>{{ ev.actor|person_name:"—" }}</td>
                         <td>{{ ev.comment|default:"—" }}</td>
                     </tr>
                     {% empty %}

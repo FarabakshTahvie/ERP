@@ -57,4 +57,15 @@ class SourceGuardTests(TestCase):
         self.assertEqual(Client().get("/b/" + "a" * 32 + ".jpg").status_code, 404)
         self.assertNotIn('"/b/"', (BASE / "accounts" / "middleware.py").read_text(encoding="utf-8"))
 
+    def test_templates_do_not_use_default_filter_with_a_dotted_object_argument(self):
+        """`x.get_full_name|default:x.username` وقتی x میتواند None باشد VariableDoesNotExist میدهد؛ از |person_name استفاده کن."""
+        import re
+        pattern = re.compile(r"\.get_full_name\|default:\s*(?!request\.user\.)[A-Za-z_]\w*\.\w+\.\w+")
+        bad = []
+        for path in (BASE / "templates").rglob("*.html"):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if pattern.search(line):
+                    bad.append(f"{path.relative_to(BASE)}:{number}")
+        self.assertEqual(bad, [])
+
 

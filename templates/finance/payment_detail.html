@@ -157,7 +157,7 @@
         <div role="alert" class="alert alert-soft alert-success">
             {% icon "check-circle" "w-4 h-4 shrink-0" %}
             <span class="text-sm">
-                تایید شد{% if payment.approved_by %} توسط {{ payment.approved_by.get_full_name|default:payment.approved_by.username }}{% endif %}
+                تایید شد{% if payment.approved_by %} توسط {{ payment.approved_by|person_name:"—" }}{% endif %}
                 {% if payment.approved_at %} — <span class="font-technical">{{ payment.approved_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% endif %}
             </span>
         </div>
@@ -181,7 +181,7 @@
         {% else %}
         <div role="alert" class="alert alert-soft alert-error">
             {% icon "x-circle" "w-4 h-4 shrink-0" %}
-            <span class="text-sm">رد شد{% if payment.approved_by %} توسط {{ payment.approved_by.get_full_name|default:payment.approved_by.username }}{% endif %}؛ دلیل در یادداشت بالا ثبت شده است.</span>
+            <span class="text-sm">رد شد{% if payment.approved_by %} توسط {{ payment.approved_by|person_name:"—" }}{% endif %}؛ دلیل در یادداشت بالا ثبت شده است.</span>
         </div>
         {% endif %}
     {% endif %}

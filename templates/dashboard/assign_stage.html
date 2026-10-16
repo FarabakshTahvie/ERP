@@ -12,7 +12,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
         <div class="flex justify-between gap-2"><span class="fb-muted">وضعیت</span><span>{{ stage.get_status_display }}</span></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">مسئول فعلی</span>
-            <span>{% if stage.assigned_to %}{{ stage.assigned_to.get_full_name|default:stage.assigned_to.username }}{% elif stage.candidate_users.all %}در استخر{% else %}ندارد{% endif %}</span></div>
+            <span>{% if stage.assigned_to %}{{ stage.assigned_to|person_name:"—" }}{% elif stage.candidate_users.all %}در استخر{% else %}ندارد{% endif %}</span></div>
         {% if specialty %}<div class="flex justify-between gap-2"><span class="fb-muted">تخصص مرحله</span><span>{{ specialty.name }}</span></div>{% endif %}
         <a href="{% nav_url 'projects:staff_project_overview' stage.project_id %}" class="btn btn-soft btn-sm self-start">نمای پروژه</a>
     </section>
@@ -57,7 +57,7 @@
         {% for ev in events %}
         <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
             <span>{{ ev.comment|default:"بدون توضیح" }}</span>
-            <span class="fb-muted">{{ ev.actor.get_full_name|default:ev.actor.username|default:"سیستم" }} · <span class="font-technical">{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+            <span class="fb-muted">{{ ev.actor|person_name:"سیستم" }} · <span class="font-technical">{{ ev.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
         </div>
         {% endfor %}
     </section>
