@@ -16,6 +16,7 @@ from django.db.models.functions import Coalesce
 from utils.utils import separate_digits
 from utils.jalali_forms import JalaliDateField
 from utils.jalali import jalali_str, to_fa_digits
+from core.capabilities import can
 from accounts.models import User
 from core.models import Party
 from catalog.models import Service, Item
@@ -99,6 +100,11 @@ DURATION_HINTS = {
 
 def _is_technician(user):
     return user.is_authenticated and user.role == User.Role.EMPLOYEE
+
+
+def _is_stage_worker(user):
+    """تکنسین، یا مدیر که می‌تواند هر وظیفه‌ی بی‌مسئول را بردارد."""
+    return _is_technician(user) or (user.is_authenticated and can(user, "stages.assign"))
 
 
 def _duration_hint(hours):
@@ -380,12 +386,16 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
 
     from . import ops, usage
     my_stage_ids = set()
+    can_claim_any = can(user, "stages.assign")
     for s in stages:
         s.install = usage.install_context(user, s)
         s.usage = usage.usage_context(user, s)
         candidate_ids = {u.id for u in s.candidate_users.all()}
         s.is_mine = s.assigned_to_id == user.id
         s.is_candidate = user.id in candidate_ids
+        s.can_claim = (s.status == ProjectStage.Status.IN_PROGRESS and not s.assigned_to_id
+                       and project.status == Project.Status.IN_PROGRESS
+                       and (s.is_candidate or can_claim_any))
         s.candidate_count = len(candidate_ids)
         if s.is_mine or s.is_candidate:
             my_stage_ids.add(s.id)
@@ -571,18 +581,18 @@ def my_tasks(request):
 
 
 @login_required
-@user_passes_test(_is_technician)
+@user_passes_test(_is_stage_worker)
 def my_task_detail(request, stage_id):
     stage = get_object_or_404(ProjectStage.objects.select_related("project"), pk=stage_id)
     is_mine = stage.assigned_to_id == request.user.id
     is_candidate = stage.candidate_users.filter(pk=request.user.id).exists()
-    if not is_mine and not is_candidate:
+    if not is_mine and not is_candidate and not can(request.user, "stages.assign"):
         raise Http404
     return _render_staff_project_view(request, stage.project, highlight_stage_id=stage.id)
 
 
 @login_required
-@user_passes_test(_is_technician)
+@user_passes_test(_is_stage_worker)
 def my_task_claim(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     try:
@@ -631,7 +641,7 @@ def group_create(request, stage_id):
 
 
 @login_required
-@user_passes_test(_is_technician)
+@user_passes_test(_is_stage_worker)
 def my_task_complete(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     if request.method == "POST":
@@ -649,7 +659,7 @@ def my_task_complete(request, stage_id):
 
 
 @login_required
-@user_passes_test(_is_technician)
+@user_passes_test(_is_stage_worker)
 def my_task_transfer(request, stage_id):
     stage = get_object_or_404(ProjectStage, pk=stage_id)
     if request.method == "POST":

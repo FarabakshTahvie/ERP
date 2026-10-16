@@ -9,6 +9,9 @@
             <p class="fb-page-sub">وضعیت کل شرکت در یک نگاه</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            {% if caps.projects_create %}
+            <a href="{% url 'projects:new_project_form' %}" class="btn btn-primary btn-sm">{% icon "plus" "w-4 h-4" %} پروژه جدید</a>
+            {% endif %}
             <a href="{% url 'finance:accounting_overview' %}" class="btn btn-soft btn-sm">{% icon "bar-chart-3" "w-4 h-4" %} مرکز حسابداری</a>
             <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
                 {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها

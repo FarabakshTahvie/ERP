@@ -131,7 +131,7 @@
             {% if s.usage %}{% include "projects/partials/stage_usage.html" %}{% endif %}
             {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
 
-            {% if s.is_candidate and not s.is_mine and s.status == 'in_progress' %}
+            {% if s.can_claim %}
             <form method="post" action="{% url 'projects:my_task_claim' s.id %}" class="mt-3">
                 {% csrf_token %}
                 <button class="btn btn-primary btn-sm">پذیرفتن این وظیفه</button>

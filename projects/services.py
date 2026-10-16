@@ -471,7 +471,6 @@ def _activate_next_stage(stage):
 @transaction.atomic
 def claim_stage(stage, user):
     """کاربری که در candidate_users هست (یا ادمین) این کار را رسماً برمی‌دارد."""
-    from accounts.models import User
     from .models import ProjectStage
     if stage.project.status == Project.Status.CANCELLED:
         raise ValueError("این پروژه لغو شده است.")
@@ -479,7 +478,7 @@ def claim_stage(stage, user):
         raise ValueError("این مرحله در حال انجام نیست.")
     if stage.assigned_to_id:
         raise ValueError("این مرحله قبلاً به شخص دیگری اختصاص یافته است.")
-    if user.role != User.Role.ADMIN and not stage.candidate_users.filter(pk=user.pk).exists():
+    if not can(user, "stages.assign") and not stage.candidate_users.filter(pk=user.pk).exists():
         raise ValueError("شما جزو افراد واجد شرایط این مرحله نیستید.")
     stage.assigned_to = user
     stage.candidate_users.clear()

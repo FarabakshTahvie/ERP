@@ -60,7 +60,7 @@ CAPABILITIES = {
     "tasks.manage": _manager_or_accountant,
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
-    "projects.create": lambda f: f.employee and bool(f.names & {SPECIALTY_INTAKE, SPECIALTY_ACCOUNTANT}),
+    "projects.create": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_INTAKE, SPECIALTY_ACCOUNTANT})),
     "broadcast.use": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_ACCOUNTANT, SPECIALTY_INTAKE})),
     # --- پیام‌رسان ---
     "messenger.use": lambda f: f.manager or f.employee,
