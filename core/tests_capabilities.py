@@ -15,7 +15,7 @@ EXPECTED = {
     "final_review.view": MGR_ACC, "money.view": MGR_ACC, "periods.lock": MGR_ACC, "invoice.adjust": MGR_ACC,
     "people.view": MGR_ACC, "suspended.view": MGR_ACC, "tasks.manage": MGR_ACC,
     "inventory.manage": {"warehouse", "accountant"},
-    "projects.create": {"reception", "accountant"},
+    "projects.create": MGR | {"reception", "accountant"},
     "broadcast.use": MGR | {"accountant", "reception"},
     "messenger.use": MGR | {"accountant", "reception", "warehouse", "installer"},
     "messenger.reach_all": MGR_ACC,
