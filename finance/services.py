@@ -5,7 +5,7 @@ from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from utils.image_utils import optimize_receipt_image
 from utils.utils import separate_digits, monthly_prefix, next_monthly_code
-from .models import Invoice, InvoiceLine, Payment, ChequeEvent, CHEQUE_NOT_COUNTED
+from .models import Invoice, InvoiceLine, Payment, ChequeEvent, CHEQUE_ACTIVE, CHEQUE_NOT_COUNTED
 
 # روش‌هایی که مبلغشان را کارشناس از روی مدرک تایید می‌کند
 PROOF_METHODS = (Payment.Method.CARD_TO_CARD, Payment.Method.RECEIPT, Payment.Method.CHEQUE)
@@ -75,6 +75,17 @@ def counted_payments(qs):
     تنها منبع تعریف «پول واقعی»؛ همه‌ی جمع‌های پول از همین می‌گذرند."""
     return (qs.filter(status=Payment.Status.APPROVED).exclude(method=Payment.Method.CREDIT)
             .exclude(cheque_status__in=CHEQUE_NOT_COUNTED))
+
+
+CHEQUE_SOON_DAYS = 7
+
+
+def cheque_soon_q(today=None):
+    """چکِ تاییدشده‌ی در دست پیگیری (تحویل گرفته‌شده یا واگذار به بانک) که سررسیدش تا ۷ روز دیگر است یا گذشته.
+    تنها تعریف «چک نزدیک»؛ شمارنده‌ی «نیازمند اقدام» و فیلتر جدول پرداخت‌ها هر دو از همین می‌آیند."""
+    today = today or timezone.localdate()
+    return models.Q(status=Payment.Status.APPROVED, cheque_status__in=CHEQUE_ACTIVE,
+                    cheque_due_date__lte=today + timedelta(days=CHEQUE_SOON_DAYS))
 
 
 def cheque_due_warning(due_date):

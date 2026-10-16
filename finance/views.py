@@ -1,12 +1,14 @@
+from datetime import timedelta
 import io
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import Case, IntegerField, Sum, When
+from django.db.models import BooleanField, Case, IntegerField, Sum, Value, When
 from django.http import Http404, FileResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 import weasyprint
 
@@ -20,6 +22,7 @@ from .models import CHEQUE_ACTIVE, Invoice, Payment
 from .services import (
     approve_payment, reject_payment, create_customer_payment, PROOF_METHODS,
     CHEQUE_REASON_REQUIRED, CHEQUE_TRANSITIONS, cheque_due_warning, set_cheque_status, update_cheque_info,
+    CHEQUE_SOON_DAYS, cheque_soon_q,
 )
 
 
@@ -136,8 +139,25 @@ def _visible_payments(user):
 def _payments_table_context(request):
     qs = _visible_payments(request.user).annotate(
         review_rank=Case(When(status=Payment.Status.PENDING, then=0), default=1, output_field=IntegerField()),
+        cheque_soon=Case(When(cheque_soon_q(), then=Value(True)), default=Value(False), output_field=BooleanField()),
     ).order_by("review_rank", "-created_at")
-
+    today = timezone.localdate()
+ 
+    def cheque_cells(p):
+        if not p.cheque_status:
+            return [{"type": "muted", "value": "—"}, {"type": "muted", "value": "—"}]
+        status_cell = {"type": "badge", "value": p.get_cheque_status_display(),
+                       "variant": CHEQUE_VARIANT.get(p.cheque_status, "neutral")}
+        if p.cheque_due_date is None:
+            return [status_cell, {"type": "muted", "value": "—"}]
+        text = jalali_str(p.cheque_due_date, fmt="%Y/%m/%d")
+        if p.cheque_soon:
+            due_cell = {"type": "badge", "value": text,
+                        "variant": "error" if p.cheque_due_date < today else "warning"}
+        else:
+            due_cell = {"type": "muted", "value": text}
+        return [status_cell, due_cell]
+ 
     def row_builder(p):
         from utils.navigation import nav_reverse
         return {
@@ -149,9 +169,10 @@ def _payments_table_context(request):
                 {"type": "text", "value": to_fa_digits(separate_digits(p.amount))},
                 {"type": "muted", "value": jalali_str(p.created_at, fmt="%Y/%m/%d %H:%M")},
                 {"type": "badge", "value": p.status_label, "variant": p.status_variant},
+                *cheque_cells(p),
             ],
         }
-
+ 
     return build_table_context(
         request, qs,
         columns=[
@@ -163,6 +184,11 @@ def _payments_table_context(request):
             {"label": "تاریخ ثبت", "sort_field": "created_at"},
             {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
              "choices": Payment.Status.choices},
+            {"label": "وضعیت چک", "sort_field": "cheque_status", "filter_key": "cheque", "filter_type": "select",
+             "filter_field": "cheque_status", "choices": Payment.ChequeStatus.choices},
+            {"label": "سررسید چک", "sort_field": "cheque_due_date", "filter_key": "cheque_soon",
+             "filter_type": "boolean", "true_label": f"تا {to_fa_digits(CHEQUE_SOON_DAYS)} روز آینده یا گذشته",
+             "false_label": "سایر"},
         ],
         row_builder=row_builder,
         container_id="table-payments",

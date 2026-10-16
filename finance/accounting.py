@@ -25,6 +25,7 @@ from .models import Invoice, InvoiceLine, Payment, AccountingEvent, ChequeEvent
 from .services import (
     parse_amount, proof_error, prepare_receipt_file, PROOF_METHODS,
     add_manual_invoice_line, recalculate_invoice_paid_amount, counted_payments, clean_cheque_fields,
+    cheque_soon_q,
 )
 from utils.utils import separate_digits
 
@@ -149,6 +150,9 @@ def attention_items():
     add("پرداخت منتظر تایید",
         Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY).count(),
         reverse("finance:payments_review"))
+    add("چک نزدیک به سررسید یا گذشته از آن",
+        Payment.objects.filter(cheque_soon_q()).count(),
+        reverse("finance:payments_review") + "?py_f_cheque_soon=1&py_sort=cheque_due_date&py_dir=asc")
     add("پروژه‌ی تکمیل‌شده‌ی دارای مانده‌ی فاکتور",
         Invoice.objects.exclude(status=Invoice.Status.CANCELLED).filter(project__status=Project.Status.COMPLETED)
         .annotate(rem=ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
