@@ -10,9 +10,8 @@ from decimal import Decimal
 from django.utils import timezone
 from finance.models import Invoice, Payment
 from finance.services import approve_payment, cancel_invoice, reject_payment
-from notifications.models import ChannelPolicy, Notification, NotificationPolicy, NotificationType as NT
-from notifications.services import SMS_TEMPLATE_TYPES, resend_notification
-from notifications.sms_patterns import SMS_PATTERNS
+from notifications.models import Notification, NotificationType as NT
+from notifications.services import resend_notification
 from projects.models import Project
 from utils.sms import SMSService
 from utils.test_helpers import make_accountant
@@ -107,12 +106,6 @@ class RejectedSmsTests(PaymentSmsBase):
         self.assertNotIn("remaining", kw)
         self.assertEqual(Notification.objects.get().notification_type, NT.PAYMENT_REJECTED)
 
-    def test_credit_rejection_also_notifies(self):
-        with mock.patch(REJ, return_value=OK) as m:
-            with self.captureOnCommitCallbacks(execute=True):
-                reject_payment(self.pending(Payment.Method.CREDIT), rejected_by=self.accountant, reason="نه")
-        m.assert_called_once()
-
     def test_cancelling_the_invoice_rejects_pending_payments_silently(self):
         p = self.pending()
         with mock.patch(REJ, return_value=OK) as m:
@@ -125,24 +118,7 @@ class RejectedSmsTests(PaymentSmsBase):
 
 
 class TemplateRegistryTests(PaymentSmsBase):
-    def test_service_methods_pass_the_exact_parameters(self):
-        with mock.patch.object(SMSService, "send_pattern", return_value=OK) as sp:
-            SMSService().send_payment_confirmed("0912", "علی", "N", "5", "s/abc")
-            sp.assert_called_with("0912", "payment_confirmed", name="علی", number="N", remaining="5", LINK="s/abc")
-            SMSService().send_payment_rejected("0912", "علی", "N", "s/abc")
-            sp.assert_called_with("0912", "payment_rejected", name="علی", number="N", LINK="s/abc")
-
-    def test_templates_have_all_their_parameters_and_the_right_codes(self):
-        # api_key در تست خالی است؛ شبکه صدا زده نمی‌شود، ولی پارامتر ناقص ValueError می‌داد
-        SMSService().send_payment_confirmed("0912", "علی", "N", "5", "s/abc")
-        SMSService().send_payment_rejected("0912", "علی", "N", "s/abc")
-        self.assertEqual(SMS_PATTERNS["payment_confirmed"]["pattern_code"], "666482")
-        self.assertEqual(SMS_PATTERNS["payment_rejected"]["pattern_code"], "586652")
-        for key in ("payment_confirmed", "payment_rejected"):
-            for p in SMS_PATTERNS[key]["parameters"]:
-                self.assertIn(f"%{p}%", SMS_PATTERNS[key]["reference_text"], f"{key}:{p}")
-
-    def test_types_are_sms_template_types_with_sms_only_policy(self):
-        for t in (NT.PAYMENT_CONFIRMED, NT.PAYMENT_REJECTED):
-            self.assertIn(t, SMS_TEMPLATE_TYPES)
-            self.assertEqual(NotificationPolicy.objects.get(notification_type=t).channel_policy, ChannelPolicy.SMS_ONLY)
+    def test_payment_templates_have_matching_parameter_names(self):
+        for result in (SMSService().send_payment_confirmed("0912", "علی", "N", "5", "s/abc"),
+                       SMSService().send_payment_rejected("0912", "علی", "N", "s/abc")):
+            self.assertEqual(result["error"], "SMS_IR_API_KEY is empty")

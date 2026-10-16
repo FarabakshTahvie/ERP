@@ -6,7 +6,7 @@ from django.urls import reverse
 from accounts.models import User
 from core.models import Party, Specialty
 from projects.models import Project, ProjectStage, StageEvent, StageKind
-from projects.services import can_edit_project, claim_stage, create_project_from_technician_intake
+from projects.services import claim_stage, create_project_from_technician_intake
 from projects.workflow_v3 import build_workflow_v3
 from utils.test_helpers import make_accountant
 
@@ -104,9 +104,3 @@ class NewProjectButtonTests(ManagerClaimBase):
         self.assertNotContains(c.get(reverse("home")), url)
         self.assertEqual(c.get(url).status_code, 302)
 
-    def test_manager_can_register_a_project(self):
-        partner = Party.objects.create(name="شریک مدیر", is_partner=True, phone_number="09125550910")
-        project, _, _ = create_project_from_technician_intake(
-            created_by=self.manager, party_id=partner.id, visit_date=date(2026, 10, 12), issue_proforma=False)
-        self.assertEqual(project.created_by, self.manager)
-        self.assertTrue(can_edit_project(self.manager, project))

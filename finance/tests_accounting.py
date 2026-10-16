@@ -196,14 +196,17 @@ class OverviewNumbersTests(BaseAccountingTestCase):
         self.assertEqual(stats_after["consumption_unlinked"], Decimal("2000"))
         self.assertEqual(stats_after["consumption"], Decimal("3000"))
 
-        # Suspend project -> consumption and sales excluded from accounting_overview
+        # پروژه‌ی معلق از اعداد بیرون می‌رود
         from projects.services import suspend_stage
-        step_first = self.project.stages.first()
-        if step_first:
-            suspend_stage(step_first, actor=self.admin_user, comment="تعلیق")
-            stats_held = accounting.accounting_overview("all")
-            self.assertEqual(stats_held["consumption"], Decimal("2000"))
-            self.assertEqual(stats_held["consumption_unlinked"], Decimal("2000"))
+        tpl = WorkflowTemplate.objects.create(name="قالب تعلیق")
+        step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="مرحله")
+        stage = ProjectStage.objects.create(project=self.project, step_template=step, order=1, title="مرحله",
+                                            status=ProjectStage.Status.IN_PROGRESS)
+        Project.objects.filter(pk=self.project.pk).update(status=Project.Status.IN_PROGRESS)
+        suspend_stage(stage, actor=self.manager, comment="تعلیق")
+        stats_held = accounting.accounting_overview("all")
+        self.assertEqual(stats_held["consumption"], Decimal("2000"))
+        self.assertEqual(stats_held["consumption_unlinked"], Decimal("2000"))
 
 
 class ProjectFinancialsTests(BaseAccountingTestCase):
