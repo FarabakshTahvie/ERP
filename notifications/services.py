@@ -7,7 +7,8 @@ from utils.push_notification import NajvaService
 
 logger = logging.getLogger(__name__)
 
-SMS_TEMPLATE_TYPES = {NotificationType.INVOICE_ISSUED}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
+SMS_TEMPLATE_TYPES = {NotificationType.INVOICE_ISSUED, NotificationType.PAYMENT_CONFIRMED,
+                      NotificationType.PAYMENT_REJECTED}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
 
 
 def create_notification(*, notification_type, user, title, body, real_target_url="",
@@ -66,6 +67,22 @@ def send_push_channel(notification) -> bool:
     return ok
 
 
+def _call_sms_template(notification, phone):
+    """قالب مخصوص هر نوع اعلان را صدا می‌زند؛ خروجی = نتیجه‌ی SMSService."""
+    data = notification.extra_data or {}
+    name = notification.user.first_name or "کاربر گرامی"
+    number = data.get("invoice_number", "")
+    sms = SMSService()
+    if notification.notification_type == NotificationType.PAYMENT_CONFIRMED:
+        return sms.send_payment_confirmed(mobile=phone, name=name, number=number,
+                                          remaining=data.get("remaining", "0"), link=notification.short_path)
+    if notification.notification_type == NotificationType.PAYMENT_REJECTED:
+        return sms.send_payment_rejected(mobile=phone, name=name, number=number, link=notification.short_path)
+    return sms.send_invoice_issued(
+        mobile=phone, name=name, number=number, username=data.get("username", ""),
+        password=data.get("password") or "رمز فعلی شما", link=notification.short_path)   # فقط مسیر، مثل s/abcde
+
+
 def send_sms_channel(notification) -> bool:
     """پیامک فقط برای نوعی که قالب تاییدشده دارد. متن آزاد عمداً حذف شده (هزینه و قالب‌نداشتن)."""
     if notification.notification_type not in SMS_TEMPLATE_TYPES:
@@ -77,15 +94,7 @@ def send_sms_channel(notification) -> bool:
         notification.save(update_fields=["status"])
         return False
 
-    data = notification.extra_data or {}
-    result = SMSService().send_invoice_issued(
-        mobile=phone,
-        name=notification.user.first_name or "کاربر گرامی",
-        number=data.get("invoice_number", ""),
-        username=data.get("username", ""),
-        password=data.get("password") or "رمز فعلی شما",
-        link=notification.short_path,          # فقط مسیر، مثل s/abcde
-    )
+    result = _call_sms_template(notification, phone)
 
     # رمز خام نباید در دیتابیس بماند
     extra = dict(notification.extra_data or {})
@@ -100,7 +109,7 @@ def send_sms_channel(notification) -> bool:
     return ok
 
 
-def notify_users(users, *, notification_type, title, body, real_target_url=""):
+def notify_users(users, *, notification_type, title, body, real_target_url="", extra_data=None):
     """اعلان برای چند نفر. بعد از commit ارسال می‌شود (خطای ارسال تراکنش اصلی را خراب نمی‌کند)،
     تکراری‌ها یکی می‌شوند و کاربر غیرفعال اعلان نمی‌گیرد."""
     ids, seen = [], set()
@@ -116,7 +125,7 @@ def notify_users(users, *, notification_type, title, body, real_target_url=""):
         for user in get_user_model().objects.filter(pk__in=ids, is_active=True):
             try:
                 create_notification(notification_type=notification_type, user=user, title=title,
-                                    body=body, real_target_url=real_target_url)
+                                    body=body, real_target_url=real_target_url, extra_data=extra_data)
             except Exception:
                 logger.exception("notify failed for user %s", user.pk)
 

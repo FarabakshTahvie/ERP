@@ -271,6 +271,29 @@ def add_manual_invoice_line(invoice, title, amount, actor, line_type=InvoiceLine
     return line
 
 
+def _notify_payment_decision(payment, *, confirmed):
+    """پیامک تایید یا رد پرداخت مشتری، بعد از commit. تایید پرداخت اعتباری خبر نمی‌دهد (پولی نیامده).
+    طرف‌حساب بدون حساب کاربری پیامی نمی‌گیرد. شکست ارسال تصمیم را برنمی‌گرداند (notify_users خطا را مهار می‌کند)."""
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    if confirmed and payment.method == Payment.Method.CREDIT:
+        return
+    invoice = payment.invoice
+    user = invoice.billed_party.users.filter(is_active=True).first()
+    if user is None:
+        return
+    number, remaining = invoice.number, separate_digits(invoice.remaining_amount)
+    if confirmed:
+        kind, title = NotificationType.PAYMENT_CONFIRMED, "پرداخت شما تایید شد"
+        body = f"پرداخت شما برای فاکتور {number} تایید شد. مانده: {remaining} تومان."
+    else:
+        kind, title = NotificationType.PAYMENT_REJECTED, "پرداخت شما تایید نشد"
+        body = f"پرداخت ثبت‌شده برای فاکتور {number} تایید نشد؛ دلیل را در پرتال ببینید."
+    notify_users([user], notification_type=kind, title=title, body=body,
+                 real_target_url=f"/portal/invoices/{invoice.uuid}/",
+                 extra_data={"invoice_number": number, "remaining": remaining})
+
+
 @transaction.atomic
 def approve_payment(payment, approved_by, verified_amount=None, *, cheque_number=None, cheque_bank=None,
                     cheque_due_date=None):
@@ -317,16 +340,16 @@ def approve_payment(payment, approved_by, verified_amount=None, *, cheque_number
     payment.status = Payment.Status.APPROVED
     payment.approved_by = approved_by
     payment.approved_at = timezone.now()
-    # TODO(پیامک payment_confirmed): فقط پرداخت‌های ثبت‌شده توسط مشتری
     payment.save()
     if is_cheque:
         ChequeEvent.objects.create(payment=payment, from_status="", to_status=Payment.ChequeStatus.RECEIVED,
                                    note="تایید پرداخت", actor=approved_by)
+    _notify_payment_decision(payment, confirmed=True)
     return payment
 
 
 @transaction.atomic
-def reject_payment(payment, rejected_by, reason=""):
+def reject_payment(payment, rejected_by, reason="", *, notify=True):
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("برای رد پرداخت، ذکر دلیل اجباری است.")
@@ -336,9 +359,10 @@ def reject_payment(payment, rejected_by, reason=""):
     payment.status = Payment.Status.REJECTED
     payment.approved_by = rejected_by
     payment.approved_at = timezone.now()
-    # TODO(پیامک payment_rejected): فقط پرداخت‌های ثبت‌شده توسط مشتری
     payment.note = (payment.note + "\n" if payment.note else "") + f"رد شد: {reason}"
     payment.save()
+    if notify:
+        _notify_payment_decision(payment, confirmed=False)
     return payment
 
 
@@ -444,7 +468,7 @@ def cancel_invoice(*, invoice, reason, actor):
     if has_real_payment:
         raise ValueError("این فاکتور پرداخت تاییدشده دارد و لغو نمی‌شود. برای اصلاح مبلغ از «ردیف دستی فاکتور» استفاده کنید.")
     for pending in list(invoice.payments.filter(status=Payment.Status.PENDING)):
-        reject_payment(pending, rejected_by=actor, reason="فاکتور لغو شد")
+        reject_payment(pending, rejected_by=actor, reason="فاکتور لغو شد", notify=False)
     invoice.refresh_from_db()
     invoice.status = Invoice.Status.CANCELLED
     invoice.save(update_fields=["status"])

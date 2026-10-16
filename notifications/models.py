@@ -22,6 +22,8 @@ class NotificationType(models.TextChoices):
     PART_REQUEST = "part_request", "درخواست قطعه"
     BROADCAST = "broadcast", "پیام همگانی"
     TASK_ASSIGNED = "task_assigned", "وظیفه‌ی جدید"
+    PAYMENT_CONFIRMED = "payment_confirmed", "تایید پرداخت"
+    PAYMENT_REJECTED = "payment_rejected", "رد پرداخت"
 
 
 class ChannelPolicy(models.TextChoices):
