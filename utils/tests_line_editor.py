@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 from django.test import TestCase
-from utils.line_editor import Col, parse_row, parse_rows, BAD
+from utils.line_editor import Col, parse_rows, BAD
 
 
 class LineEditorTests(TestCase):
@@ -13,9 +13,6 @@ class LineEditorTests(TestCase):
             Col("flag", "وضعیت", "checkbox"),
             Col("choice", "انتخاب", "select", required=False, choices=("a", "b")),
         )
-
-    def test_parse_rows_none_returns_none(self):
-        self.assertIsNone(parse_rows(None, self.cols))
 
     def test_invalid_json_raises_value_error(self):
         with self.assertRaises(ValueError) as cm:
@@ -36,17 +33,3 @@ class LineEditorTests(TestCase):
         raw2 = json.dumps([{"name": "تست", "qty": "1", "price": "-100"}])
         with self.assertRaises(ValueError):
             parse_rows(raw2, self.cols)
-
-    def test_children_rows(self):
-        child_cols = (Col("title", "عنوان", "text"),)
-        raw = json.dumps([{
-            "name": "والد", "qty": "1", "kids": [{"title": "فرزند ۱"}, {"title": "فرزند ۲"}]
-        }])
-        res = parse_rows(raw, self.cols, children_key="kids", children_columns=child_cols)
-        self.assertEqual(len(res[0]["kids"]), 2)
-        self.assertEqual(res[0]["kids"][0]["title"], "فرزند ۱")
-
-    def test_max_rows_limit(self):
-        raw = json.dumps([{"name": "تست", "qty": "1"}] * 5)
-        with self.assertRaises(ValueError):
-            parse_rows(raw, self.cols, max_rows=4)

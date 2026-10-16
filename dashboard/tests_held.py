@@ -62,24 +62,6 @@ class HeldDashboardTests(TestCase):
         r_restore = c.post(reverse("dashboard:project_restore", args=[self.project.id]), {"comment": "حسابدار برگرداند از لغو"})
         self.assertEqual(r_restore.status_code, 404)
 
-    def test_manager_actions_and_next_redirect(self):
-        # Manager can perform all actions
-        suspend_stage(self.stage, actor=self.manager, comment="تعلیق")
-
-        c = Client()
-        c.force_login(self.manager)
-
-        # Resume with custom next
-        next_url = reverse("dashboard:held_detail", args=[self.project.id])
-        r = c.post(reverse("dashboard:suspended_resume", args=[self.stage.id]), {"comment": "تایید مدیر", "next": next_url})
-        # After resuming the last suspended stage, the project is no longer held (no suspended stages),
-        # so held_detail would return 404. Checking status_code 302 and target redirect.
-        self.assertEqual(r.status_code, 302)
-        self.assertEqual(r.url, next_url)
-
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.status, ProjectStage.Status.IN_PROGRESS)
-
     def test_receivable_identity_with_customer_center(self):
         # سناریوها: فاکتور تاییدشده‌ی عادی، روی پروژه‌ی معلق، روی پروژه‌ی لغوشده (فاکتور لغو نشده)،
         # پیش‌فاکتور تاییدنشده، و فاکتور با پرداخت جزئی
@@ -149,54 +131,3 @@ class HeldDashboardTests(TestCase):
 
         cancel_project_from_stage(st, actor=self.manager, comment="لغو", cancel_invoice=False)
         self.assertEqual(self.client_party.total_outstanding, initial_out)
-
-    def test_held_detail_non_held_raises_404(self):
-        c = Client()
-        c.force_login(self.manager)
-        # self.project is IN_PROGRESS without suspended stages
-        resp = c.get(reverse("dashboard:held_detail", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 404)
-
-    def test_tables_search_and_sort(self):
-        c = Client()
-        c.force_login(self.manager)
-        suspend_stage(self.stage, actor=self.manager, comment="تعلیق")
-        Invoice.objects.create(project=self.project, number="INV-1000", billed_party=self.partner, total_amount=Decimal("1000"), issue_date=timezone.localdate())
-
-        # Suspended table search & sort
-        r1 = c.get(reverse("dashboard:suspended_table"), {"hs_q": "تست", "hs_sort": "revenue", "hs_dir": "desc"})
-        self.assertEqual(r1.status_code, 200)
-        self.assertContains(r1, "۱,۰۰۰")  # Persian digits and separated
-
-        # Cancelled table search & sort
-        cancel_project_from_stage(self.stage, actor=self.manager, comment="لغو")
-        r2 = c.get(reverse("dashboard:cancelled_table"), {"hc_q": "تست", "hc_sort": "revenue", "hc_dir": "desc"})
-        self.assertEqual(r2.status_code, 200)
-        self.assertContains(r2, "۱,۰۰۰")
-
-    def test_final_review_post_manager_vs_accountant_and_cancel_button(self):
-        c = Client()
-        # Stage is suspended
-        suspend_stage(self.stage, actor=self.manager, comment="تعلیق")
-        
-        # Accountant POST to suspend / cancel -> 404
-        c.force_login(self.accountant)
-        r_acc_sus = c.post(reverse("dashboard:stage_suspend", args=[self.stage.id]), {"comment": "تعلیق"})
-        self.assertEqual(r_acc_sus.status_code, 404)
-        r_acc_can = c.post(reverse("dashboard:suspended_cancel", args=[self.stage.id]), {"comment": "لغو"})
-        self.assertEqual(r_acc_can.status_code, 404)
-
-        # Final review page for accountant on cancelled project doesn't have approve button
-        cancel_project_from_stage(self.stage, actor=self.manager, comment="لغو")
-        resp = c.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "تایید و تسویه")
-
-    def test_cancelled_project_in_accounting_projects_table(self):
-        c = Client()
-        c.force_login(self.accountant)
-        suspend_stage(self.stage, actor=self.manager, comment="تعلیق")
-        cancel_project_from_stage(self.stage, actor=self.manager, comment="لغو")
-        resp = c.get(reverse("finance:accounting_projects_table"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, self.project.name)

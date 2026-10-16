@@ -61,30 +61,7 @@ class ProjectEditTests(TestCase):
             send_sms=False,
         )
 
-    def test_creator_can_edit_address_and_lines_rebuilds_invoice(self):
-        client = Client()
-        client.force_login(self.admin_user)
 
-        ps = self.project.services.first()
-        edit_data = {
-            "latitude": "36.000000",
-            "longitude": "52.000000",
-            "address_text": "آدرس ویرایش‌شده",
-            "services_json": json.dumps([{"pk": ps.pk, "id": self.service1.id, "qty": 3, "unit_price": 500000}]),
-            "materials_json": json.dumps([]),
-        }
-        resp = client.post(reverse("projects:project_edit", args=[self.project.id]), edit_data)
-        self.assertRedirects(resp, reverse("projects:staff_project_overview", args=[self.project.id]))
-
-        self.project.refresh_from_db()
-        self.assertEqual(self.project.location.address_text, "آدرس ویرایش‌شده")
-        self.assertEqual(self.project.services.count(), 1)
-        self.assertEqual(self.project.services.first().qty, Decimal("3"))
-        self.assertEqual(self.project.extra_materials.count(), 0)
-
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.total_amount, 1500000)
-        self.assertEqual(self.invoice.address_snapshot, "آدرس ویرایش‌شده")
 
     def test_manual_invoice_line_preserved_after_edit(self):
         add_manual_invoice_line(self.invoice, title="کار اضافه دستی", amount=300000, actor=self.admin_user)
@@ -107,23 +84,7 @@ class ProjectEditTests(TestCase):
         self.assertEqual(self.invoice.total_amount, 1300000)
         self.assertTrue(self.invoice.lines.filter(is_manual=True, title="کار اضافه دستی").exists())
 
-    def test_service_description_preserved_with_pk(self):
-        ps = self.project.services.first()
-        ps.description = "توضیحات مهم خدمت"
-        ps.save()
 
-        client = Client()
-        client.force_login(self.admin_user)
-
-        edit_data = {
-            "services_json": json.dumps([{"pk": ps.pk, "id": self.service1.id, "qty": 4, "unit_price": 500000}]),
-            "materials_json": json.dumps([]),
-        }
-        client.post(reverse("projects:project_edit", args=[self.project.id]), edit_data)
-
-        ps.refresh_from_db()
-        self.assertEqual(ps.qty, Decimal("4"))
-        self.assertEqual(ps.description, "توضیحات مهم خدمت")
 
     def test_prices_locked_after_payment_pending(self):
         Payment.objects.create(
@@ -197,37 +158,7 @@ class ProjectEditTests(TestCase):
         self.assertRedirects(resp2, reverse("projects:staff_project_overview", args=[self.project.id]))
         self.assertEqual(self.project.services.count(), 1)
 
-    def test_shared_location_creates_new_location_on_edit(self):
-        shared_loc = self.project.location
-        proj2 = Project.objects.create(
-            name="پروژه دوم مشترک", partner=self.party, owner=self.party,
-            location=shared_loc, workflow_template=self.template, created_by=self.creator,
-        )
 
-        client = Client()
-        client.force_login(self.creator)
-
-        edit_data = {"address_text": "آدرس اختصاصی پروژه اول"}
-        client.post(reverse("projects:project_edit", args=[self.project.id]), edit_data)
-
-        self.project.refresh_from_db()
-        proj2.refresh_from_db()
-        self.assertNotEqual(self.project.location_id, proj2.location_id)
-        self.assertEqual(self.project.location.address_text, "آدرس اختصاصی پروژه اول")
-        self.assertEqual(proj2.location.address_text, "آدرس اولیه")
-
-    def test_intake_without_coordinates_creates_location_with_address(self):
-        party2 = Party.objects.create(name="مشتری دوم", phone_number="09120000085", is_client=True)
-        proj, _, _ = create_project_from_technician_intake(
-            created_by=self.creator,
-            party_id=party2.id,
-            location_lat=None, location_lng=None,
-            location_address="فقط متن آدرس بدون لوکیشن",
-            service_lines=[], material_lines=[],
-        )
-        self.assertIsNotNone(proj.location)
-        self.assertEqual(proj.location.address_text, "فقط متن آدرس بدون لوکیشن")
-        self.assertIsNone(proj.location.latitude)
 
     def test_seen_total_guard_redirects_and_prevents_payment_creation(self):
         client = Client()

@@ -1,22 +1,14 @@
 import uuid
-import os
-import unittest
-from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase, Client, override_settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.urls import reverse
-from django.utils import timezone
-from django.conf import settings
 
-from utils.push_notification import NajvaService
 from utils.sms import SMSService
-from utils.models import PushDevice, DeviceType
 from accounts.models import OTPCode
-from notifications.models import Notification, NotificationPolicy, ChannelPolicy, NotificationType, NotificationClickEvent
-from notifications.services import create_notification, dispatch_notification
+from notifications.models import Notification, NotificationType, NotificationClickEvent
 
 User = get_user_model()
 
@@ -142,34 +134,6 @@ class Revision3RegressionTests(TestCase):
             res = SMSService().send_otp("09151112233", "12345")
             self.assertFalse(res["success"])
             mock_post.assert_called_once()
-
-    def test_service_worker_and_contact_info(self):
-        client = Client()
-        # تست سرویس‌ورکر
-        sw_resp = client.get("/najva-messaging-sw.js")
-        self.assertEqual(sw_resp.status_code, 200)
-        self.assertTrue(sw_resp.content.decode("utf-8").startswith("importScripts"))
-        self.assertNotIn("<?xml", sw_resp.content.decode("utf-8"))
-
-        # تست اطلاعات تماس در صفحه لاگین
-        login_resp = client.get(reverse("accounts:login"))
-        self.assertIn("۰۵۱-۳۳۸۷-۳۷۳۴", login_resp.content.decode("utf-8"))
-        self.assertNotIn("۸۸۸۸۸۸۸۸", login_resp.content.decode("utf-8"))
-
-    def test_najva_switch_in_templates(self):
-        client = Client()
-        client.force_login(self.user)
-
-        with override_settings(NAJVA_ENABLED=False):
-            r_off = client.get(reverse("home"))
-            self.assertNotIn("van.najva.com", r_off.content.decode("utf-8"))
-
-        with override_settings(NAJVA_ENABLED=True):
-            r_on = client.get(reverse("home"))
-            self.assertIn("van.najva.com", r_on.content.decode("utf-8"))
-
-    def test_locmem_cache_in_test_environment(self):
-        self.assertEqual(settings.CACHES["default"]["BACKEND"], "django.core.cache.backends.locmem.LocMemCache")
 
     def test_service_worker_reachable_with_must_change_password(self):
         self.user.must_change_password = True

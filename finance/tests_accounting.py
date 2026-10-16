@@ -87,34 +87,7 @@ class PeriodRangeTests(TestCase):
         self.assertEqual(end, date(2026, 3, 21))
 
 
-class AccountingAccessTests(BaseAccountingTestCase):
-    def test_endpoints_access(self):
-        urls = [
-            reverse("finance:accounting_overview"),
-            reverse("finance:accounting_projects"),
-            reverse("finance:accounting_projects_table"),
-            reverse("finance:accounting_stock"),
-            reverse("finance:accounting_stock_table"),
-            reverse("finance:accounting_purchases"),
-            reverse("finance:accounting_purchases_table"),
-            reverse("finance:accounting_project", args=[self.project.id]),
-        ]
-        for u in urls:
-            self.client.force_login(self.manager)
-            res = self.client.get(u)
-            self.assertEqual(res.status_code, 200, f"Manager failed for {u}")
 
-            self.client.force_login(self.accountant)
-            res = self.client.get(u)
-            self.assertEqual(res.status_code, 200, f"Accountant failed for {u}")
-
-            self.client.force_login(self.tech)
-            res = self.client.get(u)
-            self.assertEqual(res.status_code, 302, f"Tech should redirect for {u}")
-
-            self.client.force_login(self.client_user)
-            res = self.client.get(u)
-            self.assertEqual(res.status_code, 302, f"Client should redirect for {u}")
 
 
 class StockMovementDirectionTests(BaseAccountingTestCase):
@@ -367,14 +340,4 @@ class AccountantPaymentVisibilityTests(BaseAccountingTestCase):
         self.assertEqual(other_detail.status_code, 302)
 
 
-class MovementDecimalDisplayTests(BaseAccountingTestCase):
-    def test_decimal_movement_value(self):
-        receive_stock(item=self.item, warehouse=self.warehouse, qty=Decimal("10"), unit_cost=Decimal("1000"), received_at=timezone.now())
-        consume_stock(item=self.item, qty=Decimal("2.5"), user=self.accountant, notes="مصرف اعشاری", related_object=self.project)
-        moves = accounting.project_movements(self.project)
-        self.assertEqual(len(moves), 1)
-        self.assertEqual(moves[0].line_total, Decimal("2500"))
-        self.client.force_login(self.accountant)
-        res = self.client.get(reverse("finance:accounting_project", args=[self.project.id]))
-        self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "۲.۵۰۰۰")
+

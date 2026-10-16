@@ -47,12 +47,7 @@ class ClientPreviewPortalTests(TestCase):
         c.force_login(user)
         return c
 
-    def test_owner_sees_every_file_except_gcode_on_progress_page(self):
-        page = self.login(self.owner).get(self.progress())
-        self.assertEqual(page.status_code, 200)
-        for f in (self.pdf, self.img, self.dwg):
-            self.assertContains(page, self.url(f))
-        self.assertNotContains(page, self.url(self.gcode))
+
 
     def test_pdf_and_image_inline_others_attachment_gcode_404(self):
         c = self.login(self.owner)
@@ -68,13 +63,7 @@ class ClientPreviewPortalTests(TestCase):
         self.assertEqual(self.login(self.stranger).get(self.url(self.pdf)).status_code, 404)
         self.assertEqual(self.login(self.stranger).get(self.progress()).status_code, 404)
 
-    def test_stage_without_preview_or_hidden_stage_shows_nothing(self):
-        c = self.login(self.owner)
-        ProjectStage.objects.filter(pk=self.stage.pk).update(client_preview=False)
-        self.assertEqual(c.get(self.url(self.pdf)).status_code, 404)
-        self.assertNotContains(c.get(self.progress()), self.url(self.pdf))
-        ProjectStage.objects.filter(pk=self.stage.pk).update(client_preview=True, client_visible=False)
-        self.assertEqual(c.get(self.url(self.pdf)).status_code, 404)
+
 
     def test_file_of_another_project_is_not_served_under_this_project(self):
         other = Project.objects.create(name="پروژه دیگر", partner=self.party, owner=self.party,

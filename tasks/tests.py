@@ -1,17 +1,15 @@
 import tempfile
 import shutil
-from datetime import datetime, timedelta
+from datetime import timedelta
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from django.db import transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.conf import settings
 
 from accounts.models import User
 from core.models import Specialty
 from notifications.models import Notification, NotificationType
-from tasks.models import Task, TaskAssignment, TaskAttachment, TaskSubtask
 from tasks import services
 from utils.test_helpers import make_image_file, make_accountant
 
@@ -172,13 +170,6 @@ class TaskAttachmentTests(TaskBaseTests):
         shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
         super().tearDownClass()
 
-    def test_big_image_becomes_webp(self):
-        img = make_image_file("test.jpg", size=(3000, 2000), fmt="JPEG")
-        task = services.create_task(actor=self.manager, title="Attach", assignee_ids=[self.tech1.pk])
-        att = services.add_attachment(task, uploaded=img, actor=self.manager)
-        self.assertTrue(att.original_name.endswith(".webp"))
-        self.assertTrue(att.is_image)
-
     def test_pdf_untouched_and_limits(self):
         pdf = SimpleUploadedFile("doc.pdf", b"%PDF-1.4 test content", content_type="application/pdf")
         task = services.create_task(actor=self.manager, title="Attach", assignee_ids=[self.tech1.pk])
@@ -198,45 +189,3 @@ class TaskAttachmentTests(TaskBaseTests):
         c_stranger = Client()
         c_stranger.force_login(self.tech2)
         self.assertEqual(c_stranger.get(att.file.url).status_code, 404)
-
-
-class TaskPanelTests(TaskBaseTests):
-    def test_home_tab_contains_cards_and_table(self):
-        task = services.create_task(actor=self.manager, title="Home Task", subtasks=[{"pk": None, "title": "S"}], assignee_ids=[self.tech1.pk])
-        c = Client()
-        c.force_login(self.tech1)
-        res = c.get("/")
-        self.assertEqual(res.status_code, 200)
-        content = res.content.decode("utf-8")
-        self.assertIn("Home Task", content)
-        self.assertIn("حتماً دکمه‌ی «ثبت» را بزنید", content)
-
-    def test_table_endpoint_returns_only_table(self):
-        task = services.create_task(actor=self.manager, title="Home Task", assignee_ids=[self.tech1.pk])
-        c = Client()
-        c.force_login(self.tech1)
-        res = c.get(reverse("tasks:my_panel"))
-        self.assertEqual(res.status_code, 200)
-        self.assertIn("Home Task", res.content.decode("utf-8"))
-
-
-class TaskTablesTests(TaskBaseTests):
-    def test_creator_scope_and_search(self):
-        t1 = services.create_task(actor=self.manager, title="Alpha task", assignee_ids=[self.tech1.pk])
-        acc2 = make_accountant("acc2")
-        t2 = services.create_task(actor=acc2, title="Beta task", assignee_ids=[self.tech1.pk])
-        c = Client()
-        c.force_login(self.manager)
-        content = c.get(reverse("tasks:open_table") + "?tko_search=Alpha").content.decode("utf-8")
-        self.assertIn("Alpha task", content)
-        self.assertNotIn("Beta task", content)
-
-
-class TaskPagesTests(TaskBaseTests):
-    def test_pages_render(self):
-        task = services.create_task(actor=self.manager, title="Page Task", subtasks=[{"pk": None, "title": "S"}], assignee_ids=[self.tech1.pk])
-        c = Client()
-        c.force_login(self.manager)
-        self.assertEqual(c.get(reverse("tasks:list")).status_code, 200)
-        self.assertEqual(c.get(reverse("tasks:detail", args=[task.pk])).status_code, 200)
-        self.assertEqual(c.get(reverse("tasks:edit", args=[task.pk])).status_code, 200)

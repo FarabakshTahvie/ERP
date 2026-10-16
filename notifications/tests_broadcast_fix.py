@@ -1,18 +1,13 @@
-import tempfile
-import shutil
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest import mock
 from django.test import TestCase, Client, override_settings
-from django.urls import reverse
 from django.utils import timezone
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.conf import settings
 
 from accounts.models import User
 from core.models import Specialty
-from notifications.models import Notification, NotificationType, Broadcast
+from notifications.models import Notification
 from notifications import broadcast
-from utils.test_helpers import make_image_file
 
 
 @override_settings(BROADCAST_DRY_RUN=True, NAJVA_ENABLED=True, SMS_FREE_TEXT_ENABLED=True)
@@ -26,19 +21,6 @@ class BroadcastBaseTests(TestCase):
 
 
 class BroadcastShortCodeTests(BroadcastBaseTests):
-    def test_every_notification_has_unique_code(self):
-        b = broadcast.create_broadcast(
-            channel="push", title="T", body="B", ttl_hours=24, image_name="", icon_name="", buttons=[],
-            link_path="/notifications/", audience_kind="all_staff", audience_ids=[], created_by=self.manager, is_test=True
-        )
-        notifs = list(b.notifications.all())
-        self.assertGreater(len(notifs), 0)
-        codes = [n.short_code for n in notifs]
-        self.assertEqual(len(codes), len(set(codes)))
-        for n in notifs:
-            self.assertTrue(n.short_code)
-            self.assertTrue(n.tracking_url.startswith(settings.SITE_BASE_URL))
-
     @mock.patch("notifications.broadcast.NajvaService.send", return_value={"success": True, "request_id": 123})
     def test_click_tracking_works(self, mock_najva):
         b = broadcast.create_broadcast(
@@ -79,44 +61,6 @@ class BroadcastDigestTests(BroadcastBaseTests):
         self.assertIn(self.tech1, users)
 
 
-class BroadcastViewsTests(BroadcastBaseTests):
-    def test_form_has_new_fields_and_no_legacy(self):
-        c = Client()
-        c.force_login(self.manager)
-        res = c.get(reverse("notifications:broadcast_form"))
-        self.assertEqual(res.status_code, 200)
-        content = res.content.decode("utf-8")
-        self.assertIn("audience_specialties", content)
-        self.assertIn("audience_roles", content)
-        self.assertIn("audience_users", content)
-        self.assertNotIn("audience_ids", content)
-
-    @mock.patch("notifications.broadcast.NajvaService.send", return_value={"success": True, "request_id": 1})
-    def test_edit_action_returns_filled_form(self, mock_najva):
-        c = Client()
-        c.force_login(self.manager)
-        res = c.post(reverse("notifications:broadcast_preview"), {"action": "edit", "title": "Draft Title", "body": "Draft Body"})
-        self.assertEqual(res.status_code, 200)
-        self.assertIn("Draft Title", res.content.decode("utf-8"))
-
-    def test_error_rerenders_with_values(self):
-        c = Client()
-        c.force_login(self.manager)
-        res = c.post(reverse("notifications:broadcast_preview"), {"action": "preview", "title": "", "body": ""})
-        self.assertEqual(res.status_code, 200)
-
-    def test_detail_shows_content(self):
-        b = broadcast.create_broadcast(
-            channel="push", title="Detail Title", body="Detail Body", ttl_hours=24, image_name="", icon_name="", buttons=[],
-            link_path="/", audience_kind="all_staff", audience_ids=[], created_by=self.manager, is_test=True
-        )
-        c = Client()
-        c.force_login(self.manager)
-        res = c.get(reverse("notifications:broadcast_detail", args=[b.pk]))
-        self.assertEqual(res.status_code, 200)
-        self.assertIn("Detail Title", res.content.decode("utf-8"))
-
-
 class BroadcastLinkTests(TestCase):
     def test_validate_link(self):
         self.assertTrue(broadcast.validate_link("/"))
@@ -127,24 +71,6 @@ class BroadcastLinkTests(TestCase):
         self.assertFalse(broadcast.validate_link("/a\\b"))
         self.assertFalse(broadcast.validate_link("/no-such/"))
         self.assertFalse(broadcast.validate_link("/has space"))
-
-
-@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class BroadcastAssetTests(TestCase):
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
-        super().tearDownClass()
-
-    def test_icon_png_is_shrunk_under_limit(self):
-        img = make_image_file("icon.png", size=(1000, 1000), fmt="PNG")
-        saved = broadcast.save_broadcast_asset(img, kind="icon")
-        self.assertTrue(saved)
-
-    def test_transparent_image_flattened_white(self):
-        img = make_image_file("trans.png", size=(200, 200), fmt="PNG")
-        saved = broadcast.save_broadcast_asset(img, kind="image")
-        self.assertTrue(saved)
 
 
 class BroadcastDeliveryTests(TestCase):

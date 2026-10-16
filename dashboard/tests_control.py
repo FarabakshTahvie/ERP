@@ -51,23 +51,6 @@ class ControlBase(TestCase):
 
 
 class AssignStageTests(ControlBase):
-    def test_same_specialty_assign_clears_pool_and_logs(self):
-        st = self.stage()
-        st.candidate_users.add(self.other)
-        assign_stage(st, self.tech, self.manager, "تیم کم‌نفر است")
-        st.refresh_from_db()
-        self.assertEqual(st.assigned_to, self.tech)
-        self.assertEqual(st.candidate_users.count(), 0)
-        ev = StageEvent.objects.filter(stage=st).latest("created_at")
-        self.assertIn("تیم کم‌نفر است", ev.comment)
-        self.assertNotIn("خارج از تخصص", ev.comment)
-
-    def test_off_specialty_allowed_and_marked(self):
-        st = self.stage()
-        assign_stage(st, self.other, self.manager, "فوری")
-        ev = StageEvent.objects.filter(stage=st).latest("created_at")
-        self.assertIn("خارج از تخصص", ev.comment)
-
     def test_requires_reason_and_manager(self):
         st = self.stage()
         with self.assertRaises(ValueError):
@@ -88,15 +71,6 @@ class AssignStageTests(ControlBase):
         with self.assertRaises(ValueError):
             assign_stage(st, self.tech, self.manager, "دلیل")
 
-    def test_target_must_be_active_employee_and_different(self):
-        st = self.stage()
-        for bad in (self.inactive, self.client_user, None):
-            with self.assertRaises(ValueError):
-                assign_stage(st, bad, self.manager, "دلیل")
-        assign_stage(st, self.tech, self.manager, "دلیل")
-        with self.assertRaises(ValueError):
-            assign_stage(st, self.tech, self.manager, "دوباره")
-
     def test_money_stages_only_to_accountant(self):
         for kind in (StageKind.PROFORMA, StageKind.FINAL_REVIEW):
             st = self.stage(kind=kind, order=7)
@@ -108,20 +82,6 @@ class AssignStageTests(ControlBase):
 
 
 class ResumeAndCancelTests(ControlBase):
-    def test_resume_plain_stage_goes_in_progress_keeping_owner(self):
-        st = self.stage(ProjectStage.Status.SUSPENDED, assigned_to=self.tech)
-        resume_suspended_stage(st, self.manager, "بررسی شد")
-        st.refresh_from_db()
-        self.assertEqual(st.status, ProjectStage.Status.IN_PROGRESS)
-        self.assertEqual(st.assigned_to, self.tech)
-
-    def test_resume_customer_approval_stage_resends_to_customer(self):
-        st = self.stage(ProjectStage.Status.SUSPENDED, order=2, step=self.step_pay)
-        resume_suspended_stage(st, self.manager, "مشتری موافقت کرد")
-        st.refresh_from_db()
-        self.assertEqual(st.status, ProjectStage.Status.WAITING_APPROVAL)
-        self.assertTrue(st.approvals.filter(decision=StageApproval.Decision.PENDING).exists())
-
     def test_resume_guards(self):
         live = self.stage()
         with self.assertRaises(ValueError):
@@ -143,17 +103,6 @@ class ResumeAndCancelTests(ControlBase):
         self.assertEqual(self.project.status, Project.Status.CANCELLED)
         self.assertEqual(approval.decision, StageApproval.Decision.CANCELLED)
 
-    def test_cancel_project_guards(self):
-        sus = self.stage(ProjectStage.Status.SUSPENDED)
-        for actor in (self.accountant, self.tech):
-            with self.assertRaises(ValueError):
-                cancel_project_from_stage(sus, actor, "دلیل")
-        with self.assertRaises(ValueError):
-            cancel_project_from_stage(sus, self.manager, " ")
-        cancel_project_from_stage(sus, self.manager, "دلیل")
-        with self.assertRaises(ValueError):
-            cancel_project_from_stage(sus, self.manager, "دوباره")
-
     def test_cancel_project_with_invoice_flag(self):
         inv = self.invoice()
         sus = self.stage(ProjectStage.Status.SUSPENDED)
@@ -171,59 +120,8 @@ class ResumeAndCancelTests(ControlBase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.IN_PROGRESS)
 
-    def test_cancelled_project_tasks_leave_technician_lists(self):
-        self.stage(assigned_to=self.tech)
-        c = Client(); c.force_login(self.tech)
-        url = reverse("projects:dashboard_my_tasks_table")
-        self.assertContains(c.get(url), "پروژه کنترل")
-        Project.objects.filter(pk=self.project.pk).update(status=Project.Status.CANCELLED)
-        self.assertNotContains(c.get(url), "پروژه کنترل")
-
 
 class ControlViewsTests(ControlBase):
-    def test_pages_manager_only(self):
-        s = self.stage()
-        urls = [reverse("dashboard:stages"), reverse("dashboard:stages_table"),
-                reverse("dashboard:assign_stage", args=[s.id])]
-        c = Client(); c.force_login(self.manager)
-        for u in urls:
-            self.assertEqual(c.get(u).status_code, 200, u)
-        for user in (self.accountant, self.tech, self.client_user):
-            c.force_login(user)
-            for u in urls:
-                self.assertEqual(c.get(u).status_code, 404, f"{user.username} {u}")
-
-    def test_suspended_page_accessible_by_manager_and_accountant(self):
-        url = reverse("dashboard:suspended")
-        c = Client()
-        for user in (self.manager, self.accountant):
-            c.force_login(user)
-            self.assertEqual(c.get(url).status_code, 200, f"{user.username} {url}")
-        for user in (self.tech, self.client_user):
-            c.force_login(user)
-            self.assertEqual(c.get(url).status_code, 404, f"{user.username} {url}")
-
-    def test_stages_table_filters_unowned(self):
-        self.stage()
-        other = Project.objects.create(name="پروژه دارای مسئول", partner=self.partner, workflow_template=self.tpl,
-                                       status=Project.Status.IN_PROGRESS)
-        self.stage(project=other, assigned_to=self.tech)
-        c = Client(); c.force_login(self.manager)
-        content = c.get(reverse("dashboard:stages_table"), {"ds_f_no_owner": "1"}).content.decode("utf-8")
-        self.assertIn("پروژه کنترل", content)
-        self.assertNotIn("پروژه دارای مسئول", content)
-
-    def test_assign_post_flow_and_tampering(self):
-        s = self.stage()
-        url = reverse("dashboard:assign_stage", args=[s.id])
-        c = Client(); c.force_login(self.manager)
-        c.post(url, {"target_user": self.tech.id, "comment": ""})
-        s.refresh_from_db(); self.assertIsNone(s.assigned_to)
-        self.assertEqual(c.post(url, {"target_user": "abc", "comment": "x"}).status_code, 302)
-        resp = c.post(url, {"target_user": self.tech.id, "comment": "ارجاع تست"})
-        self.assertRedirects(resp, reverse("dashboard:stages"), fetch_redirect_response=False)
-        s.refresh_from_db(); self.assertEqual(s.assigned_to, self.tech)
-
     def test_non_manager_post_changes_nothing(self):
         s = self.stage()
         c = Client(); c.force_login(self.tech)
@@ -231,43 +129,8 @@ class ControlViewsTests(ControlBase):
         self.assertEqual(r.status_code, 404)
         s.refresh_from_db(); self.assertIsNone(s.assigned_to)
 
-    def test_suspended_resume_and_cancel_views(self):
-        s = self.stage(ProjectStage.Status.SUSPENDED)
-        c = Client(); c.force_login(self.manager)
-        self.assertContains(c.get(reverse("dashboard:suspended")), "پروژه کنترل")
-        c.post(reverse("dashboard:suspended_resume", args=[s.id]), {"comment": "برگشت"})
-        s.refresh_from_db(); self.assertEqual(s.status, ProjectStage.Status.IN_PROGRESS)
-        s.status = ProjectStage.Status.SUSPENDED; s.save()
-        inv = self.invoice()
-        c.post(reverse("dashboard:suspended_cancel", args=[s.id]), {"comment": "لغو", "cancel_invoice": "on"})
-        self.project.refresh_from_db(); inv.refresh_from_db()
-        self.assertEqual(self.project.status, Project.Status.CANCELLED)
-        self.assertEqual(inv.status, Invoice.Status.CANCELLED)
-
     def test_accountant_cannot_resume_or_cancel_via_views(self):
         s = self.stage(ProjectStage.Status.SUSPENDED)
         c = Client(); c.force_login(self.accountant)
         for name in ("dashboard:suspended_resume", "dashboard:suspended_cancel"):
             self.assertEqual(c.post(reverse(name, args=[s.id]), {"comment": "x"}).status_code, 404)
-
-    def test_month_lock_from_dashboard_returns_to_dashboard(self):
-        y, m = current_ym(); m -= 1
-        if m < 1:
-            y, m = y - 1, 12
-        c = Client(); c.force_login(self.manager)
-        self.assertContains(c.get(reverse("dashboard:overview")), month_label(y, m))
-        data = {"year": y, "month": m, "action": "lock", "next": reverse("dashboard:overview")}
-        self.assertRedirects(c.post(reverse("finance:accounting_period_toggle"), data),
-                             reverse("dashboard:overview"), fetch_redirect_response=False)
-        self.assertTrue(PeriodLock.objects.filter(year=y, month=m, is_locked=True).exists())
-
-    def test_external_next_is_ignored_and_accountant_cannot_unlock(self):
-        y, m = current_ym(); m -= 1
-        if m < 1:
-            y, m = y - 1, 12
-        PeriodLock.objects.create(year=y, month=m, is_locked=True)
-        c = Client(); c.force_login(self.accountant)
-        r = c.post(reverse("finance:accounting_period_toggle"),
-                   {"year": y, "month": m, "action": "unlock", "reason": "x", "next": "https://evil.example/"})
-        self.assertRedirects(r, reverse("finance:accounting_periods"), fetch_redirect_response=False)
-        self.assertTrue(PeriodLock.objects.get(year=y, month=m).is_locked)

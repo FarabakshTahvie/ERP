@@ -13,6 +13,7 @@ from notifications.broadcast import (
     LOCK_KEY,
 )
 from notifications.celery_tasks import process_broadcasts_task
+import messenger.celery_tasks
 
 User = get_user_model()
 

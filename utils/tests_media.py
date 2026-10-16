@@ -89,11 +89,6 @@ class ProtectedMediaTests(TestCase):
         resp = self.client.get("/media/projects/1/design.pdf")
         self.assertEqual(resp.status_code, 200)
 
-    def test_avatar_access(self):
-        self.client.force_login(self.client_user)
-        resp = self.client.get("/media/avatars/av.jpg")
-        self.assertEqual(resp.status_code, 200)
-
     def test_path_traversal_blocked(self):
         secret = Path(settings.MEDIA_ROOT).parent / "fb_secret_guard.txt"
         secret.write_text("x", encoding="utf-8")

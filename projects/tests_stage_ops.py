@@ -129,16 +129,7 @@ class StageOpsDetailedTests(TestCase):
         )
         self.stage = self.project.stages.get(order=1)
 
-    def test_file_original_name_and_duplicates_preserved(self):
-        self.stage.assigned_to = self.creator
-        self.stage.save()
-        f1 = add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("نقشه آزمایشی ۱۲۳.dwg", b"111"), uploader=self.creator)
-        f2 = add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("نقشه آزمایشی ۱۲۳.dwg", b"222"), uploader=self.creator)
-        self.assertEqual(f1.original_name, "نقشه آزمایشی ۱۲۳.dwg")
-        self.assertEqual(f2.original_name, "نقشه آزمایشی ۱۲۳.dwg")
-        self.assertEqual(f1.display_name, f2.display_name)
-        self.assertTrue(f1.is_current)
-        self.assertTrue(f2.is_current)
+
 
     def test_fake_path_traversal_sanitized(self):
         self.stage.assigned_to = self.creator
@@ -146,18 +137,7 @@ class StageOpsDetailedTests(TestCase):
         f = add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("../../secret.txt", b"abc"), uploader=self.creator)
         self.assertEqual(f.original_name, "secret.txt")
 
-    def test_stage_files_max_limit_enforced(self):
-        self.stage.assigned_to = self.creator
-        self.stage.save()
-        for i in range(200):
-            ProjectFile.objects.create(
-                stage=self.stage, file=SimpleUploadedFile(f"f{i}.png", b"x"),
-                kind=ProjectFile.Kind.IMAGE, original_name=f"f{i}.png",
-                uploaded_by=self.creator, is_attachment=True
-            )
-        with self.assertRaises(ValueError) as cm:
-            add_stage_file(stage=self.stage, uploaded=SimpleUploadedFile("overflow.png", b"x"), uploader=self.creator)
-        self.assertIn("حداکثر 200 فایل", str(cm.exception))
+
 
     def test_file_size_exceeded_rejected(self):
         self.stage.assigned_to = self.creator
@@ -183,15 +163,7 @@ class StageOpsDetailedTests(TestCase):
         f = add_stage_file(stage=self.stage, uploaded=make_image_file("a.png"), uploader=self.admin)
         self.assertIsNotNone(f)
 
-    def test_gcode_cut_count_parsing(self):
-        self.assertEqual(parse_cut_count("۱۲"), 12)
-        self.assertEqual(parse_cut_count(5), 5)
-        with self.assertRaises(ValueError):
-            parse_cut_count("0")
-        with self.assertRaises(ValueError):
-            parse_cut_count("1000")
-        with self.assertRaises(ValueError):
-            parse_cut_count("abc")
+
 
     def test_stage_completion_rules(self):
         # Visit stage

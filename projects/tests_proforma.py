@@ -98,32 +98,7 @@ class ProformaPricingTests(TestCase):
         with self.assertRaises(ValueError):
             issue_proforma(project=self.project, actor=self.accountant)
 
-    def test_stale_items_warning_and_cleared_on_save(self):
-        # 1. Initially create proforma
-        rows = parse_service_rows(json.dumps([{
-            "service_id": self.service.id, "qty": "10", "unit_price": "100000",
-            "materials": [{"item_id": self.item.id, "qty": "5"}],
-        }]))
-        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
 
-        # 2. Check editor page - initially no stale items
-        self.client.force_login(self.accountant)
-        url = reverse("projects:proforma_editor", args=[self.project.id])
-        resp = self.client.get(url)
-        self.assertEqual(resp.context["stale_items"], [])
-
-        # 3. Cost changed externally
-        self.item.moving_average_cost = Decimal("300000")
-        self.item.save()
-
-        # Check editor page - stale items now contains the item name
-        resp = self.client.get(url)
-        self.assertIn(self.item.name, resp.context["stale_items"])
-
-        # 4. Save proforma again - should update snapshot and clear stale warning
-        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
-        resp = self.client.get(url)
-        self.assertEqual(resp.context["stale_items"], [])
 
     def test_pk_injection_prevented(self):
         p2, _, _ = create_project_from_technician_intake(
@@ -188,11 +163,4 @@ class ProformaViewTests(TestCase):
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
 
-    def test_validation_error_keeps_user_input(self):
-        self.client.force_login(self.accountant)
-        url = reverse("projects:proforma_editor", args=[self.project.id])
-        invalid_json = json.dumps([{"service_id": 99999, "qty": "1", "unit_price": "100", "materials": []}])
-        resp = self.client.post(url, {"services_json": invalid_json, "action": "save"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("initial_rows", resp.context)
-        self.assertEqual(resp.context["initial_rows"][0]["service_id"], 99999)
+

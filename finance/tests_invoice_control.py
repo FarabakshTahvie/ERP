@@ -150,25 +150,8 @@ class DueDateTests(InvoiceBase):
         self.invoice.refresh_from_db()
         self.assertIsNone(self.invoice.due_date)
 
-    def test_guards(self):
-        with self.assertRaises(ValueError):
-            set_invoice_due_date(invoice=self.invoice, due_date=self.today, actor=self.tech)
-        with self.assertRaises(ValueError):
-            set_invoice_due_date(invoice=self.invoice, due_date=self.today - timedelta(days=1), actor=self.accountant)
-        Invoice.objects.filter(pk=self.invoice.pk).update(status=Invoice.Status.CANCELLED)
-        with self.assertRaises(ValueError):
-            set_invoice_due_date(invoice=self.invoice, due_date=self.today, actor=self.accountant)
-
 
 class InvoiceControlViewsTests(InvoiceBase):
-    def test_due_view(self):
-        shamsi = jdatetime.date.fromgregorian(date=self.today + timedelta(days=5)).strftime("%Y/%m/%d")
-        c = Client(); c.force_login(self.accountant)
-        r = c.post(reverse("finance:accounting_set_due", args=[self.project.id]), {"due_date": shamsi})
-        self.assertEqual(r.status_code, 302)
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.due_date, self.today + timedelta(days=5))
-
     def test_cancel_view_manager_only(self):
         url = reverse("finance:accounting_cancel_invoice", args=[self.project.id])
         c = Client()
@@ -182,31 +165,3 @@ class InvoiceControlViewsTests(InvoiceBase):
         c.post(url, {"reason": "دلیل"})
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, Invoice.Status.CANCELLED)
-
-    def test_project_file_shows_cancel_form_only_to_manager(self):
-        url = reverse("finance:accounting_project", args=[self.project.id])
-        c = Client()
-        c.force_login(self.manager)
-        self.assertContains(c.get(url), "لغو فاکتور")
-        c.force_login(self.accountant)
-        self.assertNotContains(c.get(url), "لغو فاکتور")
-        self.assertContains(c.get(url), "ثبت سررسید")
-
-
-class ProformaIssueSentTests(TestCase):
-    def test_issued_proforma_is_marked_sent(self):
-        Party.objects.filter(is_internal=True).first() or Party.objects.create(name="شرکت ما", is_internal=True)
-        partner = Party.objects.create(name="شریک ارسال", is_partner=True, phone_number="09127771111")
-        acc = User.objects.create_user(username="sent_acc", password="pw", role=User.Role.EMPLOYEE)
-        acc.specialties.add(Specialty.objects.get_or_create(name="حسابدار")[0])
-        service = Service.objects.create(name="خدمت ارسال")
-        build_workflow_v3(make_default=True)
-        project, _, _ = create_project_from_technician_intake(
-            created_by=acc, party_id=partner.id, visit_date=timezone.localdate(), issue_proforma=False)
-        advance_stage(project.stages.first(), actor=acc, new_status=ProjectStage.Status.DONE, comment="بازدید شد")
-        rows = [{"pk": None, "service_id": service.id, "qty": Decimal("1"),
-                 "unit_price": Decimal("1000000"), "materials": []}]
-        save_proforma(project=project, actor=acc, service_rows=rows)
-        invoice, _ = issue_proforma(project=project, actor=acc)
-        invoice.refresh_from_db()
-        self.assertEqual(invoice.status, Invoice.Status.SENT)

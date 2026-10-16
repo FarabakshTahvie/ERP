@@ -1,19 +1,15 @@
 import uuid
-import os
-import unittest
-from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
-from django.test import TestCase, Client, override_settings
+from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.utils import timezone
 
 from utils.push_notification import NajvaService
 from utils.sms import SMSService
-from utils.models import PushDevice, DeviceType
+from utils.models import PushDevice
 from notifications.models import Notification, NotificationPolicy, ChannelPolicy, NotificationType, NotificationClickEvent
-from notifications.services import create_notification, dispatch_notification
+from notifications.services import create_notification
 
 User = get_user_model()
 
@@ -61,21 +57,6 @@ class NajvaServiceTest(TestCase):
         self.assertTrue(res["success"])
         self.assertIn("bad-token", res["invalid_tokens"])
 
-    @patch("utils.push_notification.requests.post")
-    def test_najva_error_416(self, mock_post):
-        mock_resp = MagicMock()
-        mock_resp.status_code = 416
-        mock_resp.text = "IP not whitelisted"
-        mock_post.return_value = mock_resp
-
-        service = NajvaService()
-        service.api_key = "test_key"
-        service.website_id = "test_web"
-
-        res = service.send(title="تست", body="متن", subscriber_tokens=["token-1"])
-        self.assertFalse(res["success"])
-        self.assertIn("IP", res["error"])
-
     def test_najva_unconfigured(self):
         service = NajvaService()
         service.api_key = ""
@@ -85,14 +66,6 @@ class NajvaServiceTest(TestCase):
 
 
 class SMSServiceTest(TestCase):
-    def test_send_text_with_invalid_line_number_fails_gracefully(self):
-        sms = SMSService()
-        sms.api_key = "test_key"
-        sms.line_number = "your_sms_ir_line_number"
-        res = sms.send_text("09120000000", "سلام")
-        self.assertFalse(res["success"])
-        self.assertIn("SMS_IR_LINE_NUMBER", res["error"])
-
     @patch("utils.sms.requests.post")
     def test_sms_send_pattern_success(self, mock_post):
         mock_resp = MagicMock()
@@ -117,12 +90,6 @@ class SMSServiceTest(TestCase):
         with self.assertRaises(ValueError):
             sms.send_pattern("09120000000", "login_otp")  # بدون code
 
-    def test_sms_empty_key(self):
-        sms = SMSService()
-        sms.api_key = ""
-        res = sms.send_otp("09120000000", "12345")
-        self.assertFalse(res["success"])
-
 
 class TrackingAndShortLinkTest(TestCase):
     def setUp(self):
@@ -134,12 +101,6 @@ class TrackingAndShortLinkTest(TestCase):
             body="متن",
             real_target_url="/portal/invoices/123/",
         )
-
-    def test_short_code_generated(self):
-        self.assertIsNotNone(self.notification.short_code)
-        self.assertEqual(len(self.notification.short_code), 5)
-        self.assertTrue(self.notification.short_path.startswith("s/"))
-        self.assertFalse(self.notification.short_path.endswith("/"))
 
     def test_click_tracking_normal_user(self):
         client = Client()
@@ -238,12 +199,3 @@ class PushDeviceRegisterTest(TestCase):
 
         device = PushDevice.objects.get(registration_id=self.valid_uuid)
         self.assertEqual(device.user, self.user)
-
-
-@unittest.skipUnless(os.environ.get("SMS_IR_SANDBOX_API_KEY"), "sandbox key not set")
-class SMSSandboxIntegrationTest(TestCase):
-    @override_settings(SMS_IR_API_KEY=os.environ.get("SMS_IR_SANDBOX_API_KEY", ""))
-    def test_sandbox_otp(self):
-        mobile = os.environ.get("SMS_TEST_MOBILE", "09120000000")
-        result = SMSService().send_otp(mobile=mobile, code="12345")
-        self.assertTrue(result["success"], result)

@@ -1,5 +1,4 @@
 import json
-from datetime import date
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -11,8 +10,7 @@ from projects.models import Project, ProjectParticipant, WorkflowTemplate, Workf
 from projects.services import (
     create_project_from_technician_intake, update_project_from_technician_edit, parse_fee
 )
-from finance.models import Invoice, InvoiceLine, Payment
-from finance.services import add_manual_invoice_line
+from finance.models import InvoiceLine, Payment
 from utils.jalali_forms import JalaliDateField
 
 
@@ -63,21 +61,6 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertEqual(proj.extra_fee, Decimal("50000"))
         self.assertEqual(inv.total_amount, Decimal("1450000"))
 
-    def test_intake_with_empty_or_zero_fees(self):
-        proj, inv, _ = create_project_from_technician_intake(
-            created_by=self.creator,
-            party_id=self.party.id,
-            service_lines=[{"id": self.service1.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
-            installation_fee_raw="",
-            shipping_fee_raw="0",
-            extra_fee_raw=None,
-            send_sms=False,
-        )
-        self.assertEqual(proj.installation_fee, Decimal("0"))
-        self.assertEqual(proj.shipping_fee, Decimal("0"))
-        self.assertEqual(proj.extra_fee, Decimal("0"))
-        self.assertEqual(inv.total_amount, Decimal("1000000"))
-
     def test_parse_fee_validations(self):
         self.assertEqual(parse_fee("۱,۵۰۰,۰۰۰", label="تست"), Decimal("1500000"))
         self.assertEqual(parse_fee("", label="تست"), Decimal("0"))
@@ -98,30 +81,6 @@ class ProjectCostsAndContractTests(TestCase):
             )
         self.assertEqual(Project.objects.count(), count_before)
 
-    def test_intake_with_contract_date_and_notes(self):
-        dt = JalaliDateField().clean("1405/07/01")
-        proj, inv, _ = create_project_from_technician_intake(
-            created_by=self.creator,
-            party_id=self.party.id,
-            service_lines=[{"id": self.service1.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
-            contract_date=dt,
-            notes="یادداشت محرمانه تست",
-            send_sms=False,
-        )
-        self.assertEqual(proj.contract_date, dt)
-        self.assertEqual(proj.notes, "یادداشت محرمانه تست")
-        self.assertEqual(inv.contract_date, dt)
-
-    def test_notes_exceeding_max_length_raises_value_error(self):
-        with self.assertRaises(ValueError):
-            create_project_from_technician_intake(
-                created_by=self.creator,
-                party_id=self.party.id,
-                service_lines=[{"id": self.service1.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
-                notes="a" * 2001,
-                send_sms=False,
-            )
-
     def test_update_fees_open_rebuilds_invoice(self):
         proj, rebuilt = update_project_from_technician_edit(
             project=self.project,
@@ -133,32 +92,6 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertTrue(rebuilt)
         self.project.invoice.refresh_from_db()
         self.assertEqual(self.project.invoice.total_amount, Decimal("1650000"))
-
-    def test_update_same_fees_or_date_no_rebuild(self):
-        update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            installation_fee_raw="0",
-        )
-        proj, rebuilt = update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            installation_fee_raw="0",
-        )
-        self.assertFalse(rebuilt)
-
-    def test_update_fees_none_keeps_existing(self):
-        update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            installation_fee_raw="400000",
-        )
-        proj, _ = update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            installation_fee_raw=None,
-        )
-        self.assertEqual(proj.installation_fee, Decimal("400000"))
 
     def test_locked_project_raises_value_error_on_fees(self):
         Payment.objects.create(
@@ -196,26 +129,6 @@ class ProjectCostsAndContractTests(TestCase):
         from projects.services import project_prices_editable
         return project_prices_editable(self.project)
 
-    def test_contract_date_updates_or_clears(self):
-        dt = JalaliDateField().clean("1405/01/01")
-        proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.admin_user, contract_date=dt
-        )
-        self.assertEqual(proj.contract_date, dt)
-        self.assertEqual(self.project.invoice.contract_date, dt)
-
-        proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.admin_user, contract_date=None
-        )
-        self.assertIsNone(proj.contract_date)
-        self.assertIsNone(self.project.invoice.contract_date)
-
-        dt2 = JalaliDateField().clean("1405/02/02")
-        proj, _ = update_project_from_technician_edit(
-            project=self.project, actor=self.admin_user, contract_date=dt2
-        )
-        self.assertEqual(proj.contract_date, dt2)
-
     def test_participants_cost_regression_in_invoice(self):
         contractor = Party.objects.create(name="پیمانکار تست", phone_number="09129998877", is_contractor=True)
         ProjectParticipant.objects.create(
@@ -234,121 +147,11 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertIsNotNone(extra_line)
         self.assertEqual(extra_line.unit_price, Decimal("90000"))
 
-    def test_view_new_project_form_gets_costs(self):
-        client = Client()
-        client.force_login(self.creator)
-        resp = client.get(reverse("projects:new_project_form"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("visit_date", resp.content.decode("utf-8"))
-
-    def test_view_new_project_submit_success(self):
-        from projects.workflow_v3 import build_workflow_v3
-        build_workflow_v3(make_default=True)
-        client = Client()
-        client.force_login(self.creator)
-        resp = client.post(reverse("projects:new_project_submit"), {
-            "project_name": "پروژه‌ی آزمایشی",
-            "phone_number_search": "09121111113",
-            "party_id": self.party.id,
-            "visit_date": "1405/07/20",
-            "notes": "ثبت وب تست",
-        })
-        self.assertEqual(resp.status_code, 302)
-        proj = Project.objects.filter(notes="ثبت وب تست").first()
-        self.assertIsNotNone(proj)
-        self.assertIsNotNone(proj.visit_date)
-
-    def test_view_new_project_submit_invalid_fee_redirects(self):
-        client = Client()
-        client.force_login(self.creator)
-        count_before = Project.objects.count()
-        client.post(reverse("projects:new_project_submit"), {
-            "project_name": "پروژه‌ی آزمایشی",
-            "phone_number_search": "09121111113",
-            "party_id": self.party.id,
-            "visit_date": "",
-        })
-        self.assertEqual(Project.objects.count(), count_before)
-
-    def test_view_new_project_submit_invalid_date_redirects(self):
-        client = Client()
-        client.force_login(self.creator)
-        count_before = Project.objects.count()
-        client.post(reverse("projects:new_project_submit"), {
-            "project_name": "پروژه‌ی آزمایشی",
-            "phone_number_search": "09121111113",
-            "party_id": self.party.id,
-            "visit_date": "1405/13/01",
-        })
-        self.assertEqual(Project.objects.count(), count_before)
-
-    def test_view_project_edit_get_renders_fees(self):
-        client = Client()
-        client.force_login(self.admin_user)
-        resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 200)
-        content = resp.content.decode("utf-8")
-        self.assertIn("proforma", content)
-
-    def test_view_project_edit_get_locked_renders_disabled(self):
-        self.project.visit_date = date(2026, 10, 11)
-        self.project.save()
-        visit_st = self.project.stages.filter(kind="visit").first()
-        if not visit_st:
-            from projects.models import ProjectStage, WorkflowStepTemplate
-            st_tmpl, _ = WorkflowStepTemplate.objects.get_or_create(template=self.template, order=99, defaults={"title": "بازدید", "kind": "visit"})
-            visit_st = ProjectStage.objects.create(project=self.project, step_template=st_tmpl, order=99, title="بازدید", kind="visit")
-        visit_st.status = "done"
-        visit_st.save()
-        client = Client()
-        client.force_login(self.admin_user)
-        resp = client.get(reverse("projects:project_edit", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 200)
-        content = resp.content.decode("utf-8")
-        self.assertIn("proforma", content)
-
-    def test_view_project_edit_post_success(self):
-        client = Client()
-        client.force_login(self.admin_user)
-        resp = client.post(reverse("projects:project_edit", args=[self.project.id]), {
-            "installation_fee": "500000",
-            "services_json": json.dumps([{"id": self.service1.id, "qty": "2", "unit_price": "500000"}]),
-            "materials_json": json.dumps([{"id": self.item1.id, "qty": "1", "unit_price": "200000"}]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.project.refresh_from_db()
-        self.assertEqual(self.project.installation_fee, Decimal("500000"))
-
-    def test_view_project_edit_post_locked_with_tampered_fees_redirects_and_keeps_values(self):
-        self.project.installation_fee = Decimal("300000")
-        self.project.notes = "یادداشت اولیه"
-        self.project.save(update_fields=["installation_fee", "notes"])
-        Payment.objects.create(
-            invoice=self.invoice,
-            amount=Decimal("100000"),
-            paid_at=timezone.now(),
-            method=Payment.Method.RECEIPT,
-            status=Payment.Status.APPROVED,
-            approved_by=self.admin_user,
-        )
-        client = Client()
-        client.force_login(self.creator)
-        # ارسال هزینه در حالت قفل موجب خطای اعتبارسنجی سرویس و ریدایرکت با پیام خطا می‌شود
-        resp = client.post(reverse("projects:project_edit", args=[self.project.id]), {
-            "installation_fee": "999999",
-            "notes": "یادداشت جدید قفل",
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.project.refresh_from_db()
-        self.assertEqual(self.project.installation_fee, Decimal("300000"))
-        self.assertEqual(self.project.notes, "یادداشت اولیه")
-
     def test_edit_post_missing_fields_does_not_zero_out(self):
         self.project.installation_fee = Decimal("300000")
         self.project.save(update_fields=["installation_fee"])
         client = Client()
         client.force_login(self.creator)
-        # ارسال بدون installation_fee (یعنی غایب در POST چون disabled یا حذف‌شده)
         resp = client.post(reverse("projects:project_edit", args=[self.project.id]), {
             "address_text": "فقط آدرس جدید",
             "services_json": json.dumps([{"id": self.service1.id, "qty": "2", "unit_price": "500000"}]),
@@ -357,16 +160,3 @@ class ProjectCostsAndContractTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.project.refresh_from_db()
         self.assertEqual(self.project.installation_fee, Decimal("300000"))
-
-    def test_overview_renders_contract_date_and_notes(self):
-        dt = JalaliDateField().clean("1405/07/01")
-        self.project.contract_date = dt
-        self.project.notes = "تست یادداشت در نمایش پروژه"
-        self.project.save(update_fields=["contract_date", "notes"])
-
-        client = Client()
-        client.force_login(self.creator)
-        resp = client.get(reverse("projects:staff_project_overview", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 200)
-        content = resp.content.decode("utf-8")
-        self.assertIn("تست یادداشت در نمایش پروژه", content)

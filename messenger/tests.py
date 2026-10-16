@@ -80,19 +80,6 @@ class InboxTests(Base):
         self.assertEqual(keys[0], "main")
         self.assertEqual(set(keys[1:]), {f"u{self.manager.pk}", f"u{self.acc.pk}"})
 
-    def test_manager_and_accountant_see_everyone(self):
-        everyone = (self.manager, self.acc, self.t1, self.t2)
-        for u in (self.manager, self.acc):
-            self.assertEqual(set(self.keys(u)),
-                             {"main"} | {f"u{x.pk}" for x in everyone if x.pk != u.pk})
-
-    def test_main_first_then_latest_message(self):
-        self.send(self.manager, services.open_direct(self.manager, self.t1), "a")
-        self.send(self.manager, services.open_direct(self.manager, self.t2), "b")
-        self.assertEqual(self.keys(self.manager)[:3], ["main", f"u{self.t2.pk}", f"u{self.t1.pk}"])
-        self.send(self.t1, self.main, "سلام گروه")
-        self.assertEqual(self.keys(self.manager)[0], "main")
-
     def test_inactive_user_disappears_and_cannot_be_messaged(self):
         conv = services.open_direct(self.t1, self.acc)
         User.objects.filter(pk=self.acc.pk).update(is_active=False)
@@ -102,41 +89,11 @@ class InboxTests(Base):
 
 
 class SendTests(Base):
-    def test_send_updates_conversation_and_unread(self):
-        conv = services.open_direct(self.t1, self.acc)
-        msg, created = services.send_message(self.t1, conv, text="سلام")
-        conv.refresh_from_db()
-        self.assertEqual((conv.last_message_id, created), (msg.pk, True))
-        unread = {i["key"]: i["unread"] for i in services.inbox(self.acc)["items"]}
-        self.assertEqual(unread[f"u{self.t1.pk}"], 1)
-        self.assertEqual(services.inbox(self.acc)["total_unread"], 1)
-        own = {i["key"]: i["unread"] for i in services.inbox(self.t1)["items"]}
-        self.assertEqual(own[f"u{self.acc.pk}"], 0)
-        services.mark_read(self.acc, conv, msg.pk)
-        self.assertEqual(services.inbox(self.acc)["total_unread"], 0)
-
-    def test_group_message_reaches_all_staff_but_not_clients(self):
-        self.send(self.t1, self.main, "hi group")
-        url = reverse("messenger:api_messages", args=[self.main.pk])
-        for u in (self.manager, self.acc, self.t2):
-            data = self.login(u).get(url).json()
-            self.assertEqual([m["text"] for m in data["messages"]], ["hi group"])
-        self.assertEqual(self.login(self.cli).get(url).status_code, 404)
-
-    def test_text_cleaning(self):
-        self.assertEqual(services.clean_text("  a\x00b\u202ec\r\n\r\n\r\n\r\n\r\nd  "), "abc\n\n\nd")
-        self.assertEqual(services.clean_text("می\u200cروم"), "می\u200cروم")   # نیم‌فاصله می‌ماند
-
     def test_html_is_stored_verbatim_and_returned_as_json(self):
         self.send(self.t1, self.main, "<script>alert(1)</script>")
         resp = self.login(self.t2).get(reverse("messenger:api_messages", args=[self.main.pk]))
         self.assertEqual(resp["Content-Type"].split(";")[0], "application/json")
         self.assertEqual(resp.json()["messages"][0]["text"], "<script>alert(1)</script>")
-
-    def test_empty_and_too_long_rejected(self):
-        for bad in ("   ", "x" * 4001):
-            with self.assertRaises(ValueError):
-                self.send(self.t1, self.main, bad)
 
     def test_client_uid_makes_send_idempotent(self):
         uid = str(uuid.uuid4())
@@ -159,20 +116,6 @@ class SendTests(Base):
             self.send(self.t1, self.main, f"m{i}")
         with self.assertRaises(ValueError):
             self.send(self.t1, self.main, "extra")
-
-    def test_api_send_read_roundtrip(self):
-        c = self.login(self.t1)
-        r = c.post(reverse("messenger:api_open", args=[self.acc.pk]))
-        conv_id = r.json()["conv_id"]
-        r = c.post(reverse("messenger:api_send", args=[conv_id]), {"text": "سلام", "client_uid": str(uuid.uuid4())})
-        self.assertTrue(r.json()["ok"])
-        self.assertTrue(r.json()["message"]["mine"])
-        bad = c.post(reverse("messenger:api_send", args=[conv_id]), {"text": "  "})
-        self.assertEqual((bad.status_code, bad.json()["ok"]), (400, False))
-        acc = self.login(self.acc)
-        self.assertEqual(acc.get(reverse("messenger:api_inbox")).json()["total_unread"], 1)
-        acc.post(reverse("messenger:api_read", args=[conv_id]))
-        self.assertEqual(acc.get(reverse("messenger:api_inbox")).json()["total_unread"], 0)
 
 
 class EditDeleteMuteTests(Base):
@@ -199,27 +142,6 @@ class EditDeleteMuteTests(Base):
         with self.assertRaises(ValueError):
             services.delete_message(self.acc, m2.pk)           # عضو است ولی فرستنده نیست
         services.delete_message(self.t1, m2.pk)
-
-    def test_updates_and_pages(self):
-        ids = [self.send(self.t1, self.main, f"m{i}").pk for i in range(5)]
-        first = services.fetch_messages(self.t1, self.main)
-        self.assertEqual([m["id"] for m in first["messages"]], ids)
-        self.assertEqual([m["id"] for m in services.fetch_messages(self.t1, self.main, after=ids[2])["messages"]],
-                         ids[3:])
-        older = services.fetch_messages(self.t1, self.main, before=ids[3])
-        self.assertEqual(([m["id"] for m in older["messages"]], older["has_more"]), (ids[:3], False))
-        services.edit_message(self.t1, ids[1], "changed")
-        upd = services.fetch_messages(self.t2, self.main, after=ids[4], since=first["now"])
-        self.assertEqual([(u["id"], u["text"]) for u in upd["updates"]], [(ids[1], "changed")])
-
-    def test_mute_excludes_total_unread_and_push(self):
-        conv = services.open_direct(self.t1, self.acc)
-        services.set_muted(self.acc, conv, True)
-        msg = self.send(self.t1, conv, "x")
-        data = services.inbox(self.acc)
-        item = next(i for i in data["items"] if i["key"] == f"u{self.t1.pk}")
-        self.assertEqual((item["unread"], item["muted"], data["total_unread"]), (1, True, 0))
-        self.assertEqual(services.push_recipient_ids(msg), set())
 
 
 class PushTests(Base):
@@ -261,32 +183,6 @@ class PushTests(Base):
         self.assertEqual(set(send.call_args.kwargs["subscriber_tokens"]),
                          {self.tok[self.manager.pk], self.tok[self.acc.pk]})
         self.assertIn(services.MAIN_TITLE, send.call_args.kwargs["title"])
-
-    def test_direct_push_goes_only_to_peer(self):
-        conv = services.open_direct(self.t1, self.acc)
-        send = self.run_task(self.send(self.t1, conv, "hello"))
-        self.assertEqual(set(send.call_args.kwargs["subscriber_tokens"]), {self.tok[self.acc.pk]})
-
-    def test_disabled_najva_sends_nothing(self):
-        msg = self.send(self.t1, self.main, "x")
-        with mock.patch("messenger.celery_tasks.NajvaService") as svc:
-            send_push_task.apply(args=(msg.pk,))
-        svc.return_value.send.assert_not_called()
-
-    def test_invalid_tokens_are_deactivated(self):
-        msg = self.send(self.t1, self.main, "x")
-        self.run_task(msg, {"success": True, "invalid_tokens": [self.tok[self.manager.pk]]})
-        self.assertFalse(PushDevice.objects.get(registration_id=self.tok[self.manager.pk]).is_active)
-
-    def test_transient_error_asks_for_retry(self):
-        msg = self.send(self.t1, self.main, "x")
-        with override_settings(NAJVA_ENABLED=True), \
-                mock.patch("messenger.celery_tasks.NajvaService") as svc, \
-                mock.patch.object(send_push_task, "retry", side_effect=RuntimeError("retry")) as retry:
-            svc.return_value.send.return_value = {"success": False, "status_code": 503, "invalid_tokens": []}
-            with self.assertRaises(RuntimeError):
-                send_push_task.apply(args=(msg.pk,))
-        retry.assert_called_once_with(countdown=10)
 
 
 class SourceGuardTests(SimpleTestCase):

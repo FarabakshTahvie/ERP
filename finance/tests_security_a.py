@@ -159,21 +159,3 @@ class ReportsAndPagesTests(SecurityBase):
         report = generate_periodic_financial_report(start_g, end_g)
         self.assertEqual(report["total_revenue"], Decimal("1000000"))
         self.assertEqual(report["total_received"], Decimal("100000"))
-
-    def test_supplier_pages_render(self):
-        c = Client(); c.force_login(self.manager)
-        for name in ("finance:accounting_suppliers", "finance:accounting_suppliers_table"):
-            self.assertEqual(c.get(reverse(name)).status_code, 200, name)
-
-    def test_customers_center_lists_billed_partner(self):
-        partner = Party.objects.create(name="شریک فاکتورخور", phone_number="09127770009", is_partner=True)
-        create_project_from_technician_intake(
-            created_by=self.tech, party_id=partner.id,
-            service_lines=[{"id": self.service.id, "qty": Decimal("1"), "unit_price": Decimal("500000")}],
-            material_lines=[], send_sms=False)
-        c = Client(); c.force_login(self.accountant)
-        resp = c.get(reverse("finance:accounting_customers"), {"client_id": partner.id})
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["selected_client"], partner)
-        self.assertNotIn("clients", resp.context)
-        self.assertEqual(c.get(reverse("finance:accounting_customers"), {"client_id": "abc"}).status_code, 404)

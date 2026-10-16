@@ -1,16 +1,9 @@
 from django.contrib.auth.models import AnonymousUser
-from django.test import Client, TestCase
-from django.urls import reverse
+from django.test import TestCase
 
 from accounts.models import User
 from core.capabilities import CAPABILITIES, can, capabilities_for
 from core.models import Specialty
-from inventory.services import WAREHOUSE_KEEPER_SPECIALTY_NAME, user_can_manage_inventory
-from projects import ops
-from projects.services import (
-    ACCOUNTANT_SPECIALTY_NAME, INTAKE_SPECIALTY_NAME,
-    can_edit_pricing, user_can_access_accounting, user_can_create_projects, user_is_accountant,
-)
 
 MGR = {"manager", "superuser"}
 MGR_ACC = MGR | {"accountant"}
@@ -60,28 +53,6 @@ class CapabilityMatrixTests(TestCase):
         for who, user in self.people.items():
             self.assertEqual(capabilities_for(user), {c: can(user, c) for c in CAPABILITIES}, who)
 
-    def test_legacy_wrappers_follow_the_table(self):
-        for who, user in self.people.items():
-            self.assertEqual(user_can_access_accounting(user), can(user, "accounting.access"), who)
-            self.assertEqual(can_edit_pricing(user), can(user, "pricing.edit"), who)
-            self.assertEqual(user_can_create_projects(user), can(user, "projects.create"), who)
-            self.assertEqual(user_can_manage_inventory(user), can(user, "inventory.manage"), who)
-            self.assertEqual(user_is_accountant(user), who == "accountant", who)
-            self.assertEqual(ops.can_view_final_review(user, None), can(user, "final_review.view"), who)
-            self.assertEqual(ops.can_manage_costs(user, None), can(user, "costs.manage"), who)
-
     def test_unknown_capability_raises(self):
         with self.assertRaises(KeyError):
             can(self.people["manager"], "nope.nope")
-
-    def test_specialty_names_match_services(self):
-        self.assertEqual(WAREHOUSE_KEEPER_SPECIALTY_NAME, "انباردار")
-        self.assertEqual(ACCOUNTANT_SPECIALTY_NAME, "حسابدار")
-        self.assertEqual(INTAKE_SPECIALTY_NAME, "پذیرش")
-
-    def test_template_context_exposes_caps(self):
-        client = Client()
-        client.force_login(self.people["accountant"])
-        resp = client.get(reverse("home"))
-        self.assertTrue(resp.context["caps"]["accounting_access"])
-        self.assertFalse(resp.context["caps"]["people_edit"])

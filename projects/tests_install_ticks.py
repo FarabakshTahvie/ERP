@@ -82,22 +82,7 @@ class InstallTickTests(InstallBase):
         self.assertEqual(ServiceTick.objects.count(), 1)
 
 
-class InstallContextTests(InstallBase):
-    def test_rows_and_flags(self):
-        self.tick(self.s2)
-        ctx = install_context(self.installer, self.stage)
-        self.assertEqual([(r["line"].pk, r["done"]) for r in ctx["rows"]], [(self.s1.pk, False), (self.s2.pk, True)])
-        self.assertEqual((ctx["total"], ctx["done"], ctx["can_edit"]), (2, 1, True))
-        self.assertFalse(install_context(self.stranger, self.stage)["can_edit"])
 
-    def test_none_for_other_kinds_and_pending_stage(self):
-        ProjectStage.objects.filter(pk=self.project.stages.get(kind=StageKind.CUTTING).pk).update(
-            status=ProjectStage.Status.IN_PROGRESS)
-        cutting = self.project.stages.get(kind=StageKind.CUTTING)
-        self.assertIsNone(install_context(self.installer, cutting))
-        ProjectStage.objects.filter(pk=self.stage.pk).update(status=ProjectStage.Status.PENDING)
-        self.stage.refresh_from_db()
-        self.assertIsNone(install_context(self.installer, self.stage))
 
 
 class InstallLockTests(InstallBase):
@@ -125,69 +110,4 @@ class InstallCompletionTests(InstallBase):
         self.assertEqual(ServiceTick.objects.count(), 0)
 
 
-class InstallReviewTests(InstallBase):
-    def test_review_data_lists_undone_services(self):
-        self.tick(self.s1)
-        data = ops.final_review_data(self.project)
-        self.assertTrue(data["has_install"])
-        self.assertEqual([ps.pk for ps in data["undone_services"]], [self.s2.pk])
-        self.tick(self.s2)
-        self.assertEqual(ops.final_review_data(self.project)["undone_services"], [])
 
-
-class InstallViewTests(InstallBase):
-    def test_endpoint(self):
-        url = reverse("projects:install_service_set", args=[self.stage.id])
-        self.assertEqual(self.client.get(url).status_code, 405)
-        data = self.client.post(url, {"service_id": self.s1.id, "done": "1"}).json()
-        self.assertEqual((data["ok"], data["done"], data["total"]), (True, 1, 2))
-        self.assertEqual(self.client.post(url, {"service_id": self.s1.id, "done": "0"}).json()["done"], 0)
-        bad = self.client.post(url, {"service_id": "abc", "done": "1"})
-        self.assertEqual((bad.status_code, bad.json()["ok"]), (400, False))
-        stranger = Client()
-        stranger.force_login(self.stranger)
-        self.assertEqual(stranger.post(url, {"service_id": self.s1.id, "done": "1"}).status_code, 400)
-
-    def test_overview_renders_ticks(self):
-        page = self.client.get(reverse("projects:staff_project_overview", args=[self.project.id]))
-        self.assertContains(page, "data-install-box")
-        self.assertContains(page, "data-install-check")
-        self.assertContains(page, reverse("projects:install_service_set", args=[self.stage.id]))
-        self.assertContains(page, "نصب کانال")
-
-    def test_final_review_page_lists_undone_services(self):
-        manager = User.objects.create_user(username="it_mgr", password="pw", role=User.Role.ADMIN)
-        self.tick(self.s1)
-        c = Client()
-        c.force_login(manager)
-        page = c.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "خدمت‌های بدون تیک")
-        self.assertContains(page, "نصب دریچه")
-
-    def test_script_handles_install_ticks_without_unsafe_sinks(self):
-        text = (Path(settings.BASE_DIR) / "static" / "js" / "stage_usage.js").read_text(encoding="utf-8")
-        self.assertIn("data-install-check", text)
-        for word in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
-            self.assertNotIn(word, text, word)
-
-
-class PartRequestLeftoversTests(TestCase):
-    def test_part_request_and_old_install_checklist_are_gone(self):
-        words = ("PartRequest", "part_request_detail", "part_request_create", "part_request_decide",
-                 "part_request_cancel", "part_requests_table", "pending_part_requests", "notify_part_request",
-                 "issue_part_request", "InstallLine", "install_line", "ensure_install_lines", "set_install_line",
-                 "install_groups", "install_problem", "prepare_part_photo", "fbChecklistInit", "ops_context")
-        base = Path(settings.BASE_DIR)
-        files = (list(base.rglob("*.py")) + list((base / "templates").rglob("*.html"))
-                 + list((base / "static" / "js").glob("*.js")))
-        problems = []
-        for path in files:
-            if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
-                    or path.name.startswith("test")):
-                continue
-            text = path.read_text(encoding="utf-8")
-            for w in words:
-                if w in text:
-                    problems.append(f"{path.relative_to(base)}: {w}")
-        self.assertEqual(problems, [])

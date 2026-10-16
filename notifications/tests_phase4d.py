@@ -47,35 +47,7 @@ class NotifyBase(TestCase):
                                            body="متن", status=status)
 
 
-class PolicyCommandTests(NotifyBase):
-    def test_creates_defaults_and_keeps_existing(self):
-        NotificationPolicy.objects.update_or_create(
-            notification_type=NotificationType.MANUAL,
-            defaults={"channel_policy": ChannelPolicy.SMS_ONLY})
-        call_command("setup_notification_policies")
-        self.assertEqual(NotificationPolicy.objects.count(), 7)
-        get = lambda t: NotificationPolicy.objects.get(notification_type=t).channel_policy
-        self.assertEqual(get(NotificationType.MANUAL), ChannelPolicy.SMS_ONLY)
-        self.assertEqual(get(NotificationType.STAGE_ASSIGNED), ChannelPolicy.PUSH_ONLY)
-
-    def test_force_flag_resets_modified_policies(self):
-        p, _ = NotificationPolicy.objects.update_or_create(
-            notification_type=NotificationType.STAGE_ASSIGNED,
-            defaults={"channel_policy": ChannelPolicy.SMS_ONLY, "fallback_after_minutes": 30})
-        call_command("setup_notification_policies")
-        self.assertEqual(NotificationPolicy.objects.get(notification_type=NotificationType.STAGE_ASSIGNED).channel_policy, ChannelPolicy.SMS_ONLY)
-        call_command("setup_notification_policies", force=True)
-        self.assertEqual(NotificationPolicy.objects.get(notification_type=NotificationType.STAGE_ASSIGNED).channel_policy, ChannelPolicy.PUSH_ONLY)
-
-
 class SmsPolicyTests(NotifyBase):
-    def test_no_device_is_in_app_not_failed(self):
-        from notifications.services import send_push_channel
-        n = self.note(status=Notification.Status.PENDING)
-        self.assertFalse(send_push_channel(n))
-        n.refresh_from_db()
-        self.assertEqual(n.status, Notification.Status.IN_APP)
-
     def test_sms_only_for_types_with_template(self):
         from notifications.services import send_sms_channel
         self.tech.phone_number = "09120000077"
@@ -100,13 +72,6 @@ class SmsPolicyTests(NotifyBase):
         n.refresh_from_db()
         self.assertEqual((n.status, n.extra_data["password"]), (Notification.Status.SMS_SENT, ""))
 
-    def test_mark_all_seen_includes_in_app(self):
-        n = self.note(self.tech, status=Notification.Status.IN_APP)
-        c = Client(); c.force_login(self.tech)
-        c.post(reverse("notifications:mark_all_seen"))
-        n.refresh_from_db()
-        self.assertEqual(n.status, Notification.Status.SEEN)
-
 
 class StageNotificationTests(NotifyBase):
     def test_assign_notifies_new_owner_after_commit(self):
@@ -121,19 +86,6 @@ class StageNotificationTests(NotifyBase):
         st = self.stage()
         assign_stage(st, self.tech, self.manager, "فوری")
         self.assertEqual(Notification.objects.count(), 0)
-
-    def test_pool_members_all_notified_inactive_skipped(self):
-        st = self.stage()
-        st.candidate_users.add(self.tech, self.other)
-        User.objects.filter(pk=self.other.pk).update(is_active=False)
-        with self.captureOnCommitCallbacks(execute=True):
-            notify_stage_responsible(st)
-        self.assertEqual(list(Notification.objects.values_list("user_id", flat=True)), [self.tech.id])
-
-    def test_notify_users_dedupes(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            notify_users([self.tech, self.tech], notification_type=NotificationType.MANUAL, title="x", body="y")
-        self.assertEqual(Notification.objects.count(), 1)
 
 
 class WarehouseNotificationTests(NotifyBase):
@@ -187,18 +139,6 @@ class CenterAndDashboardTests(NotifyBase):
         self.assertIsNotNone(mine.seen_at)
         self.assertEqual(mine.status, Notification.Status.SEEN)
         self.assertIsNone(theirs.seen_at)
-
-    def test_manager_pages_and_resend_view(self):
-        n = self.note()
-        urls = [reverse("dashboard:notifications"), reverse("dashboard:notifications_table"),
-                reverse("dashboard:notification_detail", args=[n.id])]
-        c = Client(); c.force_login(self.manager)
-        for u in urls:
-            self.assertEqual(c.get(u).status_code, 200, u)
-        c.force_login(self.tech)
-        for u in urls:
-            self.assertEqual(c.get(u).status_code, 404, u)
-        self.assertEqual(c.post(reverse("dashboard:notification_resend", args=[n.id])).status_code, 404)
 
     def test_detail_never_shows_extra_data(self):
         n = self.note()

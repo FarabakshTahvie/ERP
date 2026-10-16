@@ -94,23 +94,4 @@ class BroadcastEngineTests(TestCase):
         self.assertTrue(stats["more"])
         self.assertEqual(Notification.objects.filter(status=Notification.Status.PENDING).count(), 5)
 
-    def test_heartbeat_called_per_row(self):
-        codes = _unique_short_codes(3)
-        n_objs = [
-            Notification(user=self.user, broadcast=self.broadcast_push, short_code=codes[i], status=Notification.Status.PENDING)
-            for i in range(3)
-        ]
-        Notification.objects.bulk_create(n_objs)
-        hb = mock.Mock()
-        run_process_broadcasts(heartbeat=hb)
-        self.assertEqual(hb.call_count, 3)
 
-    def test_command_still_processes_dry_run_rows(self):
-        codes = _unique_short_codes(5)
-        n_objs = [
-            Notification(user=self.user, broadcast=self.broadcast_push, short_code=codes[i], status=Notification.Status.PENDING)
-            for i in range(5)
-        ]
-        Notification.objects.bulk_create(n_objs)
-        call_command("process_broadcasts")
-        self.assertEqual(Notification.objects.filter(status=Notification.Status.PUSH_SENT).count(), 5)

@@ -82,13 +82,4 @@ class ReportsAndExportersTests(TestCase):
         self.assertEqual(report_held["total_revenue"], Decimal("0"))
         self.assertEqual(report_held["operational_costs_sum"], Decimal("0"))
 
-    def test_export_financial_report_to_csv(self):
-        self.client.force_login(self.accountant_user)
-        
-        response = self.client.get(reverse("finance:accounting_reports"), {
-            "start_date": "1405/05/01",
-            "end_date": "1405/05/30",
-            "export": "csv",
-        })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+

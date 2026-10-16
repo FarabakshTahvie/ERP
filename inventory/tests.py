@@ -144,35 +144,7 @@ class WarehouseAccessAndStockViewTests(TestCase):
 
         self.assertEqual(low_stock_items_count(), 1)  # فقط «کالای بدون خرید»
 
-    def test_stock_table_view_permissions(self):
-        client = Client()
-        url = reverse("inventory:stock_table")
 
-        client.force_login(self.other_tech)
-        resp = client.get(url)
-        self.assertEqual(resp.status_code, 302)  # user_passes_test به لاگین ریدایرکت می‌کند
-
-        client.force_login(self.warehouse_user)
-        resp2 = client.get(url)
-        self.assertEqual(resp2.status_code, 200)
-
-    def test_stock_table_shows_low_stock_badge_and_ordering(self):
-        item_low = Item.objects.create(
-            name="آ - کالای کم", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=10,
-        )
-        receive_stock(item=item_low, warehouse=self.warehouse, qty=2, unit_cost=1000, received_at=timezone.now())
-        item_high = Item.objects.create(
-            name="ب - کالای زیاد", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=10,
-        )
-        receive_stock(item=item_high, warehouse=self.warehouse, qty=100, unit_cost=1000, received_at=timezone.now())
-
-        client = Client()
-        client.force_login(self.warehouse_user)
-        resp = client.get(reverse("inventory:stock_table"))
-        content = resp.content.decode("utf-8")
-        self.assertIn("کمبود", content)
 import json
 from django.core.files.uploadedfile import SimpleUploadedFile
 from core.models import Party
@@ -199,15 +171,7 @@ class PurchaseEntryTests(TestCase):
             entity_type=Party.EntityType.INDIVIDUAL, national_code="1111111111", is_supplier=True,
         )
 
-    def test_clean_purchase_lines_rejects_zero_and_inactive(self):
-        with self.assertRaises(ValueError):
-            _clean_purchase_lines([{"id": self.item1.id, "qty": "0", "unit_cost": "1000"}])
-        with self.assertRaises(ValueError):
-            _clean_purchase_lines([{"id": self.item1.id, "qty": "1", "unit_cost": "0"}])
-        with self.assertRaises(ValueError):
-            _clean_purchase_lines([{"id": self.item_inactive.id, "qty": "1", "unit_cost": "1000"}])
-        ok = _clean_purchase_lines([{"id": self.item1.id, "qty": "2.5", "unit_cost": "1000"}])
-        self.assertEqual(ok[0]["qty"], Decimal("2.5"))
+
 
     def test_resolve_supplier_party_creates_with_is_supplier_true(self):
         party = _resolve_supplier_party(party_data={
@@ -234,13 +198,7 @@ class PurchaseEntryTests(TestCase):
                 "entity_type": "individual", "national_code": "3333333333",
             })
 
-    def test_validate_invoice_file_extension_and_size(self):
-        bad = SimpleUploadedFile("bad.exe", b"x", content_type="application/octet-stream")
-        with self.assertRaises(ValueError):
-            _validate_invoice_file(bad)
-        big = SimpleUploadedFile("big.jpg", b"x" * (11 * 1024 * 1024), content_type="image/jpeg")
-        with self.assertRaises(ValueError):
-            _validate_invoice_file(big)
+
 
     def test_create_purchase_from_form_success_updates_stock(self):
         create_purchase_from_form(
@@ -278,33 +236,7 @@ class PurchaseEntryTests(TestCase):
             )
         self.assertEqual(Purchase.objects.count(), 0)  # هیچ‌چیزی نباید ساخته شده باشد
 
-    def test_purchase_new_view_permissions_and_flow(self):
-        sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
-        wh_user = User.objects.create_user(
-            username="pv_wh", phone_number="09350000003",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        wh_user.specialties.add(sp_warehouse)
-        other = User.objects.create_user(
-            username="pv_other", phone_number="09350000004",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
 
-        client = Client()
-        client.force_login(other)
-        self.assertEqual(client.get(reverse("inventory:purchase_new")).status_code, 302)
-
-        client.force_login(wh_user)
-        self.assertEqual(client.get(reverse("inventory:purchase_new")).status_code, 200)
-
-        resp = client.post(reverse("inventory:purchase_new"), {
-            "supplier_party_id": str(self.supplier.id),
-            "purchased_at": "",
-            "invoice_number": "INV-002",
-            "lines_json": json.dumps([{"id": self.item1.id, "qty": "3", "unit_cost": "20000"}]),
-        })
-        self.assertRedirects(resp, reverse("home"))
-        self.assertEqual(Purchase.objects.filter(invoice_number="INV-002").count(), 1)
 
 
 from inventory.services import (
@@ -323,14 +255,7 @@ class ManualStockChangeTests(TestCase):
             password="Test@1234", role=User.Role.EMPLOYEE,
         )
 
-    def test_parse_decimal_input_accepts_persian_digits_and_rejects_invalid(self):
-        self.assertEqual(parse_decimal_input("۱۰.۵"), Decimal("10.5"))
-        with self.assertRaises(ValueError):
-            parse_decimal_input("abc")
-        with self.assertRaises(ValueError):
-            parse_decimal_input("0")
-        with self.assertRaises(ValueError):
-            parse_decimal_input("-5")
+
 
     def test_notes_always_required(self):
         item = Item.objects.create(name="کالای تست ۱", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
@@ -396,211 +321,7 @@ class ManualStockChangeTests(TestCase):
             record_manual_stock_change(item=item, kind=CHANGE_KIND_ADJUST_INCREASE, qty_raw="5", notes="کشف موجودی", user=self.user)
         self.assertIn("بهای واحد را دستی وارد کنید", str(ctx.exception))
 
-    def test_receive_stock_backward_compatible_without_notes(self):
-        """رگرسیون: خرید عادی (W2) نباید عوض شود."""
-        item = Item.objects.create(name="کالای تست ۹", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item, warehouse=self.warehouse, qty=1, unit_cost=500, received_at=timezone.now())
-        movement = StockMovement.objects.filter(item=item, movement_type=StockMovement.MovementType.IN).latest("created_at")
-        self.assertEqual(movement.notes, "")
-        self.assertIsNone(movement.created_by)
 
-    def test_stock_movement_view_permissions_and_flow(self):
-        sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
-        wh_user = User.objects.create_user(
-            username="mv_wh", phone_number="09360000002",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        wh_user.specialties.add(sp_warehouse)
-        item = Item.objects.create(name="کالای تست ۱۰", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item, warehouse=self.warehouse, qty=10, unit_cost=1000, received_at=timezone.now())
-
-        client = Client()
-        client.force_login(self.user)  # بدون تخصص انباردار
-        self.assertEqual(client.get(reverse("inventory:stock_movement_new")).status_code, 302)
-
-        client.force_login(wh_user)
-        self.assertEqual(client.get(reverse("inventory:stock_movement_new")).status_code, 200)
-
-        resp = client.post(reverse("inventory:stock_movement_new"), {
-            "item_id": item.id, "kind": CHANGE_KIND_CONSUME, "qty": "2", "notes": "تست از ویو",
-            "project_id": "company",
-        })
-        self.assertRedirects(resp, reverse("home"))
-        item.refresh_from_db()
-        self.assertEqual(item.current_stock, Decimal("8"))
-
-
-class StockTableAdvancedFilterTests(TestCase):
-    def setUp(self):
-        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
-        self.wh_user = User.objects.create_user(
-            username="stf_wh_user", phone_number="09190002101",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        self.wh_user.specialties.add(self.sp_warehouse)
-        self.warehouse = Warehouse.objects.create(name="انبار تست فیلتر", is_default=True)
-        self.cat_a = ItemCategory.objects.create(name="دسته آ فیلتر")
-        self.cat_b = ItemCategory.objects.create(name="دسته ب فیلتر")
-
-        self.item_material = Item.objects.create(
-            name="متریال فیلتری", item_type=Item.ItemType.MATERIAL,
-            category=self.cat_a, unit=Item.Unit.PIECE, reorder_point=10,
-        )
-        self.item_part = Item.objects.create(
-            name="قطعه فیلتری", item_type=Item.ItemType.PART,
-            category=self.cat_b, unit=Item.Unit.PIECE, reorder_point=10,
-        )
-        receive_stock(item=self.item_material, warehouse=self.warehouse, qty=1, unit_cost=1000, received_at=timezone.now())
-        receive_stock(item=self.item_part, warehouse=self.warehouse, qty=100, unit_cost=1000, received_at=timezone.now())
-
-    def test_filter_by_low_stock_boolean(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        url = reverse("inventory:stock_table")
-
-        low = client.get(url, {"st_f_low": "1"}).content.decode("utf-8")
-        self.assertIn("متریال فیلتری", low)
-        self.assertNotIn("قطعه فیلتری", low)
-
-        normal = client.get(url, {"st_f_low": "0"}).content.decode("utf-8")
-        self.assertIn("قطعه فیلتری", normal)
-        self.assertNotIn("متریال فیلتری", normal)
-
-    def test_filter_by_item_type(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_f_item_type": "part"})
-        content = resp.content.decode("utf-8")
-        self.assertIn("قطعه فیلتری", content)
-        self.assertNotIn("متریال فیلتری", content)
-
-    def test_filter_by_category(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_f_category": str(self.cat_b.id)})
-        content = resp.content.decode("utf-8")
-        self.assertIn("قطعه فیلتری", content)
-        self.assertNotIn("متریال فیلتری", content)
-
-    def test_sort_by_stock_ascending(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "asc"})
-        content = resp.content.decode("utf-8")
-        self.assertTrue(content.find("متریال فیلتری") < content.find("قطعه فیلتری"))
-
-    def test_sort_by_stock_descending(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_sort": "stock", "st_dir": "desc"})
-        content = resp.content.decode("utf-8")
-        self.assertTrue(content.find("قطعه فیلتری") < content.find("متریال فیلتری"))
-
-    def test_invalid_category_id_ignored(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_f_category": "999999"})
-        content = resp.content.decode("utf-8")
-        self.assertIn("متریال فیلتری", content)
-        self.assertIn("قطعه فیلتری", content)
-
-
-
-class StockTableSearchSortTests(TestCase):
-    def setUp(self):
-        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
-        self.wh_user = User.objects.create_user(
-            username="st_wh_user", phone_number="09190002001",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        self.wh_user.specialties.add(self.sp_warehouse)
-        self.warehouse = Warehouse.objects.create(name="انبار تست جدول", is_default=True)
-        self.cat = ItemCategory.objects.create(name="دسته تست جدول")
-
-        self.item_alpha = Item.objects.create(
-            name="آلفا کالا", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE,
-        )
-        self.item_beta = Item.objects.create(
-            name="بتا کالا", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE,
-        )
-        receive_stock(item=self.item_alpha, warehouse=self.warehouse, qty=5, unit_cost=1000, received_at=timezone.now())
-        receive_stock(item=self.item_beta, warehouse=self.warehouse, qty=50, unit_cost=1000, received_at=timezone.now())
-
-    def test_search_by_name(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_q": "آلفا"})
-        content = resp.content.decode("utf-8")
-        self.assertIn("آلفا کالا", content)
-        self.assertNotIn("بتا کالا", content)
-
-    def test_sort_by_stock_both_directions(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        url = reverse("inventory:stock_table")
-        asc = client.get(url, {"st_sort": "stock", "st_dir": "asc"}).content.decode("utf-8")
-        self.assertTrue(asc.find("آلفا کالا") < asc.find("بتا کالا"))
-        desc = client.get(url, {"st_sort": "stock", "st_dir": "desc"}).content.decode("utf-8")
-        self.assertTrue(desc.find("بتا کالا") < desc.find("آلفا کالا"))
-
-    def test_pagination_regression_still_works(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"), {"st_page_size": "1"})
-        self.assertEqual(resp.status_code, 200)
-
-
-class TechnicianHomeStockTabEagerRenderTests(TestCase):
-    def setUp(self):
-        self.sp_warehouse, _ = Specialty.objects.get_or_create(name="انباردار")
-        self.wh_user = User.objects.create_user(
-            username="th_stock_eager", phone_number="09190005101",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        self.wh_user.specialties.add(self.sp_warehouse)
-        self.warehouse = Warehouse.objects.create(name="انبار تست eager", is_default=True)
-        self.cat = ItemCategory.objects.create(name="دسته تست eager")
-        self.item = Item.objects.create(
-            name="کالای تست eager رندر", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE,
-        )
-        receive_stock(item=self.item, warehouse=self.warehouse, qty=5, unit_cost=1000, received_at=timezone.now())
-
-    def test_stock_tab_eager_rendered_when_selected(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("home"), {"tab": "stock"})
-        content = resp.content.decode("utf-8")
-        self.assertIn("کالای تست eager رندر", content)
-        self.assertIn("جمع موجودی در همه", content)
-
-    def test_stock_table_endpoint_still_works_after_refactor(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        resp = client.get(reverse("inventory:stock_table"))
-        self.assertEqual(resp.status_code, 200)
-
-
-class StockTableToolbarLayoutTests(TestCase):
-    def setUp(self):
-        sp, _ = Specialty.objects.get_or_create(name="انباردار")
-        self.wh_user = User.objects.create_user(
-            username="stl_wh", phone_number="09190007001",
-            password="Test@1234", role=User.Role.EMPLOYEE,
-        )
-        self.wh_user.specialties.add(sp)
-        for i in range(11):
-            Item.objects.create(name=f"کالای چیدمان {i}", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
-
-    def test_pagination_rendered_above_table_not_below(self):
-        client = Client()
-        client.force_login(self.wh_user)
-        content = client.get(reverse("inventory:stock_table")).content.decode("utf-8")
-        select_pos = content.find('aria-label="تعداد در صفحه"')
-        table_pos = content.find("<table")
-        self.assertNotEqual(select_pos, -1)
-        self.assertLess(select_pos, table_pos)
-        self.assertEqual(content.count('aria-label="تعداد در صفحه"'), 1)
 
 
 

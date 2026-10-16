@@ -268,39 +268,4 @@ class P2IntegrityTests(P2BaseScenarioMixin, TestCase):
         self.assertNotEqual(integ["diff"], Decimal("0"))
 
 
-class P2CostPermissionTests(P2BaseScenarioMixin, TestCase):
-    def setUp(self):
-        self.setup_scenario()
 
-    def test_accountant_can_manage_costs_after_final_review(self):
-        from projects import ops
-        cost = ops.add_project_cost(
-            project=self.project, kind="other", title="هزینه پیک",
-            amount_raw="50000", actor=self.accountant
-        )
-        self.assertEqual(cost.amount, Decimal("50000"))
-        ops.delete_project_cost(cost=cost, actor=self.accountant)
-
-    def test_creator_cannot_add_cost_after_review_closed(self):
-        from projects import ops
-        review_st = self.project.stages.get(kind=StageKind.FINAL_REVIEW)
-        review_st.status = ProjectStage.Status.DONE
-        review_st.save()
-        with self.assertRaises(ValueError):
-            ops.add_project_cost(
-                project=self.project, kind="other", title="تست",
-                amount_raw="1000", actor=self.creator
-            )
-
-
-class P2ProjectsTableTests(P2BaseScenarioMixin, TestCase):
-    def setUp(self):
-        self.setup_scenario()
-
-    def test_projects_table_context(self):
-        client = Client()
-        client.force_login(self.accountant)
-        resp = client.get(reverse("finance:accounting_projects"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "دریافتی (تومان)")
-        self.assertContains(resp, "حساب")

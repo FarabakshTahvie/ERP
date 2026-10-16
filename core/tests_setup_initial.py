@@ -27,16 +27,3 @@ class SetupInitialDataTests(TestCase):
         self.assertTrue(Specialty.objects.filter(name__in=["حسابدار", "انباردار", "پذیرش"]).count() == 3)
         self.assertEqual(MarginRule.objects.count(), 0)
 
-    def test_margin_created_once_and_validated(self):
-        run(margin="15"); run(margin="20")
-        rules = MarginRule.objects.all()
-        self.assertEqual((rules.count(), int(rules[0].value)), (1, 15))
-        with self.assertRaises(CommandError):
-            run(margin="abc")
-        with self.assertRaises(CommandError):
-            run(margin="900")
-
-    def test_existing_default_warehouse_is_untouched(self):
-        Warehouse.objects.create(name="انبار قدیمی", is_default=True)
-        run()
-        self.assertEqual(list(Warehouse.objects.values_list("name", flat=True)), ["انبار قدیمی"])

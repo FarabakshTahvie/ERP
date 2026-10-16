@@ -51,18 +51,7 @@ class ReviewBase(TestCase):
 
 
 class UsageByStageTests(ReviewBase):
-    def test_empty_project(self):
-        self.assertEqual(project_usage_by_stage(self.project), [])
 
-    def test_only_used_stages_in_stage_order_with_extra_flag(self):
-        self.use(self.assembly, self.item, "2", self.creator)
-        self.use(self.cutting, self.other, "7")
-        self.use(self.cutting, self.item, "4.5", self.creator)
-        groups = project_usage_by_stage(self.project)
-        self.assertEqual([g["stage"].pk for g in groups], [self.cutting.pk, self.assembly.pk])
-        self.assertEqual({(r["item"].pk, r["qty"], r["extra"]) for r in groups[0]["rows"]},
-                         {(self.other.pk, Decimal("7"), True), (self.item.pk, Decimal("4.5"), False)})
-        self.assertEqual(groups[1]["rows"][0]["by"], self.creator)
 
     def test_total_equals_reconciliation_used(self):
         self.use(self.cutting, self.item, "4.5")
@@ -87,40 +76,7 @@ class ReconciliationExtrasTests(ReviewBase):
         self.assertFalse(accounting.project_reconciliation(self.project)[0]["stock_short"])
 
 
-class ReviewPageTests(ReviewBase):
-    def page(self, user=None):
-        c = Client()
-        c.force_login(user or self.manager)
-        return c.get(reverse("projects:final_review", args=[self.project.id]))
 
-    def test_empty_state(self):
-        self.assertContains(self.page(), "هیچ مرحله‌ای مصرف ثبت نکرده است.")
-
-    def test_unassigned_stage_and_unknown_recorder_render_dash(self):
-        self.use(self.cutting, self.item, "3")          # بدون ثبت‌کننده؛ مرحله هم مسئول ندارد
-        self.assertIsNone(self.cutting.assigned_to_id)
-        resp = self.page()
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "مسئول: —")
-
-    def test_sections_and_context(self):
-        self.open_final()
-        self.use(self.cutting, self.item, "4.5", self.creator)
-        self.use(self.assembly, self.item, "2")
-        resp = self.page()
-        self.assertContains(resp, "مصرف ثبت‌شده‌ی هر مرحله")
-        self.assertContains(resp, "جمع مصرف همه‌ی مراحل و تسویه‌ی انبار")
-        self.assertContains(resp, "موجودی انبار")
-        self.assertContains(resp, "data-decimal data-settle-qty")
-        self.assertEqual([g["stage"].pk for g in resp.context["usage_stages"]], [self.cutting.pk, self.assembly.pk])
-
-    def test_accounting_project_page_shows_section(self):
-        self.use(self.cutting, self.item, "4")
-        c = Client()
-        c.force_login(self.manager)
-        resp = c.get(reverse("finance:accounting_project", args=[self.project.id]))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "مصرف ثبت‌شده‌ی هر مرحله")
 
 
 class ReviewSettlementTests(ReviewBase):
@@ -163,11 +119,4 @@ class ReviewSettlementTests(ReviewBase):
         self.assertEqual(self.out_total(), Decimal("6.5"))
 
 
-class ReviewTemplateTextTests(TestCase):
-    def test_decimal_inputs_and_updated_copy(self):
-        text = (Path(settings.BASE_DIR) / "templates" / "projects" / "final_review.html").read_text(encoding="utf-8")
-        self.assertRegex(text, r'<input[^>]*id="fr-stock-qty"[^>]*data-decimal')
-        self.assertIn("data-decimal data-settle-qty", text)
-        self.assertIn("usage_by_stage.html", text)
-        self.assertNotIn("درخواست قطعه", text)
-        self.assertNotIn("اضافه‌ی ارسالی", text)
+

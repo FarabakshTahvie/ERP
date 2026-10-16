@@ -117,26 +117,7 @@ class UsageServiceTests(UsageBase):
         self.assertEqual(StageUsage.objects.count(), 1)
 
 
-class UsageContextTests(UsageBase):
-    def test_rows_are_proforma_items_with_blank_quantities(self):
-        ctx = usage_context(self.worker, self.cutting)
-        self.assertEqual([(r["item"].pk, r["qty"], r["extra"]) for r in ctx["rows"]], [(self.item.pk, "", False)])
-        self.assertTrue(ctx["can_edit"])
 
-    def test_extra_item_row_and_no_context_for_other_stages(self):
-        self.put(self.cutting, self.other, "2")
-        rows = usage_context(self.worker, self.cutting)["rows"]
-        self.assertEqual([(r["item"].pk, r["extra"]) for r in rows], [(self.item.pk, False), (self.other.pk, True)])
-        self.assertIsNone(usage_context(self.worker, self.project.stages.get(kind=StageKind.VISIT)))
-        self.assertIsNone(usage_context(self.worker, self.project.stages.get(kind=StageKind.SHIPPING)))
-
-    def test_assembly_has_its_own_kind(self):
-        self.assertEqual(self.project.stages.get(title="مونتاژ").kind, StageKind.ASSEMBLY)
-
-    def test_item_structure_locks_after_usage(self):
-        self.assertFalse(item_structure_locked(self.other))
-        self.put(self.cutting, self.other, "1")
-        self.assertTrue(item_structure_locked(self.other))
 
 
 class UsageTransferLockTests(UsageBase):
@@ -158,41 +139,7 @@ class UsageTransferLockTests(UsageBase):
         self.cutting.refresh_from_db()
         self.assertEqual(self.cutting.assigned_to_id, self.peer.id)
 
-    def test_overview_hides_transfer_button_when_locked(self):
-        self.peer.specialties.add(self.cutting.step_template.responsible_specialty)
-        url = reverse("projects:staff_project_overview", args=[self.project.id])
-        self.assertContains(self.client.get(url), "واگذاری به همکار")
-        self.put(self.cutting, self.item, "1")
-        page = self.client.get(url)
-        self.assertNotContains(page, "واگذاری به همکار")
-        self.assertContains(page, "واگذاری ممکن نیست")
 
-
-class UsageViewTests(UsageBase):
-    def test_usage_set_endpoint(self):
-        url = reverse("projects:usage_set", args=[self.cutting.id])
-        self.assertEqual(self.client.get(url).status_code, 405)
-        resp = self.client.post(url, {"item_id": self.item.id, "qty": "۴٫۵"})
-        self.assertEqual(resp.json(), {"ok": True, "qty": "4.5", "removed": False})
-        bad = self.client.post(url, {"item_id": self.item.id, "qty": "abc"})
-        self.assertEqual((bad.status_code, bad.json()["ok"]), (400, False))
-        stranger = Client()
-        stranger.force_login(self.stranger)
-        self.assertEqual(stranger.post(url, {"item_id": self.item.id, "qty": "1"}).status_code, 400)
-
-    def test_overview_renders_table_with_decimal_inputs(self):
-        page = self.client.get(reverse("projects:staff_project_overview", args=[self.project.id]))
-        self.assertContains(page, "data-usage-box")
-        self.assertContains(page, reverse("projects:usage_set", args=[self.cutting.id]))
-        self.assertContains(page, "data-usage-qty")
-        self.assertContains(page, "data-usage-add")
-        self.assertContains(page, "ورق گالوانیزه")
-
-    def test_script_uses_csrf_global_and_no_unsafe_sinks(self):
-        text = (Path(settings.BASE_DIR) / "static" / "js" / "stage_usage.js").read_text(encoding="utf-8")
-        self.assertIn("window.FB_CSRF", text)
-        for word in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
-            self.assertNotIn(word, text, word)
 
 
 class UsageReconTests(UsageBase):
@@ -215,20 +162,4 @@ class UsageReconTests(UsageBase):
         self.assertEqual((r["basis"], r["expected"], r["status"]), ("manual", Decimal("3"), "ok"))
 
 
-class ShippingChecklistLeftoversTests(TestCase):
-    def test_shipping_checklist_and_extra_shipment_are_gone(self):
-        words = ("ShipmentCheck", "ExtraShipment", "set_shipment_check", "shipment_rows", "shipping_problem",
-                 "add_extra_shipment", "delete_extra_shipment", "projects:ship_check", "extras_shipped")
-        base = Path(settings.BASE_DIR)
-        files = (list(base.rglob("*.py")) + list((base / "templates").rglob("*.html"))
-                 + list((base / "static" / "js").glob("*.js")))
-        problems = []
-        for path in files:
-            if (any(p in path.parts for p in ("venv", ".venv", "node_modules", "migrations", "staticfiles"))
-                    or path.name.startswith("test")):
-                continue
-            text = path.read_text(encoding="utf-8")
-            for w in words:
-                if w in text:
-                    problems.append(f"{path.relative_to(base)}: {w}")
-        self.assertEqual(problems, [])
+

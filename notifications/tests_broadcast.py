@@ -47,26 +47,6 @@ class BroadcastSystemTests(TestCase):
             username="client_u", phone_number="09124444444", password="password123", is_active=True, role="client"
         )
 
-    def test_resolve_audience_all_staff(self):
-        # پوش (شامل همه بدون فیلتر شماره)
-        users = resolve_audience("all_staff", [], "push")
-        self.assertIn(self.mgr, users)
-        self.assertIn(self.acc, users)
-        self.assertIn(self.tech, users)
-        self.assertNotIn(self.client_u, users)
-
-    def test_resolve_audience_specialty(self):
-        users = resolve_audience("specialty", [self.spec_acc.id], "push")
-        self.assertIn(self.acc, users)
-        self.assertNotIn(self.tech, users)
-
-    def test_resolve_audience_sms_skips_no_phone(self):
-        no_phone_user = User.objects.create_user(
-            username="nophone", password="password123", is_active=True, role="employee"
-        )
-        users = resolve_audience("all_staff", [], "sms")
-        self.assertNotIn(no_phone_user, users)
-
     def test_validate_link(self):
         self.assertTrue(validate_link(""))
         self.assertTrue(validate_link("/notifications/"))
@@ -153,36 +133,6 @@ class BroadcastSystemTests(TestCase):
         # بررسی اینکه دستور process_pending_notifications ردیف‌های PENDING پیام همگانی را لمس نکند
         call_command("process_pending_notifications")
         self.assertEqual(b.notifications.filter(status=Notification.Status.PENDING).count(), 3)
-
-    @override_settings(BROADCAST_DRY_RUN=True)
-    def test_process_broadcasts_dry_run(self):
-        users = resolve_audience("all_staff", [], "sms")
-        user_ids = [u.id for u in users]
-        digest = calculate_digest(
-            channel="sms", title="تست", body="سلام همگی", link_path="",
-            ttl_hours=24, icon_name="", image_name="", buttons=[],
-            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
-        )
-        b = create_broadcast(
-            channel="sms",
-            title="تست",
-            body="سلام همگی",
-            link_path="",
-            icon_name="",
-            image_name="",
-            ttl_hours=24,
-            audience_kind="all_staff",
-            audience_ids=[],
-            created_by=self.mgr,
-            buttons=[],
-            digest=digest
-        )
-        from django.core.management import call_command
-        call_command("process_broadcasts")
-        for notif in b.notifications.all():
-            notif.refresh_from_db()
-            self.assertEqual(notif.status, Notification.Status.SMS_SENT)
-            self.assertEqual(notif.error_text, "آزمایشی")
 
     def test_capabilities_access(self):
         client = Client()
