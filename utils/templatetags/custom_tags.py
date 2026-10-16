@@ -154,3 +154,10 @@ def nav_url(context, name, *args):
         return reverse(name, args=args)
     return nav_reverse(request, name, args=args)
 
+
+@register.filter
+def person_name(user, fallback="—"):
+    """نام کامل یا نام کاربری. کاربر None (رویداد سیستمی، کاربر حذف‌شده) ← fallback."""
+    if not user:
+        return fallback
+    return user.get_full_name() or user.username

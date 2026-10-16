@@ -248,7 +248,7 @@
         {% for e in events %}
         <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
             <span><span class="fb-badge fb-badge-neutral">{{ e.get_kind_display }}</span> {{ e.text }}</span>
-            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor.get_full_name|default:e.actor.username|default:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
         </div>
         {% empty %}<p class="fb-hint">هنوز اقدامی ثبت نشده است.</p>{% endfor %}
     </section>
@@ -267,7 +267,7 @@
                         <td><span class="fb-badge {% if m.direction == 'in' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ m.get_direction_display }}</span></td>
                         <td class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{{ m.line_value|intcomma_fa }}</td>
-                        <td>{{ m.created_by.get_full_name|default:m.created_by.username|default:"—" }}</td>
+                        <td>{{ m.created_by|person_name:"—" }}</td>
                         <td class="fb-muted">{{ m.notes|default:"—" }}</td>
                     </tr>
                     {% empty %}

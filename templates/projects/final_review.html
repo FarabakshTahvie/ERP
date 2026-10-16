@@ -183,7 +183,7 @@
                         {% for f in st.files.all %}
                         <div class="flex items-center justify-between text-xs gap-2">
                             <span class="truncate" dir="auto">{% icon "file-text" "w-3.5 h-3.5 inline text-base-content/60" %} {{ f.display_name }}</span>
-                            <span class="text-xs fb-muted shrink-0">{{ f.uploaded_by.get_full_name|default:f.uploaded_by.username|default:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
+                            <span class="text-xs fb-muted shrink-0">{{ f.uploaded_by|person_name:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
                             <a href="{{ f.file.url }}" download class="btn btn-ghost btn-xs text-primary">دانلود</a>
                         </div>
                         {% endfor %}
@@ -206,12 +206,12 @@
                     <span class="font-semibold">{{ st.order|fa_digits }}. {{ st.title }}</span>
                     <span class="fb-badge {% if st.status == 'done' %}fb-badge-success{% elif st.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ st.get_status_display }}</span>
                 </div>
-                <div class="fb-muted mt-0.5">مسئول: {% if st.assigned_to %}{{ st.assigned_to.get_full_name|default:st.assigned_to.username }}{% else %}—{% endif %}</div>
+                <div class="fb-muted mt-0.5">مسئول: {{ st.assigned_to|person_name:"—" }}</div>
                 {% if st.events.all %}
                 <div class="mt-1.5 ms-2 space-y-1 border-s-2 border-base-300 ps-2">
                     {% for ev in st.events.all %}
                     <div class="fb-muted">
-                        <span class="font-semibold text-base-content">{% if ev.actor %}{{ ev.actor.get_full_name|default:ev.actor.username }}{% else %}سیستم{% endif %}</span>:
+                        <span class="font-semibold text-base-content">{{ ev.actor|person_name:"سیستم" }}</span>:
                         {{ ev.comment|default:"بدون توضیح" }}
                         <span class="font-technical text-[10px] opacity-75">({{ ev.created_at|to_jalali }})</span>
                     </div>

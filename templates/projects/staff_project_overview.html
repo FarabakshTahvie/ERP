@@ -108,7 +108,7 @@
                     {% if s.parked %}<div class="text-xs fb-muted mt-0.5">متوقف تا برگشت</div>{% endif %}
                     <div class="text-xs fb-muted mt-0.5">
                         {% if s.assigned_to %}
-                            مسئول: {{ s.assigned_to.get_full_name|default:s.assigned_to.username }}
+                            مسئول: {{ s.assigned_to|person_name:"—" }}
                         {% elif s.candidate_count %}
                             در استخر ({{ s.candidate_count|fa_digits }} کاندیدا)
                         {% else %}
@@ -117,7 +117,7 @@
                     </div>
                     {% for ev in s.events.all %}
                         {% if ev.comment %}
-                        <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor.get_full_name|default:ev.actor.username }}</div>
+                        <div class="text-xs fb-muted mt-1">« {{ ev.comment }} » — {{ ev.actor|person_name:"سیستم" }}</div>
                         {% endif %}
                         {% if ev.voice %}
                         <div data-voice-player data-src="{{ ev.voice.url }}" data-dur="{{ ev.voice_duration|default_if_none:'' }}" data-peaks="{{ ev.voice_peaks }}" class="mt-1 w-64 max-w-full"></div>

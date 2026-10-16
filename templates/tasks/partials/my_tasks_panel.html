@@ -15,7 +15,7 @@
             <div class="collapse-title flex flex-col gap-1">
                 <span class="text-sm font-semibold">{{ c.task.title }}</span>
                 <span class="flex flex-wrap items-center gap-2 text-xs fb-muted">
-                    <span>از {{ c.task.created_by.get_full_name|default:c.task.created_by.username }}</span>
+                    <span>از {{ c.task.created_by|person_name:"—" }}</span>
                     {% if c.task.due_at %}<span class="fb-badge {% if c.overdue %}fb-badge-error{% else %}fb-badge-neutral{% endif %}"><span class="font-technical">{{ c.task.due_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>{% endif %}
                     {% if c.total %}<span data-task-progress>{{ c.done_count|fa_digits }} از {{ c.total|fa_digits }}</span>{% endif %}
                 </span>

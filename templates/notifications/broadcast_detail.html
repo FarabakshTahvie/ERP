@@ -8,7 +8,7 @@
             <a href="{% url 'notifications:broadcast_history' %}" class="link link-hover text-sm fb-muted">بازگشت به تاریخچه</a>
             <h1 class="fb-page-title mt-2">{{ broadcast.title|default:broadcast.body|truncatechars:40 }}</h1>
             <p class="fb-page-sub">
-                {{ broadcast.created_by.get_full_name|default:broadcast.created_by.username|default:"—" }} ·
+                {{ broadcast.created_by|person_name:"—" }} ·
                 <span class="font-technical">{{ broadcast.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
                 {% if broadcast.is_test %} · <span class="fb-badge fb-badge-neutral">آزمایشی</span>{% endif %}
                 {% if broadcast.is_dry_run %} · <span class="fb-badge fb-badge-neutral">بدون تماس بیرونی</span>{% endif %}
