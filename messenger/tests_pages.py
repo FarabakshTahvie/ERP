@@ -23,3 +23,23 @@ class PageTests(Base):
         html = self.login(self.t2).get(reverse("messenger:chat", args=[self.main.pk])).content.decode("utf-8")
         self.assertNotIn("<script>alert(1)</script>", html)
         self.assertIn("\\u003Cscript\\u003Ealert(1)\\u003C/script\\u003E", html)
+
+
+class ViewportHeightTests(Base):
+    GOOD = "h-[var(--fb-app-h,100dvh)]"
+    BAD = "h-dvh"
+
+    def test_messenger_pages_use_the_measured_height(self):
+        pages = (reverse("messenger:inbox"), reverse("messenger:chat", args=[self.main.pk]),
+                 reverse("messenger:tasks"))
+        for url in pages:
+            html = self.login(self.t1).get(url).content.decode("utf-8")
+            self.assertIn(self.GOOD, html, url)
+            self.assertNotIn(self.BAD, html, url)
+
+    def test_base_measures_real_height_and_follows_the_keyboard(self):
+        html = self.login(self.t1).get(reverse("messenger:inbox")).content.decode("utf-8")
+        self.assertIn("--fb-app-h", html)
+        self.assertIn("window.innerHeight", html)
+        self.assertIn("interactive-widget=resizes-content", html)
+

@@ -3,7 +3,7 @@
 <html lang="fa" dir="rtl" class="h-full scroll-smooth" data-theme="farabakhsh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
     <title>{% block title %}فرابخش تهویه{% endblock %}</title>
@@ -33,6 +33,17 @@
                 if (/[?&]fbstandalone=1(&|$)/.test(location.search)) sessionStorage.setItem('fb_standalone', '1');   // فقط برای تست در مرورگر
                 if (standalone || sessionStorage.getItem('fb_standalone') === '1') document.documentElement.classList.add('fb-standalone');
             } catch (e) {}
+        })();
+    </script>
+    <script>
+        (function () {
+            var root = document.documentElement;
+            function setHeight() { root.style.setProperty('--fb-app-h', window.innerHeight + 'px'); }
+            setHeight();
+            window.addEventListener('resize', setHeight);
+            window.addEventListener('orientationchange', setHeight);
+            window.addEventListener('pageshow', setHeight);
+            window.addEventListener('load', setHeight);
         })();
     </script>
 
