@@ -318,3 +318,8 @@ def statement(request):
         "payments": payments, "pending_total": pending_total,
         "paid_total": sum((i.paid_amount for i in debts), 0),
     })
+
+
+def bank_cards_public(request):
+    """صفحهی عمومی کارتها؛ عمداً بدون ورود (تصمیم کاربر)."""
+    return render(request, "finance/bank_cards.html")

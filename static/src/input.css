@@ -12,6 +12,7 @@
 @source "../js/money_input.js";
 @source "../js/voice_note.js";
 @source "../js/stage_usage.js";
+@source "../js/bank_cards.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
@@ -272,6 +273,28 @@
   .fb-dot-done  { background: var(--color-success); color: var(--color-success-content); border-color: transparent; }
   .fb-dot-active { background: var(--color-info); color: var(--color-info-content); border-color: transparent; }
   .fb-dot-warn  { background: var(--color-warning); color: var(--color-warning-content); border-color: transparent; }
+
+  /* --- کارتهای بانکی --- */
+  .fb-bankcards-track {
+    display: flex; gap: .75rem; overflow-x: auto; scroll-snap-type: x mandatory;
+    scrollbar-width: none; padding-block: .25rem;
+  }
+  .fb-bankcards-track::-webkit-scrollbar { display: none; }
+  .fb-bankcard {
+    --c1: #2f3b4d; --c2: #64748b;
+    position: relative; overflow: hidden;
+    flex: 0 0 100%; min-width: 0; scroll-snap-align: center; min-height: 12rem;
+    display: flex; flex-direction: column; justify-content: space-between; gap: .75rem;
+    padding: 1rem 1.1rem; color: #fff; border-radius: var(--radius-box);
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+  }
+  .fb-bankcard::before, .fb-bankcard::after {
+    content: ""; position: absolute; border-radius: 9999px; pointer-events: none;
+    background: rgb(255 255 255 / .09);
+  }
+  .fb-bankcard::before { width: 10rem; height: 10rem; top: -3.5rem; inset-inline-end: -3rem; }
+  .fb-bankcard::after { width: 7rem; height: 7rem; bottom: -3rem; inset-inline-start: -2rem; }
+  .fb-bankcard > * { position: relative; }
 }
 
 /* ------------------------------------------------------------

@@ -8,6 +8,8 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from core.models import TimeStampedModel
+from django.core.exceptions import ValidationError
+from .bank_cards import BANKS, BANK_CHOICES, is_valid_card, is_valid_sheba, normalize_card, normalize_sheba
 
 
 class Invoice(TimeStampedModel):
@@ -222,3 +224,61 @@ class ChequeEvent(models.Model):
         verbose_name = "رویداد چک"
         verbose_name_plural = "رویدادهای چک"
         ordering = ["created_at", "id"]
+
+
+class BankCard(TimeStampedModel):
+    """کارت بانکی خودِ شرکت؛ برای نمایش به مشتری در پرداخت کارت به کارت و صفحهی عمومی."""
+    bank = models.CharField(max_length=20, choices=BANK_CHOICES, default="other", verbose_name="بانک")
+    other_bank_name = models.CharField(max_length=60, blank=True, verbose_name="نام بانک (وقتی «سایر» است)")
+    holder_name = models.CharField(max_length=120, verbose_name="نام صاحب کارت")
+    card_number = models.CharField(max_length=32, unique=True, verbose_name="شماره کارت")
+    sheba = models.CharField(max_length=40, blank=True, verbose_name="شماره شبا")
+    is_active = models.BooleanField(default=True, verbose_name="نمایش داده شود")
+    order = models.PositiveSmallIntegerField(default=0, verbose_name="ترتیب نمایش")
+
+    class Meta:
+        verbose_name = "کارت بانکی"
+        verbose_name_plural = "کارتهای بانکی"
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.bank_display} — {self.holder_name}"
+
+    def _spec(self):
+        return BANKS.get(self.bank, BANKS["other"])
+
+    @property
+    def bank_display(self):
+        if self.bank == "other":
+            return self.other_bank_name.strip() or BANKS["other"][0]
+        return self._spec()[0]
+
+    @property
+    def colors(self):
+        return self._spec()[1:]
+
+    @property
+    def groups(self):
+        number = self.card_number
+        return [number[i:i + 4] for i in range(0, len(number), 4)]
+
+    def _normalize(self):
+        self.card_number = normalize_card(self.card_number)
+        self.sheba = normalize_sheba(self.sheba)
+        self.holder_name = " ".join((self.holder_name or "").split())
+
+    def clean(self):
+        self._normalize()
+        errors = {}
+        if not is_valid_card(self.card_number):
+            errors["card_number"] = "شماره کارت باید ۱۶ رقم و معتبر باشد."
+        if self.sheba and not is_valid_sheba(self.sheba):
+            errors["sheba"] = "شماره شبا معتبر نیست (IR و ۲۴ رقم)."
+        if self.bank == "other" and not self.other_bank_name.strip():
+            errors["other_bank_name"] = "نام بانک را بنویسید."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self._normalize()
+        super().save(*args, **kwargs)

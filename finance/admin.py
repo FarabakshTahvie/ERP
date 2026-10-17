@@ -6,8 +6,9 @@ from django.contrib import messages
 from django.utils import timezone
 from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
+from core.capabilities import can
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
-from .models import Invoice, InvoiceLine, Payment
+from .models import Invoice, InvoiceLine, Payment, BankCard
 from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line, PROOF_METHODS
 from .forms import AddInvoiceLineForm, PaymentInlineForm
 
@@ -156,5 +157,30 @@ class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
                 f"{skipped} پرداخت نیاز به بررسی رسید و ثبت مبلغ دارد؛ آن‌ها را از صفحه‌ی «پرداخت‌ها» تایید کنید.",
                 level='warning',
             )
+
+
+@admin.register(BankCard)
+class BankCardAdmin(ModelAdmin):
+    list_display = ("bank_display", "holder_name", "card_number", "is_active", "order")
+    list_editable = ("is_active", "order")
+    list_filter = ("is_active", "bank")
+    search_fields = ("holder_name", "card_number", "other_bank_name")
+    ordering = ("order", "id")
+    fields = ("bank", "other_bank_name", "holder_name", "card_number", "sheba", "is_active", "order")
+
+    def has_module_permission(self, request):
+        return can(request.user, "admin.panel")
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return self.has_module_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self.has_module_permission(request)
 
 
