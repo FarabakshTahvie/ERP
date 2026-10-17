@@ -274,8 +274,3 @@ def my_panel(request):
     _technician_only(request)
     return render_table(request, panel_context(request, done=False), template="tasks/partials/my_tasks_panel.html")
 
-
-@login_required
-def my_done_panel(request):
-    _technician_only(request)
-    return render_table(request, panel_context(request, done=True), template="tasks/partials/my_tasks_panel.html")

@@ -16,5 +16,4 @@ urlpatterns = [
     path("<int:task_id>/check/", views.task_check, name="check"),
     path("<int:task_id>/submit/", views.task_submit, name="submit"),
     path("my/panel/", views.my_panel, name="my_panel"),
-    path("my/done-panel/", views.my_done_panel, name="done_panel"),
 ]

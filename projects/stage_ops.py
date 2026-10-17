@@ -130,11 +130,6 @@ def upload_requirement(stage):
     return None
 
 
-def cut_files(project):
-    return (ProjectFile.objects.filter(stage__project=project, stage__kind=StageKind.GCODE, cut_count__gt=0)
-            .order_by("created_at", "pk"))
-
-
 def _with_files(qs):
     files = ProjectFile.objects.select_related("uploaded_by").order_by("created_at", "pk")
     groups = list(qs.select_related("cut_done_by").prefetch_related(

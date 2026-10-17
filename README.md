@@ -7,7 +7,7 @@
 ## پیش‌نیازها
 - Python 3.12+
 - PostgreSQL
-- Redis (برای کش)
+- Redis (کش و صف Celery)
 - Node.js + pnpm (برای Tailwind)
 - کتابخانه‌های سیستم‌عاملی برای خروجی PDF (در Ubuntu: `sudo apt install libpango-1.0-0 libpangoft2-1.0-0`)
 
@@ -22,11 +22,6 @@
   - `DEPLOY_PORT`
   - `DEPLOY_USER`
   - `DEPLOY_SSH_KEY`
-
-## فعال‌سازی نجوا (Push Notification) و پیامک آزاد
-1. مقادیر `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در فایل `.env` تنظیم کنید.
-2. متغیر `NAJVA_ENABLED=True` (برای پوش) و `SMS_FREE_TEXT_ENABLED=True` (برای پیامک آزاد از پنل ارسال) را در صورت نیاز در `.env` فعال کنید.
-3. دستور `python manage.py najva_check` را برای تست اتصال اجرا نمایید.
 
 ## استقرار روی سرور (Production Deployment)
 سرور واقعی با GitHub Actions دیپلوی می‌شود (بخش CI/CD). دامنه: `farabakhshtahvieh.com`.
@@ -44,9 +39,10 @@
    proxy_set_header X-Forwarded-Proto $scheme;
    proxy_set_header X-Forwarded-For $remote_addr;
    ```
-4. کرون‌جاب ارسال پیامک‌های جایگزین (هر ۵ دقیقه):
-   ```cron
-   */5 * * * * /path/to/venv/bin/python /path/to/manage.py process_notification_fallbacks
+4. سرویس‌های Celery (worker و beat) را `deploy/update.sh` خودش نصب و ریاستارت می‌کند؛ کرون لازم نیست. بعد از deployی که گردش‌کار یا سیاست اعلان را عوض کرده، یک‌بار:
+   ```bash
+   python manage.py setup_workflow_v3 --make-default
+   python manage.py setup_notification_policies
    ```
 
 ## راه‌اندازی اولیه
@@ -92,7 +88,7 @@ python manage.py seed_demo_data
 
 ترتیب وابستگی اپ‌ها (برای جلوگیری از import چرخه‌ای):
 ```
-core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks
+core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks → messenger
 ```
 
 ## نقش‌های کاربری
@@ -109,6 +105,7 @@ core → accounts → catalog → inventory → projects → finance → notific
 6. رد شدن یک مرحله: اگر `on_reject_go_to` تعریف شده باشد خودکار برمی‌گردد؛ اگر نه، پروژه «معلق» می‌شود تا مدیر تصمیم بگیرد (بازگشت به چرخه یا لغو کامل).
 7. مبلغ پرداخت‌های دارای رسید (کارت به کارت، رسید واریز، چک) را همیشه کارشناس از روی رسید می‌نویسد؛ مبلغ واردشده‌ی مشتری فقط «اعلامی» است (`Payment.claimed_amount`). هیچ مسیری نباید چنین پرداختی را بدون مبلغ تاییدشده‌ی کارشناس تایید کند. قوانین ثبت پرداخت فقط در `finance/services.py` (`create_customer_payment`, `approve_payment`) هستند.
 8. هر تصمیم دسترسی فقط در `core/capabilities.py` تعریف و اعمال می‌شود. مقایسه‌ی مستقیم نقش یا `is_staff` ممنوع است.
+9. وضعیت چک (تحویل‌گرفته‌شده، واگذار به بانک، خرج‌شده، ...) داخلی است؛ مشتری فقط «چک برگشت خورد» و «چک عودت داده شد» را می‌بیند. «پول واقعی» فقط با `finance.services.counted_payments` تعریف می‌شود و چک برگشتی یا عودت‌شده در پرداخت‌شده نمی‌آید.
 
 ## فعال‌سازی نجوا (پوش) و پیامک آزاد
 1. `NAJVA_API_KEY` و `NAJVA_WEBSITE_ID` را در `.env` بگذارید.
