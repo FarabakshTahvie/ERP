@@ -1,0 +1,39 @@
+{% load custom_tags %}
+{% if cards %}
+<div class="mx-auto w-full max-w-sm" data-bankcards>
+    <div class="fb-bankcards-track" data-track tabindex="0" role="region" aria-label="کارتهای بانکی">
+        {% for c in cards %}
+        <article class="fb-bankcard" style="--c1: {{ c.colors.0 }}; --c2: {{ c.colors.1 }};">
+            <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="text-sm font-bold truncate">{{ c.bank_display }}</div>
+                    <div class="text-xs opacity-80 truncate">{{ c.holder_name }}</div>
+                </div>
+                {% if c.logo %}<img src="{{ c.logo }}" alt="" class="w-10 h-10 shrink-0 object-contain bg-white rounded-field p-1">{% else %}{% icon "credit-card" "w-7 h-7 shrink-0 opacity-80" %}{% endif %}
+            </div>
+            <div class="flex items-center justify-between gap-2" dir="ltr">
+                <span class="select-all font-technical text-lg sm:text-xl font-semibold tracking-wide">{% for g in c.groups %}<span class="mx-1">{{ g }}</span>{% endfor %}</span>
+                <button type="button" class="btn btn-ghost btn-xs btn-square text-white shrink-0" data-copy="{{ c.card_number }}" aria-label="کپی شماره کارت">{% icon "copy" "w-4 h-4" %}</button>
+            </div>
+            {% if c.sheba %}
+            <div class="flex items-center justify-between gap-2" dir="ltr">
+                <span class="select-all font-technical text-sm break-all">{{ c.sheba }}</span>
+                <button type="button" class="btn btn-ghost btn-xs btn-square text-white shrink-0" data-copy="{{ c.sheba }}" aria-label="کپی شماره شبا">{% icon "copy" "w-4 h-4" %}</button>
+            </div>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% if cards|length > 1 %}
+    <div class="flex items-center justify-center gap-3 mt-3">
+        <button type="button" class="btn btn-ghost btn-sm btn-square" data-slide="-1" aria-label="کارت قبلی">{% icon "arrow-right" "w-4 h-4" %}</button>
+        <div class="flex items-center gap-1.5">
+            {% for c in cards %}<span data-dot class="w-2 h-2 rounded-full {% if forloop.first %}bg-primary{% else %}bg-base-content/20{% endif %}"></span>{% endfor %}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm btn-square" data-slide="1" aria-label="کارت بعدی">{% icon "arrow-right" "w-4 h-4 rotate-180" %}</button>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<p class="fb-hint">هنوز کارتی ثبت نشده است؛ با دفتر تماس بگیرید.</p>
+{% endif %}

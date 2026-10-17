@@ -1,4 +1,4 @@
-{% load custom_tags %}
+{% load custom_tags finance_tags %}
 <div class="flex flex-col gap-4" id="payment-fields">
     <div class="fb-field">
         <label class="fb-label" for="payment-method">روش پرداخت</label>
@@ -9,6 +9,11 @@
             <option value="cheque">چک</option>
             <option value="credit">اعتباری (پرداخت بعداً)</option>
         </select>
+    </div>
+
+    <div id="bank-cards-box" class="hidden">
+        {% bank_cards_slider %}
+        <p class="fb-hint mt-2">بعد از پرداخت، تصویر رسید یا شماره پیگیری را در همین فرم ثبت کنید.</p>
     </div>
 
     <div class="fb-field">
@@ -68,6 +73,8 @@ function fbTogglePaymentFields(method) {
     function el(id) { return document.getElementById(id); }
 
     el('receipt-field').classList.toggle('hidden', !proof);
+    var cardsBox = el('bank-cards-box');
+    if (cardsBox) cardsBox.classList.toggle('hidden', !isCard);
     el('receipt-input').required = fileRequired;
     el('receipt-label').textContent = isCheque ? 'تصویر چک (اجباری)' : (isCard ? 'تصویر رسید' : 'تصویر رسید (اجباری)');
     el('either-hint').classList.toggle('hidden', !isCard);

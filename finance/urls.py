@@ -29,6 +29,7 @@ urlpatterns = [
     path("portal/invoices/<uuid:invoice_uuid>/pdf/", views.invoice_pdf, name="portal_invoice_pdf"),
     path("portal/invoices/<uuid:invoice_uuid>/add-payment/", views.add_payment, name="portal_add_payment"),
     path("portal/statement/", views.statement, name="portal_statement"),
+    path("bank-cards/", views.bank_cards_public, name="bank_cards"),
     path("payments/", views.payments_review, name="payments_review"),
     path("payments/table/", views.payments_table, name="payments_table"),
     path("payments/<int:payment_id>/", views.payment_detail, name="payment_detail"),

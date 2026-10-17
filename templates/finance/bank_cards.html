@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load finance_tags %}
+{% block title %}کارتهای بانکی | فرابخش تهویه{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <h1 class="fb-page-title">کارتهای بانکی فرابخش تهویه</h1>
+        <p class="fb-page-sub">برای پرداخت کارت به کارت، شماره را کپی کنید. بعد از پرداخت، رسید را در پرتال ثبت کنید.</p>
+    </div>
+    {% bank_cards_slider %}
+</div>
+{% endblock %}
