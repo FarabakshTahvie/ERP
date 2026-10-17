@@ -19,7 +19,6 @@ class NotificationType(models.TextChoices):
     MANUAL = "manual", "پیام دستی"
     STAGE_APPROVAL_REQUEST = "stage_approval_request", "درخواست تایید مرحله"
     STAGE_ASSIGNED = "stage_assigned", "کار جدید"
-    PART_REQUEST = "part_request", "درخواست قطعه"
     BROADCAST = "broadcast", "پیام همگانی"
     TASK_ASSIGNED = "task_assigned", "وظیفه‌ی جدید"
     PAYMENT_CONFIRMED = "payment_confirmed", "تایید پرداخت"

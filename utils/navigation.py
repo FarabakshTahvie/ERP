@@ -104,7 +104,7 @@ NON_PAGE = {
     "projects:my_task_complete", "projects:my_task_transfer", "projects:new_project_party_search",
     "projects:new_project_submit", "projects:portal_project_file",
     "projects:stage_file_upload", "protected_media",
-    "tasks:attachment_delete", "tasks:attachment_upload", "tasks:check", "tasks:done_panel",
+    "tasks:attachment_delete", "tasks:attachment_upload", "tasks:check",
     "tasks:done_table", "tasks:my_panel", "tasks:open_table", "tasks:save", "tasks:submit",
     "utils:dev_test_calendar", "utils:dev_test_design_system", "utils:dev_test_map",
     "utils:register_push_device",
