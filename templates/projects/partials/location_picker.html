@@ -8,8 +8,13 @@
     </div>
     {% else %}
     <div id="new-project-map" style="height: 280px;" class="rounded-field overflow-hidden"></div>
-    <p class="fb-hint">برای ثبت یا تغییر موقعیت، روی نقشه کلیک کنید.</p>
+    <p class="fb-hint">برای ثبت یا تغییر موقعیت، روی نقشه کلیک کنید یا دکمه‌ی «موقعیت من» را بزنید.</p>
     {% endif %}
+    <div class="flex flex-wrap items-center gap-2">
+        <button type="button" data-my-location class="btn btn-soft btn-sm">{% icon "map-pin" "w-4 h-4" %} موقعیت من</button>
+        <span data-loc-readout dir="ltr" class="text-xs fb-muted font-technical">{% if lat and lng %}{{ lat }}, {{ lng }}{% endif %}</span>
+    </div>
+    <p class="fb-error hidden" data-loc-error></p>
     <input type="hidden" name="latitude" id="id_latitude" value="{{ lat|default:'' }}">
     <input type="hidden" name="longitude" id="id_longitude" value="{{ lng|default:'' }}">
     <div class="fb-field">
@@ -30,6 +35,7 @@
     script.onload = function () {
         var maplibregl = window.maplibregl.default;
         var latEl = document.getElementById('id_latitude'), lngEl = document.getElementById('id_longitude');
+        var out = document.querySelector('[data-loc-readout]');
         var hasInit = !!(latEl.value && lngEl.value);
         var center = hasInit ? [parseFloat(lngEl.value), parseFloat(latEl.value)] : [59.6062, 36.2979];
         var map = new maplibregl.Map({
@@ -40,12 +46,17 @@
         });
         map.addControl(new maplibregl.NavigationControl());
         var marker = hasInit ? new maplibregl.Marker().setLngLat(center).addTo(map) : null;
-        map.on('click', function (e) {
+        function place(lat, lng) {
             if (marker) marker.remove();
-            marker = new maplibregl.Marker().setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-            latEl.value = e.lngLat.lat.toFixed(6);
-            lngEl.value = e.lngLat.lng.toFixed(6);
-        });
+            marker = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
+            latEl.value = lat.toFixed(6);
+            lngEl.value = lng.toFixed(6);
+            if (out) out.textContent = lat.toFixed(6) + ', ' + lng.toFixed(6);
+        }
+        map.on('click', function (e) { place(e.lngLat.lat, e.lngLat.lng); });
+        window.fbLocationMap = {
+            set: function (lat, lng) { place(lat, lng); map.flyTo({ center: [lng, lat], zoom: 16 }); }
+        };
     };
     document.head.appendChild(script);
 })();

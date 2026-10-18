@@ -20,7 +20,7 @@
             <div><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ project.owner|default:project.partner|default:"—" }}</span></div>
             <div><span class="fb-muted">تاریخ بازدید:</span> <span class="font-technical">{{ project.visit_date|to_jalali:"%Y/%m/%d"|default:"—" }}</span></div>
             <div><span class="fb-muted">تاریخ قرارداد:</span> <span class="font-technical">{{ project.contract_date|to_jalali:"%Y/%m/%d"|default:"—" }}</span></div>
-            <div><span class="fb-muted">مکان:</span> {% if project.location.has_exact_coordinates %}<a href="{% map_url project.location.latitude project.location.longitude %}" target="_blank" rel="noopener" class="btn btn-soft btn-sm">{% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه</a>{% else %}<span>{{ project.location.address_text|default:"—" }}</span>{% endif %}</div>
+            <div><span class="fb-muted">مکان:</span> {% if project.location.has_exact_coordinates %}{% include "projects/partials/map_actions.html" with location=project.location %}{% else %}<span>{{ project.location.address_text|default:"—" }}</span>{% endif %}</div>
         </div>
         {% if project.notes %}
         <div class="text-xs pt-2 border-t border-base-300">
@@ -357,6 +357,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static_v 'js/route_link.js' %}"></script>
 <script src="{% static_v 'js/vendor/media-chrome.js' %}"></script>
 <script src="{% static_v 'js/voice_note.js' %}"></script>
 <script src="{% static_v 'js/item_picker.js' %}"></script>

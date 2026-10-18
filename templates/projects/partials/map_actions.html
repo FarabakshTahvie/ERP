@@ -1,0 +1,14 @@
+{% load custom_tags l10n %}
+<div class="flex flex-wrap items-center gap-2">
+    <a href="{% map_url location.latitude location.longitude %}" target="_blank" rel="noopener" class="btn btn-soft btn-sm">
+        {% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه
+    </a>
+    <button type="button" data-route
+            data-dest-lat="{{ location.latitude|unlocalize }}" data-dest-lng="{{ location.longitude|unlocalize }}"
+            data-route-tpl="{% route_template %}"
+            data-mark-url="{% map_url location.latitude location.longitude %}"
+            class="btn btn-soft btn-sm">
+        {% icon "send" "w-4 h-4" %} مسیریابی با ماشین
+    </button>
+    <span data-route-msg class="fb-error hidden"></span>
+</div>

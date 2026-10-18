@@ -97,8 +97,16 @@ def static_v(path):
 @register.simple_tag
 def map_url(lat, lng):
     from django.conf import settings
-    template = getattr(settings, "MAP_LINK_TEMPLATE", "https://www.google.com/maps?q={lat},{lng}")
+    template = getattr(settings, "MAP_LINK_TEMPLATE", "https://nshn.ir/?lat={lat}&lng={lng}")
     return template.replace("{lat}", str(lat)).replace("{lng}", str(lng))
+
+
+@register.simple_tag
+def route_template():
+    """الگوی لینک مسیریابی با ماشین؛ جای‌نگهدارها را JS با موقعیت کاربر و مقصد پر می‌کند."""
+    from django.conf import settings
+    return getattr(settings, "ROUTE_LINK_TEMPLATE",
+                   "https://nshn.ir?origin={olat},{olng}&destination={dlat},{dlng}&vehicle=d")
 
 
 @register.simple_tag(takes_context=True)
