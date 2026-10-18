@@ -284,7 +284,7 @@ class BankCard(TimeStampedModel):
         if self.cvv2 and not is_valid_cvv2(self.cvv2):
             errors["cvv2"] = "CVV2 باید ۳ یا ۴ رقم باشد."
         if self.expiry and not is_valid_expiry(self.expiry):
-            errors["expiry"] = "تاریخ انقضا را مثل ۰۵/۰۸ (سال/ماه) بنویسید."
+            errors["expiry"] = "تاریخ انقضا معتبر نیست؛ مثل ۰۵/۰۸ بنویسید."
         if self.bank == "other" and not self.other_bank_name.strip():
             errors["other_bank_name"] = "نام بانک را بنویسید."
         if errors:

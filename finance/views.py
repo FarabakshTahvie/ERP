@@ -19,9 +19,9 @@ from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
 from utils.utils import separate_digits
 from .aging import debt_invoices, get_customer_aging_data
-from .models import CHEQUE_ACTIVE, Invoice, Payment
+from .models import CHEQUE_ACTIVE, BankCard, Invoice, Payment
 from .services import (
-    approve_payment, reject_payment, create_customer_payment, create_bank_card, PROOF_METHODS,
+    approve_payment, reject_payment, create_customer_payment, create_bank_card, update_bank_card, set_bank_card_active, delete_bank_card, PROOF_METHODS,
     CHEQUE_REASON_REQUIRED, CHEQUE_TRANSITIONS, cheque_due_warning, set_cheque_status, update_cheque_info,
     CHEQUE_SOON_DAYS, cheque_soon_q,
 )
@@ -321,10 +321,14 @@ def statement(request):
     })
 
 
-@cap_required("bank_cards.manage")
+@login_required
 def bank_cards_page(request):
-    """فقط مدیر و حسابدار (ناشناس ← ورود، بقیه ← ۴۰۴). CVV2 و انقضا فقط همین‌جا و در همین نقش‌ها دیده می‌شود."""
-    return render(request, "finance/bank_cards.html", {"bank_choices": BANK_CHOICES})
+    """هر کاربر واردشده شماره و شبا را می‌بیند. CVV2، انقضا و مدیریت کارت‌ها فقط با bank_cards.manage."""
+    manage = can(request.user, "bank_cards.manage")
+    return render(request, "finance/bank_cards.html", {
+        "bank_choices": BANK_CHOICES, "can_manage": manage,
+        "all_cards": list(BankCard.objects.all()) if manage else [],
+    })
 
 
 @cap_required("bank_cards.manage")
@@ -337,6 +341,44 @@ def bank_card_create(request):
             holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
             sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
             expiry=request.POST.get("expiry", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_update(request, card_id):
+    try:
+        update_bank_card(
+            actor=request.user, card_id=card_id, bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_active(request, card_id):
+    raw = request.POST.get("active")
+    try:
+        if raw not in ("0", "1"):
+            raise ValueError("مقدار نامعتبر است.")
+        set_bank_card_active(actor=request.user, card_id=card_id, active=raw == "1")
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_delete(request, card_id):
+    try:
+        delete_bank_card(actor=request.user, card_id=card_id)
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     return JsonResponse({"ok": True})

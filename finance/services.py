@@ -616,3 +616,56 @@ def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="
     card.save()
     return card
 
+
+def _require_bank_card_manager(actor):
+    from core.capabilities import can
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار به کارت‌های بانکی دسترسی دارد.")
+
+
+def _locked_bank_card(card_id):
+    try:
+        return BankCard.objects.select_for_update(of=("self",)).get(pk=int(card_id))
+    except (TypeError, ValueError, BankCard.DoesNotExist):
+        raise ValueError("کارت پیدا نشد.")
+
+
+@transaction.atomic
+def update_bank_card(*, actor, card_id, bank, holder_name, card_number, other_bank_name="",
+                     sheba="", cvv2="", expiry=""):
+    """ویرایش کارت. فیلد خالی یعنی پاک‌شدن (فرم همیشه همه‌ی فیلدها را می‌فرستد). ترتیب و وضعیت فعال دست نمی‌خورد."""
+    from django.core.exceptions import ValidationError
+    _require_bank_card_manager(actor)
+    card = _locked_bank_card(card_id)
+    card.bank = (bank or "").strip()
+    card.other_bank_name = (other_bank_name or "").strip()
+    card.holder_name = holder_name or ""
+    card.card_number = card_number or ""
+    card.sheba = sheba or ""
+    card.cvv2 = cvv2 or ""
+    card.expiry = expiry or ""
+    try:
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
+
+
+@transaction.atomic
+def set_bank_card_active(*, actor, card_id, active):
+    """صریح و idempotent (نه toggle). کارت غیرفعال از فرم پرداخت مشتری بیرون می‌رود."""
+    _require_bank_card_manager(actor)
+    card = _locked_bank_card(card_id)
+    if card.is_active != bool(active):
+        card.is_active = bool(active)
+        card.save(update_fields=["is_active", "updated_at"])
+    return card
+
+
+@transaction.atomic
+def delete_bank_card(*, actor, card_id):
+    _require_bank_card_manager(actor)
+    _locked_bank_card(card_id).delete()
+

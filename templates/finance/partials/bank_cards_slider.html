@@ -25,7 +25,7 @@
             <div class="flex items-center justify-between gap-3">
                 {% if c.expiry %}
                 <div class="flex items-center gap-1.5" dir="ltr">
-                    <span class="text-xs opacity-80" dir="rtl">انقضا (سال/ماه)</span>
+                    <span class="text-xs opacity-80" dir="rtl">انقضا</span>
                     <span class="select-all font-technical text-sm">{{ c.expiry }}</span>
                 </div>
                 {% endif %}
@@ -52,5 +52,5 @@
     {% endif %}
 </div>
 {% else %}
-<p class="fb-hint">هنوز کارتی ثبت نشده است؛ با دفتر تماس بگیرید.</p>
+<p class="fb-hint">هنوز کارتی ثبت نشده{% if show_secrets %}.{% else %}؛ با دفتر تماس بگیرید.{% endif %}</p>
 {% endif %}

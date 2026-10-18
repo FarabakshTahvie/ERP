@@ -5,66 +5,89 @@
 <div class="fb-page fb-page--sm">
     <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
-            <h1 class="fb-page-title">کارت‌های بانکی فرابخش تهویه</h1>
-            <p class="fb-page-sub">فقط مدیر و حسابدار این صفحه را می‌بینند. CVV2 و تاریخ انقضا فقط همین‌جا دیده می‌شود و در فرم پرداخت مشتری نمی‌آید.</p>
+            <h1 class="fb-page-title">کارت‌های بانکی</h1>
+            {% if not can_manage %}<p class="fb-page-sub">برای کارت به کارت، شماره را کپی کنید و رسید را در پرتال ثبت کنید.</p>{% endif %}
         </div>
+        {% if can_manage %}
         <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bankcard-dialog').showModal()">
             {% icon "plus" "w-4 h-4" %} افزودن کارت
         </button>
+        {% endif %}
     </div>
+
     {% bank_cards_slider %}
+
+    {% if can_manage and all_cards %}
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <h2 class="fb-section-title">همه‌ی کارت‌ها</h2>
+        {% for c in all_cards %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+            <div class="min-w-0">
+                <div class="text-sm font-semibold truncate">{{ c.bank_display }} <span dir="ltr" class="font-technical fb-muted">{{ c.card_number|slice:"-4:" }}</span></div>
+                <div class="text-xs fb-muted truncate">{{ c.holder_name }}</div>
+            </div>
+            <div class="flex items-center gap-1 flex-wrap">
+                <span class="fb-badge {% if c.is_active %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{% if c.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
+                <button type="button" class="btn btn-ghost btn-xs" data-bankcard-edit
+                        data-url="{% url 'finance:bank_card_update' c.id %}" data-bank="{{ c.bank }}" data-other="{{ c.other_bank_name }}"
+                        data-holder="{{ c.holder_name }}" data-number="{{ c.card_number }}" data-sheba="{{ c.sheba }}"
+                        data-cvv2="{{ c.cvv2 }}" data-expiry="{{ c.expiry }}">ویرایش</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-bankcard-active
+                        data-url="{% url 'finance:bank_card_active' c.id %}" data-next="{% if c.is_active %}0{% else %}1{% endif %}">{% if c.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+                <button type="button" class="btn btn-soft btn-error btn-xs" data-bankcard-delete
+                        data-url="{% url 'finance:bank_card_delete' c.id %}" data-label="{{ c.bank_display }} {{ c.card_number|slice:'-4:' }}">حذف</button>
+            </div>
+        </div>
+        {% endfor %}
+        <p class="fb-error hidden" data-bankcard-list-error></p>
+    </section>
+    {% endif %}
 </div>
 
+{% if can_manage %}
 <dialog id="bankcard-dialog" class="modal">
     <div class="modal-box max-w-sm">
-        <h3 class="font-bold text-base mb-1">کارت بانکی تازه</h3>
-        <p class="text-xs fb-muted mb-4">با «ثبت کارت»، کارت همان لحظه ثبت و در فهرست نمایش داده می‌شود.</p>
+        <h3 class="font-bold text-base mb-4">کارت جدید</h3>
         <form method="post" action="{% url 'finance:bank_card_create' %}" data-bankcard-form class="flex flex-col gap-3">
             {% csrf_token %}
-            <div class="fb-field">
-                <label class="fb-label" for="bc-bank">بانک</label>
-                <select id="bc-bank" name="bank" required class="select w-full">
-                    {% for value, label in bank_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="hidden" data-other-bank>
-                <div class="fb-field">
-                    <label class="fb-label" for="bc-other">نام بانک</label>
-                    <input type="text" id="bc-other" name="other_bank_name" maxlength="60" class="input w-full">
-                </div>
-            </div>
-            <div class="fb-field">
-                <label class="fb-label" for="bc-holder">نام صاحب کارت</label>
-                <input type="text" id="bc-holder" name="holder_name" required maxlength="120" class="input w-full">
-            </div>
-            <div class="fb-field">
-                <label class="fb-label" for="bc-number">شماره کارت</label>
-                <input type="text" id="bc-number" name="card_number" required data-money dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
-            </div>
-            <div class="fb-field">
-                <label class="fb-label" for="bc-sheba">شماره شبا (در صورت نیاز)</label>
-                <input type="text" id="bc-sheba" name="sheba" dir="ltr" autocomplete="off" placeholder="IR..." class="input w-full font-technical">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="fb-field">
-                    <label class="fb-label" for="bc-cvv2">CVV2 (در صورت نیاز)</label>
-                    <input type="text" id="bc-cvv2" name="cvv2" data-money maxlength="4" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
-                </div>
-                <div class="fb-field">
-                    <label class="fb-label" for="bc-expiry">تاریخ انقضا (در صورت نیاز)</label>
-                    <input type="text" id="bc-expiry" name="expiry" maxlength="10" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="۰۵/۰۸" class="input w-full font-technical">
-                </div>
-            </div>
-            <span class="fb-hint">تاریخ انقضا را مثل روی کارت بنویسید: سال/ماه (مثلاً ۰۵/۰۸).</span>
-            <p class="fb-error hidden" data-bankcard-error></p>
+            {% include "finance/partials/bank_card_fields.html" with prefix="bc" %}
             <div class="flex gap-2 pt-1">
-                <button type="submit" class="btn btn-primary flex-1">ثبت کارت</button>
+                <button type="submit" class="btn btn-primary flex-1">ثبت</button>
                 <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
             </div>
         </form>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
+
+<dialog id="bankcard-edit-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-4">ویرایش کارت</h3>
+        <form method="post" data-bankcard-form class="flex flex-col gap-3">
+            {% csrf_token %}
+            {% include "finance/partials/bank_card_fields.html" with prefix="be" %}
+            <div class="flex gap-2 pt-1">
+                <button type="submit" class="btn btn-primary flex-1">ذخیره</button>
+                <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="bankcard-delete-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">حذف کارت</h3>
+        <p class="text-sm">کارت <span data-delete-label class="font-semibold"></span> حذف شود؟ برگشت ندارد.</p>
+        <p class="fb-error hidden mt-2" data-delete-error></p>
+        <div class="flex gap-2 pt-4">
+            <button type="button" class="btn btn-soft btn-error flex-1" data-delete-ok>حذف</button>
+            <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
 {% endblock %}
 {% block extra_js %}
 <script src="{% static_v 'js/uploader.js' %}"></script>
