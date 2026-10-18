@@ -4,12 +4,17 @@
     <div class="flex items-center justify-between gap-2">
         <h2 class="fb-section-title">ردیف‌های کالای خریداری‌شده</h2>
         <div class="flex gap-2">
+            {% if caps.inventory_manage %}
             <button type="button" id="open-quick-item" class="btn btn-ghost btn-sm">{% icon "package" "w-4 h-4" %} کالای جدید</button>
+            {% endif %}
             <button type="button" id="add-purchase-row" class="btn btn-soft btn-sm ">{% icon "plus" "w-4 h-4" %}افزودن </button>
         </div>
     </div>
     <div id="purchase-rows" class="flex flex-col gap-2"></div>
     <p id="purchase-empty" class="fb-hint">هنوز ردیفی اضافه نشده.</p>
+    {% if not caps.inventory_manage %}
+    <p class="fb-hint">اگر کالا در فهرست نیست، انباردار یا حسابدار باید اول آن را بسازد.</p>
+    {% endif %}
     <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
         <span>جمع کل خرید</span>
         <span class="font-technical" id="purchase-grand-total">۰</span>

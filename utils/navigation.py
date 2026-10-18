@@ -74,6 +74,7 @@ PAGE_PARENTS = {
 
 # صفحه‌های چندورودی؛ لینک به آن‌ها باید ?next بگیرد.
 MULTI_ENTRY = {
+    "inventory:purchase_new",
     "projects:staff_project_overview", "finance:accounting_project", "finance:payment_detail",
     "finance:portal_invoice_detail", "people:user_detail", "people:party_detail",
     "projects:final_review", "projects:portal_stage_approval", "notifications:broadcast_detail",

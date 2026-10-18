@@ -3,9 +3,14 @@
 {% block title %}مرکز حسابداری | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--lg">
-    <div>
-        <h1 class="fb-page-title">مرکز حسابداری</h1>
-        <p class="fb-page-sub">پروژه‌ها، پرداخت‌ها و حرکات انبار در یک‌جا.</p>
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">مرکز حسابداری</h1>
+            <p class="fb-page-sub">پروژه‌ها، پرداخت‌ها و حرکات انبار در یک‌جا.</p>
+        </div>
+        {% if caps.purchases_create %}
+        <a href="{% nav_url 'inventory:purchase_new' %}" class="btn btn-soft btn-sm">{% icon "receipt" "w-4 h-4" %} ثبت خرید</a>
+        {% endif %}
     </div>
     {% include "finance/partials/accounting_nav.html" %}
 
