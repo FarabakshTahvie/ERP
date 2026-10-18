@@ -140,7 +140,7 @@
     <section class="fb-card fb-pad flex flex-col gap-3" id="accountant-payment">
         <h2 class="fb-section-title">ثبت پرداخت</h2>
         <p class="fb-hint">برای پولی که مشتری حضوری یا خارج از پرتال داده. چون خودتان تایید می‌کنید، مستقیم «تاییدشده» ثبت می‌شود. مانده‌ی فاکتور: <span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان.</p>
-        <form method="post" action="{% url 'finance:accounting_add_payment' project.id %}" enctype="multipart/form-data" id="acc-payment-form" data-fb-once class="flex flex-col gap-3">
+        <form method="post" action="{% url 'finance:accounting_add_payment' project.id %}" enctype="multipart/form-data" id="acc-payment-form" data-fb-once data-upload-progress class="flex flex-col gap-3">
             {% csrf_token %}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="fb-field">

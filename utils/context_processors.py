@@ -27,6 +27,7 @@ def site_info(request):
         "CONTACT": settings.COMPANY_CONTACT,
         "NAJVA_ENABLED": settings.NAJVA_ENABLED,
         "NESHAN_API_KEY": getattr(settings, "NESHAN_API_KEY", ""),
+        "fb_upload_request": request.headers.get("X-FB-Upload") == "1",   # فرم فایل‌دار با XHR می‌رود؛ پیام‌های فلش برای باز شدن واقعی صفحه می‌مانند
     }
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:

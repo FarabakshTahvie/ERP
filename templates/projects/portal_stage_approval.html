@@ -30,7 +30,7 @@
     </div>
     {% if invoice %}<a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm self-start">مشاهده فاکتور</a>{% endif %}
     {% else %}
-    <form method="post" enctype="multipart/form-data" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+    <form method="post" enctype="multipart/form-data" data-fb-once data-upload-progress class="fb-card fb-pad flex flex-col gap-4">
         {% csrf_token %}
         {% if needs_payment and invoice %}
         <input type="hidden" name="seen_total" value="{{ invoice.total_amount|stringformat:'d' }}">

@@ -207,7 +207,7 @@
     </header>
     {% endif %}
 
-    {% if messages %}
+    {% if messages and not fb_upload_request %}
     <div class="toast toast-top toast-center z-50 p-4 space-y-2 max-w-md w-full pointer-events-none">
         {% for message in messages %}
         <div role="alert" class="alert alert-soft {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg animate-shake pointer-events-auto">
@@ -301,6 +301,7 @@
     <script src="{% static_v 'js/jalali_picker.js' %}"></script>
     <script src="{% static_v 'js/money_input.js' %}"></script>
     <script src="{% static_v 'js/bank_cards.js' %}"></script>
+    <script src="{% static_v 'js/upload_progress.js' %}"></script>
     {% block extra_js %}{% endblock %}
 
     {% if request.user.is_authenticated and NAJVA_ENABLED %}

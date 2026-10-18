@@ -15,6 +15,7 @@
 @source "../js/bank_cards.js";
 @source "../js/route_link.js";
 @source "../js/my_location.js";
+@source "../js/upload_progress.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

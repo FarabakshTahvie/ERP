@@ -14,7 +14,7 @@
         <span class="text-xs">بعد از ثبت، کارشناس ما رسید را بررسی و پرداخت را تایید می‌کند. وضعیت را در صفحه‌ی فاکتور می‌بینید.</span>
     </div>
 
-    <form method="post" enctype="multipart/form-data" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+    <form method="post" enctype="multipart/form-data" data-fb-once data-upload-progress class="fb-card fb-pad flex flex-col gap-4">
         {% csrf_token %}
         {% include "finance/partials/payment_fields.html" %}
         <button type="submit" class="btn btn-primary w-full">ثبت پرداخت</button>

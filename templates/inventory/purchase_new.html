@@ -8,7 +8,7 @@
         <p class="fb-page-sub">با ثبت این فرم، موجودی کالاهای زیر بلافاصله در انبار اضافه می‌شود.</p>
     </div>
 
-    <form method="post" enctype="multipart/form-data" id="new-purchase-form" data-fb-once class="space-y-5">
+    <form method="post" enctype="multipart/form-data" id="new-purchase-form" data-fb-once data-upload-progress class="space-y-5">
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
