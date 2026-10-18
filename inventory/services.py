@@ -154,6 +154,10 @@ def user_can_manage_inventory(user):
     return can(user, "inventory.manage")
 
 
+def user_can_create_purchases(user):
+    return can(user, "purchases.create")
+
+
 def low_stock_items_count():
     """تعداد کالاهای فعالی که برایشان حد هشدار تعیین شده (reorder_point > 0) و موجودی به آن حد رسیده یا کمتر شده."""
     return (

@@ -19,7 +19,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from .models import StockLot
 from .services import (
-    user_can_manage_inventory, create_purchase_from_form, record_manual_stock_change,
+    user_can_manage_inventory, user_can_create_purchases, create_purchase_from_form, record_manual_stock_change,
     create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError,
 )
 
@@ -138,7 +138,7 @@ def _extract_supplier_party_data(post):
 
 
 @login_required
-@user_passes_test(user_can_manage_inventory)
+@user_passes_test(user_can_create_purchases)
 def purchase_new(request):
     if request.method == "POST":
         raw_date = (request.POST.get("purchased_at") or "").strip()
