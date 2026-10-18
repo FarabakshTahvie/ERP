@@ -166,7 +166,7 @@ class BankCardAdmin(ModelAdmin):
     list_filter = ("is_active", "bank")
     search_fields = ("holder_name", "card_number", "other_bank_name")
     ordering = ("order", "id")
-    fields = ("bank", "other_bank_name", "holder_name", "card_number", "sheba", "is_active", "order")
+    fields = ("bank", "other_bank_name", "holder_name", "card_number", "sheba", "cvv2", "expiry", "is_active", "order")
 
     def has_module_permission(self, request):
         return can(request.user, "admin.panel")

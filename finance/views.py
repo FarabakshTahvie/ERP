@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import BooleanField, Case, IntegerField, Sum, Value, When
-from django.http import Http404, FileResponse
+from django.http import Http404, FileResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -12,7 +12,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 import weasyprint
 
-from core.capabilities import can
+from core.capabilities import can, cap_required
+from .bank_cards import BANK_CHOICES
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
@@ -20,7 +21,7 @@ from utils.utils import separate_digits
 from .aging import debt_invoices, get_customer_aging_data
 from .models import CHEQUE_ACTIVE, Invoice, Payment
 from .services import (
-    approve_payment, reject_payment, create_customer_payment, PROOF_METHODS,
+    approve_payment, reject_payment, create_customer_payment, create_bank_card, PROOF_METHODS,
     CHEQUE_REASON_REQUIRED, CHEQUE_TRANSITIONS, cheque_due_warning, set_cheque_status, update_cheque_info,
     CHEQUE_SOON_DAYS, cheque_soon_q,
 )
@@ -320,6 +321,22 @@ def statement(request):
     })
 
 
-def bank_cards_public(request):
-    """صفحهی عمومی کارتها؛ عمداً بدون ورود (تصمیم کاربر)."""
-    return render(request, "finance/bank_cards.html")
+@cap_required("bank_cards.manage")
+def bank_cards_page(request):
+    """فقط مدیر و حسابدار (ناشناس ← ورود، بقیه ← ۴۰۴). CVV2 و انقضا فقط همین‌جا و در همین نقش‌ها دیده می‌شود."""
+    return render(request, "finance/bank_cards.html", {"bank_choices": BANK_CHOICES})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_create(request):
+    try:
+        create_bank_card(
+            actor=request.user, bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})

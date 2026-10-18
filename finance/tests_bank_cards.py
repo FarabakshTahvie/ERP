@@ -71,28 +71,6 @@ class BankCardModelTests(TestCase):
         self.assertEqual(len(other.colors), 2)
 
 
-class BankCardPublicPageTests(TestCase):
-    def get(self):
-        resp = Client().get(reverse("finance:bank_cards"))   # بدون ورود
-        self.assertEqual(resp.status_code, 200)
-        return resp.content.decode("utf-8")
-
-    def test_anonymous_sees_only_active_cards_in_order(self):
-        make_card(order=2, holder_name="دوم", card_number=CARD2, sheba="")
-        make_card(order=1, holder_name="اول")
-        make_card(order=0, holder_name="غیرفعال", card_number=CARD3, is_active=False)
-        html = self.get()
-        self.assertLess(html.index(CARD1), html.index(CARD2))
-        self.assertNotIn(CARD3, html)
-        self.assertIn(f'data-copy="{CARD1}"', html)       # کپی بدون فاصله
-        self.assertIn(f'data-copy="{SHEBA}"', html)
-        self.assertIn("select-all", html)
-        self.assertIn('<span class="mx-1">6037</span>', html)
-
-    def test_empty_state_is_a_normal_page(self):
-        self.assertIn("هنوز کارتی ثبت نشده", self.get())
-
-
 class BankCardPaymentFormTests(TestCase):
     def setUp(self):
         party = Party.objects.create(name="مشتری کارت", is_client=True, phone_number="09127775001")

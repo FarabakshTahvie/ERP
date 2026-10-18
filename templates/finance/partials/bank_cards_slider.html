@@ -21,6 +21,23 @@
                 <button type="button" class="btn btn-ghost btn-xs btn-square text-white shrink-0" data-copy="{{ c.sheba }}" aria-label="کپی شماره شبا">{% icon "copy" "w-4 h-4" %}</button>
             </div>
             {% endif %}
+            {% if show_secrets %}{% if c.cvv2 or c.expiry %}
+            <div class="flex items-center justify-between gap-3">
+                {% if c.expiry %}
+                <div class="flex items-center gap-1.5" dir="ltr">
+                    <span class="text-xs opacity-80" dir="rtl">انقضا (سال/ماه)</span>
+                    <span class="select-all font-technical text-sm">{{ c.expiry }}</span>
+                </div>
+                {% endif %}
+                {% if c.cvv2 %}
+                <div class="flex items-center gap-1" dir="ltr">
+                    <span class="text-xs opacity-80">CVV2</span>
+                    <span class="select-all font-technical text-sm">{{ c.cvv2 }}</span>
+                    <button type="button" class="btn btn-ghost btn-xs btn-square text-white shrink-0" data-copy="{{ c.cvv2 }}" aria-label="کپی CVV2">{% icon "copy" "w-4 h-4" %}</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}{% endif %}
         </article>
         {% endfor %}
     </div>

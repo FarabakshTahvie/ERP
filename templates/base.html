@@ -182,6 +182,9 @@
                             {% if caps.broadcast_use %}
                             <li><a href="{% url 'notifications:broadcast_form' %}">{% icon "send" "w-4 h-4" %} ارسال پیام</a></li>
                             {% endif %}
+                            {% if caps.bank_cards_manage %}
+                            <li><a href="{% url 'finance:bank_cards' %}">{% icon "credit-card" "w-4 h-4" %} کارت‌های بانکی</a></li>
+                            {% endif %}
                             {% if caps.admin_panel %}
                             <li>
                                 <a href="/admin/">{% icon "settings" "w-4 h-4" %} پنل مدیریت</a>

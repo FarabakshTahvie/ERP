@@ -9,7 +9,10 @@ from simple_history.models import HistoricalRecords
 
 from core.models import TimeStampedModel
 from django.core.exceptions import ValidationError
-from .bank_cards import BANKS, BANK_CHOICES, is_valid_card, is_valid_sheba, normalize_card, normalize_sheba
+from .bank_cards import (
+    BANKS, BANK_CHOICES, is_valid_card, is_valid_cvv2, is_valid_expiry, is_valid_sheba,
+    normalize_card, normalize_cvv2, normalize_expiry, normalize_sheba,
+)
 
 
 class Invoice(TimeStampedModel):
@@ -233,6 +236,8 @@ class BankCard(TimeStampedModel):
     holder_name = models.CharField(max_length=120, verbose_name="نام صاحب کارت")
     card_number = models.CharField(max_length=32, unique=True, verbose_name="شماره کارت")
     sheba = models.CharField(max_length=40, blank=True, verbose_name="شماره شبا")
+    cvv2 = models.CharField(max_length=8, blank=True, verbose_name="CVV2")
+    expiry = models.CharField(max_length=10, blank=True, verbose_name="تاریخ انقضا (سال/ماه)")
     is_active = models.BooleanField(default=True, verbose_name="نمایش داده شود")
     order = models.PositiveSmallIntegerField(default=0, verbose_name="ترتیب نمایش")
 
@@ -265,6 +270,8 @@ class BankCard(TimeStampedModel):
     def _normalize(self):
         self.card_number = normalize_card(self.card_number)
         self.sheba = normalize_sheba(self.sheba)
+        self.cvv2 = normalize_cvv2(self.cvv2)
+        self.expiry = normalize_expiry(self.expiry)
         self.holder_name = " ".join((self.holder_name or "").split())
 
     def clean(self):
@@ -274,6 +281,10 @@ class BankCard(TimeStampedModel):
             errors["card_number"] = "شماره کارت باید ۱۶ رقم و معتبر باشد."
         if self.sheba and not is_valid_sheba(self.sheba):
             errors["sheba"] = "شماره شبا معتبر نیست (IR و ۲۴ رقم)."
+        if self.cvv2 and not is_valid_cvv2(self.cvv2):
+            errors["cvv2"] = "CVV2 باید ۳ یا ۴ رقم باشد."
+        if self.expiry and not is_valid_expiry(self.expiry):
+            errors["expiry"] = "تاریخ انقضا را مثل ۰۵/۰۸ (سال/ماه) بنویسید."
         if self.bank == "other" and not self.other_bank_name.strip():
             errors["other_bank_name"] = "نام بانک را بنویسید."
         if errors:
