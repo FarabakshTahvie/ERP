@@ -58,7 +58,7 @@ CAPABILITIES = {
     "invoice.adjust": _manager_or_accountant,
     "people.view": _manager_or_accountant,
     "tasks.manage": _manager_or_accountant,
-    "bank_cards.manage": _manager_or_accountant,   # صفحه‌ی کارت‌ها، دیدن CVV2 و انقضا، افزودن کارت
+    "bank_cards.manage": _manager_or_accountant,   # دیدن CVV2 و انقضا، افزودن، ویرایش و حذف کارت؛ خودِ صفحه برای هر کاربر واردشده باز است
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
     # ثبت خرید: برخلاف inventory.manage مدیر هم می‌تواند (کالا نمی‌سازد؛ ساخت کالا همان inventory.manage است)

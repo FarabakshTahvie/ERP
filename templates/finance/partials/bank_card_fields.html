@@ -1,0 +1,35 @@
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-bank">بانک</label>
+    <select id="{{ prefix }}-bank" name="bank" required class="select w-full">
+        {% for value, label in bank_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+</div>
+<div class="hidden" data-other-bank>
+    <div class="fb-field">
+        <label class="fb-label" for="{{ prefix }}-other">نام بانک</label>
+        <input type="text" id="{{ prefix }}-other" name="other_bank_name" maxlength="60" class="input w-full">
+    </div>
+</div>
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-holder">نام صاحب کارت</label>
+    <input type="text" id="{{ prefix }}-holder" name="holder_name" required maxlength="120" class="input w-full">
+</div>
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-number">شماره کارت</label>
+    <input type="text" id="{{ prefix }}-number" name="card_number" required data-money dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+</div>
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-sheba">شماره شبا</label>
+    <input type="text" id="{{ prefix }}-sheba" name="sheba" dir="ltr" autocomplete="off" placeholder="IR" class="input w-full font-technical">
+</div>
+<div class="grid grid-cols-2 gap-3">
+    <div class="fb-field">
+        <label class="fb-label" for="{{ prefix }}-cvv2">CVV2</label>
+        <input type="text" id="{{ prefix }}-cvv2" name="cvv2" data-money maxlength="4" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+    </div>
+    <div class="fb-field">
+        <label class="fb-label" for="{{ prefix }}-expiry">تاریخ انقضا (سال/ماه)</label>
+        <input type="text" id="{{ prefix }}-expiry" name="expiry" maxlength="10" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="۰۵/۰۸" class="input w-full font-technical">
+    </div>
+</div>
+<p class="fb-error hidden" data-bankcard-error></p>
