@@ -62,6 +62,33 @@
     paint();
   }
 
-  function init() { document.querySelectorAll('[data-bankcards]').forEach(initSlider); }
+  // ثبت کارت تازه از مودال (فقط مدیر و حسابدار)؛ خطا داخل خود مودال دیده می‌شود
+  function initCardForm() {
+    var form = document.querySelector('[data-bankcard-form]');
+    if (!form || !window.fbSend) return;
+    var bank = form.querySelector('[name="bank"]');
+    var otherBox = form.querySelector('[data-other-bank]');
+    var err = form.querySelector('[data-bankcard-error]');
+    var btn = form.querySelector('button[type="submit"]');
+    function syncOther() { otherBox.classList.toggle('hidden', bank.value !== 'other'); }
+    bank.addEventListener('change', syncOther);
+    syncOther();
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      err.classList.add('hidden');
+      btn.disabled = true;
+      window.fbSend(form.action, new FormData(form), window.FB_CSRF).then(function (res) {
+        if (res.ok) { window.location.reload(); return; }
+        btn.disabled = false;
+        err.textContent = res.error || 'ثبت نشد.';
+        err.classList.remove('hidden');
+      });
+    });
+  }
+
+  function init() {
+    document.querySelectorAll('[data-bankcards]').forEach(initSlider);
+    initCardForm();
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -5,7 +5,7 @@ from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from utils.image_utils import optimize_receipt_image
 from utils.utils import separate_digits, monthly_prefix, next_monthly_code
-from .models import Invoice, InvoiceLine, Payment, ChequeEvent, CHEQUE_ACTIVE, CHEQUE_NOT_COUNTED
+from .models import BankCard, Invoice, InvoiceLine, Payment, ChequeEvent, CHEQUE_ACTIVE, CHEQUE_NOT_COUNTED
 
 # روش‌هایی که مبلغشان را کارشناس از روی مدرک تایید می‌کند
 PROOF_METHODS = (Payment.Method.CARD_TO_CARD, Payment.Method.RECEIPT, Payment.Method.CHEQUE)
@@ -592,4 +592,27 @@ def update_cheque_info(*, payment, number, bank, due_date, actor):
     ChequeEvent.objects.create(payment=payment, from_status=payment.cheque_status, to_status=payment.cheque_status,
                                note="ویرایش اطلاعات چک: " + "، ".join(changes), actor=actor)
     return payment
+
+
+@transaction.atomic
+def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="", sheba="", cvv2="", expiry=""):
+    """ثبت کارت بانکی شرکت (فقط مدیر یا حسابدار). هر ایرادی ValueError فارسی؛ کارت همان لحظه فعال و آخر فهرست می‌نشیند."""
+    from django.core.exceptions import ValidationError
+    from core.capabilities import can
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار می‌تواند کارت بانکی ثبت کند.")
+    last = BankCard.objects.aggregate(m=models.Max("order"))["m"]
+    card = BankCard(
+        bank=(bank or "").strip(), other_bank_name=(other_bank_name or "").strip(),
+        holder_name=holder_name or "", card_number=card_number or "", sheba=sheba or "",
+        cvv2=cvv2 or "", expiry=expiry or "", is_active=True,
+        order=0 if last is None else last + 1,
+    )
+    try:
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
 
