@@ -178,8 +178,10 @@ BROADCAST_DRY_RUN = env.bool('BROADCAST_DRY_RUN', default=False) and DEBUG  # ف
 
 NAJVA_ENABLED = env.bool('NAJVA_ENABLED', default=False)
 
-# لینک «مشاهده روی نقشه»؛ جای‌نگهدار {lat} و {lng}. فقط با الگوی تاییدشده‌ی نشان عوض شود.
-MAP_LINK_TEMPLATE = 'https://www.google.com/maps?q={lat},{lng}'
+# لینک‌های رسمی نشان (طبق پیام پشتیبانی نشان): علامت روی نقشه و مسیریابی با ماشین (vehicle=d).
+# مبدأ مسیریابی را مرورگر کاربر می‌دهد؛ جای‌نگهدارها: {olat} {olng} {dlat} {dlng}.
+MAP_LINK_TEMPLATE = 'https://nshn.ir/?lat={lat}&lng={lng}'
+ROUTE_LINK_TEMPLATE = 'https://nshn.ir?origin={olat},{olng}&destination={dlat},{dlng}&vehicle=d'
 
 COMPANY_CONTACT = {
     "hours": "۸ صبح تا ۱۷ عصر",

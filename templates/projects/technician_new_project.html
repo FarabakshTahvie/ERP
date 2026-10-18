@@ -104,6 +104,7 @@
 
 {% block extra_js %}
 <script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/my_location.js' %}"></script>
 <script>
 /* طرف‌حساب، صاحب ملک، هشدار نقش، و کنترل ارسال */
 (function () {
@@ -193,35 +194,4 @@
     });
 })();
 </script>
-
-{% if NESHAN_API_KEY %}
-<script>
-(function () {
-    var css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.css';
-    document.head.appendChild(css);
-    var script = document.createElement('script');
-    script.src = 'https://static.neshan.org/sdk/maplibre/5.24.3/neshan-maplibre-sdk.umd.js';
-    script.onload = function () {
-        var maplibregl = window.maplibregl.default;
-        var map = new maplibregl.Map({
-            container: 'new-project-map',
-            style: 'https://static.neshan.org/sdk/maplibre/styles/light.json',
-            center: [59.6062, 36.2979], zoom: 12,
-            apiKey: '{{ NESHAN_API_KEY }}',
-        });
-        map.addControl(new maplibregl.NavigationControl());
-        var marker = null;
-        map.on('click', function (e) {
-            if (marker) marker.remove();
-            marker = new maplibregl.Marker().setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-            document.getElementById('id_latitude').value = e.lngLat.lat.toFixed(6);
-            document.getElementById('id_longitude').value = e.lngLat.lng.toFixed(6);
-        });
-    };
-    document.head.appendChild(script);
-})();
-</script>
-{% endif %}
 {% endblock %}

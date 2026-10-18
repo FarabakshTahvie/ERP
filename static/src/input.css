@@ -13,6 +13,8 @@
 @source "../js/voice_note.js";
 @source "../js/stage_usage.js";
 @source "../js/bank_cards.js";
+@source "../js/route_link.js";
+@source "../js/my_location.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

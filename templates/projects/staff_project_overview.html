@@ -71,10 +71,7 @@
                 <p class="fb-inset text-xs">{{ project.location.address_text }}</p>
                 {% endif %}
                 {% if project.location.has_exact_coordinates %}
-                <a href="{% map_url project.location.latitude project.location.longitude %}"
-                   target="_blank" rel="noopener" class="btn btn-soft btn-sm">
-                    {% icon "map-pin" "w-4 h-4" %} مشاهده روی نقشه
-                </a>
+                {% include "projects/partials/map_actions.html" with location=project.location %}
                 {% endif %}
                 {% if not project.location.address_text and not project.location.has_exact_coordinates %}
                 <span class="fb-muted text-xs">ثبت نشده</span>
@@ -247,6 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block extra_js %}
 <script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/route_link.js' %}"></script>
 <script src="{% static_v 'js/item_picker.js' %}"></script>
 <script src="{% static_v 'js/checklist.js' %}"></script>
 <script src="{% static_v 'js/stage_usage.js' %}"></script>
