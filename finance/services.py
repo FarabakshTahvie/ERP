@@ -526,6 +526,25 @@ def restore_invoice(*, invoice, reason, actor):
     return invoice
 
 
+@transaction.atomic
+def finalize_invoice(*, invoice, actor):
+    """بعد از تایید بازبینی نهایی: پیش‌فاکتور به فاکتور قطعی تبدیل می‌شود (ردیف‌ها قفل). فاکتور لغوشده یا قطعی دست نمی‌خورد.
+    خروجی: فاکتور، یا None اگر کاری لازم نبود."""
+    from .accounting import log_event
+    from .models import AccountingEvent
+    invoice = Invoice.objects.select_for_update(of=("self",)).get(pk=invoice.pk)
+    if invoice.status == Invoice.Status.CANCELLED or invoice.document_type == Invoice.DocumentType.FINAL:
+        return None
+    invoice.document_type = Invoice.DocumentType.FINAL
+    invoice.save(update_fields=["document_type", "updated_at"])
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
+              text=f"پیش‌فاکتور {invoice.number} با تایید بازبینی نهایی به فاکتور تبدیل شد")
+    # TODO(پیامک invoice_finalized): قالب sms.ir هنوز نیست. وقتی ساخته شد: به مشتری دارای حساب
+    # (invoice.billed_party.users) با notify_users و نوع تازه‌ی اعلان، مثل _notify_payment_decision؛ نه مستقیم.
+    return invoice
+
+
+
 CHEQUE_TRANSITIONS = {
     "received": {"deposited", "collected", "endorsed", "bounced", "returned"},
     "deposited": {"collected", "bounced", "received"},

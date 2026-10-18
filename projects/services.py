@@ -271,6 +271,7 @@ def update_project_from_technician_edit(*, project, actor, location_lat=None, lo
             from finance.services import refresh_invoice_lines
             refresh_invoice_lines(invoice)
             rebuilt = True
+            # TODO(پیامک invoice_updated): همان نقطه‌ی save_proforma؛ فاکتور بازتولید شد.
     return project, rebuilt
 
 

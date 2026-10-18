@@ -170,6 +170,8 @@ def save_proforma(*, project, actor, service_rows=None, extra_rows=None, install
             invoice.save(update_fields=["contract_date"])
         from finance.services import refresh_invoice_lines
         refresh_invoice_lines(invoice)
+        # TODO(پیامک invoice_updated): قالب sms.ir هنوز نیست. فاکتور صادر شده و ویرایش شد؛
+        # به مشتری دارای حساب (invoice.billed_party.users) با notify_users، مثل _notify_payment_decision.
         return True
     return False
 

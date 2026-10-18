@@ -19,6 +19,10 @@
 | کلید | کی می‌رود | پارامترها |
 |---|---|---|
 | `visit_scheduled` | ثبت پروژه با تاریخ بازدید و هر تغییر آن؛ مستقیم به شماره‌ی طرف‌حساب | name، date |
+| `invoice_finalized` | تایید بازبینی نهایی و تبدیل پیش‌فاکتور به فاکتور؛ به مشتری دارای حساب | name، number، remaining، LINK |
+| `invoice_updated` | ویرایش فاکتور (بازتولید پیش‌فاکتور یا ردیف دستی حسابدار)؛ به مشتری دارای حساب | name، number، total، LINK |
+
+نقطه‌های اتصال با `TODO(پیامک invoice_finalized)` در `finance/services.py::finalize_invoice` و با `TODO(پیامک invoice_updated)` در `projects/proforma.py::save_proforma`، `projects/services.py::update_project_from_technician_edit` و `finance/accounting.py::add_invoice_adjustment` علامت خورده‌اند. متن پیشنهادی: `invoice_finalized` ← «سلام %name% / فاکتور %number% شما نهایی شد. / مانده فاکتور: %remaining% تومان / farabakhshtahvieh.com/%LINK% / فرابخش تهویه»؛ `invoice_updated` ← «سلام %name% / فاکتور %number% شما اصلاح شد؛ مبلغ جدید: %total% تومان. / لینک: farabakhshtahvieh.com/%LINK% / فرابخش تهویه».
 
 نقطه‌های اتصال با `TODO(پیامک visit_scheduled)` در `update_visit_date` و `create_project_from_technician_intake` علامت خورده‌اند. بعد از تایید قالب: کدش را به `sms_patterns.py` اضافه کن، نوع را به `SMS_TEMPLATE_TYPES` و `DEFAULTS` بیفزا و اتصال را وصل کن.
 

@@ -1,5 +1,7 @@
 # قالب در انتظار ساخت در پنل sms.ir (پیشنهاد در docs/SMS_TEMPLATES.md):
 # visit_scheduled(name,date)
+# invoice_finalized(name,number,remaining,LINK)
+# invoice_updated(name,number,total,LINK)
 """
 رجیستری تمپلیت‌های تاییدشده در پنل sms.ir. هر تمپلیت جدید فقط یک ورودی
 به این دیکشنری اضافه می‌شه. پارامترها باید دقیقاً با چیزی که در پنل sms.ir

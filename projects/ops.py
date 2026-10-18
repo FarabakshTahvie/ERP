@@ -92,3 +92,20 @@ def final_review_data(project):
         "has_install": install is not None, "undone_services": undone,
     }
 
+
+def proforma_breakdown(project):
+    """بازبینی نهایی: خدمت‌های پیش‌فاکتور هر کدام با کالاهای زیرش + ردیف‌های غیرخدمتی فاکتور (نصب، ارسال، مازاد، تخفیف، دستی)."""
+    from finance.models import InvoiceLine
+    from .proforma import service_line_total
+    services = []
+    qs = project.services.select_related("service").prefetch_related("materials__item").order_by("pk")
+    for ps in qs:
+        mats = [{"item": m.item, "qty": m.qty, "unit": m.item.get_unit_display()}
+                for m in sorted(ps.materials.all(), key=lambda m: m.pk)]
+        services.append({"line": ps, "total": service_line_total(ps), "materials": mats})
+    invoice = getattr(project, "invoice", None)
+    others = [] if invoice is None else list(
+        invoice.lines.exclude(line_type=InvoiceLine.LineType.SERVICE).order_by("pk"))
+    return {"services": services, "other_lines": others}
+
+

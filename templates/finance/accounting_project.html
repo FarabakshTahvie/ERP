@@ -243,40 +243,7 @@
         <p class="fb-hint">اصلاح موجودی و برگشت قطعه از فرم «ثبت مصرف یا تعدیل» در صفحه‌ی بازبینی نهایی انجام می‌شود.</p>
     </section>
 
-    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
-        <h2 class="fb-section-title">سابقه‌ی حسابداری</h2>
-        {% for e in events %}
-        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
-            <span><span class="fb-badge fb-badge-neutral">{{ e.get_kind_display }}</span> {{ e.text }}</span>
-            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
-        </div>
-        {% empty %}<p class="fb-hint">هنوز اقدامی ثبت نشده است.</p>{% endfor %}
-    </section>
-
-    <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">حرکات انبار این پروژه</h2>
-        <div class="overflow-x-auto">
-            <table class="table table-sm text-xs">
-                <thead><tr class="fb-muted"><th>تاریخ</th><th>کالا</th><th>نوع</th><th>اثر</th><th>مقدار</th><th>ارزش (تومان)</th><th>ثبت‌کننده</th><th>دلیل</th></tr></thead>
-                <tbody>
-                    {% for m in moves %}
-                    <tr>
-                        <td class="font-technical">{{ m.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</td>
-                        <td>{{ m.item.name }}</td>
-                        <td>{{ m.get_movement_type_display }}</td>
-                        <td><span class="fb-badge {% if m.direction == 'in' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ m.get_direction_display }}</span></td>
-                        <td class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }}</td>
-                        <td class="font-technical">{{ m.line_value|intcomma_fa }}</td>
-                        <td>{{ m.created_by|person_name:"—" }}</td>
-                        <td class="fb-muted">{{ m.notes|default:"—" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="8" class="fb-empty">حرکتی برای این پروژه ثبت نشده است.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </section>
+    {% include "projects/partials/project_stock_log.html" %}
 </div>
 {% endblock %}
 

@@ -67,16 +67,22 @@ def final_review(request, project_id):
     if stage is None:
         raise Http404
     from finance import accounting
+    from finance.services import finalize_invoice
     if request.method == "POST":
+        finalized = False
         try:
             with transaction.atomic():
                 qtys, reasons = _settlement_input(request.POST)
                 complete_stage(stage=stage, actor=request.user, comment=(request.POST.get("comment") or "").strip(), via_review=True)
                 accounting.settle_project_materials(project=project, final_qtys=qtys, reasons=reasons, actor=request.user)
+                invoice = getattr(project, "invoice", None)
+                if invoice is not None:
+                    finalized = finalize_invoice(invoice=invoice, actor=request.user) is not None
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:final_review", project.id)
-        messages.success(request, "بازبینی نهایی تایید، مصرف مواد ثبت و پروژه تکمیل شد.")
+        messages.success(request, "بازبینی نهایی تایید، مصرف مواد ثبت و پروژه تکمیل شد."
+                         + (" پیش‌فاکتور به فاکتور تبدیل شد." if finalized else ""))
         return redirect("home")
     fin = accounting.projects_financial_queryset().get(pk=project.pk)
     recon = accounting.project_reconciliation(project)
@@ -91,8 +97,12 @@ def final_review(request, project_id):
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
         "recon": recon, "pnl": accounting.project_pnl(fin),
         "usage_stages": usage.project_usage_by_stage(project),
+        "breakdown": ops.proforma_breakdown(project),
+        "events": project.accounting_events.select_related("actor")[:50],
+        "moves": accounting.project_movements(project),
         "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],
     })
+
 
 
 @login_required

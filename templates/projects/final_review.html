@@ -112,33 +112,57 @@
     {% if invoice %}
     <div class="fb-card fb-pad flex flex-col gap-3">
         <div class="flex items-center justify-between">
-            <h2 class="font-bold text-sm">پیش‌فاکتور صادرشده (مشاهده‌شده توسط مشتری)</h2>
+            <h2 class="font-bold text-sm">{% if invoice.document_type == 'final' %}فاکتور قطعی{% else %}پیش‌فاکتور مشتری{% endif %}</h2>
             <span class="fb-badge fb-badge-neutral font-technical">{{ invoice.number|fa_digits }}</span>
         </div>
+        <div class="flex flex-col gap-2">
+            {% for s in breakdown.services %}
+            <details class="collapse collapse-arrow bg-base-100 border border-base-300">
+                <summary class="collapse-title text-xs font-semibold">
+                    {{ s.line.service.name }}
+                    <span class="fb-badge fb-badge-neutral">{{ s.materials|length|fa_digits }} کالا</span>
+                    <span class="font-technical fb-muted">{{ s.total|intcomma_fa }} تومان</span>
+                </summary>
+                <div class="collapse-content flex flex-col gap-2">
+                    <p class="text-xs fb-muted">مقدار خدمت: <span class="font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</span>{% if s.line.service.unit %} {{ s.line.service.get_unit_display }}{% endif %} — قیمت هر واحد: <span class="font-technical">{{ s.line.unit_price|intcomma_fa }}</span> تومان</p>
+                    {% for m in s.materials %}
+                    <div class="fb-inset flex items-center justify-between gap-2 text-xs">
+                        <span class="min-w-0 break-words">{{ m.item.name }}</span>
+                        <span class="font-technical shrink-0">{{ m.qty|floatformat:"-4"|fa_digits }} {{ m.unit }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="fb-hint">کالایی زیر این خدمت ثبت نشده است.</p>
+                    {% endfor %}
+                </div>
+            </details>
+            {% empty %}
+            <p class="fb-hint">خدمتی در پیش‌فاکتور نیست.</p>
+            {% endfor %}
+        </div>
+        {% if breakdown.other_lines %}
         <div class="overflow-x-auto">
             <table class="table table-sm w-full text-xs">
                 <thead>
                     <tr class="border-b border-base-300">
-                        <th>شرح</th>
+                        <th>سایر ردیف‌ها</th>
                         <th class="text-center">مقدار</th>
                         <th class="text-start">قیمت واحد (تومان)</th>
                         <th class="text-start">جمع (تومان)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for l in invoice.lines.all %}
+                    {% for l in breakdown.other_lines %}
                     <tr class="border-b border-base-200">
-                        <td>{{ l.title }}</td>
+                        <td>{{ l.title }}{% if l.is_manual %} <span class="fb-badge fb-badge-info">دستی</span>{% endif %}</td>
                         <td class="text-center font-technical">{{ l.qty|floatformat:"-4"|fa_digits }}</td>
                         <td class="text-start font-technical">{{ l.unit_price|intcomma_fa }}</td>
                         <td class="text-start font-technical font-semibold">{{ l.total|intcomma_fa }}</td>
                     </tr>
-                    {% empty %}
-                    <tr><td colspan="4" class="fb-hint text-center">ردیفی وجود ندارد.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% endif %}
         <div class="flex justify-end gap-6 text-xs pt-2 border-t border-base-300">
             <div><span class="fb-muted">جمع کل:</span> <span class="font-technical font-bold text-sm">{{ invoice.total_amount|intcomma_fa }}</span> تومان</div>
             <div><span class="fb-muted">پرداخت‌شده:</span> <span class="font-technical text-success">{{ invoice.paid_amount|intcomma_fa }}</span> تومان</div>
@@ -351,8 +375,27 @@
         </form>
         {% else %}
         <p class="text-xs text-success font-semibold">مرحله‌ی بازبینی نهایی قبلاً تکمیل شده یا پروژه در وضعیت تکمیل/لغوشده است.</p>
+        {% if recon %}
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>جمع مصرف مرحله‌ها</th><th>کسرشده از انبار (خالص)</th></tr></thead>
+                <tbody>
+                {% for r in recon %}
+                    <tr>
+                        <td class="font-semibold">{{ r.item.name }}</td>
+                        <td>{{ r.unit_label }}</td>
+                        <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
+                        <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
         {% endif %}
     </div>
+
+    {% include "projects/partials/project_stock_log.html" %}
 </div>
 {% endblock %}
 

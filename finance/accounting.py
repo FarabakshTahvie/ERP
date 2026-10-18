@@ -419,6 +419,7 @@ def add_invoice_adjustment(*, invoice, title, amount_raw, kind, reason, actor):
     recalculate_invoice_paid_amount(invoice)
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor, amount=signed,
               text=f"{title} — {reason}")
+    # TODO(پیامک invoice_updated): ردیف دستی به فاکتور اضافه شد؛ به مشتری دارای حساب با notify_users.
 
 
 ACCOUNTANT_PAYMENT_METHODS = (
