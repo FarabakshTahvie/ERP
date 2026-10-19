@@ -75,14 +75,14 @@ class UsageParseTests(TestCase):
 
 class UsageServiceTests(UsageBase):
     def test_decimal_is_saved_and_replaced(self):
-        self.assertEqual(self.put(self.cutting, self.item, "۴٫۵"), {"qty": "4.5", "removed": False})
+        self.assertEqual(self.put(self.cutting, self.item, "۴٫۵"), {"qty": "4.5", "removed": False, "short": "4.5"})
         self.put(self.cutting, self.item, "6")
         usage = StageUsage.objects.get()
         self.assertEqual((usage.qty, usage.updated_by), (Decimal("6"), self.worker))
 
     def test_empty_or_zero_removes_row(self):
         self.put(self.cutting, self.item, "3")
-        self.assertEqual(self.put(self.cutting, self.item, ""), {"qty": "", "removed": True})
+        self.assertEqual(self.put(self.cutting, self.item, ""), {"qty": "", "removed": True, "short": ""})
         self.assertFalse(StageUsage.objects.exists())
         self.put(self.cutting, self.item, "3")
         self.put(self.cutting, self.item, "0")

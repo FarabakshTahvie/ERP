@@ -6,7 +6,7 @@
     </div>
     {% for r in s.install.rows %}
     <label class="fb-inset flex items-center gap-3 text-sm cursor-pointer" data-install-row
-           data-url="{% url 'projects:install_service_set' s.id %}" data-service="{{ r.line.id }}">
+           data-url="{% url 'projects:install_service_set' s.id %}" data-service="{{ r.line.id }}" data-name="{{ r.line.service.name }}">
         <input type="checkbox" class="checkbox checkbox-sm" data-install-check
                {% if r.done %}checked{% endif %} {% if not s.install.can_edit %}disabled{% endif %}>
         <span>{{ r.line.service.name }} <span class="fb-muted text-xs font-technical">({{ r.line.qty|floatformat:"-2"|fa_digits }}{% if r.line.service.unit %} {{ r.line.service.get_unit_display }}{% endif %})</span></span>

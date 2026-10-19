@@ -5,7 +5,7 @@
         <span class="text-xs fb-muted"><span data-groups-done>{{ cut_done|fa_digits }}</span> از {{ cut_total|fa_digits }} گروه انجام شد</span>
     </div>
     {% for g in cut_groups %}
-    <div class="flex items-start gap-3" data-group-row data-url="{% url 'projects:group_cut_set' g.id %}">
+    <div class="flex items-start gap-3" data-group-row data-url="{% url 'projects:group_cut_set' g.id %}" data-title="{{ g.title }}">
         <input type="checkbox" class="checkbox checkbox-sm mt-4" data-group-cut aria-label="انجام شد: {{ g.title }}"
                {% if g.cut_done %}checked{% endif %} {% if not s.can_upload %}disabled{% endif %}>
         <details class="collapse collapse-arrow bg-base-100 border border-base-300 flex-1 min-w-0">

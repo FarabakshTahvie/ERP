@@ -58,6 +58,18 @@ def _settlement_input(post):
     return qtys, reasons
 
 
+def _cover_input(post):
+    """کالاهایی که حسابدار «کسری انبار را ثبت کن» را برایشان زده: {item_id}."""
+    out = set()
+    for key, value in post.items():
+        if key.startswith("cover_") and value == "1":
+            try:
+                out.add(int(key[len("cover_"):]))
+            except ValueError:
+                pass
+    return out
+
+
 @login_required
 def final_review(request, project_id):
     project = _obj(Project.objects.select_related("owner", "partner", "location"), project_id)
@@ -74,7 +86,8 @@ def final_review(request, project_id):
             with transaction.atomic():
                 qtys, reasons = _settlement_input(request.POST)
                 complete_stage(stage=stage, actor=request.user, comment=(request.POST.get("comment") or "").strip(), via_review=True)
-                accounting.settle_project_materials(project=project, final_qtys=qtys, reasons=reasons, actor=request.user)
+                accounting.settle_project_materials(project=project, final_qtys=qtys, reasons=reasons,
+                                                    actor=request.user, cover=_cover_input(request.POST))
                 invoice = getattr(project, "invoice", None)
                 if invoice is not None:
                     finalized = finalize_invoice(invoice=invoice, actor=request.user) is not None
@@ -95,7 +108,7 @@ def final_review(request, project_id):
         "can_suspend": can_suspend,
         "can_cancel_now": can_cancel_now,
         "invoice": getattr(project, "invoice", None), "data": ops.final_review_data(project),
-        "recon": recon, "pnl": accounting.project_pnl(fin),
+        "recon": recon, "shortfalls": [r for r in recon if r["stock_short"]], "pnl": accounting.project_pnl(fin),
         "usage_stages": usage.project_usage_by_stage(project),
         "breakdown": ops.proforma_breakdown(project),
         "events": project.accounting_events.select_related("actor")[:50],
