@@ -105,6 +105,7 @@ class ProjectServiceMaterial(models.Model):
     cost_snapshot = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون (اسنپ‌شات)")
     margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات)")
     line_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش (تومان)")
+    manual_total = models.BooleanField(default=False, verbose_name="جمع را حسابدار خودش نوشته")
 
     class Meta:
         verbose_name = "کالای زیر خدمت"

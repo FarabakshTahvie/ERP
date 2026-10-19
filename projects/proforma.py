@@ -13,6 +13,7 @@ from .services import (
 MATERIAL_COLS = (
     Col("item_id", "کالا", "picker"),
     Col("qty", "مقدار کالا", "number", positive=True),
+    Col("line_total", "جمع کالا", "money", required=False),   # خالی = خودکار از میانگین و سود
 )
 SERVICE_COLS = (
     Col("service_id", "خدمت", "picker"),
@@ -74,8 +75,10 @@ def _sync_materials(line, rows, items, margins):
         if qty <= 0:
             raise ValueError("مقدار کالا خیلی کوچک است.")
         margin = Decimal(margins[item.pk]).quantize(Decimal("0.01"))
-        cost, total = material_totals(item, qty, margin)
-        m.item, m.qty, m.cost_snapshot, m.margin_percent, m.line_total = item, qty, cost, margin, total
+        cost, auto_total = material_totals(item, qty, margin)
+        typed = row.get("line_total")
+        m.item, m.qty, m.cost_snapshot, m.margin_percent = item, qty, cost, margin
+        m.line_total, m.manual_total = (auto_total, False) if typed is None else (typed, True)
         m.save()
         keep.add(m.pk)
     line.materials.exclude(pk__in=keep).delete()

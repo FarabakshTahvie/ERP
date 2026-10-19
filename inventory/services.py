@@ -174,6 +174,13 @@ def low_stock_items_count():
     )
 
 
+def stock_map(item_ids):
+    """{item_id: موجودی فعلی} با یک کوئری. کالای بدون لات در نتیجه نیست (یعنی صفر)."""
+    rows = (StockLot.objects.filter(item_id__in=list(item_ids)).order_by()
+            .values("item_id").annotate(total=Sum("qty_remaining")))
+    return {r["item_id"]: r["total"] or Decimal("0") for r in rows}
+
+
 ALLOWED_INVOICE_EXTENSIONS = ("jpg", "jpeg", "png", "webp", "pdf")
 MAX_INVOICE_FILE_BYTES = 10 * 1024 * 1024
 

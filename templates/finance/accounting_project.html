@@ -175,7 +175,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="fb-field">
                         <label class="fb-label" for="acc-cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
-                        <input type="text" id="acc-cheque-number" name="cheque_number" data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                        <input type="text" id="acc-cheque-number" name="cheque_number" data-digits maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
                     </div>
                     <div class="fb-field">
                         <label class="fb-label" for="acc-cheque-bank">بانک</label>
@@ -219,7 +219,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
                 <select name="kind" class="select select-sm w-full"><option value="part_shipping">ارسال قطعات جدید</option><option value="other">سایر</option></select>
                 <input type="text" name="title" required placeholder="شرح" class="input input-sm w-full">
-                <input type="text" name="amount" required dir="ltr" inputmode="numeric" placeholder="مبلغ (تومان)" class="input input-sm w-full font-technical">
+                <input type="text" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" placeholder="مبلغ (تومان)" class="input input-sm w-full font-technical">
                 <button type="submit" class="btn btn-soft btn-sm">ثبت هزینه</button>
             </div>
         </form>
@@ -232,7 +232,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
                 <select name="kind" class="select select-sm w-full"><option value="increase">افزایش</option><option value="decrease">کاهش (تخفیف)</option></select>
                 <input type="text" name="title" required placeholder="عنوان روی فاکتور" class="input input-sm w-full">
-                <input type="text" name="amount" required dir="ltr" inputmode="numeric" placeholder="مبلغ (تومان)" class="input input-sm w-full font-technical">
+                <input type="text" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" placeholder="مبلغ (تومان)" class="input input-sm w-full font-technical">
                 <input type="text" name="reason" required placeholder="دلیل داخلی (اجباری)" class="input input-sm w-full">
                 <button type="submit" class="btn btn-soft btn-sm">ثبت ردیف</button>
             </div>

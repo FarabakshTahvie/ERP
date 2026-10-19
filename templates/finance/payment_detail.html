@@ -91,7 +91,7 @@
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="verified-amount">مبلغ واقعی طبق رسید (تومان)</label>
-                <input type="text" id="verified-amount" name="verified_amount" required inputmode="numeric"
+                <input type="text" id="verified-amount" name="verified_amount" required data-money maxlength="12" inputmode="numeric"
                        dir="ltr" autocomplete="off" placeholder="مبلغ را از روی رسید بنویسید"
                        class="input w-full font-technical">
                 <span id="amount-mismatch" class="fb-error hidden">با مبلغ اعلامی مشتری ({{ claimed_amount|intcomma_fa }} تومان) فرق دارد؛ دوباره رسید را بررسی کنید.</span>
@@ -103,7 +103,7 @@
                 <div class="fb-field">
                     <label class="fb-label" for="cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
                     <input type="text" id="cheque-number" name="cheque_number" value="{{ payment.cheque_number }}" required
-                           data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                           data-digits maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
                 </div>
                 <div class="fb-field">
                     <label class="fb-label" for="cheque-bank">بانک</label>
@@ -242,7 +242,7 @@
                     <div class="fb-field">
                         <label class="fb-label" for="edit-cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
                         <input type="text" id="edit-cheque-number" name="number" value="{{ payment.cheque_number }}" required
-                               data-money maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                               data-digits maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
                     </div>
                     <div class="fb-field">
                         <label class="fb-label" for="edit-cheque-bank">بانک</label>

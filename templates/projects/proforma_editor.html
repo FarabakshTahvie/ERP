@@ -50,15 +50,15 @@
         {% csrf_token %}
         <section class="fb-card fb-pad flex flex-col gap-3">
             <h2 class="fb-section-title">خدمات و متریال</h2>
-            <p class="fb-hint">برای هر خدمت «قیمت خود خدمت» را جدا بنویسید. کالاهای زیر خدمت با میانگین موزون به‌علاوه‌ی سود عمومی حساب می‌شوند و در پیش‌فاکتور فقط جمع همان خدمت دیده می‌شود. مبلغ‌های این صفحه برآوردی است؛ عدد رسمی را سرور هنگام ذخیره حساب می‌کند.</p>
-            <div id="proforma-editor"></div>
+            <p class="fb-hint">برای هر خدمت «قیمت خود خدمت» را جدا بنویسید. کالاهای زیر خدمت با میانگین موزون به‌علاوه‌ی سود عمومی حساب می‌شوند؛ اگر قیمتشان باید چیز دیگری باشد، «جمع» همان کالا را خودتان بنویسید (خالی کنید تا دوباره خودکار شود). در پیش‌فاکتور فقط جمع همان خدمت دیده می‌شود. مبلغ‌های این صفحه برآوردی است؛ عدد رسمی را سرور هنگام ذخیره حساب می‌کند.</p>
+            <div id="proforma-editor" data-sprite="{% static 'icons/sprite.svg' %}"></div>
             <input type="hidden" id="services_json" data-name="services_json">
         </section>
 
         <section class="fb-card fb-pad flex flex-col gap-3">
             <h2 class="fb-section-title">ردیف‌های اضافه و تخفیف</h2>
             <p class="fb-hint">هر مورد خارج از خدمات (مثل خسارت به قطعه، سختی کار یا تخفیف) یک ردیف است. با همین شرح روی پیش‌فاکتور مشتری دیده می‌شود.</p>
-            <div id="proforma-extras"></div>
+            <div id="proforma-extras" data-sprite="{% static 'icons/sprite.svg' %}"></div>
             <input type="hidden" id="extras_json" data-name="extras_json">
         </section>
 
@@ -98,15 +98,22 @@
 (function () {
     function init() {
         var E = window.fbLineEditor, num = E.num, fmt = E.fmt;
+        var qtyFmt = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 4 });
+        function qf(n) { return qtyFmt.format(n).replace(/٬/g, ','); }
         var services = JSON.parse(document.getElementById('services-data').textContent);
         var items = JSON.parse(document.getElementById('items-data').textContent);
         var initial = JSON.parse(document.getElementById('initial-rows').textContent);
         var byId = {};
         items.forEach(function (i) { byId[i.id] = i; });
+        var need = {};   // جمع مقدار هر کالا در همه‌ی خدمت‌های این پیش‌فاکتور
         function item(d) { return byId[parseInt(d.item_id, 10)]; }
-        function matTotal(d) {
+        function matAuto(d) {
             var it = item(d);
             return it ? Math.round(num(d.qty) * parseFloat(it.cost) * (100 + parseFloat(it.margin)) / 100) : 0;
+        }
+        function matTotal(d) {
+            var typed = String(d.line_total == null ? '' : d.line_total).trim();
+            return typed !== '' ? num(typed) : matAuto(d);
         }
         function svcTotal(d) {
             var t = num(d.qty) * num(d.unit_price);
@@ -119,6 +126,23 @@
             var box = document.getElementById('project-costs');
             return t + (box ? parseFloat(box.dataset.participants) || 0 : 0);
         }
+        function stockNote(d) {
+            var it = item(d);
+            if (!it) return '';
+            var stock = parseFloat(it.stock), qty = num(d.qty), unit = it.unit;
+            if (stock <= 0 && !(parseFloat(it.cost) > 0)) {
+                return { tone: 'warning', text: 'موجودی انبار صفر است و میانگینی هم ندارد؛ جمع این کالا را خودتان بنویسید.' };
+            }
+            if (stock <= 0) {
+                return { tone: 'warning', text: 'موجودی انبار صفر است؛ میانگین مال آخرین خریدهاست و ممکن است قدیمی باشد.' };
+            }
+            var total = need[it.id] || qty;
+            if (qty > 0 && total > stock) {
+                return { tone: 'warning', text: 'موجودی انبار ' + qf(stock) + ' ' + unit + ' است؛ ' + qf(total - stock) + ' ' + unit + ' کم دارید'
+                    + (total > qty ? ' (جمع نیاز این کالا در همه‌ی خدمت‌ها ' + qf(total) + ')' : '') + '.' };
+            }
+            return 'موجودی انبار: ' + qf(stock) + ' ' + unit;
+        }
         var svcRows = [], extraRows = [];
         function recalc() {
             var total = feeTotal();
@@ -130,7 +154,7 @@
             document.getElementById('grand-total').textContent = fmt(total);
         }
 
-        var editor = E({
+        E({
             mount: document.getElementById('proforma-editor'),
             hidden: document.getElementById('services_json'),
             addLabel: 'افزودن خدمت', emptyText: 'هنوز خدمتی اضافه نشده.', initial: initial,
@@ -144,19 +168,29 @@
                 columns: [
                     { key: 'item_id', type: 'picker', label: 'کالا', items: items, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
                     { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
-                    { key: 'cost', type: 'readonly', label: 'بهای میانگین', cls: 'w-28',
+                    { key: 'cost', type: 'readonly', label: 'میانگین', cls: 'w-28',
                       compute: function (d) { var it = item(d); return !it ? '—' : (parseFloat(it.cost) > 0 ? fmt(parseFloat(it.cost)) : 'بدون بها!'); } },
                     { key: 'margin', type: 'readonly', label: 'سود ٪', cls: 'w-16',
                       compute: function (d) { var it = item(d); return it ? fmt(parseFloat(it.margin)) : '—'; } },
-                    { key: 'line', type: 'readonly', label: 'جمع (تومان)', cls: 'w-28',
-                      compute: function (d) { return fmt(matTotal(d)); } }
-                ]
+                    { key: 'line_total', type: 'money', label: 'جمع (تومان)', cls: 'w-36', center: true,
+                      auto: function (d) { return item(d) && num(d.qty) > 0 ? String(matAuto(d)) : ''; } }
+                ],
+                footer: stockNote
             },
             footer: function (d) { return 'جمع این خدمت (برآوردی): ' + fmt(svcTotal(d)) + ' تومان'; },
+            prepare: function (rows) {
+                need = {};
+                rows.forEach(function (r) {
+                    (r.materials || []).forEach(function (m) {
+                        var id = parseInt(m.item_id, 10);
+                        if (id) need[id] = (need[id] || 0) + num(m.qty);
+                    });
+                });
+            },
             onChange: function (rows) { svcRows = rows; recalc(); }
         });
 
-        var extrasEditor = E({
+        E({
             mount: document.getElementById('proforma-extras'),
             hidden: document.getElementById('extras_json'),
             addLabel: 'افزودن ردیف', emptyText: 'ردیف اضافه‌ای ثبت نشده.',
