@@ -339,7 +339,14 @@
         {% if can_approve %}
         <form method="post" data-fb-once class="flex flex-col gap-3">
             {% csrf_token %}
-            <p class="fb-hint">با «تایید نهایی»، مصرف هر کالا طبق ستون «مصرف نهایی» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم: جمع مصرفی که تکنسین‌ها در مرحله‌ها ثبت کرده‌اند (زیر نام کالا به تفکیک مرحله آمده)؛ کالایی که از انبار کم شده ولی مصرف مرحله ندارد همان مقدار کسرشده را می‌گیرد. اگر عددی را عوض کنید دلیل لازم است.</p>
+            <p class="fb-hint">مصرف مرحله‌ها همان لحظه از انبار کم شده؛ ستون «کسرشده تاکنون» همان است. با «تایید نهایی» فقط تفاوت «مصرف نهایی» با «کسرشده تاکنون» از انبار کم یا به انبار برگردانده می‌شود. پیشنهاد سیستم برای «مصرف نهایی»: جمع مصرف مرحله‌ها (زیر نام کالا به تفکیک مرحله آمده)؛ کالایی که مصرف مرحله ندارد همان مقدار کسرشده را می‌گیرد. اگر عددی را عوض کنید دلیل لازم است.</p>
+            {% if shortfalls %}
+            <div role="alert" class="alert alert-soft alert-warning text-xs flex flex-col items-start gap-1">
+                {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                <span class="font-semibold">موجودی انبار {{ shortfalls|length|fa_digits }} کالا از مصرف ثبت‌شده کمتر است.</span>
+                <span>مصرف انجام شده و مرحله‌ها به همین خاطر متوقف نشدند. قبل از تایید، برای هر کالای دارای «کسری» یکی از این سه کار را بکنید: موجودی را با «ثبت خرید» یا «ثبت مصرف یا تعدیل» کامل کنید و صفحه را تازه کنید؛ یا زیر «مصرف نهایی» همان کالا «کسری انبار را ثبت کن» را بزنید (مقدار کسری با تعدیل افزایشی به بهای میانگین به انبار اضافه و همان لحظه مصرف می‌شود؛ در هزینه‌ی پروژه می‌آید و در «اضافه‌ی انبار» مرکز حسابداری دیده می‌شود)؛ یا اگر عدد مصرف اشتباه بوده «مصرف نهایی» را اصلاح و دلیلش را بنویسید.</span>
+            </div>
+            {% endif %}
             <div class="overflow-x-auto" data-settle-root data-revenue="{{ pnl.revenue|stringformat:'d' }}" data-stock-cost="{{ pnl.stock_cost|stringformat:'d' }}" data-recorded="{{ pnl.recorded_costs|stringformat:'d' }}">
                 <table class="table table-sm text-xs">
                     <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>پیش‌فاکتور</th><th>جمع مصرف مرحله‌ها</th><th>کسرشده تاکنون</th><th>موجودی انبار</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
@@ -351,13 +358,19 @@
                             <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
                             <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                             <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
-                            <td class="font-technical">{{ r.stock|floatformat:"-4"|fa_digits }}{% if r.stock_short %} <span class="fb-badge fb-badge-warning">کم است</span>{% endif %}</td>
+                            <td class="font-technical">{{ r.stock|floatformat:"-4"|fa_digits }}{% if r.stock_short %} <span class="fb-badge fb-badge-warning">کسری {{ r.shortfall_str|fa_digits }}</span>{% endif %}</td>
                             <td>
                                 <input type="text" name="final_qty_{{ r.item.id }}" value="{{ r.expected_input }}" required data-decimal data-settle-qty data-item="{{ r.item.id }}"
                                        data-suggested="{{ r.expected_input }}" dir="ltr" inputmode="decimal" aria-label="مصرف نهایی {{ r.item.name }}"
                                        class="input input-xs w-24 font-technical">
                                 <input type="text" name="reason_{{ r.item.id }}" data-settle-reason="{{ r.item.id }}" placeholder="دلیل تغییر (اجباری)"
                                        class="input input-xs w-full mt-1 hidden">
+                                {% if r.stock_short %}
+                                <label class="flex items-start gap-2 mt-1 text-xs cursor-pointer w-56">
+                                    <input type="checkbox" name="cover_{{ r.item.id }}" value="1" class="checkbox checkbox-xs mt-0.5">
+                                    <span>کسری انبار را ثبت کن ({{ r.shortfall_str|fa_digits }} {{ r.unit_label }})</span>
+                                </label>
+                                {% endif %}
                             </td>
                             <td class="font-technical" data-change>—</td>
                         </tr>

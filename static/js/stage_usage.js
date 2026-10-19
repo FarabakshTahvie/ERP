@@ -11,11 +11,11 @@
   }
   window.fbUsageFlush = function () { return Promise.all(pending.slice()); };
 
-  function say(cell, text, bad) {
+  function say(cell, text, bad, keep) {
     cell.textContent = text || '';
-    cell.className = 'text-xs ' + (bad ? 'text-error' : 'text-success');
+    cell.className = 'text-xs ' + (bad ? 'text-error' : keep ? 'text-warning' : 'text-success');
     clearTimeout(cell._t);
-    if (text && !bad) cell._t = setTimeout(function () { cell.textContent = ''; }, 3000);
+    if (text && !bad && !keep) cell._t = setTimeout(function () { cell.textContent = ''; }, 3000);
   }
   function send(box, itemId, qty) {
     var fd = new FormData();
@@ -45,8 +45,10 @@
       if (res.ok) {
         input.value = res.qty;
         input.dataset.saved = res.qty;
+        row.dataset.short = res.short || '';
         if (res.removed && row.dataset.extra === '1') { row.remove(); return; }
-        say(msg, res.removed ? 'پاک شد' : 'ذخیره شد', false);
+        if (res.short) say(msg, 'ذخیره شد؛ از انبار فقط بخشی کم شد (کسری ' + fa(res.short) + ')', false, true);
+        else say(msg, res.removed ? 'پاک شد' : 'ذخیره شد', false);
       } else {
         input.value = input.dataset.saved;
         say(msg, res.error || 'ثبت نشد.', true);

@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from catalog.models import Item
+from inventory.services import CHANGE_KIND_RETURN, consume_stock, record_manual_stock_change
 from .models import FileGroup, ProjectService, ProjectStage, ServiceTick, StageKind, StageUsage
 from .ops import can_edit_ops
 
@@ -38,32 +39,64 @@ def parse_usage_qty(raw):
     return value
 
 
+def _short(usage):
+    """کسری یک ردیف: مقداری که ثبت شده ولی از انبار کم نشده. خالی = ندارد."""
+    if usage is None:
+        return ""
+    gap = usage.qty - usage.deducted
+    return _fmt(gap) if gap > 0 else ""
+
+
+def _deduct_up_to(*, item, want, stage, actor):
+    """تا سقف موجودی از انبار کم می‌کند (وصل به پروژه). خروجی: مقدار واقعاً کم‌شده؛ موجودی کم خطا نمی‌دهد."""
+    take = min(want, Decimal(item.current_stock))
+    if take <= 0:
+        return Decimal("0")
+    consume_stock(item=item, qty=take, user=actor, related_object=stage.project,
+                  notes=f"مصرف مرحله‌ی «{stage.title}»")
+    return take
+
+
+def _give_back(*, item, qty, stage, actor):
+    record_manual_stock_change(item=item, kind=CHANGE_KIND_RETURN, qty_raw=_fmt(qty),
+                               notes=f"برگشت مصرف مرحله‌ی «{stage.title}»", user=actor,
+                               related_object=stage.project)
+
+
 @transaction.atomic
 def set_usage(*, stage, item_id, qty_raw, actor):
-    """صریح و idempotent: مقدار تازه جای قبلی می‌نشیند؛ خالی/صفر ردیف را پاک می‌کند."""
+    """صریح و idempotent: مقدار تازه جای قبلی می‌نشیند؛ خالی/صفر ردیف را پاک می‌کند.
+    همان لحظه از انبار کم می‌شود و تغییر بعدی فقط تفاوت را کم یا برمی‌گرداند. موجودی کم ثبت را رد نمی‌کند:
+    هرچه هست کم می‌شود و بقیه «کسری» می‌ماند (کلید short در خروجی)."""
     stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("project").get(pk=stage.pk)
     if stage.kind not in USAGE_KINDS:
         raise ValueError("برای این مرحله جدول مصرف نداریم.")
     if not can_edit_ops(actor, stage):
         raise ValueError("شما اجازه‌ی ثبت در این مرحله را ندارید.")
     try:
-        item = Item.objects.get(pk=int(str(item_id).strip().translate(_FA_TO_EN)))
+        item = Item.objects.select_for_update(of=("self",)).get(pk=int(str(item_id).strip().translate(_FA_TO_EN)))
     except (TypeError, ValueError, Item.DoesNotExist):
         raise ValueError("کالا را از فهرست انتخاب کنید.")
     qty = parse_usage_qty(qty_raw)
-    existing = StageUsage.objects.filter(stage=stage, item=item).first()
+    row = StageUsage.objects.filter(stage=stage, item=item).first()
     if qty is None:
-        if existing:
-            existing.delete()
-        return {"qty": "", "removed": True}
-    if existing is None and not item.is_active:
-        raise ValueError("این کالا غیرفعال است.")
-    if existing:
-        existing.qty, existing.updated_by = qty, actor
-        existing.save(update_fields=["qty", "updated_by", "updated_at"])
-    else:
-        StageUsage.objects.create(stage=stage, item=item, qty=qty, updated_by=actor)
-    return {"qty": _fmt(qty), "removed": False}
+        if row:
+            if row.deducted > 0:
+                _give_back(item=item, qty=row.deducted, stage=stage, actor=actor)
+            row.delete()
+        return {"qty": "", "removed": True, "short": ""}
+    if row is None:
+        if not item.is_active:
+            raise ValueError("این کالا غیرفعال است.")
+        row = StageUsage(stage=stage, item=item, deducted=Decimal("0"))
+    row.qty, row.updated_by = qty, actor
+    if row.deducted > qty:
+        _give_back(item=item, qty=row.deducted - qty, stage=stage, actor=actor)
+        row.deducted = qty
+    elif row.deducted < qty:
+        row.deducted += _deduct_up_to(item=item, want=qty - row.deducted, stage=stage, actor=actor)
+    row.save()
+    return {"qty": _fmt(qty), "removed": False, "short": _short(row)}
 
 
 def stage_has_progress(stage):
@@ -87,9 +120,9 @@ def usage_context(user, stage):
     rows = []
     for item in planned:
         u = used.pop(item.pk, None)
-        rows.append({"item": item, "qty": _fmt(u.qty) if u else "", "extra": False})
+        rows.append({"item": item, "qty": _fmt(u.qty) if u else "", "short": _short(u), "extra": False})
     for u in sorted(used.values(), key=lambda x: x.item.name):
-        rows.append({"item": u.item, "qty": _fmt(u.qty), "extra": True})
+        rows.append({"item": u.item, "qty": _fmt(u.qty), "short": _short(u), "extra": True})
     can_edit = can_edit_ops(user, stage)
     if not rows and not can_edit:
         return None
@@ -142,7 +175,8 @@ def project_usage_by_stage(project):
             current = {"stage": u.stage, "rows": []}
             out.append(current)
         current["rows"].append({"item": u.item, "qty": u.qty, "unit": u.item.get_unit_display(),
-                                "extra": u.item_id not in planned, "by": u.updated_by})
+                                "extra": u.item_id not in planned, "by": u.updated_by,
+                                "short": (u.qty - u.deducted) if u.qty > u.deducted else None})
     return out
 
 

@@ -96,7 +96,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between flex-wrap gap-1">
-                        <span class="text-sm font-semibold">{{ s.title }}</span>
+                        <span class="text-sm font-semibold" data-stage-title>{{ s.title }}</span>
                         <span class="fb-badge {% if s.status == 'done' %}fb-badge-success{% elif s.status == 'in_progress' %}fb-badge-info{% elif s.status == 'waiting_approval' %}fb-badge-warning{% elif s.status == 'rejected' or s.status == 'suspended' %}fb-badge-error{% else %}fb-badge-neutral{% endif %}">
                             {{ s.get_status_display }}
                         </span>
@@ -142,7 +142,7 @@
                 {% elif s.kind == 'final_review' %}
                 <a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-primary btn-sm">ورود به بازبینی نهایی</a>
                 {% else %}
-                <form method="post" enctype="multipart/form-data" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3" data-complete-form data-upload-progress>
+                <form method="post" enctype="multipart/form-data" action="{% url 'projects:my_task_complete' s.id %}" class="fb-inset space-y-3" data-complete-form {% if s.usage or s.install %}data-confirm-report{% endif %} data-upload-progress>
                     {% csrf_token %}
                     <div class="fb-label">تکمیل این مرحله</div>
                     {% if s.kind == 'design_initial' %}
@@ -213,6 +213,19 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="modal-box max-w-4xl p-2">
         <img id="img-zoom-el" alt="" class="w-full max-h-[80vh] object-contain">
         <p id="img-zoom-name" class="text-xs fb-muted p-2" dir="auto"></p>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="stage-confirm-dialog" class="modal" data-stage-confirm>
+    <div class="modal-box max-w-md flex flex-col gap-3">
+        <h3 class="font-bold text-base" data-confirm-title></h3>
+        <p class="text-xs fb-muted">گزارشی که با «تایید و تکمیل مرحله» ثبت می‌شود را بخوانید. اگر عددی اشتباه است برگردید و اصلاح کنید.</p>
+        <div class="flex flex-col gap-3 max-h-[60vh] overflow-y-auto" data-confirm-body></div>
+        <div class="modal-action">
+            <button type="button" class="btn btn-ghost btn-sm" data-confirm-back>بازگشت و اصلاح</button>
+            <button type="button" class="btn btn-primary btn-sm" data-confirm-ok>تایید و تکمیل مرحله</button>
+        </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
@@ -316,4 +329,5 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 </script>
+<script src="{% static_v 'js/stage_confirm.js' %}"></script>
 {% endblock %}

@@ -1,7 +1,7 @@
 {% load custom_tags %}
 <section class="fb-card fb-pad flex flex-col gap-3">
     <h2 class="fb-section-title">مصرف ثبت‌شده‌ی هر مرحله</h2>
-    <p class="fb-hint">فقط مرحله‌هایی که تکنسینشان مصرف ثبت کرده آمده است. این اعداد هنوز از انبار کم نشده‌اند؛ کم‌شدن با تایید نهایی و طبق جدول تسویه‌ی پایین انجام می‌شود.</p>
+    <p class="fb-hint">فقط مرحله‌هایی که تکنسینشان مصرف ثبت کرده آمده است. هر عدد همان لحظه‌ی ثبت از انبار کم شده؛ اگر موجودی کم بوده، کنار آن «از انبار کم نشد» نوشته می‌شود. اصلاح نهایی با جدول تسویه‌ی پایین است.</p>
     {% for g in usage_stages %}
     <div class="fb-inset flex flex-col gap-2">
         <div class="flex items-center justify-between gap-2 flex-wrap">
@@ -16,7 +16,7 @@
                     <tr>
                         <td class="font-semibold">{{ r.item.name }}{% if r.extra %} <span class="fb-badge fb-badge-neutral">خارج از پیش‌فاکتور</span>{% endif %}</td>
                         <td>{{ r.unit }}</td>
-                        <td class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }}</td>
+                        <td class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }}{% if r.short %} <span class="fb-badge fb-badge-warning">از انبار کم نشد: {{ r.short|floatformat:"-4"|fa_digits }}</span>{% endif %}</td>
                         <td class="fb-muted">{{ r.by|person_name:"—" }}</td>
                     </tr>
                 {% endfor %}

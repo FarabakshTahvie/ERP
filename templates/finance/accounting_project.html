@@ -61,7 +61,7 @@
                         <td class="font-technical">{{ r.unsettled|floatformat:"-4"|fa_digits }}</td>
                         <td>
                             {% if r.status == 'ok' %}<span class="fb-badge fb-badge-success">هم‌خوان</span>
-                            {% elif r.status == 'short' %}<span class="fb-badge fb-badge-warning">مصرف ثبت‌نشده</span>
+                            {% elif r.status == 'short' %}<span class="fb-badge fb-badge-warning">از انبار کم نشده</span>
                             {% else %}<span class="fb-badge fb-badge-error">بیش از پیشنهاد</span>{% endif %}
                         </td>
                     </tr>

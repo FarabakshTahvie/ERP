@@ -14,7 +14,7 @@ from django.utils import timezone
 from inventory.models import PurchaseLine, StockLot, StockMovement
 from inventory.services import (
     low_stock_items_count, consume_stock, record_manual_stock_change,
-    CHANGE_KIND_RETURN, _FA_TO_EN,
+    CHANGE_KIND_RETURN, CHANGE_KIND_ADJUST_INCREASE, _FA_TO_EN,
 )
 from projects.models import (
     Project, ProjectCost,
@@ -297,7 +297,9 @@ def project_reconciliation(project):
         else:
             r["basis"], r["expected"] = "manual", r["net_out"]
         r["unsettled"] = r["expected"] - r["net_out"]
-        r["stock_short"] = r["unsettled"] > r["stock"]
+        r["shortfall"] = max(r["unsettled"] - r["stock"], ZERO)   # آنچه انبار الان نمی‌تواند پوشش دهد
+        r["stock_short"] = r["shortfall"] > 0
+        r["shortfall_str"] = format(r["shortfall"].quantize(QTY_Q).normalize(), "f")
         r["status"] = "ok" if abs(r["unsettled"]) <= QTY_EPS else ("short" if r["unsettled"] > 0 else "over")
         r["unit"] = (r["value"] / r["net_out"]) if r["net_out"] > 0 else Decimal(r["item"].moving_average_cost or 0)
         r["expected_input"] = format(r["expected"].quantize(QTY_Q).normalize(), "f")
@@ -355,16 +357,19 @@ def log_event(*, kind, text, actor, project=None, amount=None):
 
 
 @transaction.atomic
-def settle_project_materials(*, project, final_qtys, reasons, actor):
+def settle_project_materials(*, project, final_qtys, reasons, actor, cover=frozenset()):
     """
     ثبت مصرف نهایی مواد پروژه. final_qtys: {item_id: مصرف نهایی خالص}، reasons: {item_id: دلیل}.
-    کالایی که مقدارش نیامده یا خالی است همان پیشنهاد سیستم را می‌گیرد.
-    تغییر نسبت به پیشنهاد، دلیل اجباری دارد. کم‌شدن از انبار FIFO؛ برگشت با نوع RETURN.
+    کالایی که مقدارش نیامده یا خالی است همان پیشنهاد سیستم را می‌گیرد؛ تغییر نسبت به پیشنهاد دلیل اجباری دارد.
+    مصرف مرحله‌ها از قبل از انبار کم شده؛ اینجا فقط تفاوت مصرف نهایی با کسرشده‌ی خالص کم می‌شود (FIFO)
+    یا با نوع RETURN برمی‌گردد.
+    اگر موجودی برای آن تفاوت کم بود: بدون cover خطا. با cover (مجموعه‌ی id کالا) مقدار کسری با تعدیل افزایشی
+    (بدون وصل به پروژه) ثبت و بعد مصرف می‌شود.
     """
     if not user_can_access_accounting(actor):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند مصرف مواد را تسویه کند.")
     project = Project.objects.select_for_update().get(pk=project.pk)
-    applied, total = [], ZERO
+    applied, covered, total = [], [], ZERO
     for r in project_reconciliation(project):
         item = r["item"]
         suggested = r["expected"].quantize(QTY_Q)
@@ -377,6 +382,21 @@ def settle_project_materials(*, project, final_qtys, reasons, actor):
             continue
         note = f"تسویه‌ی نهایی مصرف مواد پروژه — {reason or 'مطابق محاسبه‌ی سیستم'}"
         if delta > 0:
+            missing = delta - Decimal(item.current_stock)
+            if missing > QTY_EPS:
+                missing = missing.quantize(QTY_Q)
+                missing_text = format(missing.normalize(), "f")
+                if item.pk not in cover:
+                    raise ValueError(
+                        f"موجودی «{item.name}» به اندازه‌ی {missing_text} کمتر از مصرف است. "
+                        "موجودی را کامل کنید، یا کسری را ثبت کنید، یا مصرف نهایی را اصلاح کنید.")
+                try:
+                    record_manual_stock_change(
+                        item=item, kind=CHANGE_KIND_ADJUST_INCREASE, qty_raw=missing_text, user=actor,
+                        notes=f"کسری ثبت‌نشده‌ی انبار؛ مصرف پروژه‌ی «{project.name}» — {reason or 'مطابق محاسبه‌ی سیستم'}"[:255])
+                except ValueError as e:
+                    raise ValueError(f"«{item.name}»: {e}")
+                covered.append((item.name, missing))
             consume_stock(item=item, qty=delta, user=actor, related_object=project, notes=note)
             total += delta * r["unit"]
         else:
@@ -385,10 +405,14 @@ def settle_project_materials(*, project, final_qtys, reasons, actor):
             total -= (-delta) * r["unit"]
         applied.append((item.name, delta, reason))
     if applied:
+        extra = ""
+        if covered:
+            extra = "؛ کسری انبار ثبت‌شده با تعدیل افزایشی: " + "، ".join(
+                f"{n} ({format(q.normalize(), 'f')})" for n, q in covered)
         log_event(kind=AccountingEvent.Kind.SETTLEMENT, project=project, actor=actor,
                   amount=total.quantize(Decimal("1")),
                   text="تسویه‌ی مصرف: " + "؛ ".join(
-                      f"{n} ({d:+f}{('، ' + rs) if rs else ''})" for n, d, rs in applied))
+                      f"{n} ({d:+f}{('، ' + rs) if rs else ''})" for n, d, rs in applied) + extra)
     return applied
 
 

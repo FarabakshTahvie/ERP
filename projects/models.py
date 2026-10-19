@@ -301,10 +301,12 @@ class StageEvent(models.Model):
 
 
 class StageUsage(models.Model):
-    """مصرف ثبت‌شده توسط تکنسین هر مرحله. هر مرحله مصرف خودش را دارد؛ از انبار کم نمی‌کند (کم‌شدن فقط در بازبینی نهایی)."""
+    """مصرف ثبت‌شده توسط تکنسین هر مرحله. هر مرحله مصرف خودش را دارد. همان لحظه از انبار کم می‌شود؛
+    deducted مقداری است که واقعاً کم شده (اگر موجودی کم بود کمتر از qty؛ تفاوتش «کسری» است)."""
     stage = models.ForeignKey(ProjectStage, on_delete=models.CASCADE, related_name="usages", verbose_name="مرحله")
     item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="stage_usages", verbose_name="کالا")
     qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار مصرف")
+    deducted = models.DecimalField(max_digits=12, decimal_places=4, default=0, verbose_name="مقدار کم‌شده از انبار")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name="+", verbose_name="ثبت‌کننده")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="آخرین ثبت")
