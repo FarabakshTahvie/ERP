@@ -48,7 +48,7 @@ from .proforma import (
     parse_service_rows, parse_extra_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
 )
 from finance.services import create_customer_payment
-from inventory.services import user_can_manage_inventory, low_stock_items_count
+from inventory.services import user_can_manage_inventory, low_stock_items_count, stock_map
 
 
 def _cost_values(project):
@@ -790,9 +790,9 @@ def new_project_submit(request):
     party_id = request.POST.get("party_id") or None
     party_data = None
     if not party_id:
-        roles = request.POST.getlist("roles")
+        roles = [r for r in request.POST.getlist("roles") if r in ("client", "partner")]
         if not roles:
-            return fail("لطفاً حداقل یک نقش (کارفرما، شریک تجاری، پیمانکار یا تأمین‌کننده) را برای طرف‌حساب انتخاب کنید.")
+            return fail("نقش طرف‌حساب را انتخاب کنید: کارفرما یا شریک تجاری.")
         party_data = {
             "name": request.POST.get("party_name", "").strip(),
             "brand_name": request.POST.get("brand_name", "").strip(),
@@ -801,8 +801,6 @@ def new_project_submit(request):
             "national_code": request.POST.get("national_code", "").strip() or None,
             "is_partner": "partner" in roles,
             "is_client": "client" in roles,
-            "is_contractor": "contractor" in roles,
-            "is_supplier": "supplier" in roles,
         }
 
     owner_party_id = None
@@ -864,7 +862,9 @@ def _proforma_initial_rows(project):
         return format(v.normalize(), "f")
     return [
         {"pk": l.pk, "service_id": l.service_id, "qty": qty_str(l.qty), "unit_price": str(int(l.unit_price)),
-         "materials": [{"pk": m.pk, "item_id": m.item_id, "qty": qty_str(m.qty)} for m in l.materials.all()]}
+         "materials": [{"pk": m.pk, "item_id": m.item_id, "qty": qty_str(m.qty),
+                        "line_total": str(int(m.line_total)) if m.manual_total else ""}
+                       for m in sorted(l.materials.all(), key=lambda m: m.pk)]}
         for l in project.services.prefetch_related("materials").order_by("pk")
     ]
 
@@ -924,6 +924,7 @@ def proforma_editor(request, project_id):
 
     services, items = _line_choices(project)
     margins = resolve_margin_percents(items)
+    stock = stock_map(i.pk for i in items)
     initial_rows = _proforma_initial_rows(project)
     initial_extras = _proforma_extra_rows(project)
     costs = _cost_values(project)
@@ -950,8 +951,9 @@ def proforma_editor(request, project_id):
         now_margin = resolve_margin_percents({m.item for m in mats})
         stale = sorted({
             m.item.name for m in mats
-            if m.cost_snapshot != m.item.moving_average_cost
-            or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01"))
+            if not m.manual_total and (
+                m.cost_snapshot != m.item.moving_average_cost
+                or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01")))
         })
 
     return render(request, "projects/proforma_editor.html", {
@@ -959,7 +961,8 @@ def proforma_editor(request, project_id):
         "prices_open": prices_open, "can_issue": can_issue,
         "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""} for s in services],
         "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
-                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk])} for i in items],
+                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk]),
+                        "stock": str(stock.get(i.pk, Decimal("0")))} for i in items],
         "initial_rows": initial_rows, "initial_extras": initial_extras, "costs": costs,
         "extra_lines": project.extra_lines.all(),
         "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,

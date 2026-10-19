@@ -16,7 +16,7 @@
 </div>
 <div class="fb-field">
     <label class="fb-label" for="{{ prefix }}-number">شماره کارت</label>
-    <input type="text" id="{{ prefix }}-number" name="card_number" required data-money dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+    <input type="text" id="{{ prefix }}-number" name="card_number" required data-digits dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
 </div>
 <div class="fb-field">
     <label class="fb-label" for="{{ prefix }}-sheba">شماره شبا</label>
@@ -25,7 +25,7 @@
 <div class="grid grid-cols-2 gap-3">
     <div class="fb-field">
         <label class="fb-label" for="{{ prefix }}-cvv2">CVV2</label>
-        <input type="text" id="{{ prefix }}-cvv2" name="cvv2" data-money maxlength="4" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+        <input type="text" id="{{ prefix }}-cvv2" name="cvv2" data-digits maxlength="4" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
     </div>
     <div class="fb-field">
         <label class="fb-label" for="{{ prefix }}-expiry">تاریخ انقضا (سال/ماه)</label>

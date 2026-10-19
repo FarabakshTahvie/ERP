@@ -15,10 +15,28 @@
     if (text != null) e.textContent = text;
     return e;
   }
+  function icon(sprite, name) {
+    if (!sprite) return null;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'w-4 h-4');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', sprite + '#' + name);
+    svg.appendChild(use);
+    return svg;
+  }
+  // دکمه‌ی «افزودن»: خط‌چین و رنگ برند تا از نگاه اول دیده شود
+  function addButton(label, sprite) {
+    var b = el('button', 'btn btn-dash btn-primary btn-sm w-full');
+    b.type = 'button';
+    var ic = icon(sprite, 'plus');
+    if (ic) b.appendChild(ic);
+    b.appendChild(el('span', null, label));
+    return b;
+  }
 
   function buildCell(col, value, notify) {
-    var wrap = el('div', 'flex flex-col gap-1 ' + (col.cls || 'flex-1 min-w-40'));
-    if (col.label) wrap.appendChild(el('span', 'text-xs fb-muted', col.label));
+    var wrap = el('div', 'flex flex-col gap-1 ' + (col.cls || 'flex-1 min-w-40') + (col.type === 'readonly' ? ' items-center text-center' : ''));
+    if (col.label) wrap.appendChild(el('span', 'text-xs fb-muted' + (col.center ? ' self-center' : ''), col.label));
     var cell = { el: wrap };
     if (col.type === 'picker') {
       var picker = window.fbItemPicker({
@@ -47,7 +65,7 @@
       wrap.appendChild(sel);
       cell.get = function () { return sel.value; };
     } else {
-      var input = el('input', 'input input-sm w-full' + (col.type === 'text' ? '' : ' font-technical'));
+      var input = el('input', 'input input-sm w-full' + (col.type === 'text' ? '' : ' font-technical') + (col.center ? ' text-center' : ''));
       input.type = 'text';
       input.autocomplete = 'off';
       input.placeholder = col.placeholder || '';
@@ -58,18 +76,50 @@
         if (col.type === 'money') input.maxLength = 12;
       }
       if (value != null) input.value = value;
-      input.addEventListener('input', notify);
-      wrap.appendChild(input);
-      cell.get = function () { return input.value; };
+      if (col.type === 'money' && window.fbMoney) window.fbMoney.format(input);
+      if (col.auto) {
+        // کادری که خودکار پر می‌شود؛ هر چیزی که کاربر بنویسد «دستی» است و خالی‌کردنش به خودکار برمی‌گردد
+        var mark = el('span', 'text-xs fb-muted text-center hidden', 'دستی؛ برای خودکار، خالی کنید');
+        cell.manual = value != null && String(value).trim() !== '';
+        mark.classList.toggle('hidden', !cell.manual);
+        input.addEventListener('input', function () {
+          cell.manual = input.value.trim() !== '';
+          mark.classList.toggle('hidden', !cell.manual);
+          notify();
+        });
+        cell.setAuto = function (text) {
+          if (cell.manual) return;
+          input.value = text;
+          if (window.fbMoney) window.fbMoney.format(input);
+        };
+        cell.get = function () { return cell.manual ? input.value : ''; };
+        wrap.appendChild(input);
+        wrap.appendChild(mark);
+      } else {
+        input.addEventListener('input', notify);
+        cell.get = function () { return input.value; };
+        wrap.appendChild(input);
+      }
     }
     return cell;
   }
 
-  function makeLevel(spec, box, notify) {
+  function paintFooter(node, note) {
+    var isObject = !!note && typeof note === 'object';
+    var text = isObject ? note.text : (note || '');
+    var tone = isObject ? note.tone : '';
+    node.textContent = text;
+    node.className = tone === 'warning' ? 'alert alert-soft alert-warning text-xs py-1.5' : 'text-xs fb-muted';
+    node.classList.toggle('hidden', !text);
+  }
+
+  function makeLevel(spec, box, notify, ctx) {
     var level = { rows: [] };
     level.addRow = function (values) {
       values = values || {};
-      var rowEl = el('div', 'fb-inset flex flex-col gap-2');
+      var rowEl = el('div', ctx.nested
+        ? 'flex flex-col gap-2 py-3 border-t border-base-300 first:border-t-0 first:pt-0'
+        : 'fb-inset flex flex-col gap-2');
       var cellsEl = el('div', 'flex flex-wrap items-end gap-2');
       rowEl.appendChild(cellsEl);
       var row = { el: rowEl, pk: values.pk || null, cells: {}, children: null, footer: null };
@@ -89,18 +139,18 @@
       if (spec.children) {
         var kids = el('div', 'flex flex-col gap-2 border-s border-base-300 ps-3');
         kids.appendChild(el('div', 'text-xs fb-muted font-semibold', spec.children.title));
-        var kidsRows = el('div', 'flex flex-col gap-2');
+        var kidsRows = el('div', 'flex flex-col');
         kids.appendChild(kidsRows);
-        var addKid = el('button', 'btn btn-ghost btn-sm self-start', spec.children.addLabel);
-        addKid.type = 'button';
-        row.children = makeLevel(spec.children, kidsRows, notify);
+        var addKid = addButton(spec.children.addLabel, ctx.sprite);
+        row.children = makeLevel(spec.children, kidsRows, notify, { sprite: ctx.sprite, nested: true });
         addKid.addEventListener('click', function () { row.children.addRow(); notify(); });
         kids.appendChild(addKid);
         rowEl.appendChild(kids);
         (values[spec.children.key] || []).forEach(function (k) { row.children.addRow(k); });
       }
       if (spec.footer) {
-        row.footer = el('div', 'text-xs fb-muted');
+        row.footer = el('div', 'text-xs fb-muted hidden');
+        row.footer.setAttribute('role', 'status');
         rowEl.appendChild(row.footer);
       }
       level.rows.push(row);
@@ -123,10 +173,12 @@
     level.rows.forEach(function (row) {
       var d = values(row, spec);
       spec.columns.forEach(function (c) {
-        if (c.type === 'readonly' && c.compute) row.cells[c.key].set(c.compute(d, parent));
+        var cell = row.cells[c.key];
+        if (c.type === 'readonly' && c.compute) cell.set(c.compute(d, parent));
+        else if (c.auto && cell.setAuto) cell.setAuto(c.auto(d, parent));
       });
       if (spec.children) recompute(row.children, spec.children, d);
-      if (row.footer && spec.footer) row.footer.textContent = spec.footer(d);
+      if (row.footer && spec.footer) paintFooter(row.footer, spec.footer(d, parent));
     });
   }
 
@@ -143,7 +195,6 @@
       if (spec.children) {
         d[spec.children.key] = serialize(row.children, spec.children);
         if (d[spec.children.key].length) filled = true;
-        d[spec.children.key].forEach(function () {});
       }
       if (filled) out.push(d);
     });
@@ -152,21 +203,23 @@
 
   window.fbLineEditor = function (cfg) {
     var root = cfg.mount, hidden = cfg.hidden, loading = true;
-    var rowsBox = el('div', 'flex flex-col gap-3');
+    var sprite = root.dataset.sprite || '';
+    root.classList.add('flex', 'flex-col', 'gap-3');
+    var rowsBox = el('div', 'flex flex-col gap-3 empty:hidden');
     var empty = el('p', 'fb-hint', cfg.emptyText || 'هنوز ردیفی اضافه نشده.');
-    var add = el('button', 'btn btn-soft btn-sm self-start', cfg.addLabel || 'افزودن ردیف');
-    add.type = 'button';
+    var add = addButton(cfg.addLabel || 'افزودن ردیف', sprite);
     root.appendChild(rowsBox); root.appendChild(empty); root.appendChild(add);
     var top;
     function notify() {
       if (loading) return;
-      recompute(top, cfg, null);
       var data = serialize(top, cfg);
+      if (cfg.prepare) cfg.prepare(data);   // قبل از محاسبه؛ مثلاً جمع نیاز هر کالا در کل پیش‌فاکتور
+      recompute(top, cfg, null);
       hidden.value = JSON.stringify(data);
       empty.classList.toggle('hidden', top.rows.length > 0);
       if (cfg.onChange) cfg.onChange(data);
     }
-    top = makeLevel(cfg, rowsBox, notify);
+    top = makeLevel(cfg, rowsBox, notify, { sprite: sprite, nested: false });
     hidden.name = hidden.dataset.name || hidden.name;   // اگر JS اجرا نشود، فیلد ارسال نمی‌شود (سرور دست نمی‌زند)
     add.addEventListener('click', function () { top.addRow(); notify(); });
     (cfg.initial || []).forEach(function (r) { top.addRow(r); });
