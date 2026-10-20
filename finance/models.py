@@ -199,6 +199,7 @@ class AccountingEvent(models.Model):
         COST = "cost", "هزینه"
         PAYMENT = "payment", "ثبت پرداخت"
         PERIOD = "period", "قفل ماه"
+        EXPORT = "export", "خروجی جدول"
 
     project = models.ForeignKey('projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name="accounting_events", verbose_name="پروژه")

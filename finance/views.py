@@ -18,6 +18,7 @@ from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
 from utils.utils import separate_digits
+from utils.templatetags.custom_tags import person_name
 from .aging import debt_invoices, get_customer_aging_data
 from .models import CHEQUE_ACTIVE, BankCard, Invoice, Payment
 from .services import (
@@ -137,6 +138,17 @@ def _visible_payments(user):
     return Payment.objects.select_related("invoice__project", "invoice__billed_party", "approved_by")
 
 
+PAYMENT_EXPORT_EXTRA = [
+    {"label": "طرف‌حساب", "value": lambda p: p.invoice.billed_party.name},
+    {"label": "شماره پیگیری", "value": lambda p: p.reference_number},
+    {"label": "مبلغ اعلامی مشتری (تومان)", "value": lambda p: p.claimed_amount},
+    {"label": "شناسه‌ی صیادی چک", "value": lambda p: p.cheque_number},
+    {"label": "بانک چک", "value": lambda p: p.cheque_bank},
+    {"label": "تاییدکننده", "value": lambda p: person_name(p.approved_by)},
+    {"label": "تاریخ تایید", "value": lambda p: p.approved_at},
+]
+
+
 def _payments_table_context(request):
     qs = _visible_payments(request.user).annotate(
         review_rank=Case(When(status=Payment.Status.PENDING, then=0), default=1, output_field=IntegerField()),
@@ -198,6 +210,7 @@ def _payments_table_context(request):
         list_url=reverse("finance:payments_table"),
         search_fields=["invoice__project__name", "invoice__number", "invoice__billed_party__name", "reference_number"],
         search_placeholder="جستجو در پروژه، فاکتور، طرف‌حساب یا شماره پیگیری...",
+        export_extra=PAYMENT_EXPORT_EXTRA,
     )
 
 

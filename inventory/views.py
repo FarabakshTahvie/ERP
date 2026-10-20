@@ -58,6 +58,12 @@ def _stock_queryset(include_inactive=False):
     )
 
 
+ITEM_EXPORT_EXTRA = [
+    {"label": "میانگین موزون قیمت (تومان)", "value": lambda i: i.moving_average_cost},
+    {"label": "ارزش موجودی (تومان)", "value": lambda i: i.stock * i.moving_average_cost},
+]
+
+
 def _stock_table_context(request):
     qs = _stock_queryset(include_inactive=True)
 
@@ -107,6 +113,7 @@ def _stock_table_context(request):
         empty_icon="package", empty_text="هنوز کالایی در کاتالوگ فعال ثبت نشده.",
         list_url=reverse("inventory:stock_table"),
         search_fields=["name", "category__name"],
+        export_extra=ITEM_EXPORT_EXTRA,
     )
 
 

@@ -3,6 +3,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 from django.shortcuts import render
+from utils.table_export import export_context, export_response
 
 _FA_AR_DIGITS_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
@@ -68,7 +69,8 @@ def _parse_decimal_safe(raw):
 def build_table_context(request, queryset, *, columns, row_builder, container_id,
                           param_prefix="", page_size_default=10, page_size_choices=(10, 20, 50),
                           empty_icon="folder-kanban", empty_text="موردی برای نمایش نیست.",
-                          list_url=None, search_fields=None, search_placeholder="جستجو..."):
+                          list_url=None, search_fields=None, search_placeholder="جستجو...",
+                          export_enabled=True, export_extra=None):
     """
     columns: [{"label": "..."}, ...].
       کلید اختیاری "sort_field": فیلد/annotation واقعی ORM برای سورت (whitelist سمت سرور؛
@@ -205,6 +207,12 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
         "preserved_params": preserved_params,
         "show_pagination": show_pagination,
     })
+    # اکسپورت CSV: فقط با قابلیت tables.export؛ export_extra = ستون‌های اضافه‌ی [{"label", "value": fn(obj)}]
+    # ستونی که "no_export": True دارد (مثل «عملیات») در چک‌لیست نمی‌آید.
+    context.update(export_context(
+        request, queryset=queryset, columns=augmented_columns, row_builder=row_builder,
+        extras=export_extra, enabled=export_enabled, container_id=container_id,
+        param_prefix=param_prefix, page_param=page_param, total=pg["paginator"].count))
     return context
 
 
@@ -215,6 +223,8 @@ def render_table(request, context, template="utils/partials/generic_table.html")
     همین جدول (همه‌ی کلیدهای با param_prefix) با مقدار جدید جایگزین می‌شوند و بقیه
     (جدول‌های دیگر و تب فعال) دست‌نخورده می‌مانند. param_prefix باید غیرخالی باشد.
     """
+    if request.GET.get(context.get("export_param", ""), "") == "csv" and request.path == context.get("list_url"):
+        return export_response(request, context)
     response = render(request, template, context)
     current_url = request.headers.get("HX-Current-URL")
     if not (request.headers.get("HX-Request") and current_url):

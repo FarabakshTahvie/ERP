@@ -86,10 +86,10 @@ def _table_context(request, *, done):
 
     if done:
         columns = [{"label": "عنوان", "sort_field": "title"}, {"label": "مسئولان"}, {"label": "پیشرفت"},
-                   {"label": "تاریخ ثبت نهایی", "sort_field": "finished_at"}, {"label": "عملیات"}]
+                   {"label": "تاریخ ثبت نهایی", "sort_field": "finished_at"}, {"label": "عملیات", "no_export": True}]
     else:
         columns = [{"label": "عنوان", "sort_field": "title"}, {"label": "ددلاین", "sort_field": "due_at"},
-                   {"label": "مسئولان"}, {"label": "پیشرفت"}, {"label": "وضعیت"}, {"label": "عملیات"}]
+                   {"label": "مسئولان"}, {"label": "پیشرفت"}, {"label": "وضعیت"}, {"label": "عملیات", "no_export": True}]
     return build_table_context(
         request, qs, columns=columns, row_builder=row_builder,
         container_id="table-tasks-done" if done else "table-tasks-open",
