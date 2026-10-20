@@ -171,7 +171,8 @@ def attention_items(stats, now=None):
         add("integrity", "موجودی انبار با حرکت‌ها هم‌خوان نیست", 1, level="error",
             hint="گزارش دقیق: دستور audit_accounting.")
 
-    add("low_stock", "کالای رو به اتمام", low_stock_items_count(), level="info")
+    add("low_stock", "کالای رو به اتمام", low_stock_items_count(), level="info",
+        url=reverse("finance:accounting_inventory") + "?st_f_low=1")
 
     add("failed_notifications", f"اطلاع‌رسانی ناموفق ({_fa(FAILED_NOTIFICATION_DAYS)} روز اخیر)",
         Notification.objects.filter(status=Notification.Status.FAILED,

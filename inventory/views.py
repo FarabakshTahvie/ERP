@@ -64,8 +64,9 @@ ITEM_EXPORT_EXTRA = [
 ]
 
 
-def _stock_table_context(request):
+def _stock_table_context(request, *, list_url=None):
     qs = _stock_queryset(include_inactive=True)
+    can_edit = user_can_manage_inventory(request.user)   # مدیر فقط می‌بیند؛ ردیف برای او لینک ویرایش ندارد
 
     def row_builder(item):
         low = item.is_low == 1
@@ -76,7 +77,7 @@ def _stock_table_context(request):
         warehouse_names = sorted({lot.warehouse.name for lot in item.stocked_lots})
         warehouse_display = "، ".join(warehouse_names) if warehouse_names else "—"
         return {
-            "url": reverse("inventory:item_edit", args=[item.id]),
+            "url": reverse("inventory:item_edit", args=[item.id]) if can_edit else None,
             "cells": [
                 {"type": "text", "value": item.name},
                 {"type": "muted", "value": item.get_item_type_display()},
@@ -111,7 +112,7 @@ def _stock_table_context(request):
         container_id="table-stock",
         param_prefix="st_",
         empty_icon="package", empty_text="هنوز کالایی در کاتالوگ فعال ثبت نشده.",
-        list_url=reverse("inventory:stock_table"),
+        list_url=list_url or reverse("inventory:stock_table"),
         search_fields=["name", "category__name"],
         export_extra=ITEM_EXPORT_EXTRA,
     )
