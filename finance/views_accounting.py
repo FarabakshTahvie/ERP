@@ -65,6 +65,14 @@ def _table_page(request, builder, *, nav, title, sub):
 
 
 # ---------- جدول پروژه‌ها ----------
+PROJECT_EXPORT_EXTRA = [
+    {"label": "طرف‌حساب", "value": lambda p: (p.owner or p.partner).name},
+    {"label": "تاریخ ثبت", "value": lambda p: p.created_at},
+    {"label": "هزینه‌ی انبار (تومان)", "value": lambda p: p.stock_out - p.stock_back},
+    {"label": "هزینه‌های دستی ثبت‌شده (تومان)", "value": lambda p: p.rec_costs},
+]
+
+
 def _projects_ctx(request):
     qs = accounting.projects_financial_queryset().order_by("-created_at")
 
@@ -102,6 +110,7 @@ def _projects_ctx(request):
         list_url=reverse("finance:accounting_projects_table"),
         search_fields=["name", "code", "owner__name", "partner__name"],
         search_placeholder="جستجو در نام پروژه، کد یا طرف‌حساب...",
+        export_extra=PROJECT_EXPORT_EXTRA,
     )
 
 
@@ -119,6 +128,12 @@ def projects_table(request):
 
 
 # ---------- حرکات انبار ----------
+STOCK_EXPORT_EXTRA = [
+    {"label": "بهای واحد (تومان)", "value": lambda m: m.unit_cost},
+    {"label": "کد پروژه", "value": lambda m: m.related_object.code if isinstance(m.related_object, Project) else ""},
+]
+
+
 def _stock_ctx(request):
     qs = StockMovement.objects.select_related("item", "created_by").prefetch_related("related_object").order_by("-created_at", "-id")
 
@@ -161,6 +176,7 @@ def _stock_ctx(request):
         empty_icon="package", empty_text="هنوز حرکتی در انبار ثبت نشده.",
         list_url=reverse("finance:accounting_stock_table"),
         search_fields=["item__name", "notes"], search_placeholder="جستجو در کالا یا دلیل...",
+        export_extra=STOCK_EXPORT_EXTRA,
     )
 
 

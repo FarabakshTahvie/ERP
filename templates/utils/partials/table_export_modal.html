@@ -1,0 +1,57 @@
+{% load custom_tags %}
+{% if export_enabled %}
+<button type="button" class="btn btn-soft btn-sm btn-square shrink-0"
+        onclick="document.getElementById('{{ container_id }}-export-modal').showModal()"
+        aria-label="خروجی CSV" title="خروجی CSV">
+    {% icon "download" "w-4 h-4" %}
+</button>
+
+<dialog id="{{ container_id }}-export-modal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-1">خروجی CSV</h3>
+        <p class="text-xs fb-muted mb-4">با همان جستجو، فیلتر و ترتیبی که الان روی جدول است. ستون‌های لازم را انتخاب کنید.</p>
+
+        <form method="get" action="{{ list_url }}" class="flex flex-col gap-3"
+              onsubmit="var f=this,e=f.querySelector('[data-export-error]');if(!f.querySelector('input[type=checkbox]:checked')){event.preventDefault();e.classList.remove('hidden');return false;}e.classList.add('hidden');var d=f.closest('dialog');setTimeout(function(){d.close()},400);">
+            {% for name, value in export_state %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <input type="hidden" name="{{ export_param }}" value="csv">
+
+            <div class="fb-field">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="fb-label">ستون‌ها</span>
+                    <span class="flex gap-1">
+                        <button type="button" class="btn btn-ghost btn-xs"
+                                onclick="this.closest('form').querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=true})">همه</button>
+                        <button type="button" class="btn btn-ghost btn-xs"
+                                onclick="this.closest('form').querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false})">هیچ‌کدام</button>
+                    </span>
+                </div>
+                <div class="fb-inset flex flex-col gap-1.5 max-h-60 overflow-y-auto">
+                    {% for c in export_columns %}
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" name="{{ cols_param }}" value="{{ c.key }}" class="checkbox checkbox-sm" checked>
+                        <span class="min-w-0">{{ c.label }}</span>
+                        {% if c.extra %}<span class="fb-badge fb-badge-neutral">اضافه</span>{% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="fb-field">
+                <label class="fb-label" for="{{ container_id }}-export-limit">تعداد ردیف</label>
+                <input type="text" id="{{ container_id }}-export-limit" name="{{ limit_param }}" value="{{ export_default_limit }}"
+                       data-digits dir="ltr" inputmode="numeric" autocomplete="off" class="input input-sm w-full font-technical">
+                <span class="fb-hint">این جدول با فیلتر فعلی {{ export_total|fa_digits }} ردیف دارد. هر خروجی حداکثر {{ export_max|fa_digits }} ردیف است و از ردیف اول با همین ترتیب می‌آید.</span>
+            </div>
+
+            <p class="fb-error hidden" data-export-error>حداقل یک ستون را انتخاب کنید.</p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-1">دانلود CSV</button>
+                <button type="button" class="btn btn-ghost btn-sm flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}

@@ -24,6 +24,13 @@ MONEY = DecimalField(max_digits=24, decimal_places=2)
 
 
 # ---------- کارکنان ----------
+STAFF_EXPORT_EXTRA = [
+    {"label": "موبایل", "value": lambda u: u.phone_number},
+    {"label": "ایمیل", "value": lambda u: u.email},
+    {"label": "تاریخ عضویت", "value": lambda u: u.date_joined},
+]
+
+
 def staff_ctx(request):
     show_presence = can(request.user, "activity.view")
     qs = (User.objects.filter(role__in=[User.Role.ADMIN, User.Role.EMPLOYEE])
@@ -63,6 +70,7 @@ def staff_ctx(request):
         list_url=reverse("people:staff_table"),
         search_fields=["first_name", "last_name", "username", "phone_number"],
         search_placeholder="جستجو در نام یا شماره...",
+        export_extra=STAFF_EXPORT_EXTRA,
     )
 
 
@@ -71,6 +79,14 @@ def _roles_text(p):
     names = [label for flag, label in ((p.is_client, "کارفرما"), (p.is_partner, "شریک تجاری"),
                                        (p.is_contractor, "پیمانکار")) if flag]
     return "، ".join(names) or "—"
+
+
+CUSTOMER_EXPORT_EXTRA = [
+    {"label": "نام برند", "value": lambda p: p.brand_name},
+    {"label": "شماره تماس دوم", "value": lambda p: p.secondary_phone},
+    {"label": "ایمیل", "value": lambda p: p.email},
+    {"label": "سقف اعتبار (تومان)", "value": lambda p: p.credit_limit},
+]
 
 
 def customers_ctx(request):
@@ -109,6 +125,7 @@ def customers_ctx(request):
         list_url=reverse("people:customers_table"),
         search_fields=["name", "phone_number", "brand_name"],
         search_placeholder="جستجو در نام یا شماره...",
+        export_extra=CUSTOMER_EXPORT_EXTRA,
     )
 
 
