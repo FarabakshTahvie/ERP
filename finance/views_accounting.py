@@ -193,6 +193,25 @@ def stock_table(request):
     return render_table(request, _stock_ctx(request))
 
 
+# ---------- موجودی کالاها (مدیر فقط می‌بیند؛ ثبت و ویرایش با انباردار و حسابدار است) ----------
+def _inventory_ctx(request):
+    from inventory.views import _stock_table_context
+    return _stock_table_context(request, list_url=reverse("finance:accounting_inventory_table"))
+
+
+@login_required
+@user_passes_test(_can)
+def inventory_page(request):
+    return _table_page(request, _inventory_ctx, nav="inventory", title="موجودی انبار",
+                       sub="موجودی همه‌ی کالاها در همه‌ی انبارها. «کمبود» یعنی موجودی به حد هشدار رسیده یا کمتر شده.")
+
+
+@login_required
+@user_passes_test(_can)
+def inventory_table(request):
+    return render_table(request, _inventory_ctx(request))
+
+
 # ---------- خریدها ----------
 def _purchases_ctx(request):
     qs = (PurchaseLine.objects.select_related("purchase__supplier", "item")

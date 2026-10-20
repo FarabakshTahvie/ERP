@@ -158,7 +158,7 @@ def attention_items():
         .annotate(rem=ExpressionWrapper(F("total_amount") - F("paid_amount"), output_field=MONEY))
         .filter(rem__gt=0).count(),
         reverse("finance:accounting_projects") + "?ap_f_status=completed&ap_fmin_remaining=1", "error")
-    add("کالای رو به اتمام", low_stock_items_count(), reverse("home") + "?tab=stock", "info")
+    add("کالای رو به اتمام", low_stock_items_count(), reverse("finance:accounting_inventory") + "?st_f_low=1", "info")
     return out
 
 
