@@ -1,6 +1,6 @@
 {% load custom_tags %}
 <div class="fb-card fb-table-region overflow-hidden" id="{{ container_id }}">
-    {% if search_enabled or has_modal or show_pagination %}
+    {% if search_enabled or has_modal or show_pagination or has_date_filter %}
     <div id="{{ container_id }}-controls" class="p-3 border-b border-base-300 flex flex-col gap-3">
         {% if search_enabled or has_modal %}
         <div class="flex items-center gap-2">
@@ -21,6 +21,39 @@
             {% include "utils/partials/table_filter_modal.html" %}
             {% include "utils/partials/table_export_modal.html" %}
         </div>
+        {% endif %}
+        {% if has_date_filter %}
+        <form class="flex flex-wrap items-end gap-3" data-date-range-form
+              hx-get="{{ list_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML">
+            {% for name, value in date_preserved_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <input type="hidden" name="{{ page_param }}" value="1">
+            {% for col in columns %}{% if col.filter_key and col.filter_type == "date_range" %}
+            <div class="fb-field min-w-0" data-date-range>
+                <span class="fb-label">{{ col.label }}</span>
+                <div class="flex items-center gap-2">
+                    <input type="text" name="{{ param_prefix }}ffrom_{{ col.filter_key }}" value="{{ col.filter_value_from }}"
+                           data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off"
+                           placeholder="از تاریخ" aria-label="{{ col.label }}: از تاریخ" class="input input-sm w-32 font-technical">
+                    <span class="text-xs fb-muted">تا</span>
+                    <input type="text" name="{{ param_prefix }}fto_{{ col.filter_key }}" value="{{ col.filter_value_to }}"
+                           data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off"
+                           placeholder="تا تاریخ" aria-label="{{ col.label }}: تا تاریخ" class="input input-sm w-32 font-technical">
+                </div>
+                {% if col.date_summary %}
+                <span class="fb-hint">بازه‌ی اعمال‌شده: {{ col.date_summary }}</span>
+                {% elif col.allow_future %}
+                <span class="fb-hint">یکی از دو تاریخ هم کافی است.</span>
+                {% else %}
+                <span class="fb-hint">یکی از دو تاریخ هم کافی است؛ بدون تاریخ پایان، تا امروز حساب می‌شود.</span>
+                {% endif %}
+                <span class="fb-error hidden" data-date-range-error>تاریخ شروع نباید بعد از تاریخ پایان باشد.</span>
+            </div>
+            {% endif %}{% endfor %}
+            <button type="submit" class="btn btn-soft btn-sm">اعمال بازه</button>
+            {% if date_active %}
+            <a href="{{ date_reset_url }}" hx-get="{{ date_reset_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML" class="btn btn-ghost btn-sm">پاک‌کردن بازه</a>
+            {% endif %}
+        </form>
         {% endif %}
         {% if show_pagination %}
             {% include "utils/partials/pagination_bar.html" %}

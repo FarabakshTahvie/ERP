@@ -189,7 +189,8 @@ def _build_history_table_context(request):
     return build_table_context(
         request, qs,
         columns=[
-            {"label": "زمان", "sort_field": "created_at"},
+            {"label": "زمان", "sort_field": "created_at", "filter_key": "date", "filter_type": "date_range",
+             "filter_field": "created_at"},
             {"label": "فرستنده"},
             {"label": "کانال"},
             {"label": "عنوان / خلاصه"},

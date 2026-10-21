@@ -1,8 +1,13 @@
+from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qsl, urlencode, urlsplit
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.utils import timezone
 from django.shortcuts import render
+from utils.jalali import jalali_str
+from utils.jalali_forms import JalaliDateField
 from utils.table_export import export_context, export_response
 
 _FA_AR_DIGITS_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
@@ -11,6 +16,9 @@ FILTER_TEXT = "text"
 FILTER_NUMBER_RANGE = "number_range"
 FILTER_SELECT = "select"
 FILTER_BOOLEAN = "boolean"
+# بازه‌ی تاریخ شمسی: ستون با filter_key و filter_field (فیلد ORM). "allow_future": True = بدون سقف «امروز» (مثل ددلاین)؛
+# "date_only": True = فیلد DateField (وگرنه DateTimeField). فقط تاریخ شروع یعنی «تا امروز».
+FILTER_DATE_RANGE = "date_range"
 
 
 def paginate(request, queryset, *, param_prefix="", page_size_default=10, page_size_choices=(10, 20, 50)):
@@ -66,6 +74,48 @@ def _parse_decimal_safe(raw):
         return None
 
 
+def _parse_jalali_safe(raw):
+    """تاریخ شمسی (ارقام فارسی یا لاتین، جداکننده / یا -) ← date میلادی.
+    خالی، نامعتبر یا خارج از ۱۹۰۰ تا ۲۹۹۹ ← None؛ هرگز خطا نمی‌دهد (ورودی از URL است)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        day = JalaliDateField().to_python(raw)
+    except ValidationError:
+        return None
+    return day if day and 1900 <= day.year <= 2999 else None
+
+
+def _date_q(field, start, end, *, date_only):
+    """بازه‌ی بسته‌ی روزانه [start, end]؛ هر کدام None یعنی بدون محدودیت. روز آخر کامل (تا ۲۳:۵۹) حساب می‌شود."""
+    q = Q()
+    if date_only:
+        if start:
+            q &= Q(**{f"{field}__gte": start})
+        if end:
+            q &= Q(**{f"{field}__lte": end})
+        return q
+    if start:
+        q &= Q(**{f"{field}__gte": timezone.make_aware(datetime.combine(start, time.min))})
+    if end:
+        q &= Q(**{f"{field}__lt": timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min))})
+    return q
+
+
+def _date_summary(from_d, to_d, today=None):
+    """متن بازه‌ی اعمال‌شده؛ today فقط وقتی داده می‌شود که پایان خودکار «امروز» است."""
+    def show(day):
+        return jalali_str(day, fmt="%Y/%m/%d")
+    if from_d and to_d:
+        return f"فقط روز {show(from_d)}" if from_d == to_d else f"از {show(from_d)} تا {show(to_d)}"
+    if from_d:
+        return f"از {show(from_d)} تا امروز ({show(today)})" if today else f"از {show(from_d)} به بعد"
+    if to_d:
+        return f"تا {show(to_d)}"
+    return ""
+
+
 def build_table_context(request, queryset, *, columns, row_builder, container_id,
                           param_prefix="", page_size_default=10, page_size_choices=(10, 20, 50),
                           empty_icon="folder-kanban", empty_text="موردی برای نمایش نیست.",
@@ -118,6 +168,7 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
     # --- فیلتر پیشرفته (مودال، T2) ---
     modal_reset_params = {sort_param, dir_param, page_param}
     active_filter_count = 0
+    date_params, date_active = set(), False
     augmented_columns = []
 
     for col in columns:
@@ -126,7 +177,24 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
         if f_key and f_type:
             f_field = col.get("filter_field", f_key)
 
-            if f_type == FILTER_NUMBER_RANGE:
+            if f_type == FILTER_DATE_RANGE:
+                from_param, to_param = f"{param_prefix}ffrom_{f_key}", f"{param_prefix}fto_{f_key}"
+                modal_reset_params |= {from_param, to_param}
+                date_params |= {from_param, to_param}
+                from_d = _parse_jalali_safe(request.GET.get(from_param, ""))
+                to_d = _parse_jalali_safe(request.GET.get(to_param, ""))
+                if from_d and to_d and from_d > to_d:
+                    from_d, to_d = to_d, from_d          # ترتیب برعکس: جابه‌جا
+                col["filter_value_from"] = jalali_str(from_d, fmt="%Y/%m/%d") if from_d else ""
+                col["filter_value_to"] = jalali_str(to_d, fmt="%Y/%m/%d") if to_d else ""
+                today = timezone.localdate()
+                auto_today = bool(from_d and not to_d and not col.get("allow_future"))   # فقط شروع ← تا امروز
+                col["date_summary"] = _date_summary(from_d, to_d, today if auto_today else None)
+                if from_d or to_d:
+                    date_active = True
+                    queryset = queryset.filter(_date_q(
+                        f_field, from_d, today if auto_today else to_d, date_only=bool(col.get("date_only"))))
+            elif f_type == FILTER_NUMBER_RANGE:
                 min_param, max_param = f"{param_prefix}fmin_{f_key}", f"{param_prefix}fmax_{f_key}"
                 modal_reset_params |= {min_param, max_param}
                 min_raw = request.GET.get(min_param, "").strip()
@@ -169,7 +237,16 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
     reset_qs = reset_params.urlencode()
     reset_url = f"{base_url}?{reset_qs}" if reset_qs else base_url
 
-    has_modal = any(c.get("sort_field") or (c.get("filter_key") and c.get("filter_type")) for c in augmented_columns)
+    has_modal = any(c.get("sort_field") or (c.get("filter_key") and c.get("filter_type")
+                                            and c.get("filter_type") != FILTER_DATE_RANGE) for c in augmented_columns)
+    has_date_filter = any(c.get("filter_key") and c.get("filter_type") == FILTER_DATE_RANGE for c in augmented_columns)
+    skip_in_date_form = date_params | {page_param}
+    date_preserved_params = [(k, v) for k in request.GET if k not in skip_in_date_form for v in request.GET.getlist(k)]
+    date_clear = request.GET.copy()
+    for name in skip_in_date_form:
+        date_clear.pop(name, None)
+    date_clear_qs = date_clear.urlencode()
+    date_reset_url = f"{base_url}?{date_clear_qs}" if date_clear_qs else base_url
 
     pg = paginate(request, queryset, param_prefix=param_prefix,
                   page_size_default=page_size_default, page_size_choices=page_size_choices)
@@ -206,6 +283,10 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
         "param_prefix": param_prefix,
         "preserved_params": preserved_params,
         "show_pagination": show_pagination,
+        "has_date_filter": has_date_filter,
+        "date_active": date_active,
+        "date_preserved_params": date_preserved_params,
+        "date_reset_url": date_reset_url,
     })
     # اکسپورت CSV: فقط با قابلیت tables.export؛ export_extra = ستون‌های اضافه‌ی [{"label", "value": fn(obj)}]
     # ستونی که "no_export": True دارد (مثل «عملیات») در چک‌لیست نمی‌آید.

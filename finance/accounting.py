@@ -44,7 +44,7 @@ def supplier_items(party):
     labels = dict(Item.Unit.choices)
     rows = list(PurchaseLine.objects.filter(purchase__supplier=party)
                 .values("item_id", "item__name", "item__unit")
-                .annotate(qty=Sum("qty"), total=Sum(VALUE), last_at=Max("purchase__purchased_at"),
+                .annotate(qty_sum=Sum("qty"), total=Sum(VALUE), last_at=Max("purchase__purchased_at"),
                           n=Count("purchase", distinct=True))
                 .order_by("-total"))
     for r in rows:

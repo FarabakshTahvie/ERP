@@ -24,7 +24,7 @@
                 <tbody>
                 {% for r in items %}
                     <tr><td class="font-semibold">{{ r.item__name }}</td>
-                        <td class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }} {{ r.unit_label }}</td>
+                        <td class="font-technical">{{ r.qty_sum|floatformat:"-4"|fa_digits }} {{ r.unit_label }}</td>
                         <td class="font-technical">{{ r.n|fa_digits }}</td>
                         <td class="font-technical">{{ r.total|intcomma_fa }}</td>
                         <td class="font-technical">{{ r.last_at|to_jalali:"%Y/%m/%d" }}</td></tr>
