@@ -118,4 +118,21 @@
     if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') e.preventDefault();   // تایپ دستی ممنوع
   });
   document.addEventListener('paste', function (e) { if (e.target.matches && e.target.matches('[data-jalali-date]')) e.preventDefault(); });
+
+  // بازه‌ی زمانی جدول‌ها: تاریخ شروع نباید بعد از پایان باشد. سرور هم در این حالت جابه‌جا می‌کند.
+  // در فاز capture ثبت شده تا قبل از شنونده‌ی htmx روی فرم اجرا شود و ارسال را متوقف کند.
+  document.addEventListener('submit', function (e) {
+    var form = e.target, wrongAny = false;
+    if (!form || !form.querySelectorAll) return;
+    form.querySelectorAll('[data-date-range]').forEach(function (box) {
+      var inputs = box.querySelectorAll('[data-jalali-date]');
+      if (inputs.length !== 2) return;
+      var a = en(inputs[0].value).replace(/\D/g, ''), b = en(inputs[1].value).replace(/\D/g, '');
+      var wrong = !!(a && b && a > b);
+      var msg = box.querySelector('[data-date-range-error]');
+      if (msg) msg.classList.toggle('hidden', !wrong);
+      if (wrong) wrongAny = true;
+    });
+    if (wrongAny) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
 })();

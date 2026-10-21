@@ -160,7 +160,8 @@ def _stock_ctx(request):
     return build_table_context(
         request, qs,
         columns=[
-            {"label": "تاریخ", "sort_field": "created_at"},
+            {"label": "تاریخ", "sort_field": "created_at", "filter_key": "date", "filter_type": "date_range",
+             "filter_field": "created_at"},
             {"label": "کالا", "sort_field": "item__name"},
             {"label": "نوع", "sort_field": "movement_type", "filter_key": "type", "filter_type": "select",
              "filter_field": "movement_type", "choices": StockMovement.MovementType.choices},
@@ -231,7 +232,8 @@ def _purchases_ctx(request):
     return build_table_context(
         request, qs,
         columns=[
-            {"label": "تاریخ", "sort_field": "purchase__purchased_at"},
+            {"label": "تاریخ", "sort_field": "purchase__purchased_at", "filter_key": "date",
+             "filter_type": "date_range", "filter_field": "purchase__purchased_at"},
             {"label": "تأمین‌کننده", "sort_field": "purchase__supplier__name", "filter_key": "supplier",
              "filter_type": "select", "filter_field": "purchase__supplier_id",
              "choices": [(p.id, p.name) for p in Party.objects.filter(purchases__isnull=False).distinct().order_by("name")]},

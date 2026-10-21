@@ -86,9 +86,9 @@ def _table_context(request, *, done):
 
     if done:
         columns = [{"label": "عنوان", "sort_field": "title"}, {"label": "مسئولان"}, {"label": "پیشرفت"},
-                   {"label": "تاریخ ثبت نهایی", "sort_field": "finished_at"}, {"label": "عملیات", "no_export": True}]
+                   {"label": "تاریخ ثبت نهایی", "sort_field": "finished_at", "filter_key": "date", "filter_type": "date_range", "filter_field": "finished_at"}, {"label": "عملیات", "no_export": True}]
     else:
-        columns = [{"label": "عنوان", "sort_field": "title"}, {"label": "ددلاین", "sort_field": "due_at"},
+        columns = [{"label": "عنوان", "sort_field": "title"}, {"label": "ددلاین", "sort_field": "due_at", "filter_key": "date", "filter_type": "date_range", "filter_field": "due_at", "allow_future": True},
                    {"label": "مسئولان"}, {"label": "پیشرفت"}, {"label": "وضعیت"}, {"label": "عملیات", "no_export": True}]
     return build_table_context(
         request, qs, columns=columns, row_builder=row_builder,

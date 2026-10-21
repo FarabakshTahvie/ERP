@@ -20,6 +20,10 @@
             <input type="hidden" name="{{ search_param }}" value="{{ search_query }}">
             <input type="hidden" name="{{ size_param }}" value="{{ page_size }}">
             <input type="hidden" name="{{ page_param }}" value="1">
+            {% for col in columns %}{% if col.filter_key and col.filter_type == "date_range" %}
+            {% if col.filter_value_from %}<input type="hidden" name="{{ param_prefix }}ffrom_{{ col.filter_key }}" value="{{ col.filter_value_from }}">{% endif %}
+            {% if col.filter_value_to %}<input type="hidden" name="{{ param_prefix }}fto_{{ col.filter_key }}" value="{{ col.filter_value_to }}">{% endif %}
+            {% endif %}{% endfor %}
 
             <div class="fb-field">
                 <label class="fb-label" for="{{ container_id }}-sort-select">مرتب‌سازی بر اساس</label>
@@ -40,7 +44,7 @@
             </div>
 
             {% for col in columns %}
-                {% if col.filter_key and col.filter_type %}
+                {% if col.filter_key and col.filter_type and col.filter_type != "date_range" %}
                 <div class="fb-field">
                     <span class="fb-label">{{ col.label }}</span>
                     {% if col.filter_type == "number_range" %}
