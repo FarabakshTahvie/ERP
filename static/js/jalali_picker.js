@@ -101,11 +101,17 @@
     var s = parse(input.value) || todayJ();
     view = { y: s.y, m: s.m };
     render();
+    // داخل dialog پاپ‌آپ باید داخل همان dialog باشد وگرنه در top-layer زیر مودال می‌ماند؛ مختصات آنجا نسبت به viewport است
+    var host = input.closest('dialog') || document.body, inDialog = host !== document.body;
+    if (pop.parentNode !== host) host.appendChild(pop);
     var r = input.getBoundingClientRect(), w = document.documentElement.clientWidth;
     var left = Math.min(Math.max(8, r.right - 288), w - 296);
-    pop.style.left = (left + window.scrollX) + 'px';
-    pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+    pop.style.left = (left + (inDialog ? 0 : window.scrollX)) + 'px';
+    pop.style.top = (r.bottom + (inDialog ? 0 : window.scrollY) + 4) + 'px';
     pop.classList.remove('hidden');
+    if (inDialog && r.bottom + 4 + pop.offsetHeight > window.innerHeight && r.top - 4 - pop.offsetHeight > 0) {
+      pop.style.top = (r.top - 4 - pop.offsetHeight) + 'px';   // جا نبود ← بالای کادر
+    }
   }
 
   document.addEventListener('focusin', function (e) { if (e.target.matches && e.target.matches('[data-jalali-date]')) open(e.target); });
@@ -118,6 +124,9 @@
     if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') e.preventDefault();   // تایپ دستی ممنوع
   });
   document.addEventListener('paste', function (e) { if (e.target.matches && e.target.matches('[data-jalali-date]')) e.preventDefault(); });
+
+  // بسته‌شدن dialog (Esc، بک‌دراپ یا تعویض htmx) پاپ‌آپ باز را هم می‌بندد؛ رویداد close حباب نمی‌کند، پس capture
+  document.addEventListener('close', function (e) { if (e.target && e.target.tagName === 'DIALOG') close(); }, true);
 
   // بازه‌ی زمانی جدول‌ها: تاریخ شروع نباید بعد از پایان باشد. سرور هم در این حالت جابه‌جا می‌کند.
   // در فاز capture ثبت شده تا قبل از شنونده‌ی htmx روی فرم اجرا شود و ارسال را متوقف کند.

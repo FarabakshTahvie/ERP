@@ -190,6 +190,9 @@ def build_table_context(request, queryset, *, columns, row_builder, container_id
                 today = timezone.localdate()
                 auto_today = bool(from_d and not to_d and not col.get("allow_future"))   # فقط شروع ← تا امروز
                 col["date_summary"] = _date_summary(from_d, to_d, today if auto_today else None)
+                # placeholder به‌جای جمله‌ی راهنما: فقط شروع ← «تا» خودکار «امروز» است؛ فقط پایان ← «از» «از ابتدا» است
+                col["date_from_hint"] = "از ابتدا" if (to_d and not from_d) else "از تاریخ"
+                col["date_to_hint"] = "امروز" if auto_today else "تا تاریخ"
                 if from_d or to_d:
                     date_active = True
                     queryset = queryset.filter(_date_q(
