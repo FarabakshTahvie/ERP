@@ -1,0 +1,40 @@
+{% load custom_tags %}
+{% if has_date_filter %}
+<button type="button" class="btn btn-soft btn-sm btn-square relative shrink-0"
+        onclick="document.getElementById('{{ container_id }}-date-modal').showModal()"
+        aria-label="بازه‌ی زمانی"
+        title="{% if date_active %}{% for col in columns %}{% if col.date_summary %}{{ col.date_summary }} {% endif %}{% endfor %}{% else %}بازه‌ی زمانی{% endif %}">
+    {% icon "calendar" "w-4 h-4" %}
+    {% if date_active %}<span data-date-active class="absolute -top-1 -left-1 bg-primary w-2.5 h-2.5 rounded-full"></span>{% endif %}
+</button>
+
+<dialog id="{{ container_id }}-date-modal" class="modal" aria-label="بازه‌ی زمانی">
+    <div class="modal-box max-w-xs outline-none" tabindex="-1" autofocus>
+        <form method="get" action="{{ list_url }}" data-date-range-form
+              hx-get="{{ list_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML"
+              class="flex flex-col gap-3">
+            {% for name, value in date_preserved_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <input type="hidden" name="{{ page_param }}" value="1">
+            {% for col in columns %}{% if col.filter_key and col.filter_type == "date_range" %}
+            <div class="flex flex-col gap-2" data-date-range>
+                <input type="text" name="{{ param_prefix }}ffrom_{{ col.filter_key }}" value="{{ col.filter_value_from }}"
+                       data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off"
+                       placeholder="{{ col.date_from_hint }}" aria-label="از تاریخ" class="input input-sm w-full font-technical">
+                <input type="text" name="{{ param_prefix }}fto_{{ col.filter_key }}" value="{{ col.filter_value_to }}"
+                       data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off"
+                       placeholder="{{ col.date_to_hint }}" aria-label="تا تاریخ" class="input input-sm w-full font-technical">
+                <span class="fb-error hidden" data-date-range-error>تاریخ شروع نباید بعد از پایان باشد.</span>
+            </div>
+            {% endif %}{% endfor %}
+            <div class="flex items-center justify-end gap-2 pt-1">
+                {% if date_active %}
+                <a href="{{ date_reset_url }}" data-date-clear hx-get="{{ date_reset_url }}" hx-target="#{{ container_id }}" hx-swap="outerHTML"
+                   class="btn btn-ghost btn-sm btn-square" aria-label="پاک‌کردن بازه" title="پاک‌کردن بازه">{% icon "rotate-ccw" "w-4 h-4" %}</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary btn-sm btn-square" aria-label="اعمال بازه" title="اعمال بازه">{% icon "check" "w-4 h-4" %}</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
