@@ -2,13 +2,14 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 from .models import Notification, NotificationPolicy, ChannelPolicy, NotificationType
-from utils.sms import SMSService
+from utils.sms import SMSService, fit_param
 from utils.push_notification import NajvaService
 
 logger = logging.getLogger(__name__)
 
 SMS_TEMPLATE_TYPES = {NotificationType.INVOICE_ISSUED, NotificationType.PAYMENT_CONFIRMED,
-                      NotificationType.PAYMENT_REJECTED}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
+                      NotificationType.PAYMENT_REJECTED, NotificationType.SHIPMENT_SENT,
+                      NotificationType.INSTALL_DONE}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
 
 
 def create_notification(*, notification_type, user, title, body, real_target_url="",
@@ -78,6 +79,12 @@ def _call_sms_template(notification, phone):
                                           remaining=data.get("remaining", "0"), link=notification.short_path)
     if notification.notification_type == NotificationType.PAYMENT_REJECTED:
         return sms.send_payment_rejected(mobile=phone, name=name, number=number, link=notification.short_path)
+    if notification.notification_type == NotificationType.SHIPMENT_SENT:
+        return sms.send_shipment_sent(mobile=phone, name=fit_param(name),
+                                      project=fit_param(data.get("project_name")), link=notification.short_path)
+    if notification.notification_type == NotificationType.INSTALL_DONE:
+        return sms.send_install_done(mobile=phone, name=fit_param(name),
+                                     project=fit_param(data.get("project_name")), link=notification.short_path)
     return sms.send_invoice_issued(
         mobile=phone, name=name, number=number, username=data.get("username", ""),
         password=data.get("password") or "رمز فعلی شما", link=notification.short_path)   # فقط مسیر، مثل s/abcde

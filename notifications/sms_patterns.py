@@ -40,4 +40,17 @@ SMS_PATTERNS = {
             "لینک: farabakhshtahvieh.com/%LINK%\nفرابخش تهویه"
         ),
     },
+    "shipment_sent": {
+        "pattern_code": "521186",
+        "parameters": ["NAME", "PROJECT", "LINK"],
+        "reference_text": (
+            "سلام %NAME%\nاقلام پروژه %PROJECT% به محل ارسال شد\nلطفا تایید کنید:\n"
+            "farabakhshtahvieh.com/%LINK%"
+        ),
+    },
+    "install_done": {
+        "pattern_code": "275534",
+        "parameters": ["NAME", "PROJECT", "LINK"],
+        "reference_text": "سلام %NAME%،\nنصب پروژه %PROJECT% انجام شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
+    },
 }
