@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{% if is_shipping %}ارسال اقلام{% else %}نصب پروژه{% endif %} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <h1 class="fb-page-title">{% if is_shipping %}اقلام پروژه ارسال شد{% else %}نصب پروژه انجام شد{% endif %}</h1>
+        <p class="fb-page-sub">{{ project.name }}</p>
+    </div>
+
+    {% if readonly %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">این صفحه فقط برای مشاهده است؛ پاسخ را خود مشتری ثبت می‌کند.</span>
+    </div>
+    {% endif %}
+
+    {% if is_shipping %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اقلام مربوط به این خدمات به محل پروژه ارسال شد</h2>
+        {% for s in services %}
+        <div class="fb-inset flex items-center justify-between gap-2 text-sm">
+            <span class="min-w-0 break-words">{{ s.name }}</span>
+            <span class="font-technical shrink-0">{{ s.qty|floatformat:"-2"|fa_digits }}{% if s.unit %} {{ s.unit }}{% endif %}</span>
+        </div>
+        {% empty %}
+        <p class="fb-hint">خدمتی در پیش‌فاکتور ثبت نشده است.</p>
+        {% endfor %}
+    </section>
+    {% else %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">تصاویر نصب</h2>
+        {% if images %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {% for img in images %}
+            <a href="{{ img.url }}" target="_blank" rel="noopener" class="block">
+                <img src="{{ img.url }}" alt="{{ img.name }}" loading="lazy" class="w-full h-32 object-cover rounded-field bg-base-300">
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="fb-hint">تصویری ثبت نشده است.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if conf.decision != 'pending' %}
+    <div role="alert" class="alert alert-soft {% if conf.decision == 'not_received' %}alert-error{% else %}alert-success{% endif %}">
+        {% if conf.decision == 'not_received' %}{% icon "x-circle" "w-4 h-4 shrink-0" %}{% else %}{% icon "check-circle" "w-4 h-4 shrink-0" %}{% endif %}
+        <span class="text-sm">پاسخ ثبت‌شده: {{ conf.get_decision_display }} — <span class="font-technical">{{ conf.decided_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+    </div>
+    {% endif %}
+
+    {% if show_buttons %}
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+        {% csrf_token %}
+        {% if is_shipping %}
+        <p class="text-sm">اقلام را تحویل گرفتید؟</p>
+        <div class="flex flex-wrap gap-2">
+            <button type="submit" name="decision" value="received" class="btn btn-primary flex-1 min-w-0">دریافت شد</button>
+            <button type="submit" name="decision" value="not_received" class="btn btn-soft btn-error flex-1 min-w-0">دریافت نشد</button>
+        </div>
+        <p class="fb-hint">اگر اقلام نرسیده یا ناقص رسیده، با دفتر تماس بگیرید:
+            <a href="tel:{{ CONTACT.office_phone.tel }}" dir="ltr" class="font-technical link link-primary">{{ CONTACT.office_phone.display|fa_digits }}</a></p>
+        {% else %}
+        <p class="text-sm">تصاویر نصب را ببینید و در صورت تایید، دکمه‌ی زیر را بزنید.</p>
+        <button type="submit" name="decision" value="confirmed" class="btn btn-primary w-full">تایید نصب</button>
+        {% endif %}
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

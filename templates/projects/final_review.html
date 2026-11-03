@@ -231,6 +231,7 @@
                     <span class="fb-badge {% if st.status == 'done' %}fb-badge-success{% elif st.status == 'in_progress' %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{{ st.get_status_display }}</span>
                 </div>
                 <div class="fb-muted mt-0.5">مسئول: {{ st.assigned_to|person_name:"—" }}</div>
+                {% if st.client_confirm %}{% include "projects/partials/confirmation_status.html" with c=st.client_confirm kind=st.kind %}{% endif %}
                 {% if st.events.all %}
                 <div class="mt-1.5 ms-2 space-y-1 border-s-2 border-base-300 ps-2">
                     {% for ev in st.events.all %}

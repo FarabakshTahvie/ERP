@@ -1,0 +1,16 @@
+{% load custom_tags %}
+<div class="fb-inset mt-1.5 flex flex-col gap-1">
+    <div class="flex items-center justify-between gap-2">
+        <span class="font-semibold">{% if kind == 'shipping' %}تایید دریافت اقلام{% else %}تایید نصب{% endif %} توسط مشتری</span>
+        <span class="fb-badge fb-badge-{{ c.variant }}">{{ c.get_decision_display }}</span>
+    </div>
+    <div class="fb-muted">
+        {% if c.recipient %}پیامک برای {{ c.recipient|person_name }} فرستاده شد.{% else %}پیامک نرفت؛ طرف‌حساب حساب ورود ندارد.{% endif %}
+    </div>
+    <div class="fb-muted">
+        {% if c.first_viewed_at %}اولین بازدید از لینک: <span class="font-technical">{{ c.first_viewed_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>؛ {{ c.view_count|fa_digits }} بار باز شد.{% else %}هنوز لینک را باز نکرده است.{% endif %}
+    </div>
+    {% if c.decided_at %}
+    <div class="fb-muted">زمان پاسخ: <span class="font-technical">{{ c.decided_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></div>
+    {% endif %}
+</div>
