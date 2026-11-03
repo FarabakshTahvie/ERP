@@ -8,6 +8,7 @@ from utils.image_utils import optimize_named
 from utils.utils import guess_file_kind
 from .models import FileGroup, Project, ProjectFile, ProjectStage, StageKind
 from .services import advance_stage, user_is_accountant
+from .confirmations import open_confirmation
 
 MAX_STAGE_FILES = 200
 MAX_FILE_BYTES = 25 * 1024 * 1024   # هم‌سقف nginx
@@ -249,4 +250,7 @@ def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=Fa
         stage.client_preview = bool(show_to_client)
         stage.save(update_fields=["client_preview", "updated_at"])
         note = f"{comment}\n[{'طرح برای مشتری نمایش داده می‌شود' if show_to_client else 'طرح برای مشتری نمایش داده نمی‌شود'}]"
-    return advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note, voice=voice)
+    result = advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note, voice=voice)
+    open_confirmation(result)   # فقط برای ارسال و نصب کاری می‌کند
+    return result
+

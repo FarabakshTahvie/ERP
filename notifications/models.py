@@ -23,6 +23,8 @@ class NotificationType(models.TextChoices):
     TASK_ASSIGNED = "task_assigned", "وظیفه‌ی جدید"
     PAYMENT_CONFIRMED = "payment_confirmed", "تایید پرداخت"
     PAYMENT_REJECTED = "payment_rejected", "رد پرداخت"
+    SHIPMENT_SENT = "shipment_sent", "ارسال اقلام پروژه"
+    INSTALL_DONE = "install_done", "نصب پروژه"
 
 
 class ChannelPolicy(models.TextChoices):

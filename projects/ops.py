@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Prefetch
 
 from core.capabilities import can
-from .models import Project, ProjectCost, ProjectFile, ProjectStage, ServiceTick, StageEvent, StageKind
+from .models import Project, ProjectCost, ProjectFile, ProjectStage, ServiceTick, StageConfirmation, StageEvent, StageKind
 from .services import parse_fee
 from .stage_ops import _is_manager
 
@@ -80,6 +80,10 @@ def delete_project_cost(*, cost, actor):
 def final_review_data(project):
     stages = list(project.stages.prefetch_related(
         "events__actor", Prefetch("files", queryset=ProjectFile.objects.select_related("uploaded_by"))).order_by("order"))
+    confirms = {c.stage_id: c for c in
+                StageConfirmation.objects.filter(stage__project=project).select_related("recipient")}
+    for s in stages:
+        s.client_confirm = confirms.get(s.pk)
     costs = list(project.recorded_costs.all())
     install = next((s for s in stages if s.kind == StageKind.INSTALL), None)
     undone = []

@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_ops
+from . import views, views_ops, views_confirm
 
 app_name = "projects"
 
@@ -19,6 +19,8 @@ urlpatterns = [
     path("portal/approvals/<int:approval_id>/", views.portal_stage_approval, name="portal_stage_approval"),
     path("portal/<int:project_id>/files/<int:file_id>/", views.portal_project_file, name="portal_project_file"),
     path("portal/<int:project_id>/progress/", views.project_progress, name="portal_project_progress"),
+    path("portal/stage-confirmations/<int:stage_id>/", views_confirm.stage_confirmation, name="portal_stage_confirmation"),
+    path("portal/stage-confirmations/<int:stage_id>/images/<int:file_id>/", views_confirm.confirmation_image, name="portal_confirmation_image"),
     path("my-tasks/", views.my_tasks, name="my_tasks"),
     path("my-tasks/<int:stage_id>/", views.my_task_detail, name="my_task_detail"),
     path("my-tasks/<int:stage_id>/claim/", views.my_task_claim, name="my_task_claim"),

@@ -333,6 +333,37 @@ class ServiceTick(models.Model):
         constraints = [models.UniqueConstraint(fields=["stage", "service_line"], name="unique_service_tick")]
 
 
+class StageConfirmation(models.Model):
+    """تایید مشتری برای مرحله‌ی ارسال (دریافت شد یا نشد) و نصب (تایید). با تکمیل مرحله ساخته می‌شود."""
+
+    class Decision(models.TextChoices):
+        PENDING = "pending", "منتظر پاسخ"
+        RECEIVED = "received", "دریافت شد"
+        NOT_RECEIVED = "not_received", "دریافت نشد"
+        CONFIRMED = "confirmed", "تایید شد"
+
+    stage = models.OneToOneField(ProjectStage, on_delete=models.CASCADE, related_name="confirmation", verbose_name="مرحله")
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+", verbose_name="گیرنده‌ی پیامک")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ساخت")
+    first_viewed_at = models.DateTimeField(null=True, blank=True, verbose_name="اولین بازدید از صفحه")
+    last_viewed_at = models.DateTimeField(null=True, blank=True, verbose_name="آخرین بازدید از صفحه")
+    view_count = models.PositiveIntegerField(default=0, verbose_name="تعداد بازدید")
+    decision = models.CharField(max_length=20, choices=Decision.choices, default=Decision.PENDING, verbose_name="پاسخ مشتری")
+    decided_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان پاسخ")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="پاسخ‌دهنده")
+
+    class Meta:
+        verbose_name = "تایید مشتری برای مرحله"
+        verbose_name_plural = "تایید مشتری برای مرحله‌ها"
+
+    @property
+    def variant(self):
+        return {"pending": "warning", "received": "success", "not_received": "error",
+                "confirmed": "success"}.get(self.decision, "neutral")
+
+
 class StageApproval(models.Model):
     class Decision(models.TextChoices):
         PENDING = "pending", "در انتظار"

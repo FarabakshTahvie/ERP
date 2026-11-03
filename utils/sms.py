@@ -5,6 +5,19 @@ from notifications.sms_patterns import SMS_PATTERNS
 
 logger = logging.getLogger(__name__)
 
+SMS_PARAM_MAX = 25   # سقف طول هر پارامتر قالب در sms.ir (خطای ۱۱۴)
+
+
+def fit_param(value, limit=SMS_PARAM_MAX):
+    """مقدار پارامتر قالب را به سقف sms.ir می‌رساند؛ اگر بلندتر بود از آخرین فاصله‌ی داخل سقف بریده می‌شود."""
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    if text[limit] != " " and " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.strip()
+
 
 class SMSService:
     BASE = "https://api.sms.ir/v1"
@@ -88,3 +101,9 @@ class SMSService:
 
     def send_payment_rejected(self, mobile, name, number, link):
         return self.send_pattern(mobile, "payment_rejected", name=name, number=number, LINK=link)
+
+    def send_shipment_sent(self, mobile, name, project, link):
+        return self.send_pattern(mobile, "shipment_sent", NAME=name, PROJECT=project, LINK=link)
+
+    def send_install_done(self, mobile, name, project, link):
+        return self.send_pattern(mobile, "install_done", NAME=name, PROJECT=project, LINK=link)
