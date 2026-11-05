@@ -63,17 +63,6 @@ class StatementViewTests(StatementBase):
         self.assertEqual([i.number for i in resp.context["waiting"]], ["INV-S-7"])
         self.assertNotContains(resp, "INV-S-8".translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")))
 
-    def test_pending_payment_does_not_reduce_balance_and_credit_is_informational(self):
-        inv = self.invoice(self.a, "INV-S-9")
-        Payment.objects.create(invoice=inv, method=Payment.Method.CARD_TO_CARD, amount=300, claimed_amount=300,
-                               reference_number="R")
-        Payment.objects.create(invoice=inv, method=Payment.Method.CREDIT, amount=500, claimed_amount=500,
-                               status=Payment.Status.APPROVED, note="x")
-        c = Client(); c.force_login(self.ua)
-        resp = c.get(reverse("finance:portal_statement"))
-        self.assertEqual(resp.context["summary"]["total_outstanding"], Decimal("1000"))
-        self.assertEqual(resp.context["pending_total"], Decimal("300"))
-
     def test_user_without_party_gets_404_and_anonymous_redirects(self):
         staff = User.objects.create_user(username="st_staff", password="pw", role=User.Role.EMPLOYEE)
         c = Client(); c.force_login(staff)

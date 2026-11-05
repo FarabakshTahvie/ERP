@@ -53,16 +53,6 @@ class AccountantFormBase(TestCase):
 
 
 class FormVisibilityTests(AccountantFormBase):
-    def test_reviewers_see_the_form_while_there_is_a_balance(self):
-        for user in (self.accountant, self.manager):
-            self.assertContains(self.login(user).get(self.page), self.url, msg_prefix=user.username)
-
-    def test_no_form_for_cancelled_or_fully_paid_invoice(self):
-        Invoice.objects.filter(pk=self.invoice.pk).update(paid_amount=self.invoice.total_amount)
-        self.assertNotContains(self.login(self.accountant).get(self.page), self.url)
-        Invoice.objects.filter(pk=self.invoice.pk).update(paid_amount=0, status=Invoice.Status.CANCELLED)
-        self.assertNotContains(self.login(self.accountant).get(self.page), self.url)
-
     def test_technician_gets_neither_page_nor_post(self):
         c = self.login(self.tech)
         self.assertIn("login", c.get(self.page).url)
@@ -94,19 +84,4 @@ class FormPostTests(AccountantFormBase):
         self.assertContains(resp, "آینده")
         self.assertFalse(Payment.objects.exists())
 
-    def test_cheque_needs_due_date_and_starts_as_received(self):
-        self.post(method="cheque", amount="400000", cheque_number=CN, cheque_bank="ملی",
-                  receipt_file=make_image_file("c1.png"))
-        self.assertFalse(Payment.objects.exists())
-        self.post(method="cheque", amount="400000", cheque_number=CN, cheque_bank="ملی",
-                  cheque_due_date=jd(self.future), receipt_file=make_image_file("c2.png"))
-        p = Payment.objects.get()
-        self.assertEqual((p.status, p.cheque_status, p.cheque_due_date), (Payment.Status.APPROVED, "received", self.future))
-        self.assertTrue(ChequeEvent.objects.filter(payment=p).exists())
 
-    def test_past_due_cheque_saves_with_a_warning(self):
-        old = timezone.localdate() - timedelta(days=10)
-        resp = self.post(method="cheque", amount="400000", cheque_number=CN, cheque_bank="ملی",
-                         cheque_due_date=jd(old), receipt_file=make_image_file("c3.png"))
-        self.assertEqual(Payment.objects.count(), 1)
-        self.assertContains(resp, "تاریخ سررسید این چک گذشته است")

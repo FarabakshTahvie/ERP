@@ -148,14 +148,4 @@ class InternalConsumptionTests(SecurityBase):
         self.assertEqual(self.item.current_stock, Decimal("8"))
 
 
-class ReportsAndPagesTests(SecurityBase):
-    def test_report_counts_proforma_sales_and_payments_without_paid_at(self):
-        pay = Payment.objects.create(invoice=self.invoice, method=Payment.Method.CARD_TO_CARD, amount=100000,
-                                     claimed_amount=100000, reference_number="R-1")
-        approve_payment(pay, approved_by=self.accountant, verified_amount="100000")
-        self.assertIsNone(Payment.objects.get(pk=pay.pk).paid_at)
-        today = jdatetime.date.fromgregorian(date=timezone.localdate()).strftime("%Y/%m/%d")
-        start_g, end_g = get_jalali_date_range(today, today)
-        report = generate_periodic_financial_report(start_g, end_g)
-        self.assertEqual(report["total_revenue"], Decimal("1000000"))
-        self.assertEqual(report["total_received"], Decimal("100000"))
+

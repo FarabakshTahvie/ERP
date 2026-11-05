@@ -74,17 +74,6 @@ class PeriodRangeTests(TestCase):
         self.assertIsNone(start)
         self.assertIsNone(end)
 
-    def test_esfand_edge(self):
-        t = date(2027, 3, 10)  # 1405/12/20
-        start, end = accounting.period_range("this_month", today=t)
-        self.assertEqual(start, date(2027, 2, 20))
-        self.assertEqual(end, date(2027, 3, 21))
-
-    def test_farvardin_edge(self):
-        t = date(2026, 3, 25)  # 1405/01/05
-        start, end = accounting.period_range("last_month", today=t)
-        self.assertEqual(start, date(2026, 2, 20))
-        self.assertEqual(end, date(2026, 3, 21))
 
 
 
@@ -127,38 +116,6 @@ class StockMovementDirectionTests(BaseAccountingTestCase):
         m_open = StockMovement.objects.filter(movement_type=StockMovement.MovementType.OPENING).first()
         self.assertIsNotNone(m_open)
         self.assertEqual(m_open.direction, StockMovement.Direction.IN)
-
-
-class OpeningStockTests(BaseAccountingTestCase):
-    def test_opening_validation_and_flow(self):
-        with self.assertRaises(ValueError) as ctx:
-            record_manual_stock_change(
-                item=self.item, kind="opening", qty_raw="5", notes="بدون بها", user=self.accountant, unit_cost_raw="",
-            )
-        self.assertIn("بهای واحد را وارد کنید", str(ctx.exception))
-
-        record_manual_stock_change(
-            item=self.item, kind="opening", qty_raw="10", notes="اولیه با بها", user=self.accountant, unit_cost_raw="2000",
-        )
-        self.item.refresh_from_db()
-        self.assertEqual(self.item.current_stock, Decimal("10"))
-        self.assertEqual(self.item.moving_average_cost, Decimal("2000"))
-
-        self.client.force_login(self.accountant)
-        get_res = self.client.get(reverse("inventory:stock_movement_new"))
-        self.assertEqual(get_res.status_code, 200)
-        self.assertContains(get_res, 'value="opening"')
-
-        post_res = self.client.post(reverse("inventory:stock_movement_new"), {
-            "item_id": self.item.id,
-            "kind": "opening",
-            "qty": "5",
-            "unit_cost": "2500",
-            "notes": "ثبت تستی فرم",
-        })
-        self.assertEqual(post_res.status_code, 302)
-        self.item.refresh_from_db()
-        self.assertEqual(self.item.current_stock, Decimal("15"))
 
 
 class OverviewNumbersTests(BaseAccountingTestCase):

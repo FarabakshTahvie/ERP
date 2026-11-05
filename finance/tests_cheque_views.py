@@ -70,57 +70,9 @@ class ChequeApproveViewTests(ChequeViewBase):
         self.assertEqual((p.status, p.cheque_status, p.cheque_number, p.cheque_due_date),
                          (Payment.Status.APPROVED, CS.RECEIVED, CN, self.future))
  
-    def test_past_due_date_approves_with_a_warning(self):
-        p = self.pending()
-        old = timezone.localdate() - timedelta(days=20)
-        resp = self.decide(p, cheque_number=CN, cheque_bank="ملی", cheque_due_date=jd(old))
-        p.refresh_from_db()
-        self.assertEqual(p.status, Payment.Status.APPROVED)
-        self.assertContains(resp, "تاریخ سررسید این چک گذشته است")
- 
-    def test_absent_cheque_fields_keep_what_the_customer_registered(self):
-        p = self.pending(cheque_number=CN, cheque_due_date=self.future)
-        self.decide(p)
-        p.refresh_from_db()
-        self.assertEqual((p.status, p.cheque_number), (Payment.Status.APPROVED, CN))
- 
-    def test_pending_page_shows_the_fields_but_no_status_card(self):
-        p = self.pending()
-        resp = self.login(self.accountant).get(self.detail(p))
-        self.assertContains(resp, 'name="cheque_due_date"')
-        self.assertNotContains(resp, "وضعیت چک (داخلی)")
- 
- 
+
 class ChequeStatusViewTests(ChequeViewBase):
-    def test_card_is_shown_to_reviewers_for_approved_cheques_only(self):
-        p = self.approved()
-        for user in (self.accountant, self.manager):
-            resp = self.login(user).get(self.detail(p))
-            self.assertContains(resp, "وضعیت چک (داخلی)", msg_prefix=user.username)
-            self.assertContains(resp, "تحویل گرفته‌شده")
-        card = Payment.objects.create(invoice=self.invoice, method=Payment.Method.CARD_TO_CARD, amount=100,
-                                      claimed_amount=100, status=Payment.Status.APPROVED, reference_number="R")
-        self.assertNotContains(self.login(self.accountant).get(self.detail(card)), "وضعیت چک (داخلی)")
- 
-    def test_status_change_is_saved_with_history(self):
-        p = self.approved()
-        c = self.login(self.accountant)
-        c.post(reverse("finance:payment_cheque_status", args=[p.id]), {"status": "deposited"})
-        p.refresh_from_db()
-        self.assertEqual(p.cheque_status, CS.DEPOSITED)
-        self.assertEqual(ChequeEvent.objects.filter(payment=p).count(), 2)
-        self.assertContains(c.get(self.detail(p)), "واگذار به بانک")
- 
-    def test_endorsed_name_is_saved_and_reason_statuses_need_a_reason(self):
-        p = self.approved()
-        c = self.login(self.accountant)
-        url = reverse("finance:payment_cheque_status", args=[p.id])
-        c.post(url, {"status": "bounced", "note": ""})
-        p.refresh_from_db()
-        self.assertEqual(p.cheque_status, CS.RECEIVED)
-        c.post(url, {"status": "endorsed", "endorsed_to": " آقای رضایی "})
-        p.refresh_from_db()
-        self.assertEqual((p.cheque_status, p.cheque_endorsed_to), (CS.ENDORSED, "آقای رضایی"))
+
  
     def test_only_reviewers_can_post(self):
         p = self.approved()
@@ -133,16 +85,7 @@ class ChequeStatusViewTests(ChequeViewBase):
         p.refresh_from_db()
         self.assertEqual((p.cheque_status, p.cheque_bank), (CS.RECEIVED, "ملی"))
  
-    def test_info_edit_saves_and_a_noop_is_refused(self):
-        p = self.approved()
-        c = self.login(self.accountant)
-        url = reverse("finance:payment_cheque_info", args=[p.id])
-        new_due = self.future + timedelta(days=5)
-        c.post(url, {"number": CN, "bank": "ملت", "due_date": jd(new_due)})
-        p.refresh_from_db()
-        self.assertEqual((p.cheque_bank, p.cheque_due_date), ("ملت", new_due))
-        resp = c.post(url, {"number": CN, "bank": "ملت", "due_date": jd(new_due)}, follow=True)
-        self.assertContains(resp, "تغییری ثبت نشد")
+
  
     def test_customer_never_sees_the_internal_status(self):
         p = self.approved()

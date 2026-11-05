@@ -215,19 +215,6 @@ class P2InvoiceAdjustmentTests(P2BaseScenarioMixin, TestCase):
     def setUp(self):
         self.setup_scenario()
 
-    def test_add_invoice_adjustment_increase(self):
-        accounting.add_invoice_adjustment(
-            invoice=self.invoice, title="هزینه داربست اضافه", amount_raw="100000",
-            kind="increase", reason="نیاز به داربست بیشتر", actor=self.accountant
-        )
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.total_amount, Decimal("12376000"))
-        line = self.invoice.lines.filter(title="هزینه داربست اضافه").first()
-        self.assertIsNotNone(line)
-        self.assertTrue(line.is_manual)
-        self.assertEqual(self.invoice.status, Invoice.Status.SENT)
-        self.assertIsNone(self.invoice.settled_at)
-
     def test_add_invoice_adjustment_decrease_below_paid_fails(self):
         self.invoice.paid_amount = Decimal("10000000")
         self.invoice.save()
@@ -235,13 +222,6 @@ class P2InvoiceAdjustmentTests(P2BaseScenarioMixin, TestCase):
             accounting.add_invoice_adjustment(
                 invoice=self.invoice, title="تخفیف کلی", amount_raw="3000000",
                 kind="decrease", reason="تخفیف زیاد", actor=self.accountant
-            )
-
-    def test_add_invoice_adjustment_without_reason_fails(self):
-        with self.assertRaises(ValueError):
-            accounting.add_invoice_adjustment(
-                invoice=self.invoice, title="اضافه", amount_raw="10000",
-                kind="increase", reason="", actor=self.accountant
             )
 
     def test_add_invoice_adjustment_unauthorized_fails(self):

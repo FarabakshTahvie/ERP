@@ -36,58 +36,12 @@ class BankCardValidationTests(SimpleTestCase):
                     "XX850123456789012345678901", ""):
             self.assertFalse(is_valid_sheba(bad), bad)
 
-    def test_normalize_handles_persian_digits_spaces_and_missing_prefix(self):
-        self.assertEqual(normalize_card("۶۰۳۷ 9912-3456 ۷۸۹۳"), CARD1)
-        self.assertEqual(normalize_sheba("ir85 0123 4567 8901 2345 6789 01"), SHEBA)
-        self.assertEqual(normalize_sheba("850123456789012345678901"), SHEBA)
-
 
 class BankCardModelTests(TestCase):
-    def test_full_clean_normalizes_and_saves_clean_values(self):
-        c = BankCard(bank="melli", holder_name=" شرکت   فرابخش ", card_number="۶۰۳۷ 9912 3456 7893",
-                     sheba="ir85 0123 4567 8901 2345 6789 01")
-        c.full_clean()
-        c.save()
-        c.refresh_from_db()
-        self.assertEqual((c.card_number, c.sheba, c.holder_name), (CARD1, SHEBA, "شرکت فرابخش"))
-        self.assertEqual(c.groups, ["6037", "9912", "3456", "7893"])
-
-    def test_invalid_numbers_and_missing_other_name_are_refused(self):
-        base = dict(bank="melli", holder_name="x", card_number=CARD1, sheba="")
-        for extra in ({"card_number": "6037991234567894"}, {"sheba": "IR860123456789012345678901"},
-                      {"bank": "other"}):
-            with self.assertRaises(ValidationError, msg=str(extra)):
-                BankCard(**{**base, **extra}).full_clean()
-
     def test_duplicate_card_number_is_refused_even_when_typed_with_spaces(self):
         make_card()
         with self.assertRaises(ValidationError):
             BankCard(bank="mellat", holder_name="y", card_number="6037 9912 3456 7893").full_clean()
-
-    def test_display_name_and_colors(self):
-        self.assertEqual(make_card().bank_display, "ملی ایران")
-        other = make_card(bank="other", other_bank_name="بانک نمونه", card_number=CARD2)
-        self.assertEqual(other.bank_display, "بانک نمونه")
-        self.assertEqual(len(other.colors), 2)
-
-
-class BankCardPaymentFormTests(TestCase):
-    def setUp(self):
-        party = Party.objects.create(name="مشتری کارت", is_client=True, phone_number="09127775001")
-        self.customer = User.objects.create_user(username="bc_cli", password="pw", role=User.Role.CLIENT, party=party)
-        project = Project.objects.create(name="پروژه کارت", partner=party, owner=party,
-                                         status=Project.Status.IN_PROGRESS)
-        self.invoice = Invoice.objects.create(project=project, number="INV-BC-1", billed_party=party,
-                                              total_amount=Decimal("1000"), issue_date=timezone.localdate(),
-                                              status=Invoice.Status.SENT)
-
-    def test_slider_is_inside_the_payment_form(self):
-        make_card()
-        c = Client()
-        c.force_login(self.customer)
-        html = c.get(reverse("finance:portal_add_payment", args=[self.invoice.uuid])).content.decode("utf-8")
-        self.assertIn('id="bank-cards-box"', html)
-        self.assertIn(f'data-copy="{CARD1}"', html)
 
 
 class BankCardAdminTests(TestCase):

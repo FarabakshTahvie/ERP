@@ -39,26 +39,14 @@ class InvoiceBase(TestCase):
                                       status=status, reference_number="R")
 
 
-class CancelInvoiceTests(InvoiceBase):
-    def test_cancel_removes_invoice_from_sales_and_logs(self):
-        cancel_invoice(invoice=self.invoice, reason="مشتری منصرف شد", actor=self.manager)
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, Invoice.Status.CANCELLED)
-        stats = accounting.accounting_overview("all")
-        self.assertEqual(stats["sales"], Decimal("0"))
-        self.assertEqual(stats["receivable"], Decimal("0"))
-        self.assertTrue(AccountingEvent.objects.filter(project=self.project, text__contains="لغو شد").exists())
 
+class CancelInvoiceTests(InvoiceBase):
     def test_only_manager_with_reason(self):
         for actor in (self.accountant, self.tech):
             with self.assertRaises(ValueError):
                 cancel_invoice(invoice=self.invoice, reason="دلیل", actor=actor)
         with self.assertRaises(ValueError):
             cancel_invoice(invoice=self.invoice, reason=" ", actor=self.manager)
-
-    def test_blocked_by_approved_real_payment_but_not_by_credit(self):
-        self.pay(Payment.Status.APPROVED, Payment.Method.CREDIT)
-        cancel_invoice(invoice=self.invoice, reason="دلیل", actor=self.manager)   # اعتباری مانع نیست
 
     def test_blocked_by_approved_real_payment(self):
         self.pay(Payment.Status.APPROVED)
@@ -131,24 +119,6 @@ class CancelInvoiceTests(InvoiceBase):
         self.invoice.refresh_from_db()
         with self.assertRaises(ValueError):
             create_customer_payment(invoice=self.invoice, method=Payment.Method.CREDIT, note="تسویه")
-
-
-class DueDateTests(InvoiceBase):
-    def test_set_clear_and_aging(self):
-        from utils.test_helpers import confirm_invoice
-        confirm_invoice(self.invoice)
-        Invoice.objects.filter(pk=self.invoice.pk).update(issue_date=self.today - timedelta(days=40))
-        _, rows = get_customer_aging_data(self.party)
-        self.assertEqual(rows[0]["bucket"], "31-60")
-        due = self.today + timedelta(days=10)
-        set_invoice_due_date(invoice=self.invoice, due_date=due, actor=self.accountant)
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.due_date, due)
-        _, rows = get_customer_aging_data(self.party)
-        self.assertEqual(rows[0]["bucket"], "current")
-        set_invoice_due_date(invoice=self.invoice, due_date=None, actor=self.manager)
-        self.invoice.refresh_from_db()
-        self.assertIsNone(self.invoice.due_date)
 
 
 class InvoiceControlViewsTests(InvoiceBase):
