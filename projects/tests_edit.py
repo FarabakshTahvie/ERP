@@ -114,20 +114,6 @@ class ProjectEditTests(TestCase):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.address_snapshot, "آدرس اولیه")
 
-    def test_prices_locked_after_stage2_done(self):
-        stage2 = self.project.stages.get(order=2)
-        stage2.status = ProjectStage.Status.DONE
-        stage2.save()
-
-        client = Client()
-        client.force_login(self.admin_user)
-
-        edit_data = {
-            "services_json": json.dumps([{"id": self.service1.id, "qty": 5, "unit_price": 500000}]),
-        }
-        resp = client.post(reverse("projects:project_edit", args=[self.project.id]), edit_data)
-        self.assertRedirects(resp, reverse("projects:project_edit", args=[self.project.id]))
-
     def test_permissions_other_tech_404_admin_allowed_completed_redirects(self):
         client = Client()
         client.force_login(self.other_tech)

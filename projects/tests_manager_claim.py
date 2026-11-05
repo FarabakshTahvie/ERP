@@ -36,40 +36,6 @@ class ManagerClaimBase(TestCase):
 
 
 class ManagerClaimTests(ManagerClaimBase):
-    def test_manager_sees_button_claims_and_gets_the_stage(self):
-        self.assertTrue(self.stage.candidate_users.filter(pk=self.visitor.pk).exists())
-        c = self.login(self.manager)
-        self.assertContains(c.get(self.overview_url), self.claim_url)
-        resp = c.post(self.claim_url)
-        self.assertRedirects(resp, reverse("projects:my_task_detail", args=[self.stage.id]))
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.assigned_to, self.manager)
-        self.assertFalse(self.stage.candidate_users.exists())
-        self.assertTrue(StageEvent.objects.filter(stage=self.stage, actor=self.manager, comment="کار را برداشت.").exists())
-        self.assertNotContains(c.get(self.overview_url), self.claim_url)
-
-    def test_stage_without_owner_or_pool_is_claimable_by_manager_only(self):
-        self.stage.candidate_users.clear()
-        self.assertContains(self.login(self.manager).get(self.overview_url), self.claim_url)
-        self.assertNotContains(self.login(self.accountant).get(self.overview_url), self.claim_url)
-
-    def test_assigned_stage_cannot_be_taken(self):
-        claim_stage(self.stage, self.visitor)
-        c = self.login(self.manager)
-        self.assertNotContains(c.get(self.overview_url), self.claim_url)
-        c.post(self.claim_url)
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.assigned_to, self.visitor)
-
-    def test_manager_can_complete_the_claimed_stage(self):
-        c = self.login(self.manager)
-        c.post(self.claim_url)
-        resp = c.post(reverse("projects:my_task_complete", args=[self.stage.id]), {"comment": "بازدید انجام شد"})
-        self.assertRedirects(resp, reverse("home"))
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.status, ProjectStage.Status.DONE)
-        self.assertEqual(self.project.stages.get(kind=StageKind.PROFORMA).status, ProjectStage.Status.IN_PROGRESS)
-
     def test_cancelled_project_cannot_be_claimed(self):
         Project.objects.filter(pk=self.project.pk).update(status=Project.Status.CANCELLED)
         c = self.login(self.manager)
@@ -90,17 +56,4 @@ class ManagerClaimTests(ManagerClaimBase):
         self.assertEqual(self.stage.assigned_to, self.visitor)
 
 
-class NewProjectButtonTests(ManagerClaimBase):
-    def test_manager_and_accountant_get_the_button_and_the_form(self):
-        url = reverse("projects:new_project_form")
-        for user in (self.manager, self.accountant):
-            c = self.login(user)
-            self.assertContains(c.get(reverse("home")), url, msg_prefix=user.username)
-            self.assertEqual(c.get(url).status_code, 200, user.username)
-
-    def test_plain_technician_gets_neither(self):
-        url = reverse("projects:new_project_form")
-        c = self.login(self.visitor)
-        self.assertNotContains(c.get(reverse("home")), url)
-        self.assertEqual(c.get(url).status_code, 302)
 

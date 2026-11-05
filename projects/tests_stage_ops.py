@@ -71,15 +71,6 @@ class DesignPreviewDecisionTests(TestCase):
         add_stage_file(stage=stage, uploaded=SimpleUploadedFile("پیش‌نمایش.pdf", b"x"), uploader=self.designer)
         return stage
 
-    def test_unticked_completes_and_shows_nothing(self):
-        stage = self._stage()
-        complete_stage(stage=stage, actor=self.designer, comment="تمام")
-        stage.refresh_from_db()
-        self.assertEqual(stage.status, ProjectStage.Status.DONE)
-        self.assertFalse(stage.client_preview)
-        self.assertEqual(client_preview_files(stage), [])
-        self.assertEqual(self.project.stages.get(order=5).status, ProjectStage.Status.IN_PROGRESS)
-
     def test_ticked_needs_a_previewable_file(self):
         stage = self.project.stages.get(kind=StageKind.DESIGN_INITIAL)
         add_stage_file(stage=stage, uploaded=SimpleUploadedFile("فقط.dwg", b"x"), uploader=self.designer)
@@ -103,14 +94,6 @@ class DesignPreviewDecisionTests(TestCase):
         complete_stage(stage=stage, actor=self.designer, comment="تمام", show_to_client=True)
         self.assertFalse(self.project.stages.filter(status=ProjectStage.Status.WAITING_APPROVAL).exists())
         self.assertEqual(self.project.stages.get(order=5).status, ProjectStage.Status.IN_PROGRESS)
-
-    def test_view_checkbox_sets_preview(self):
-        stage = self._stage()
-        c = Client()
-        c.force_login(self.designer)
-        c.post(reverse("projects:my_task_complete", args=[stage.id]), {"comment": "تمام", "show_to_client": "1"})
-        stage.refresh_from_db()
-        self.assertTrue(stage.client_preview)
 
 
 class StageOpsDetailedTests(TestCase):

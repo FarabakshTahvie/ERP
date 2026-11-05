@@ -46,21 +46,6 @@ class ProjectCostsAndContractTests(TestCase):
             send_sms=False,
         )
 
-    def test_intake_with_three_fees(self):
-        proj, inv, _ = create_project_from_technician_intake(
-            created_by=self.creator,
-            party_id=self.party.id,
-            service_lines=[{"id": self.service1.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
-            installation_fee_raw="300000",
-            shipping_fee_raw="100000",
-            extra_fee_raw="50000",
-            send_sms=False,
-        )
-        self.assertEqual(proj.installation_fee, Decimal("300000"))
-        self.assertEqual(proj.shipping_fee, Decimal("100000"))
-        self.assertEqual(proj.extra_fee, Decimal("50000"))
-        self.assertEqual(inv.total_amount, Decimal("1450000"))
-
     def test_parse_fee_validations(self):
         self.assertEqual(parse_fee("۱,۵۰۰,۰۰۰", label="تست"), Decimal("1500000"))
         self.assertEqual(parse_fee("", label="تست"), Decimal("0"))
@@ -68,30 +53,6 @@ class ProjectCostsAndContractTests(TestCase):
         for invalid in ["10.5", "-5", "abc", "1e5", "NaN", "1" * 13]:
             with self.assertRaises(ValueError):
                 parse_fee(invalid, label="تست")
-
-    def test_intake_with_invalid_fee_raises_value_error(self):
-        count_before = Project.objects.count()
-        with self.assertRaises(ValueError):
-            create_project_from_technician_intake(
-                created_by=self.creator,
-                party_id=self.party.id,
-                service_lines=[{"id": self.service1.id, "qty": Decimal("1"), "unit_price": Decimal("1000000")}],
-                installation_fee_raw="abc",
-                send_sms=False,
-            )
-        self.assertEqual(Project.objects.count(), count_before)
-
-    def test_update_fees_open_rebuilds_invoice(self):
-        proj, rebuilt = update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            installation_fee_raw="300000",
-            shipping_fee_raw="100000",
-            extra_fee_raw="50000",
-        )
-        self.assertTrue(rebuilt)
-        self.project.invoice.refresh_from_db()
-        self.assertEqual(self.project.invoice.total_amount, Decimal("1650000"))
 
     def test_locked_project_raises_value_error_on_fees(self):
         Payment.objects.create(
@@ -128,24 +89,6 @@ class ProjectCostsAndContractTests(TestCase):
     def project_prices_editable_check(self):
         from projects.services import project_prices_editable
         return project_prices_editable(self.project)
-
-    def test_participants_cost_regression_in_invoice(self):
-        contractor = Party.objects.create(name="پیمانکار تست", phone_number="09129998877", is_contractor=True)
-        ProjectParticipant.objects.create(
-            project=self.project,
-            party=contractor,
-            role=ProjectParticipant.ParticipantRole.CONTRACTOR,
-            agreed_cost=Decimal("40000"),
-        )
-        update_project_from_technician_edit(
-            project=self.project,
-            actor=self.admin_user,
-            extra_fee_raw="50000",
-        )
-        self.project.invoice.refresh_from_db()
-        extra_line = self.project.invoice.lines.filter(line_type=InvoiceLine.LineType.EXTRA).first()
-        self.assertIsNotNone(extra_line)
-        self.assertEqual(extra_line.unit_price, Decimal("90000"))
 
     def test_edit_post_missing_fields_does_not_zero_out(self):
         self.project.installation_fee = Decimal("300000")

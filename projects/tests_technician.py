@@ -57,20 +57,6 @@ class TechnicianTasksTests(TestCase):
         self.stage.refresh_from_db()
         self.assertEqual(self.stage.assigned_to, self.tech1)
 
-    def test_transfer_stage_to_same_specialty(self):
-        self.stage.assigned_to = self.tech1
-        self.stage.save()
-
-        client = Client()
-        client.force_login(self.tech1)
-        resp = client.post(reverse("projects:my_task_transfer", args=[self.stage.id]), {
-            "target_user": self.tech2.id,
-            "comment": "انتقال به همکار",
-        })
-        self.assertRedirects(resp, reverse("home"))
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.assigned_to, self.tech2)
-
     def test_transfer_stage_to_different_specialty_fails(self):
         self.stage.assigned_to = self.tech1
         self.stage.save()

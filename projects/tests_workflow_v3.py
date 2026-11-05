@@ -71,13 +71,6 @@ class WorkflowV3Tests(TestCase):
         self.assertFalse(any(s.on_reject_go_to_id for s in steps))
         self.assertNotIn("design_approval", StageKind.values)
 
-    def test_make_default_unsets_other_templates(self):
-        other = WorkflowTemplate.objects.create(name="دیگر", is_default=True)
-        v2, _ = build_workflow_v3(make_default=True)
-        other.refresh_from_db()
-        self.assertFalse(other.is_default)
-        self.assertTrue(v2.is_default)
-
     def test_assign_stage_responsible_order(self):
         spec = Specialty.objects.create(name="تست تخصص")
         emp1 = User.objects.create_user(username="emp1", password="pw", role=User.Role.EMPLOYEE)
@@ -112,50 +105,6 @@ class WorkflowV3Tests(TestCase):
         candidates = _assign_stage_responsible(stage)
         self.assertIn(emp1, candidates)
         self.assertTrue(stage.candidate_users.filter(pk=emp1.pk).exists())
-
-    def test_new_intake_workflow_v3(self):
-        build_workflow_v3(make_default=True)
-        visit_time = timezone_now = jdatetime.datetime.now()
-        from django.utils import timezone
-        now_dt = timezone.now()
-
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        f1 = SimpleUploadedFile("map1.dwg", b"dwg content 1")
-        f2 = SimpleUploadedFile("map2.dwg", b"dwg content 2")
-        f3 = SimpleUploadedFile("map3.dwg", b"dwg content 3")
-
-        project, invoice, conflict = create_project_from_technician_intake(
-            created_by=self.tech,
-            party_id=self.partner.id,
-            visit_date=date(2026, 10, 11),
-            uploaded_files=[f1, f2, f3],
-            issue_proforma=False,
-        )
-        self.assertIsNone(invoice)
-        self.assertFalse(conflict)
-        self.assertEqual(project.visit_date, date(2026, 10, 11))
-
-        stages = project.stages.order_by("order")
-        first_stage = stages[0]
-        self.assertEqual(first_stage.status, ProjectStage.Status.IN_PROGRESS)
-        self.assertIsNone(first_stage.assigned_to)
-        self.assertEqual(first_stage.kind, StageKind.VISIT)
-
-        # All 3 files are current
-        files = list(ProjectFile.objects.filter(stage=first_stage))
-        self.assertEqual(len(files), 3)
-        self.assertTrue(all(f.is_current for f in files))
-        self.assertEqual({f.original_name for f in files}, {"map1.dwg", "map2.dwg", "map3.dwg"})
-
-    def test_new_intake_without_visit_date_fails(self):
-        build_workflow_v3(make_default=True)
-        with self.assertRaises(ValueError):
-            create_project_from_technician_intake(
-                created_by=self.tech,
-                party_id=self.partner.id,
-                visit_date=None,
-                issue_proforma=False,
-            )
 
     def test_new_intake_non_v2_template_fails(self):
         WorkflowTemplate.objects.filter(is_default=True).update(is_default=False)

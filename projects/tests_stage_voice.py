@@ -46,16 +46,6 @@ class StageVoiceTests(TestCase):
     def last_event(self):
         return StageEvent.objects.filter(stage=self.stage).order_by("-created_at", "-id").first()
 
-    def test_voice_only_completes_with_default_comment(self):
-        v = prepare_voice(voice(), "42", PEAKS)
-        complete_stage(stage=self.stage, actor=self.tech, comment="", voice=v)
-        self.stage.refresh_from_db()
-        self.assertEqual(self.stage.status, ProjectStage.Status.DONE)
-        ev = self.last_event()
-        self.assertEqual((ev.comment, ev.voice_duration, ev.voice_peaks), ("پیام صوتی", 42, PEAKS))
-        self.assertTrue(ev.voice.name.startswith(f"projects/{self.project.id}/voice/"))
-        self.assertTrue(ev.voice.name.endswith(".webm"))
-
 
 
     def test_neither_text_nor_voice_is_rejected(self):

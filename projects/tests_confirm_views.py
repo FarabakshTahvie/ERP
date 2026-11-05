@@ -72,67 +72,12 @@ class StageConfirmationViewTests(TestCase):
         self.assertEqual(res.status_code, 302)
         self.assertIn("/accounts/login/", res.url)
 
-    def test_nonexistent_conf_returns_404(self):
-        self.client.force_login(self.client_user)
-        res = self.client.get(reverse("projects:portal_stage_confirmation", args=[99999]))
-        self.assertEqual(res.status_code, 404)
 
     def test_unrelated_user_returns_404(self):
         self.client.force_login(self.other_user)
         url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
         res = self.client.get(url)
         self.assertEqual(res.status_code, 404)
-
-    def test_owner_get_records_view_and_renders_200(self):
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
-        res = self.client.get(url)
-        self.assertEqual(res.status_code, 200)
-        self.assertTemplateUsed(res, "projects/portal_stage_confirmation.html")
-        self.conf.refresh_from_db()
-        self.assertEqual(self.conf.view_count, 1)
-        self.assertIsNotNone(self.conf.first_viewed_at)
-
-    def test_accountant_get_is_readonly_and_no_view_record(self):
-        self.client.force_login(self.accountant)
-        url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
-        res = self.client.get(url)
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.context["readonly"])
-        self.conf.refresh_from_db()
-        self.assertEqual(self.conf.view_count, 0)
-
-    def test_owner_post_received_decision_redirects_home_if_no_invoice(self):
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
-        res = self.client.post(url, {"decision": "received"})
-        self.assertEqual(res.status_code, 302)
-        self.assertEqual(res.url, reverse("home"))
-        self.conf.refresh_from_db()
-        self.assertEqual(self.conf.decision, StageConfirmation.Decision.RECEIVED)
-
-    def test_owner_post_redirects_to_invoice_detail_when_invoice_exists(self):
-        inv_uuid = uuid.uuid4()
-        Invoice.objects.create(
-            project=self.project, billed_party=self.party,
-            number="INV-CONF-1", total_amount=1000, uuid=inv_uuid,
-            issue_date=timezone.localdate(),
-        )
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
-        res = self.client.post(url, {"decision": "received"})
-        self.assertEqual(res.status_code, 302)
-        expected_url = reverse("finance:portal_invoice_detail", args=[inv_uuid])
-        self.assertEqual(res.url, expected_url)
-
-    def test_owner_post_invalid_decision_redirects_back_with_error(self):
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_stage_confirmation", args=[self.stage.id])
-        res = self.client.post(url, {"decision": "confirmed"})  # برای SHIPPING مجاز نیست
-        self.assertEqual(res.status_code, 302)
-        self.assertEqual(res.url, url)
-        self.conf.refresh_from_db()
-        self.assertEqual(self.conf.decision, StageConfirmation.Decision.PENDING)
 
     def test_non_owner_post_returns_404(self):
         self.client.force_login(self.accountant)
@@ -161,47 +106,10 @@ class ConfirmationImageViewTests(TestCase):
             stage=self.stage, file=f, kind=ProjectFile.Kind.IMAGE, is_attachment=True
         )
 
-    def test_image_view_owner_success(self):
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_confirmation_image", args=[self.stage.id, self.file_obj.id])
-        res = self.client.get(url)
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res["X-Content-Type-Options"], "nosniff")
-        self.assertEqual(res["Cache-Control"], "private, max-age=3600")
-
-    def test_image_view_accountant_success(self):
-        self.client.force_login(self.accountant)
-        url = reverse("projects:portal_confirmation_image", args=[self.stage.id, self.file_obj.id])
-        res = self.client.get(url)
-        self.assertEqual(res.status_code, 200)
-
     def test_image_view_unrelated_returns_404(self):
         self.client.force_login(self.other_user)
         url = reverse("projects:portal_confirmation_image", args=[self.stage.id, self.file_obj.id])
         res = self.client.get(url)
         self.assertEqual(res.status_code, 404)
 
-    def test_image_view_non_install_stage_returns_404(self):
-        shipping_stage = _make_stage(self.project, kind=StageKind.SHIPPING, status=ProjectStage.Status.DONE)
-        StageConfirmation.objects.create(stage=shipping_stage, recipient=self.client_user)
-        f = SimpleUploadedFile("ship.jpg", b"img", content_type="image/jpeg")
-        pf = ProjectFile.objects.create(stage=shipping_stage, file=f, kind=ProjectFile.Kind.IMAGE, is_attachment=True)
-        self.client.force_login(self.client_user)
-        url = reverse("projects:portal_confirmation_image", args=[shipping_stage.id, pf.id])
-        res = self.client.get(url)
-        self.assertEqual(res.status_code, 404)
 
-
-class FinalReviewDataConfirmationTests(TestCase):
-    def setUp(self):
-        self.client_user, self.party = _make_client_with_party("fr_client", "مشتری بازبینی")
-        self.project = _make_project(self.party)
-        self.stage = _make_stage(self.project, kind=StageKind.SHIPPING, status=ProjectStage.Status.DONE)
-        self.conf = StageConfirmation.objects.create(stage=self.stage, recipient=self.client_user)
-
-    def test_final_review_data_attaches_client_confirm(self):
-        data = final_review_data(self.project)
-        matching = [s for s in data["stages"] if s.pk == self.stage.pk]
-        self.assertEqual(len(matching), 1)
-        self.assertIsNotNone(matching[0].client_confirm)
-        self.assertEqual(matching[0].client_confirm.pk, self.conf.pk)

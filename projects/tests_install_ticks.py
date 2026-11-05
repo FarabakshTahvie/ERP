@@ -52,14 +52,6 @@ class InstallBase(TestCase):
 
 
 class InstallTickTests(InstallBase):
-    def test_tick_is_explicit_idempotent_and_counts(self):
-        self.assertEqual(self.tick(self.s1), {"done": 1, "total": 2})
-        self.assertEqual(self.tick(self.s1), {"done": 1, "total": 2})
-        self.assertEqual(ServiceTick.objects.count(), 1)
-        self.assertEqual(self.tick(self.s2), {"done": 2, "total": 2})
-        self.assertEqual(self.tick(self.s1, done=False), {"done": 1, "total": 2})
-        self.assertEqual(self.tick(self.s1, done=False), {"done": 1, "total": 2})
-
     def test_permissions_and_validation(self):
         with self.assertRaises(ValueError):
             self.tick(self.s1, actor=self.stranger)

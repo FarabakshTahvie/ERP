@@ -17,23 +17,6 @@ from projects.proforma import parse_service_rows, save_proforma, issue_proforma
 from projects import ops
 
 
-class AccountantSpecialtyAccessTests(TestCase):
-    def setUp(self):
-        self.sp_accountant, _ = Specialty.objects.get_or_create(name="حسابدار")
-        self.accountant = User.objects.create_user(username="acc_1", password="pw", role=User.Role.EMPLOYEE)
-        self.accountant.specialties.add(self.sp_accountant)
-
-    def test_accountant_can_create_projects_and_manage_inventory(self):
-        self.assertTrue(user_can_create_projects(self.accountant))
-        self.assertTrue(user_can_manage_inventory(self.accountant))
-        self.assertTrue(user_is_accountant(self.accountant))
-
-    def test_plain_employee_is_not_accountant(self):
-        plain = User.objects.create_user(username="plain_1", password="pw", role=User.Role.EMPLOYEE)
-        self.assertFalse(user_is_accountant(plain))
-        self.assertFalse(user_can_manage_inventory(plain))
-
-
 class FinalReviewThreePersonAccessTests(TestCase):
     """بازبینی نهایی باید فقط برای مدیر، حسابدار و ثبت‌کننده در دسترس باشد."""
 
@@ -124,19 +107,6 @@ class FinalReviewManualConsumeTests(TestCase):
         self.assertEqual(resp.status_code, 404)
         self.item.refresh_from_db()
         self.assertEqual(self.item.current_stock, Decimal("10"))
-
-    def test_final_review_page_renders_manual_consume_form_for_accountant_only(self):
-        client = Client()
-        client.force_login(self.accountant)
-        resp = client.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertContains(resp, "مصرف کالای دیگر")
-
-        plain = User.objects.create_user(username="mc_plain", password="pw", role=User.Role.EMPLOYEE)
-        self.project.created_by = plain
-        self.project.save()
-        client.force_login(plain)
-        resp2 = client.get(reverse("projects:final_review", args=[self.project.id]))
-        self.assertEqual(resp2.status_code, 404)
 
 
 

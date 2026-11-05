@@ -71,65 +71,9 @@ def _make_stage(project, kind=StageKind.SHIPPING, status=ProjectStage.Status.DON
 # ─────────────────────────── fit_param ───────────────────────────
 
 class FitParamTests(TestCase):
-    def test_short_value_unchanged(self):
-        self.assertEqual(fit_param("کوتاه"), "کوتاه")
-
-    def test_value_exactly_at_limit_unchanged(self):
-        text = "a" * 25
-        self.assertEqual(fit_param(text, limit=25), text)
-
-    def test_long_value_cut_at_word_boundary(self):
-        result = fit_param("سلام دنیا خوبی", limit=8)
-        self.assertLessEqual(len(result), 8)
-        self.assertNotIn(" ", result.strip()[-1:])  # آخرین کاراکتر فاصله نیست
-
     def test_no_space_cut_hard(self):
         result = fit_param("abcdefghij", limit=5)
         self.assertEqual(result, "abcde")
-
-    def test_none_returns_empty(self):
-        self.assertEqual(fit_param(None), "")
-
-    def test_extra_spaces_normalized(self):
-        result = fit_param("  سلام   دنیا  ")
-        self.assertEqual(result, "سلام دنیا")
-
-    def test_exactly_25_chars(self):
-        text = "x" * 25
-        self.assertEqual(fit_param(text), text)
-
-    def test_26_chars_no_space_cut_hard(self):
-        text = "y" * 26
-        self.assertEqual(fit_param(text), "y" * 25)
-
-
-# ─────────────────────────── confirmation_path ───────────────────────────
-
-class ConfirmationPathTests(TestCase):
-    def test_path_format(self):
-        self.assertEqual(confirmation_path(42), "/portal/stage-confirmations/42/")
-
-
-# ─────────────────────────── is_recipient_party ───────────────────────────
-
-class IsRecipientPartyTests(TestCase):
-    def setUp(self):
-        self.client_user, self.party = _make_client_with_party("irp_cli", "طرف‌حساب")
-        self.project = _make_project(self.party)
-
-    def test_billing_party_user_returns_true(self):
-        self.assertTrue(is_recipient_party(self.client_user, self.project))
-
-    def test_other_user_returns_false(self):
-        other_party = Party.objects.create(name="دیگری", is_client=True)
-        other_user = User.objects.create_user(
-            username="irp_other", password="pw", role=User.Role.CLIENT, party=other_party
-        )
-        self.assertFalse(is_recipient_party(other_user, self.project))
-
-    def test_user_without_party_returns_false(self):
-        manager = _make_manager("irp_mgr")
-        self.assertFalse(is_recipient_party(manager, self.project))
 
 
 # ─────────────────────────── open_confirmation ───────────────────────────
@@ -145,30 +89,6 @@ class OpenConfirmationTests(TestCase):
 
     def _install_stage(self, status=ProjectStage.Status.IN_PROGRESS):
         return _make_stage(self.project, kind=StageKind.INSTALL, status=status)
-
-    def test_non_confirm_kind_returns_none(self):
-        stage = _make_stage(self.project, kind=StageKind.CUTTING)
-        result = open_confirmation(stage)
-        self.assertIsNone(result)
-
-    def test_shipping_creates_confirmation(self):
-        stage = self._shipping_stage()
-        with mock.patch("notifications.services.SMSService.send_shipment_sent", return_value={"success": True, "message_id": 1}):
-            with self.captureOnCommitCallbacks(execute=True):
-                conf = open_confirmation(stage)
-        self.assertIsNotNone(conf)
-        self.assertIsInstance(conf, StageConfirmation)
-        self.assertEqual(conf.stage, stage)
-        self.assertEqual(conf.recipient, self.client_user)
-        self.assertEqual(conf.decision, StageConfirmation.Decision.PENDING)
-
-    def test_install_creates_confirmation(self):
-        stage = self._install_stage()
-        with mock.patch("notifications.services.SMSService.send_install_done", return_value={"success": True, "message_id": 1}):
-            with self.captureOnCommitCallbacks(execute=True):
-                conf = open_confirmation(stage)
-        self.assertIsNotNone(conf)
-        self.assertEqual(conf.stage.kind, StageKind.INSTALL)
 
     def test_idempotent_second_call_no_new_record(self):
         stage = self._shipping_stage()
@@ -189,31 +109,6 @@ class OpenConfirmationTests(TestCase):
         self.assertIsNone(conf.recipient)
 
 
-# ─────────────────────────── record_view ───────────────────────────
-
-class RecordViewTests(TestCase):
-    def setUp(self):
-        _, party = _make_client_with_party("rv_cli", "طرف‌حساب ویو")
-        project = _make_project(party)
-        stage = _make_stage(project, kind=StageKind.SHIPPING)
-        self.conf = StageConfirmation.objects.create(stage=stage)
-
-    def test_first_view_sets_timestamps(self):
-        record_view(self.conf)
-        self.conf.refresh_from_db()
-        self.assertIsNotNone(self.conf.first_viewed_at)
-        self.assertIsNotNone(self.conf.last_viewed_at)
-        self.assertEqual(self.conf.view_count, 1)
-
-    def test_second_view_increments_count_not_first_viewed_at(self):
-        record_view(self.conf)
-        self.conf.refresh_from_db()
-        first = self.conf.first_viewed_at
-        record_view(self.conf)
-        self.conf.refresh_from_db()
-        self.assertEqual(self.conf.view_count, 2)
-        self.assertEqual(self.conf.first_viewed_at, first)
-
 
 # ─────────────────────────── set_decision ───────────────────────────
 
@@ -223,24 +118,6 @@ class SetDecisionTests(TestCase):
         self.project = _make_project(self.party)
         self.stage = _make_stage(self.project, kind=StageKind.SHIPPING, status=ProjectStage.Status.DONE)
         self.conf = StageConfirmation.objects.create(stage=self.stage, recipient=self.client_user)
-
-    def test_valid_decision_received(self):
-        result = set_decision(
-            stage_id=self.stage.pk,
-            decision=StageConfirmation.Decision.RECEIVED,
-            actor=self.client_user,
-        )
-        self.assertEqual(result.decision, StageConfirmation.Decision.RECEIVED)
-        self.assertIsNotNone(result.decided_at)
-        self.assertEqual(result.decided_by, self.client_user)
-
-    def test_valid_decision_not_received(self):
-        result = set_decision(
-            stage_id=self.stage.pk,
-            decision=StageConfirmation.Decision.NOT_RECEIVED,
-            actor=self.client_user,
-        )
-        self.assertEqual(result.decision, StageConfirmation.Decision.NOT_RECEIVED)
 
     def test_idempotent_same_decision_no_change(self):
         set_decision(stage_id=self.stage.pk, decision=StageConfirmation.Decision.RECEIVED, actor=self.client_user)

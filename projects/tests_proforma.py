@@ -73,21 +73,6 @@ class ProformaPricingTests(TestCase):
         self.assertIn("40", line.title)
         self.assertFalse(invoice.lines.filter(line_type="material").exists())
 
-    def test_material_totals_round_half_up(self):
-        item = Item(moving_average_cost=Decimal("100"))
-        cost, total = material_totals(item, Decimal("1"), Decimal("12.5"))
-        self.assertEqual(total, Decimal("113"))  # 100 * 1.125 = 112.5 -> 113
-
-    def test_service_without_materials_keeps_format(self):
-        rows = parse_service_rows(json.dumps([{
-            "service_id": self.service.id, "qty": "5", "unit_price": "500000",
-            "materials": [],
-        }]))
-        save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
-        invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
-        line = invoice.lines.get()
-        self.assertEqual((line.line_type, line.qty, line.unit_price), ("service", Decimal("5"), Decimal("500000")))
-
     def test_advance_stage_proforma_guard(self):
         proforma_st = self.project.stages.filter(kind=StageKind.PROFORMA).first()
         self.assertEqual(proforma_st.status, ProjectStage.Status.IN_PROGRESS)

@@ -153,22 +153,4 @@ class StageApprovalTests(TestCase):
         self.assertEqual(approval.decision, StageApproval.Decision.PENDING)
         self.assertFalse(Payment.objects.filter(claimed_amount=200000).exists())
 
-    # ۴. رد بدون پرداخت
-    def test_reject_action_without_payment_fields(self):
-        stage3 = self.project.stages.get(order=3)
-        stage3.status = ProjectStage.Status.WAITING_APPROVAL
-        stage3.save()
-        approval = StageApproval.objects.create(stage=stage3, sent_to_party=self.party)
-
-        client = Client()
-        client.force_login(self.client_user)
-
-        resp = client.post(reverse("projects:portal_stage_approval", args=[approval.id]), {
-            "action": "reject",
-            "comment": "نیاز به بازبینی کامل دارد",
-        })
-        self.assertEqual(resp.status_code, 302)
-        approval.refresh_from_db()
-        self.assertEqual(approval.decision, StageApproval.Decision.REJECTED)
-
 

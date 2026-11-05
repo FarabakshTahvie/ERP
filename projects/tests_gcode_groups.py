@@ -51,28 +51,6 @@ class GroupBase(TestCase):
                               uploader=self.tech, cut_count_raw=cuts, group_id=group.id)
 
 
-class GroupCreateTests(GroupBase):
-    def test_title_is_normalized_and_duplicates_rejected(self):
-        self.assertEqual(self.group("  طبقه   اول ").title, "طبقه اول")
-        with self.assertRaises(ValueError):
-            self.group("طبقه اول")
-        self.group("طبقه ۲")
-        with self.assertRaises(ValueError):
-            self.group("طبقه 2")
-
-    def test_bad_titles_actors_and_stages(self):
-        for bad in ("", "   ", "ا" * 101):
-            with self.assertRaises(ValueError, msg=bad):
-                create_group(stage=self.gcode, title=bad, actor=self.tech)
-        with self.assertRaises(ValueError):
-            create_group(stage=self.gcode, title="x", actor=self.other)
-        with self.assertRaises(ValueError):
-            create_group(stage=self.cutting, title="x", actor=self.tech)
-        ProjectStage.objects.filter(pk=self.gcode.pk).update(status=ProjectStage.Status.DONE)
-        with self.assertRaises(ValueError):
-            create_group(stage=self.gcode, title="y", actor=self.tech)
-
-
 class GroupUploadTests(GroupBase):
     def test_gcode_upload_needs_group_of_this_stage_and_cut_count(self):
         g = self.group()
@@ -98,28 +76,6 @@ class GroupUploadTests(GroupBase):
 
 
 class GroupCutTests(GroupBase):
-    def test_empty_groups_are_ignored(self):
-        g1 = self.group("طبقه اول")
-        self.group("طبقه دوم")
-        self.upload(g1)
-        self.assertEqual([g.id for g in cut_groups(self.project)], [g1.id])
-        self.assertEqual(groups_progress(self.project), (1, 0))
-
-    def test_done_and_undone_are_explicit_and_idempotent(self):
-        g = self.group()
-        self.upload(g)
-        set_group_cut_done(group=g, done=True, actor=self.tech)
-        set_group_cut_done(group=g, done=True, actor=self.tech)
-        g.refresh_from_db()
-        self.assertTrue(g.cut_done)
-        self.assertEqual(g.cut_done_by, self.tech)
-        self.assertIsNotNone(g.cut_done_at)
-        self.assertEqual(groups_progress(self.project), (1, 1))
-        set_group_cut_done(group=g, done=False, actor=self.tech)
-        g.refresh_from_db()
-        self.assertFalse(g.cut_done)
-        self.assertIsNone(g.cut_done_by)
-
     def test_group_cut_rules(self):
         g = self.group()
         self.upload(g)

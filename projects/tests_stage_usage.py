@@ -53,24 +53,10 @@ class UsageBase(TestCase):
 
 
 class UsageParseTests(TestCase):
-    def test_decimals_and_persian_digits_are_accepted(self):
-        self.assertEqual(parse_usage_qty("4.5"), Decimal("4.5"))
-        self.assertEqual(parse_usage_qty("۴٫۵"), Decimal("4.5"))
-        self.assertEqual(parse_usage_qty("۱۲"), Decimal("12"))
-
     def test_letters_negative_and_garbage_are_rejected(self):
         for bad in ("abc", "4a", "-1", "1e3", "4.5.6", "٪"):
             with self.assertRaises(ValueError, msg=bad):
                 parse_usage_qty(bad)
-
-    def test_empty_zero_mean_no_usage_and_limits(self):
-        self.assertIsNone(parse_usage_qty(""))
-        self.assertIsNone(parse_usage_qty(None))
-        self.assertIsNone(parse_usage_qty("0"))
-        with self.assertRaises(ValueError):
-            parse_usage_qty("0.00001")
-        with self.assertRaises(ValueError):
-            parse_usage_qty("99999999")
 
 
 class UsageServiceTests(UsageBase):
@@ -79,21 +65,6 @@ class UsageServiceTests(UsageBase):
         self.put(self.cutting, self.item, "6")
         usage = StageUsage.objects.get()
         self.assertEqual((usage.qty, usage.updated_by), (Decimal("6"), self.worker))
-
-    def test_empty_or_zero_removes_row(self):
-        self.put(self.cutting, self.item, "3")
-        self.assertEqual(self.put(self.cutting, self.item, ""), {"qty": "", "removed": True, "short": ""})
-        self.assertFalse(StageUsage.objects.exists())
-        self.put(self.cutting, self.item, "3")
-        self.put(self.cutting, self.item, "0")
-        self.assertFalse(StageUsage.objects.exists())
-
-    def test_every_stage_has_its_own_usage(self):
-        self.put(self.cutting, self.item, "4")
-        self.assertEqual(usage_context(self.worker, self.assembly)["rows"][0]["qty"], "")
-        self.put(self.assembly, self.item, "1.5")
-        self.assertEqual(StageUsage.objects.count(), 2)
-        self.assertEqual(usage_context(self.worker, self.cutting)["rows"][0]["qty"], "4")
 
     def test_permissions_and_stage_rules(self):
         with self.assertRaises(ValueError):

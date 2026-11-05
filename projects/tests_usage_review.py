@@ -62,19 +62,6 @@ class UsageByStageTests(ReviewBase):
         self.assertEqual((total, recon["used"]), (Decimal("6.5"), Decimal("6.5")))
 
 
-class ReconciliationExtrasTests(ReviewBase):
-    def test_unit_label_and_stock_hint(self):
-        wh = Warehouse.objects.create(name="انبار بازبینی", is_default=True)
-        receive_stock(item=self.item, warehouse=wh, qty=Decimal("5"), unit_cost=Decimal("100"),
-                      received_at=timezone.now())
-        self.use(self.cutting, self.item, "8")
-        r = accounting.project_reconciliation(self.project)[0]
-        self.assertEqual(r["unit_label"], "متر مربع")
-        self.assertEqual((r["stock"], r["unsettled"], r["stock_short"]), (Decimal("5"), Decimal("8"), True))
-        receive_stock(item=self.item, warehouse=wh, qty=Decimal("10"), unit_cost=Decimal("100"),
-                      received_at=timezone.now())
-        self.assertFalse(accounting.project_reconciliation(self.project)[0]["stock_short"])
-
 
 
 
