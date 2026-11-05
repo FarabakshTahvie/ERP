@@ -844,7 +844,6 @@ def update_visit_date(*, project, actor, visit_date):
 update_visit_at = update_visit_date
 
 
-@transaction.atomic
 def _normalized_party_data(data):
     """کپی اطلاعات طرف‌حساب با شماره و کد ملی نرمال‌شده؛ None یا خالی دست‌نخورده برمی‌گردد."""
     if not data:
@@ -857,6 +856,7 @@ def _normalized_party_data(data):
     return out
 
 
+@transaction.atomic
 def create_project_from_technician_intake(*, created_by, party_id=None, party_data=None,
                                            owner_party_id=None, owner_party_data=None,
                                            location_lat=None, location_lng=None, location_address="",

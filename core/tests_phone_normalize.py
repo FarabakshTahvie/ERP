@@ -5,7 +5,7 @@ from core.models import Party
 from utils.utils import normalize_phone
 from inventory.services import create_purchase_from_form
 from projects.services import create_project_from_technician_intake
-from projects.models import Project
+from projects.models import Project, WorkflowTemplate
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -39,13 +39,15 @@ class PhoneNormalizeTests(TestCase):
             "phone_number": "۰۹۱۲۳۴۵۶۷۸۹", "national_code": "1234567890",
             "is_client": True
         }
-        
+        before = Party.objects.count()   # طرف‌حساب داخلی شرکت از قبل در دیتابیس تست هست
+
         # اولین بار
         create_project_from_technician_intake(
             created_by=user, party_data=data, project_name="پروژه ۱"
         )
-        self.assertEqual(Party.objects.count(), 1)
-        
+        self.assertEqual(Party.objects.count(), before + 1)
+        self.assertEqual(Party.objects.filter(phone_number="09123456789").count(), 1)
+
         # بار دوم با شماره لاتین
         data2 = data.copy()
         data2["phone_number"] = "09123456789"
@@ -53,7 +55,24 @@ class PhoneNormalizeTests(TestCase):
             create_project_from_technician_intake(
                 created_by=user, party_data=data2, project_name="پروژه ۲"
             )
-        self.assertEqual(Party.objects.count(), 1)
+        self.assertEqual(Party.objects.count(), before + 1)
+        self.assertEqual(Party.objects.filter(phone_number="09123456789").count(), 1)
+
+    def test_failed_project_creation_leaves_no_party_behind(self):
+        user = User.objects.create_user(username="half_done_user")
+        WorkflowTemplate.objects.update(is_default=False)   # قالب پیش‌فرض نیست؛ ساخت پروژه بعد از ساخت طرف‌حساب خطا می‌دهد
+        parties_before, projects_before = Party.objects.count(), Project.objects.count()
+        data = {
+            "name": "طرف‌حساب نیمه‌کاره", "entity_type": "individual",
+            "phone_number": "09120000555", "national_code": "0499370899",
+            "is_client": True,
+        }
+        with self.assertRaises(ValueError):
+            create_project_from_technician_intake(
+                created_by=user, party_data=data, project_name="پروژه‌ی خطادار"
+            )
+        self.assertEqual(Party.objects.count(), parties_before)
+        self.assertEqual(Project.objects.count(), projects_before)
 
     def test_create_purchase_deduplication(self):
         # این تست نیاز به setup انبار و کالا دارد که در بریف A انجام شد

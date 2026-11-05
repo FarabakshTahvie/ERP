@@ -55,7 +55,8 @@ def _tasks_qs(user, *, done):
     qs = (Task.objects.filter(created_by=user)
           .annotate(n_total=Count("assignments", distinct=True),
                     n_done=Count("assignments", filter=Q(assignments__submitted_at__isnull=False), distinct=True),
-                    finished_at=Max("assignments__submitted_at")))
+                    finished_at=Max("assignments__submitted_at"))
+          .order_by("-created_at", "-pk"))
     if done:
         return qs.filter(n_total__gt=0, n_done=F("n_total"))
     return qs.filter(Q(n_total=0) | Q(n_done__lt=F("n_total")))
