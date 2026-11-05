@@ -172,6 +172,7 @@ def _claimable_table_context(request):
             "cells": [
                 {"type": "text", "value": stage.project.name},
                 {"type": "text", "value": stage.client_label or stage.title},
+                {"type": "muted", "value": jalali_str(stage.started_at, fmt="%Y/%m/%d %H:%M") if stage.started_at else "—"},
                 {"type": "badge", "value": "بدون مسئول ثابت", "variant": "warning"},
             ],
         }
@@ -181,6 +182,8 @@ def _claimable_table_context(request):
         columns=[
             {"label": "پروژه", "sort_field": "project__name"},
             {"label": "مرحله", "sort_field": "title"},
+            {"label": "تاریخ شروع", "sort_field": "started_at", "filter_key": "date",
+             "filter_type": "date_range", "filter_field": "started_at"},
             {"label": "وضعیت"},
         ],
         row_builder=row_builder,
