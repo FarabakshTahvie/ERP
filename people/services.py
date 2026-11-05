@@ -39,6 +39,7 @@ PAGE_LABELS = {
     "finance:payment_detail": "بررسی پرداخت",
     "finance:accounting_overview": "مرکز حسابداری",
     "finance:accounting_project": "پرونده‌ی مالی",
+    "finance:accounting_purchase": "جزئیات خرید",
     "finance:accounting_periods": "قفل ماه‌ها",
     "finance:accounting_customers": "مرکز مشتریان",
     "inventory:stock_movement_new": "ثبت مصرف یا تعدیل",

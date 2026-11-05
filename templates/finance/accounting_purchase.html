@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}خرید از {{ purchase.supplier.name }} | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <a href="{% url 'finance:accounting_purchases' %}" class="link link-hover text-sm fb-muted">بازگشت به خریدها</a>
+            <h1 class="fb-page-title mt-2">خرید از {{ purchase.supplier.name }}</h1>
+            <p class="fb-page-sub">تاریخ خرید: <span class="font-technical">{{ purchase.purchased_at|to_jalali:"%Y/%m/%d" }}</span></p>
+        </div>
+        {# EDIT_BUTTON #}
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="grid grid-cols-2 gap-3">
+        {% include "finance/partials/stat_card.html" with label="تعداد ردیف" value=lines|length tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="جمع خرید (تومان)" value=total tone="" hint="" %}
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <h2 class="fb-section-title">اطلاعات سند</h2>
+        <div class="flex justify-between gap-2"><span class="fb-muted">تأمین‌کننده</span>
+            <a href="{% url 'finance:accounting_supplier' purchase.supplier_id %}" class="link link-primary">{{ purchase.supplier.name }}</a></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">شماره فاکتور خرید</span>
+            <span class="font-technical">{% if purchase.invoice_number %}{{ purchase.invoice_number|fa_digits }}{% else %}—{% endif %}</span></div>
+        <div class="flex justify-between items-center gap-2"><span class="fb-muted">فایل فاکتور</span>
+            {% if purchase.invoice_file %}<a href="{{ purchase.invoice_file.url }}" target="_blank" rel="noopener" class="btn btn-soft btn-xs">{% icon "file-text" "w-4 h-4" %} مشاهده</a>{% else %}<span class="fb-muted">ندارد</span>{% endif %}</div>
+        {% if purchase.notes %}<p class="fb-inset text-xs whitespace-pre-line">{{ purchase.notes }}</p>{% endif %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اقلام</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>کالا</th><th>مقدار</th><th>بهای واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr>
+                        <td class="font-semibold">{{ l.item.name }}</td>
+                        <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
+                        <td class="font-technical">{{ l.unit_cost|intcomma_fa }}</td>
+                        <td class="font-technical font-semibold">{{ l.line_total|intcomma_fa }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="fb-empty">ردیفی ثبت نشده است.</td></tr>
+                {% endfor %}
+                </tbody>
+                <tfoot><tr class="font-bold"><td colspan="3">جمع کل</td><td class="font-technical">{{ total|intcomma_fa }}</td></tr></tfoot>
+            </table>
+        </div>
+    </section>
+    {# HISTORY #}
+</div>
+{% endblock %}

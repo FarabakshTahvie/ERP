@@ -27,6 +27,7 @@ urlpatterns = [
     path("accounting/inventory/table/", views_accounting.inventory_table, name="accounting_inventory_table"),
     path("accounting/purchases/", views_accounting.purchases_page, name="accounting_purchases"),
     path("accounting/purchases/table/", views_accounting.purchases_table, name="accounting_purchases_table"),
+    path("accounting/purchases/<int:purchase_id>/", views_accounting.purchase_detail, name="accounting_purchase"),
     path("portal/invoices/<uuid:invoice_uuid>/", views.invoice_detail, name="portal_invoice_detail"),
     path("portal/invoices/<uuid:invoice_uuid>/pdf/", views.invoice_pdf, name="portal_invoice_pdf"),
     path("portal/invoices/<uuid:invoice_uuid>/add-payment/", views.add_payment, name="portal_add_payment"),

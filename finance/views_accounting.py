@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Max, Sum
+from django.db.models import Count, Max, OuterRef, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -11,7 +12,7 @@ from core.models import Party
 from projects.services import project_prices_editable
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from inventory.models import PurchaseLine, StockMovement
+from inventory.models import Purchase, PurchaseLine, StockMovement
 from projects import ops
 from projects.usage import project_usage_by_stage
 from projects.models import Project, ProjectCost, StageKind
@@ -215,40 +216,43 @@ def inventory_table(request):
 
 # ---------- خریدها ----------
 def _purchases_ctx(request):
-    qs = (PurchaseLine.objects.select_related("purchase__supplier", "item")
-          .annotate(line_total=accounting.VALUE).order_by("-purchase__purchased_at", "-id"))
+    per_purchase = PurchaseLine.objects.filter(purchase=OuterRef("pk")).order_by().values("purchase")
+    qs = (Purchase.objects.select_related("supplier")
+          .annotate(
+              n_lines=Coalesce(Subquery(per_purchase.annotate(n=Count("id")).values("n")), Value(0)),
+              total=Coalesce(Subquery(per_purchase.annotate(t=Sum(accounting.VALUE)).values("t"),
+                                      output_field=accounting.MONEY),
+                             Value(accounting.ZERO), output_field=accounting.MONEY))
+          .order_by("-purchased_at", "-id"))
 
-    def row_builder(l):
-        return {"url": None, "cells": [
-            {"type": "muted", "value": jalali_str(l.purchase.purchased_at, fmt="%Y/%m/%d")},
-            {"type": "text", "value": l.purchase.supplier.name},
-            {"type": "muted", "value": to_fa_digits(l.purchase.invoice_number) or "—"},
-            {"type": "text", "value": l.item.name},
-            {"type": "muted", "value": _q(l.qty)},
-            {"type": "muted", "value": _m(l.unit_cost)},
-            {"type": "text", "value": _m(l.line_total)},
+    def row_builder(p):
+        from utils.navigation import nav_reverse
+        return {"url": nav_reverse(request, "finance:accounting_purchase", args=[p.id]), "cells": [
+            {"type": "text", "value": p.supplier.name},
+            {"type": "muted", "value": jalali_str(p.purchased_at, fmt="%Y/%m/%d")},
+            {"type": "muted", "value": to_fa_digits(p.invoice_number) or "—"},
+            {"type": "muted", "value": to_fa_digits(p.n_lines)},
+            {"type": "text", "value": _m(p.total)},
         ]}
 
     return build_table_context(
         request, qs,
         columns=[
-            {"label": "تاریخ", "sort_field": "purchase__purchased_at", "filter_key": "date",
-             "filter_type": "date_range", "filter_field": "purchase__purchased_at"},
-            {"label": "تأمین‌کننده", "sort_field": "purchase__supplier__name", "filter_key": "supplier",
-             "filter_type": "select", "filter_field": "purchase__supplier_id",
+            {"label": "تأمین‌کننده", "sort_field": "supplier__name", "filter_key": "supplier",
+             "filter_type": "select", "filter_field": "supplier_id",
              "choices": [(p.id, p.name) for p in Party.objects.filter(purchases__isnull=False).distinct().order_by("name")]},
+            {"label": "تاریخ", "sort_field": "purchased_at", "filter_key": "date",
+             "filter_type": "date_range", "filter_field": "purchased_at"},
             {"label": "شماره فاکتور"},
-            {"label": "کالا", "sort_field": "item__name"},
-            {"label": "مقدار"},
-            {"label": "بهای واحد (تومان)"},
-            {"label": "جمع (تومان)", "sort_field": "line_total", "filter_key": "total", "filter_type": "number_range",
-             "filter_field": "line_total"},
+            {"label": "تعداد ردیف", "sort_field": "n_lines"},
+            {"label": "جمع (تومان)", "sort_field": "total", "filter_key": "total",
+             "filter_type": "number_range", "filter_field": "total"},
         ],
         row_builder=row_builder, container_id="table-acc-purchases", param_prefix="au_",
         empty_icon="receipt", empty_text="هنوز خریدی ثبت نشده.",
         list_url=reverse("finance:accounting_purchases_table"),
-        search_fields=["purchase__supplier__name", "purchase__invoice_number", "item__name"],
-        search_placeholder="جستجو در تأمین‌کننده، شماره فاکتور یا کالا...",
+        search_fields=["supplier__name", "invoice_number", "lines__item__name"],
+        search_placeholder="جستجو در تأمین‌کننده، شماره فاکتور یا نام کالا...",
     )
 
 
@@ -256,13 +260,24 @@ def _purchases_ctx(request):
 @user_passes_test(_can)
 def purchases_page(request):
     return _table_page(request, _purchases_ctx, nav="purchases", title="خریدها",
-                       sub="فقط خریدهای ثبت‌شده با فاکتور خرید. موجودی اولیه اینجا نیست.")
+                       sub="هر سطر یک سند خرید است؛ برای دیدن اقلام روی آن بزنید. موجودی اولیه اینجا نیست.")
 
 
 @login_required
 @user_passes_test(_can)
 def purchases_table(request):
     return render_table(request, _purchases_ctx(request))
+
+
+@login_required
+@user_passes_test(_can)
+def purchase_detail(request, purchase_id):
+    purchase = get_object_or_404(Purchase.objects.select_related("supplier"), pk=purchase_id)
+    lines = list(purchase.lines.select_related("item").annotate(line_total=accounting.VALUE).order_by("pk"))
+    return render(request, "finance/accounting_purchase.html", {
+        "nav_active": "purchases", "purchase": purchase, "lines": lines,
+        "total": sum((l.line_total for l in lines), accounting.ZERO),
+    })
 
 
 # ---------- پرونده‌ی مالی پروژه ----------
