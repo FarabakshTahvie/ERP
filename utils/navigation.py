@@ -56,6 +56,7 @@ PAGE_PARENTS = {
     "finance:accounting_stock": ("finance:accounting_overview", [], {}),
     "finance:accounting_inventory": ("finance:accounting_overview", [], {}),
     "finance:accounting_purchases": ("finance:accounting_overview", [], {}),
+    "finance:accounting_purchase": ("finance:accounting_purchases", [], {}),
     "finance:accounting_suppliers": ("finance:accounting_overview", [], {}),
     "finance:accounting_supplier": ("finance:accounting_suppliers", [], {}),
     "finance:accounting_periods": ("finance:accounting_overview", [], {}),
@@ -77,7 +78,7 @@ PAGE_PARENTS = {
 # صفحه‌های چندورودی؛ لینک به آن‌ها باید ?next بگیرد.
 MULTI_ENTRY = {
     "inventory:purchase_new",
-    "projects:staff_project_overview", "finance:accounting_project", "finance:payment_detail",
+    "projects:staff_project_overview", "finance:accounting_project", "finance:payment_detail", "finance:accounting_purchase",
     "finance:portal_invoice_detail", "people:user_detail", "people:party_detail",
     "projects:final_review", "projects:portal_stage_approval", "notifications:broadcast_detail",
 }
