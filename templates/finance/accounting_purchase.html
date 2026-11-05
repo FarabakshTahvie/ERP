@@ -9,7 +9,9 @@
             <h1 class="fb-page-title mt-2">خرید از {{ purchase.supplier.name }}</h1>
             <p class="fb-page-sub">تاریخ خرید: <span class="font-technical">{{ purchase.purchased_at|to_jalali:"%Y/%m/%d" }}</span></p>
         </div>
-        {# EDIT_BUTTON #}
+        {% if caps.purchases_edit %}
+        <a href="{% url 'finance:accounting_purchase_edit' purchase.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش خرید</a>
+        {% endif %}
     </div>
     {% include "finance/partials/accounting_nav.html" %}
 
@@ -50,6 +52,14 @@
             </table>
         </div>
     </section>
-    {# HISTORY #}
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">سابقه‌ی ویرایش</h2>
+        {% for e in events %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+            <span>{{ e.text }}</span>
+            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+        </div>
+        {% empty %}<p class="fb-hint">این خرید ویرایش نشده است.</p>{% endfor %}
+    </section>
 </div>
 {% endblock %}

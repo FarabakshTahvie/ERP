@@ -200,9 +200,12 @@ class AccountingEvent(models.Model):
         PAYMENT = "payment", "ثبت پرداخت"
         PERIOD = "period", "قفل ماه"
         EXPORT = "export", "خروجی جدول"
+        PURCHASE = "purchase", "اصلاح خرید"
 
     project = models.ForeignKey('projects.Project', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name="accounting_events", verbose_name="پروژه")
+    purchase = models.ForeignKey('inventory.Purchase', null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="accounting_events", verbose_name="سند خرید")
     kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="نوع")
     text = models.CharField(max_length=500, verbose_name="شرح")
     amount = models.DecimalField(max_digits=18, decimal_places=0, null=True, blank=True, verbose_name="مبلغ")

@@ -57,6 +57,7 @@ PAGE_PARENTS = {
     "finance:accounting_inventory": ("finance:accounting_overview", [], {}),
     "finance:accounting_purchases": ("finance:accounting_overview", [], {}),
     "finance:accounting_purchase": ("finance:accounting_purchases", [], {}),
+    "finance:accounting_purchase_edit": ("finance:accounting_purchase", ["purchase_id"], {}),
     "finance:accounting_suppliers": ("finance:accounting_overview", [], {}),
     "finance:accounting_supplier": ("finance:accounting_suppliers", [], {}),
     "finance:accounting_periods": ("finance:accounting_overview", [], {}),
