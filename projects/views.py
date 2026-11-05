@@ -13,7 +13,7 @@ from utils.tabs import build_tabs_context
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, Prefetch, F, Value, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce
-from utils.utils import separate_digits
+from utils.utils import separate_digits, normalize_phone
 from utils.jalali_forms import JalaliDateField
 from utils.jalali import jalali_str, to_fa_digits
 from core.capabilities import can
@@ -691,7 +691,7 @@ def new_project_form(request):
 @login_required
 @user_passes_test(can_search_parties_for_purchase)
 def new_project_party_search(request):
-    phone = request.GET.get("phone_number", "").strip()
+    phone = normalize_phone(request.GET.get("phone_number", ""))
     prefix = request.GET.get("prefix", "")
     context_role = request.GET.get("context_role", "")
     party = Party.objects.filter(phone_number=phone).first() if phone else None

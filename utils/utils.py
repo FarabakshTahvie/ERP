@@ -178,3 +178,20 @@ def next_monthly_code(queryset, field, prefix):
             highest = max(highest, int(tail))
     return f"{prefix}{highest + 1:02d}"
 
+
+_DIGIT_MAP = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def to_latin_digits(value):
+    """ارقام فارسی و عربی ← لاتین. None ← رشته‌ی خالی."""
+    return str(value if value is not None else "").translate(_DIGIT_MAP)
+
+
+def normalize_phone(raw):
+    """شماره با ارقام لاتین، بدون فاصله، خط‌تیره، پرانتز و نیم‌فاصله.
+    پیش‌شماره‌ی «+98» یا «0098» روی شماره‌ی کامل به «0» تبدیل می‌شود."""
+    text = re.sub(r"[\s\-()\u200c\u200e\u200f]", "", to_latin_digits(raw))
+    for prefix in ("+98", "0098"):
+        if text.startswith(prefix) and text[len(prefix):].isdigit():
+            return "0" + text[len(prefix):]
+    return text

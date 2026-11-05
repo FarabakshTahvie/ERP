@@ -107,6 +107,13 @@ class Party(TimeStampedModel):
     def __str__(self):
         return f"{self.name} ({self.get_entity_type_display()})"
 
+    def save(self, *args, **kwargs):
+        from utils.utils import normalize_phone, to_latin_digits
+        self.phone_number = normalize_phone(self.phone_number)
+        self.secondary_phone = normalize_phone(self.secondary_phone)
+        self.national_code = to_latin_digits(self.national_code).strip() or None
+        super().save(*args, **kwargs)
+
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.entity_type == self.EntityType.INDIVIDUAL and not self.national_code:

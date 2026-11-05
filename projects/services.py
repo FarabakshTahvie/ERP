@@ -845,6 +845,18 @@ update_visit_at = update_visit_date
 
 
 @transaction.atomic
+def _normalized_party_data(data):
+    """کپی اطلاعات طرف‌حساب با شماره و کد ملی نرمال‌شده؛ None یا خالی دست‌نخورده برمی‌گردد."""
+    if not data:
+        return data
+    from utils.utils import normalize_phone, to_latin_digits
+    out = dict(data)
+    out["phone_number"] = normalize_phone(out.get("phone_number"))
+    if "national_code" in out:
+        out["national_code"] = to_latin_digits(out["national_code"]).strip() or None
+    return out
+
+
 def create_project_from_technician_intake(*, created_by, party_id=None, party_data=None,
                                            owner_party_id=None, owner_party_data=None,
                                            location_lat=None, location_lng=None, location_address="",
@@ -865,6 +877,9 @@ def create_project_from_technician_intake(*, created_by, party_id=None, party_da
     explicit_name = None if project_name is None else clean_project_name(project_name)
     if not issue_proforma and visit_date is None:
         raise ValueError("تاریخ بازدید را مشخص کنید.")
+
+    party_data = _normalized_party_data(party_data)
+    owner_party_data = _normalized_party_data(owner_party_data)
 
     if party_id:
         party = Party.objects.get(pk=party_id)

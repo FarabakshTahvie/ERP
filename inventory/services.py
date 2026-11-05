@@ -227,11 +227,15 @@ def _resolve_supplier_party(*, party_id=None, party_data=None):
             party.is_supplier = True
             party.save(update_fields=["is_supplier"])
         return party
-    if not party_data or not party_data.get("phone_number"):
+    from utils.utils import normalize_phone, to_latin_digits
+    party_data = dict(party_data or {})
+    party_data["phone_number"] = normalize_phone(party_data.get("phone_number"))
+    if "national_code" in party_data:
+        party_data["national_code"] = to_latin_digits(party_data["national_code"]).strip() or None
+    if not party_data["phone_number"]:
         raise ValueError("اطلاعات تأمین‌کننده ناقص است.")
     if Party.objects.filter(phone_number=party_data["phone_number"]).exists():
         raise ValueError("طرف‌حسابی با این شماره از قبل وجود دارد؛ لطفاً همان را انتخاب کنید.")
-    party_data = dict(party_data)
     party_data["is_supplier"] = True
     return Party.objects.create(**party_data)
 
