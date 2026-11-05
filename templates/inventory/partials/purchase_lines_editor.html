@@ -26,9 +26,9 @@
     <div class="fb-inset flex flex-col gap-2" data-row>
         <div data-picker></div>
         <div class="flex items-center gap-2">
-            <input type="number" data-qty min="0" step="0.0001" placeholder="مقدار" dir="ltr"
+            <input type="text" data-qty data-decimal inputmode="decimal" autocomplete="off" placeholder="مقدار" aria-label="مقدار" dir="ltr"
                    class="input input-sm w-24 font-technical">
-            <input type="number" data-cost min="0" step="1" placeholder="بهای واحد (تومان)" dir="ltr"
+            <input type="text" data-cost data-money maxlength="12" inputmode="numeric" autocomplete="off" placeholder="بهای واحد (تومان)" aria-label="بهای واحد (تومان)" dir="ltr"
                    class="input input-sm flex-1 min-w-0 font-technical">
             <button type="button" data-remove class="btn btn-soft btn-error btn-sm btn-square" aria-label="حذف ردیف">
                 {% icon "trash-2" "w-4 h-4" %}
@@ -57,12 +57,14 @@
         var grandTotalEl = document.getElementById('purchase-grand-total');
         var itemsData = JSON.parse(document.getElementById('purchase-items-data').textContent);
 
+        function digits(v) { return window.fbMoney ? window.fbMoney.digits(v) : String(v).replace(/\D/g, ''); }
+
         function sync() {
             var out = [], grand = 0;
             Array.prototype.forEach.call(box.children, function (row) {
                 var id = row._picker ? row._picker.getId() : null;
-                var qty = row.querySelector('[data-qty]').value;
-                var cost = row.querySelector('[data-cost]').value;
+                var qty = row.querySelector('[data-qty]').value.trim();
+                var cost = digits(row.querySelector('[data-cost]').value);
                 var qtyNum = parseFloat(qty) || 0;
                 var costNum = parseFloat(cost) || 0;
                 var line = qtyNum * costNum;
