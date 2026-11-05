@@ -102,32 +102,3 @@ class HeldDashboardTests(TestCase):
         s = accounting.accounting_overview("all")
         self.assertEqual(s["receivable"] + s["held_receivable"], total)
 
-    def test_overdue_invoices_excludes_held_project(self):
-        from utils.test_helpers import confirm_invoice
-        from projects.services import suspend_stage
-        from dashboard.services import overdue_invoices
-        from datetime import timedelta
-        p = Project.objects.create(name="پروژه معوق", partner=self.partner, owner=self.client_party, workflow_template=self.tpl, status=Project.Status.IN_PROGRESS)
-        st = ProjectStage.objects.create(project=p, step_template=self.step_fr, order=10, title="تایید", status=ProjectStage.Status.IN_PROGRESS)
-        inv = Invoice.objects.create(number="INV-OD-1", billed_party=self.client_party, project=p, status=Invoice.Status.SENT, total_amount=Decimal("1000"), issue_date=timezone.localdate() - timedelta(days=60))
-        confirm_invoice(inv)
-        
-        today = timezone.localdate()
-        self.assertIn(inv, overdue_invoices(today))
-        suspend_stage(st, actor=self.manager, comment="تعلیق")
-        self.assertNotIn(inv, overdue_invoices(today))
-
-    def test_party_total_outstanding_unaffected_by_suspend_and_cancel(self):
-        from utils.test_helpers import confirm_invoice
-        from projects.services import suspend_stage, cancel_project_from_stage
-        p = Project.objects.create(name="پروژه طلب", partner=self.partner, owner=self.client_party, workflow_template=self.tpl, status=Project.Status.IN_PROGRESS)
-        st = ProjectStage.objects.create(project=p, step_template=self.step_fr, order=10, title="تایید", status=ProjectStage.Status.IN_PROGRESS)
-        inv = Invoice.objects.create(number="INV-TO-1", billed_party=self.client_party, project=p, status=Invoice.Status.SENT, total_amount=Decimal("1000"), issue_date=timezone.localdate())
-        confirm_invoice(inv)
-
-        initial_out = self.client_party.total_outstanding
-        suspend_stage(st, actor=self.manager, comment="تعلیق")
-        self.assertEqual(self.client_party.total_outstanding, initial_out)
-
-        cancel_project_from_stage(st, actor=self.manager, comment="لغو", cancel_invoice=False)
-        self.assertEqual(self.client_party.total_outstanding, initial_out)

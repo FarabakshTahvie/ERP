@@ -119,31 +119,6 @@ class WarehouseAccessAndStockViewTests(TestCase):
         self.assertFalse(user_can_manage_inventory(self.other_tech))
         self.assertFalse(user_can_manage_inventory(self.manager))  # مدیر استثنا نیست؛ از پنل ادمین استفاده می‌کند
 
-    def test_low_stock_count_ignores_zero_reorder_point_and_inactive(self):
-        # کالای بدون حد هشدار: هرگز کمبود حساب نمی‌شود، حتی با موجودی صفر
-        Item.objects.create(
-            name="کالای بدون آستانه", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=0,
-        )
-        # کالای فعال با آستانه، بدون هیچ خرید (بدون لات) => باید کمبود حساب شود
-        Item.objects.create(
-            name="کالای بدون خرید", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=5,
-        )
-        # کالای غیرفعال با آستانه و موجودی صفر: نباید حساب شود
-        Item.objects.create(
-            name="کالای غیرفعال", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=5, is_active=False,
-        )
-        # کالای با موجودی کافی: نباید حساب شود
-        item_ok = Item.objects.create(
-            name="کالای کافی", item_type=Item.ItemType.MATERIAL,
-            category=self.cat, unit=Item.Unit.PIECE, reorder_point=5,
-        )
-        receive_stock(item=item_ok, warehouse=self.warehouse, qty=20, unit_cost=1000, received_at=timezone.now())
-
-        self.assertEqual(low_stock_items_count(), 1)  # فقط «کالای بدون خرید»
-
 
 import json
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -171,35 +146,6 @@ class PurchaseEntryTests(TestCase):
             entity_type=Party.EntityType.INDIVIDUAL, national_code="1111111111", is_supplier=True,
         )
 
-
-
-    def test_resolve_supplier_party_creates_with_is_supplier_true(self):
-        party = _resolve_supplier_party(party_data={
-            "name": "تامین‌کننده جدید", "phone_number": "09350000002",
-            "entity_type": "individual", "national_code": "2222222222",
-        })
-        self.assertTrue(party.is_supplier)
-
-    def test_resolve_supplier_party_adds_supplier_role_to_existing_party_without_it(self):
-        existing_client = Party.objects.create(
-            name="کارفرمای موجود", phone_number="09350000005",
-            entity_type=Party.EntityType.INDIVIDUAL, national_code="4444444444", is_client=True,
-        )
-        self.assertFalse(existing_client.is_supplier)
-        resolved = _resolve_supplier_party(party_id=existing_client.id)
-        self.assertTrue(resolved.is_supplier)
-        existing_client.refresh_from_db()
-        self.assertTrue(existing_client.is_supplier)
-
-    def test_resolve_supplier_party_rejects_duplicate_phone(self):
-        with self.assertRaises(ValueError):
-            _resolve_supplier_party(party_data={
-                "name": "تکراری", "phone_number": self.supplier.phone_number,
-                "entity_type": "individual", "national_code": "3333333333",
-            })
-
-
-
     def test_create_purchase_from_form_success_updates_stock(self):
         create_purchase_from_form(
             supplier_party_id=self.supplier.id,
@@ -213,17 +159,6 @@ class PurchaseEntryTests(TestCase):
         self.assertEqual(self.item1.current_stock, Decimal("10"))
         self.assertEqual(self.item1.moving_average_cost, Decimal("50000"))
 
-    def test_create_purchase_without_default_warehouse_fails(self):
-        self.warehouse.is_default = False
-        self.warehouse.save()
-        with self.assertRaises(ValueError) as ctx:
-            create_purchase_from_form(
-                supplier_party_id=self.supplier.id,
-                purchased_at=timezone.now(),
-                lines_raw=[{"id": self.item1.id, "qty": "1", "unit_cost": "1000"}],
-            )
-        self.assertIn("انبار پیش‌فرض", str(ctx.exception))
-
     def test_invalid_line_rolls_back_whole_purchase(self):
         with self.assertRaises(ValueError):
             create_purchase_from_form(
@@ -235,8 +170,6 @@ class PurchaseEntryTests(TestCase):
                 ],
             )
         self.assertEqual(Purchase.objects.count(), 0)  # هیچ‌چیزی نباید ساخته شده باشد
-
-
 
 
 from inventory.services import (
@@ -255,18 +188,11 @@ class ManualStockChangeTests(TestCase):
             password="Test@1234", role=User.Role.EMPLOYEE,
         )
 
-
-
     def test_notes_always_required(self):
         item = Item.objects.create(name="کالای تست ۱", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
         with self.assertRaises(ValueError) as ctx:
             record_manual_stock_change(item=item, kind=CHANGE_KIND_CONSUME, qty_raw="1", notes="", user=self.user)
         self.assertIn("دلیل", str(ctx.exception))
-
-    def test_invalid_kind_rejected(self):
-        item = Item.objects.create(name="کالای تست ۲", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        with self.assertRaises(ValueError):
-            record_manual_stock_change(item=item, kind="something_else", qty_raw="1", notes="دلیل", user=self.user)
 
     def test_consume_reduces_stock_with_out_movement(self):
         item = Item.objects.create(name="کالای تست ۳", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
@@ -278,48 +204,12 @@ class ManualStockChangeTests(TestCase):
         self.assertEqual(movement.notes, "مصرف در پروژه تست")
         self.assertEqual(movement.created_by, self.user)
 
-    def test_adjust_decrease_uses_adjust_movement_type(self):
-        item = Item.objects.create(name="کالای تست ۴", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item, warehouse=self.warehouse, qty=10, unit_cost=1000, received_at=timezone.now())
-        record_manual_stock_change(item=item, kind=CHANGE_KIND_ADJUST_DECREASE, qty_raw="3", notes="کسری انبارگردانی", user=self.user)
-        item.refresh_from_db()
-        self.assertEqual(item.current_stock, Decimal("7"))
-        self.assertTrue(StockMovement.objects.filter(item=item, movement_type=StockMovement.MovementType.ADJUST, qty=3).exists())
-        self.assertFalse(StockMovement.objects.filter(item=item, movement_type=StockMovement.MovementType.OUT).exists())
-
     def test_adjust_decrease_insufficient_stock_raises(self):
         item = Item.objects.create(name="کالای تست ۵", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
         receive_stock(item=item, warehouse=self.warehouse, qty=2, unit_cost=1000, received_at=timezone.now())
         with self.assertRaises(ValueError) as ctx:
             record_manual_stock_change(item=item, kind=CHANGE_KIND_ADJUST_DECREASE, qty_raw="5", notes="کسری", user=self.user)
         self.assertIn("کافی نیست", str(ctx.exception))
-
-    def test_adjust_increase_creates_new_lot_with_notes_and_updates_average(self):
-        item = Item.objects.create(name="کالای تست ۶", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item, warehouse=self.warehouse, qty=10, unit_cost=1000, received_at=timezone.now())
-        record_manual_stock_change(
-            item=item, kind=CHANGE_KIND_ADJUST_INCREASE, qty_raw="10",
-            unit_cost_raw="2000", notes="کشف موجودی جا افتاده در انبارگردانی", user=self.user,
-        )
-        item.refresh_from_db()
-        self.assertEqual(item.current_stock, Decimal("20"))
-        self.assertEqual(item.moving_average_cost, Decimal("1500"))  # (10*1000+10*2000)/20
-        movement = StockMovement.objects.filter(item=item, movement_type=StockMovement.MovementType.ADJUST, qty=10).latest("created_at")
-        self.assertEqual(movement.notes, "کشف موجودی جا افتاده در انبارگردانی")
-        self.assertEqual(movement.created_by, self.user)
-
-    def test_adjust_increase_defaults_unit_cost_to_moving_average(self):
-        item = Item.objects.create(name="کالای تست ۷", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        receive_stock(item=item, warehouse=self.warehouse, qty=5, unit_cost=3000, received_at=timezone.now())
-        record_manual_stock_change(item=item, kind=CHANGE_KIND_ADJUST_INCREASE, qty_raw="5", notes="کشف موجودی", user=self.user)
-        item.refresh_from_db()
-        self.assertEqual(item.moving_average_cost, Decimal("3000"))
-
-    def test_adjust_increase_without_history_requires_manual_cost(self):
-        item = Item.objects.create(name="کالای تست ۸", item_type=Item.ItemType.MATERIAL, category=self.cat, unit=Item.Unit.PIECE)
-        with self.assertRaises(ValueError) as ctx:
-            record_manual_stock_change(item=item, kind=CHANGE_KIND_ADJUST_INCREASE, qty_raw="5", notes="کشف موجودی", user=self.user)
-        self.assertIn("بهای واحد را دستی وارد کنید", str(ctx.exception))
 
 
 

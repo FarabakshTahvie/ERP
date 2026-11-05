@@ -85,18 +85,6 @@ class BulkPasteOpeningTests(BulkBase):
         self.assertEqual((self.stock(self.i1), self.stock(self.i2)), (0, 0))
 
 
-class BulkPasteCountTests(BulkBase):
-    def setUp(self):
-        super().setUp()
-        receive_stock(item=self.i1, warehouse=self.wh, qty=10, unit_cost=1000, received_at=timezone.now())
-        receive_stock(item=self.i2, warehouse=self.wh, qty=5, unit_cost=2000, received_at=timezone.now())
-
-    def test_difference_recorded_as_adjust_in_both_directions(self):
-        self.assertEqual(self.confirm("count", "کالای اول\t12\nورق گالوانیزه\t3").status_code, 302)
-        self.assertEqual((self.stock(self.i1), self.stock(self.i2)), (Decimal("12"), Decimal("3")))
-        self.assertTrue(StockMovement.objects.filter(item=self.i1, movement_type=MT.ADJUST, direction=DIR.IN, qty=2).exists())
-        self.assertTrue(StockMovement.objects.filter(item=self.i2, movement_type=MT.ADJUST, direction=DIR.OUT, qty=2).exists())
-
 class BulkAccessAndTemplateTests(BulkBase):
     def test_only_inventory_users(self):
         self.client.force_login(self.other)

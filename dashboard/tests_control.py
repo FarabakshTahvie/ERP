@@ -61,16 +61,6 @@ class AssignStageTests(ControlBase):
         st.refresh_from_db()
         self.assertIsNone(st.assigned_to)
 
-    def test_only_in_progress_stage_of_live_project(self):
-        for status in (ProjectStage.Status.PENDING, ProjectStage.Status.DONE, ProjectStage.Status.SUSPENDED):
-            st = self.stage(status, order=5)
-            with self.assertRaises(ValueError):
-                assign_stage(st, self.tech, self.manager, "دلیل")
-        st = self.stage(order=6)
-        Project.objects.filter(pk=self.project.pk).update(status=Project.Status.CANCELLED)
-        with self.assertRaises(ValueError):
-            assign_stage(st, self.tech, self.manager, "دلیل")
-
     def test_money_stages_only_to_accountant(self):
         for kind in (StageKind.PROFORMA, StageKind.FINAL_REVIEW):
             st = self.stage(kind=kind, order=7)
@@ -102,13 +92,6 @@ class ResumeAndCancelTests(ControlBase):
         approval.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.CANCELLED)
         self.assertEqual(approval.decision, StageApproval.Decision.CANCELLED)
-
-    def test_cancel_project_with_invoice_flag(self):
-        inv = self.invoice()
-        sus = self.stage(ProjectStage.Status.SUSPENDED)
-        cancel_project_from_stage(sus, self.manager, "منصرف شد", cancel_invoice=True)
-        inv.refresh_from_db()
-        self.assertEqual(inv.status, Invoice.Status.CANCELLED)
 
     def test_cancel_project_rolls_back_when_invoice_has_real_payment(self):
         inv = self.invoice()

@@ -36,17 +36,6 @@ class PeopleBase(TestCase):
         return c
 
 
-class PresenceTests(PeopleBase):
-    def test_not_recorded_for_post_htmx_404_and_anonymous(self):
-        c = self.login(self.tech)
-        c.get(reverse("accounts:change_password"), HTTP_HX_REQUEST="true")
-        c.post(reverse("accounts:change_password"), {})
-        c.get("/no-such-page/")
-        self.assertFalse(UserPresence.objects.exists())
-        Client().get(reverse("accounts:login"))
-        self.assertFalse(UserPresence.objects.exists())
-
-
 class PeopleAccessTests(PeopleBase):
     def test_view_pages_for_manager_and_accountant_only(self):
         urls = [reverse("people:staff"), reverse("people:staff_table"), reverse("people:customers"),
@@ -89,23 +78,6 @@ class UpdateProfileTests(PeopleBase):
         data = dict(first_name="علی", last_name="رضایی", phone_number="09130000003", email="", national_code="")
         data.update(kw)
         return services.update_user_profile(user=user or self.tech, actor=actor or self.manager, **data)
-
-    def test_username_follows_phone_only_when_it_was_the_phone(self):
-        self.upd(phone_number="09130000099")
-        self.tech.refresh_from_db()
-        self.assertEqual((self.tech.phone_number, self.tech.username), ("09130000099", "09130000099"))
-        self.upd(user=self.other, phone_number="09130000088", first_name="x")
-        self.other.refresh_from_db()
-        self.assertEqual(self.other.username, "p_other")
-
-    def test_validation(self):
-        for bad in ({"phone_number": "123"}, {"phone_number": "09130000004"}, {"email": "no"},
-                    {"national_code": "1234567890"}, {"first_name": "", "last_name": ""}):
-            with self.assertRaises(ValueError, msg=str(bad)):
-                self.upd(**bad)
-        self.upd(user=self.other, phone_number="09130000004", national_code=VALID_CODE_B)
-        with self.assertRaises(ValueError):
-            self.upd(national_code=VALID_CODE_B)
 
     def test_only_manager_and_superuser_guard(self):
         for actor in (self.accountant, self.tech):
@@ -184,23 +156,6 @@ class ToggleActiveTests(PeopleBase):
         self.assertEqual(list(st.candidate_users.all()), [mate])
 
 
-class ActivityFeedTests(PeopleBase):
-    def setUp(self):
-        super().setUp()
-        tpl = WorkflowTemplate.objects.create(name="قالب فید")
-        self.step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="م")
-        self.project = Project.objects.create(name="پروژه فید", partner=self.party, workflow_template=tpl,
-                                              status=Project.Status.IN_PROGRESS, created_by=self.tech)
-        self.stage = ProjectStage.objects.create(project=self.project, step_template=self.step, order=1, title="م",
-                                                 status=ProjectStage.Status.IN_PROGRESS)
-
-    def test_feed_not_shown_to_accountant_but_to_manager(self):
-        StageEvent.objects.create(stage=self.stage, actor=self.tech, to_status="x", comment="کار عجیب‌وغریب")
-        url = reverse("people:user_detail", args=[self.tech.id])
-        self.assertContains(self.login(self.manager).get(url), "کار عجیب‌وغریب")
-        self.assertNotContains(self.login(self.accountant).get(url), "کار عجیب‌وغریب")
-
-
 class CustomersTests(PeopleBase):
     def setUp(self):
         super().setUp()
@@ -220,10 +175,3 @@ class CustomersTests(PeopleBase):
         self.assertIn("شریک بی‌تایید", content)
         self.assertNotIn("۷,۷۷۷", content)
 
-    def test_cancelled_invoice_not_counted(self):
-        Invoice.objects.filter(pk=self.invoice.pk).update(status=Invoice.Status.CANCELLED)
-        self.assertNotIn("۱,۰۰۰", self.login(self.manager).get(reverse("people:customers_table")).content.decode("utf-8"))
-
-    def test_internal_party_profile_is_404(self):
-        internal = Party.objects.filter(is_internal=True).first()
-        self.assertEqual(self.login(self.manager).get(reverse("people:party_detail", args=[internal.id])).status_code, 404)

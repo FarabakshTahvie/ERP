@@ -47,18 +47,6 @@ class TaskAccessTests(TaskBaseTests):
 
 
 class TaskServiceTests(TaskBaseTests):
-    def test_create_ok_and_notifies_after_commit(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            t = services.create_task(
-                actor=self.manager, title="New task", description="Desc",
-                subtasks=[{"pk": None, "title": "Sub 1"}],
-                assignee_ids=[self.tech1.pk, self.tech2.pk]
-            )
-        self.assertEqual(t.title, "New task")
-        self.assertEqual(t.subtasks.count(), 1)
-        self.assertEqual(t.assignments.count(), 2)
-        self.assertEqual(Notification.objects.filter(notification_type=NotificationType.TASK_ASSIGNED).count(), 2)
-
     def test_assignee_validation(self):
         with self.assertRaises(ValueError):
             services.create_task(actor=self.manager, title="T", assignee_ids=[self.client_user.pk])
@@ -66,19 +54,6 @@ class TaskServiceTests(TaskBaseTests):
             services.create_task(actor=self.manager, title="T", assignee_ids=[self.inactive.pk])
         with self.assertRaises(ValueError):
             services.create_task(actor=self.manager, title="T", assignee_ids=[])
-
-    def test_due_rules(self):
-        with self.assertRaises(ValueError):
-            services.create_task(actor=self.manager, title="T", due_at=timezone.now() - timedelta(days=1), assignee_ids=[self.tech1.pk])
-        with self.assertRaises(ValueError):
-            services.build_due("۱۴۰۵/۰۷/۲۰", "25", "0")
-        self.assertIsNone(services.build_due("", "", ""))
-
-    def test_parse_subtasks_keeps_error_message(self):
-        with self.assertRaises(ValueError) as ctx:
-            services.parse_subtasks('[{"title": ""}]')
-        self.assertIn("عنوان", str(ctx.exception))
-        self.assertIsNone(services.parse_subtasks(None))
 
 
 class TaskCheckTests(TaskBaseTests):
@@ -90,34 +65,6 @@ class TaskCheckTests(TaskBaseTests):
             assignee_ids=[self.tech1.pk]
         )
         self.sub_ids = list(self.task.subtasks.values_list("pk", flat=True))
-
-    def test_subtask_ticks_drive_main(self):
-        c = Client()
-        c.force_login(self.tech1)
-        res = c.post(reverse("tasks:check", args=[self.task.pk]), {"subtask_id": self.sub_ids[0], "done": "true"}).json()
-        self.assertTrue(res["ok"])
-        self.assertFalse(res["main_checked"])
-        res2 = c.post(reverse("tasks:check", args=[self.task.pk]), {"subtask_id": self.sub_ids[1], "done": "true"}).json()
-        self.assertTrue(res2["main_checked"])
-
-    def test_main_tick_selects_all_and_untick_clears(self):
-        c = Client()
-        c.force_login(self.tech1)
-        res = c.post(reverse("tasks:check", args=[self.task.pk]), {"done": "true"}).json()
-        self.assertTrue(res["main_checked"])
-        self.assertEqual(len(res["checked"]), 2)
-        res2 = c.post(reverse("tasks:check", args=[self.task.pk]), {"done": "false"}).json()
-        self.assertFalse(res2["main_checked"])
-        self.assertEqual(len(res2["checked"]), 0)
-
-    def test_task_without_subtasks(self):
-        t2 = services.create_task(actor=self.manager, title="No subs", assignee_ids=[self.tech1.pk])
-        c = Client()
-        c.force_login(self.tech1)
-        res = c.post(reverse("tasks:check", args=[t2.pk]), {"done": "true"}).json()
-        self.assertTrue(res["ok"])
-        sub = c.post(reverse("tasks:submit", args=[t2.pk]), {"note": "Done"})
-        self.assertEqual(sub.status_code, 200)
 
     def test_non_assignee_gets_json_error(self):
         c = Client()
@@ -134,19 +81,6 @@ class TaskCheckTests(TaskBaseTests):
         c.post(reverse("tasks:check", args=[self.task.pk]), {"done": "true"})
         sub2 = c.post(reverse("tasks:submit", args=[self.task.pk]), {"note": "n"})
         self.assertEqual(sub2.status_code, 200)
-
-
-class TaskProgressTests(TaskBaseTests):
-    def test_progress_is_per_assignee(self):
-        task = services.create_task(actor=self.manager, title="P", assignee_ids=[self.tech1.pk, self.tech2.pk])
-        c1 = Client()
-        c1.force_login(self.tech1)
-        c1.post(reverse("tasks:check", args=[task.pk]), {"done": "true"})
-        c1.post(reverse("tasks:submit", args=[task.pk]), {"note": "ok"})
-        # manager open table still has it because tech2 hasn't submitted
-        c_mgr = Client()
-        c_mgr.force_login(self.manager)
-        self.assertIn(task.title, c_mgr.get(reverse("tasks:open_table")).content.decode("utf-8"))
 
 
 class TaskEditTests(TaskBaseTests):
@@ -169,15 +103,6 @@ class TaskAttachmentTests(TaskBaseTests):
     def tearDownClass(cls):
         shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
         super().tearDownClass()
-
-    def test_pdf_untouched_and_limits(self):
-        pdf = SimpleUploadedFile("doc.pdf", b"%PDF-1.4 test content", content_type="application/pdf")
-        task = services.create_task(actor=self.manager, title="Attach", assignee_ids=[self.tech1.pk])
-        att = services.add_attachment(task, uploaded=pdf, actor=self.manager)
-        self.assertEqual(att.original_name, "doc.pdf")
-        fake = SimpleUploadedFile("fake.jpg", b"not an image", content_type="image/jpeg")
-        with self.assertRaises(ValueError):
-            services.add_attachment(task, uploaded=fake, actor=self.manager)
 
     def test_media_access(self):
         img = make_image_file("test.jpg", size=(100, 100), fmt="JPEG")

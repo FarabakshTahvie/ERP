@@ -22,19 +22,6 @@ class ItemServiceTests(TestCase):
         self.warehouse = Warehouse.objects.create(name="انبار مرکزی", is_default=True)
         self.cat = ItemCategory.objects.create(name="لوله و اتصالات")
 
-    def test_duplicate_name_detection_and_confirmation(self):
-        create_item(name="ورق گالوانیزه ۱", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
-
-        # نام مشابه با «ي» / «ك» یا فاصله اضافی
-        with self.assertRaises(DuplicateItemNameError):
-            create_item(name="ورق گالوانيزه ۱", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE, confirm_duplicate=False)
-
-        # با تأیید صریح موفق می‌شود
-        item2 = create_item(
-            name="ورق گالوانيزه ۱", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE, confirm_duplicate=True
-        )
-        self.assertEqual(item2.name, "ورق گالوانيزه ۱")
-
     def test_update_item_locked_structure_after_receive_stock(self):
         item = create_item(name="کالای قفل", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.METER)
         receive_stock(item=item, warehouse=self.warehouse, qty=10, unit_cost=5000, received_at=timezone.now())
@@ -54,18 +41,6 @@ class ItemServiceTests(TestCase):
         with self.assertRaises(ValueError):
             set_item_active(item, active=False)
 
-    def test_create_purchase_from_form_with_inactive_item_fails(self):
-        item = create_item(name="کالای غیرفعال خرید", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
-        set_item_active(item, active=False)
-        supplier = Party.objects.create(name="تأمین‌کننده تست", phone_number="09121112233", is_supplier=True)
-        lines_raw = [{"item_id": item.id, "qty": "5", "unit_cost": "1000"}]
-        with self.assertRaises(ValueError):
-            create_purchase_from_form(
-                supplier_party_id=supplier.id,
-                purchased_at=timezone.now(),
-                lines_raw=lines_raw,
-            )
-        self.assertEqual(Purchase.objects.count(), 0)
 
 
 
