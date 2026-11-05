@@ -51,7 +51,6 @@ class Command(BaseCommand):
             self.stdout.write("در حال ارسال پترن فاکتور با لینک ساختگی s/abcde...")
             result = sms.send_invoice_issued(
                 mobile=mobile,
-                name="تست",
                 number="INV-TEST",
                 username="test",
                 password="Test1234",

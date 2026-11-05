@@ -90,20 +90,19 @@ class SMSService:
     def send_otp(self, mobile, code):
         return self.send_pattern(mobile, "login_otp", code=code)
 
-    def send_invoice_issued(self, mobile, name, number, username, password, link):
+    def send_invoice_issued(self, mobile, number, username, password, link):
         # link فقط «مسیر» است (مثل s/abc1234/)، چون دامنه در متن ثابت پترن هست
         return self.send_pattern(mobile, "invoice_issued_with_credentials",
-                                 name=name, number=number, username=username, password=password, LINK=link)
+                                 number=number, username=username, password=password, LINK=link)
 
-    def send_payment_confirmed(self, mobile, name, number, remaining, link):
-        return self.send_pattern(mobile, "payment_confirmed", name=name, number=number,
-                                 remaining=remaining, LINK=link)
+    def send_payment_confirmed(self, mobile, number, remaining, link):
+        return self.send_pattern(mobile, "payment_confirmed", number=number, remaining=remaining, LINK=link)
 
-    def send_payment_rejected(self, mobile, name, number, link):
-        return self.send_pattern(mobile, "payment_rejected", name=name, number=number, LINK=link)
+    def send_payment_rejected(self, mobile, number, link):
+        return self.send_pattern(mobile, "payment_rejected", number=number, LINK=link)
 
-    def send_shipment_sent(self, mobile, name, project, link):
-        return self.send_pattern(mobile, "shipment_sent", NAME=name, PROJECT=project, LINK=link)
+    def send_shipment_sent(self, mobile, project, link):
+        return self.send_pattern(mobile, "shipment_sent", PROJECT=project, LINK=link)
 
-    def send_install_done(self, mobile, name, project, link):
-        return self.send_pattern(mobile, "install_done", NAME=name, PROJECT=project, LINK=link)
+    def send_install_done(self, mobile, project, link):
+        return self.send_pattern(mobile, "install_done", PROJECT=project, LINK=link)

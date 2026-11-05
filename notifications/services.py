@@ -69,24 +69,23 @@ def send_push_channel(notification) -> bool:
 
 
 def _call_sms_template(notification, phone):
-    """قالب مخصوص هر نوع اعلان را صدا می‌زند؛ خروجی = نتیجه‌ی SMSService."""
+    """قالب مخصوص هر نوع اعلان را صدا می‌زند؛ خروجی = نتیجه‌ی SMSService. قالب‌ها «سلام» و نام گیرنده ندارند."""
     data = notification.extra_data or {}
-    name = notification.user.first_name or "کاربر گرامی"
     number = data.get("invoice_number", "")
     sms = SMSService()
     if notification.notification_type == NotificationType.PAYMENT_CONFIRMED:
-        return sms.send_payment_confirmed(mobile=phone, name=name, number=number,
+        return sms.send_payment_confirmed(mobile=phone, number=number,
                                           remaining=data.get("remaining", "0"), link=notification.short_path)
     if notification.notification_type == NotificationType.PAYMENT_REJECTED:
-        return sms.send_payment_rejected(mobile=phone, name=name, number=number, link=notification.short_path)
+        return sms.send_payment_rejected(mobile=phone, number=number, link=notification.short_path)
     if notification.notification_type == NotificationType.SHIPMENT_SENT:
-        return sms.send_shipment_sent(mobile=phone, name=fit_param(name),
-                                      project=fit_param(data.get("project_name")), link=notification.short_path)
+        return sms.send_shipment_sent(mobile=phone, project=fit_param(data.get("project_name")),
+                                      link=notification.short_path)
     if notification.notification_type == NotificationType.INSTALL_DONE:
-        return sms.send_install_done(mobile=phone, name=fit_param(name),
-                                     project=fit_param(data.get("project_name")), link=notification.short_path)
+        return sms.send_install_done(mobile=phone, project=fit_param(data.get("project_name")),
+                                     link=notification.short_path)
     return sms.send_invoice_issued(
-        mobile=phone, name=name, number=number, username=data.get("username", ""),
+        mobile=phone, number=number, username=data.get("username", ""),
         password=data.get("password") or "رمز فعلی شما", link=notification.short_path)   # فقط مسیر، مثل s/abcde
 
 

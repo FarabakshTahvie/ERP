@@ -70,7 +70,8 @@ class RejectedSmsTests(PaymentSmsBase):
                 reject_payment(self.pending(), rejected_by=self.accountant, reason="رسید خوانا نیست")
         m.assert_called_once()
         kw = m.call_args.kwargs
-        self.assertEqual((kw["name"], kw["number"]), ("علی", "INV-PS-1"))
+        self.assertEqual(kw["number"], "INV-PS-1")
+        self.assertNotIn("name", kw)
         self.assertTrue(kw["link"].startswith("s/"))
         self.assertNotIn("remaining", kw)
         self.assertEqual(Notification.objects.get().notification_type, NT.PAYMENT_REJECTED)
@@ -88,6 +89,6 @@ class RejectedSmsTests(PaymentSmsBase):
 
 class TemplateRegistryTests(PaymentSmsBase):
     def test_payment_templates_have_matching_parameter_names(self):
-        for result in (SMSService().send_payment_confirmed("0912", "علی", "N", "5", "s/abc"),
-                       SMSService().send_payment_rejected("0912", "علی", "N", "s/abc")):
+        for result in (SMSService().send_payment_confirmed("0912", "N", "5", "s/abc"),
+                       SMSService().send_payment_rejected("0912", "N", "s/abc")):
             self.assertEqual(result["error"], "SMS_IR_API_KEY is empty")

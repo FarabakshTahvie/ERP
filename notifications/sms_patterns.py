@@ -11,9 +11,9 @@
 SMS_PATTERNS = {
     "invoice_issued_with_credentials": {
         "pattern_code": "238198",
-        "parameters": ["name", "number", "username", "password", "LINK"],
+        "parameters": ["number", "username", "password", "LINK"],
         "reference_text": (
-            "سلام %name%\nپیش‌فاکتور شما به شماره %number% ثبت شد.\n"
+            "پیش‌فاکتور شما به شماره %number% ثبت شد.\n"
             "یوزرنیم: %username%\nپسورد: %password%\n"
             "لینک: farabakhshtahvieh.com/%LINK%\nفرابخش تهویه"
         ),
@@ -25,32 +25,32 @@ SMS_PATTERNS = {
     },
     "payment_confirmed": {
         "pattern_code": "666482",
-        "parameters": ["name", "number", "remaining", "LINK"],
+        "parameters": ["number", "remaining", "LINK"],
         "reference_text": (
-            "سلام %name%\nپرداخت شما برای فاکتور %number% تایید شد.\n"
+            "پرداخت شما برای فاکتور %number% تایید شد.\n"
             "مانده فاکتور: %remaining% تومان\nfarabakhshtahvieh.com/%LINK%\nفرابخش تهویه"
         ),
     },
     "payment_rejected": {
         "pattern_code": "586652",
-        "parameters": ["name", "number", "LINK"],
+        "parameters": ["number", "LINK"],
         "reference_text": (
-            "سلام %name%\nپرداخت ثبت‌شده برای فاکتور %number% تایید نشد؛ "
+            "پرداخت ثبت‌شده برای فاکتور %number% تایید نشد؛ "
             "دلیل را در پرتال ببینید و دوباره ثبت کنید.\n"
             "لینک: farabakhshtahvieh.com/%LINK%\nفرابخش تهویه"
         ),
     },
     "shipment_sent": {
         "pattern_code": "521186",
-        "parameters": ["NAME", "PROJECT", "LINK"],
+        "parameters": ["PROJECT", "LINK"],
         "reference_text": (
-            "سلام %NAME%\nاقلام پروژه %PROJECT% به محل ارسال شد\nلطفا تایید کنید:\n"
+            "اقلام پروژه %PROJECT% به محل ارسال شد\nلطفا تایید کنید:\n"
             "farabakhshtahvieh.com/%LINK%"
         ),
     },
     "install_done": {
         "pattern_code": "275534",
-        "parameters": ["NAME", "PROJECT", "LINK"],
-        "reference_text": "سلام %NAME%،\nنصب پروژه %PROJECT% انجام شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
+        "parameters": ["PROJECT", "LINK"],
+        "reference_text": "نصب پروژه %PROJECT% انجام شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
     },
 }
