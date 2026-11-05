@@ -125,7 +125,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from core.models import Party
 from inventory.models import Purchase, PurchaseLine
 from inventory.services import (
-    create_purchase_from_form, _clean_purchase_lines, _resolve_supplier_party, _validate_invoice_file,
+    create_purchase_from_form, _clean_purchase_lines, _resolve_supplier_party,
 )
 
 

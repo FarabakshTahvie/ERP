@@ -8,7 +8,7 @@
         <p class="fb-page-sub">با ثبت این فرم، موجودی کالاهای زیر بلافاصله در انبار اضافه می‌شود.</p>
     </div>
 
-    <form method="post" enctype="multipart/form-data" id="new-purchase-form" data-fb-once data-upload-progress class="space-y-5">
+    <form method="post" id="new-purchase-form" data-deferred-upload data-always-ajax data-entity="خرید" class="space-y-5">
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
@@ -46,9 +46,9 @@
                 </div>
             </div>
             <div class="fb-field">
-                <label class="fb-label" for="invoice-file-input">تصویر فاکتور خرید</label>
-                <input type="file" id="invoice-file-input" name="invoice_file" accept="image/*,.pdf" class="file-input w-full">
-                <span class="fb-hint">عکس (JPG، PNG، WEBP) یا PDF، حداکثر ۱۰ مگابایت.</span>
+                <span class="fb-label">فایل‌های فاکتور خرید</span>
+                {% include "utils/partials/file_dropzone.html" with mode="deferred" %}
+                <span class="fb-hint">عکس یا هر فایل دیگر؛ حداکثر ۲۵ مگابایت برای هر فایل و ۲۰ فایل برای هر خرید. فایل‌ها بعد از زدن «ثبت خرید» با نوار پیشرفت ارسال می‌شوند.</span>
             </div>
             <div class="fb-field">
                 <label class="fb-label" for="notes-input">یادداشت</label>
@@ -58,6 +58,7 @@
 
         {% include "inventory/partials/purchase_lines_editor.html" %}
 
+        <div data-upload-error class="hidden alert alert-soft alert-error"></div>
         <div class="fb-sticky-bar">
             <a href="{% url 'home' %}" class="btn btn-ghost">انصراف</a>
             <button type="submit" id="submit-purchase-btn" class="btn btn-primary">ثبت خرید</button>
@@ -68,6 +69,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
 <script>
 (function () {
     var form = document.getElementById('new-purchase-form');

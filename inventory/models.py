@@ -1,3 +1,4 @@
+import os
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -20,7 +21,6 @@ class Warehouse(models.Model):
 class Purchase(TimeStampedModel):
     supplier = models.ForeignKey('core.Party', on_delete=models.PROTECT, related_name="purchases", verbose_name="فروشنده/تأمین‌کننده")
     invoice_number = models.CharField(max_length=50, blank=True, verbose_name="شماره فاکتور خرید")
-    invoice_file = models.FileField(upload_to="purchases/invoices/", null=True, blank=True, verbose_name="فایل فاکتور خرید")
     purchased_at = models.DateTimeField(verbose_name="تاریخ خرید")
     notes = models.TextField(blank=True, verbose_name="یادداشت")
 
@@ -31,6 +31,32 @@ class Purchase(TimeStampedModel):
     def __str__(self):
         from utils.jalali import jalali_str
         return f"خرید از {self.supplier} - {jalali_str(self.purchased_at, fmt='%Y/%m/%d')}"
+
+
+def purchase_file_path(instance, filename):
+    return f"purchases/{instance.purchase_id}/files/{filename}"
+
+
+class PurchaseFile(TimeStampedModel):
+    """فایل‌های یک سند خرید (فاکتور، عکس و ...). نام اصلی فایل همان است که کاربر داده؛ نام ذخیره‌شده تصادفی است."""
+    purchase = models.ForeignKey(Purchase, on_delete=models.CASCADE, related_name="files", verbose_name="سند خرید")
+    file = models.FileField(upload_to=purchase_file_path, verbose_name="فایل")
+    original_name = models.CharField(max_length=255, blank=True, verbose_name="نام اصلی فایل")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+", verbose_name="آپلودکننده")
+
+    class Meta:
+        verbose_name = "فایل خرید"
+        verbose_name_plural = "فایل‌های خرید"
+        ordering = ["created_at", "pk"]
+
+    @property
+    def display_name(self):
+        return self.original_name or os.path.basename(self.file.name)
+
+    @property
+    def is_displayable_image(self):
+        return self.file.name.lower().rsplit(".", 1)[-1] in ("jpg", "jpeg", "png", "webp", "gif")
 
 
 class PurchaseLine(models.Model):

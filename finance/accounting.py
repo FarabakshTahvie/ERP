@@ -505,7 +505,7 @@ def record_accountant_payment(*, invoice, method, amount_raw, paid_date, referen
 
 @transaction.atomic
 def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_data=None,
-                    invoice_number=None, notes=None, invoice_file=None, lines_raw=None):
+                    invoice_number=None, notes=None, lines_raw=None):
     """
     ویرایش سند خرید (فقط حسابدار یا مدیر). فقط اطلاعات سند و «افزودن ردیف تازه»؛ ردیف ثبت‌شده، تاریخ خرید
     و موجودی قبلی دست نمی‌خورند (حرکت انبار هرگز ویرایش نمی‌شود). None یعنی «دست نزن».
@@ -516,9 +516,8 @@ def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_d
     from core.periods import assert_open
     from inventory.models import Purchase, PurchaseLine, Warehouse
     from inventory.services import (
-        _clean_purchase_lines, _resolve_supplier_party, _validate_invoice_file, receive_stock,
+        _clean_purchase_lines, _resolve_supplier_party, receive_stock,
     )
-    from utils.image_utils import optimize_named
     if not can(actor, "purchases.edit"):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند خرید را ویرایش کند.")
     purchase = Purchase.objects.select_for_update(of=("self",)).get(pk=purchase.pk)
@@ -554,10 +553,6 @@ def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_d
         if text != purchase.notes:
             purchase.notes = text
             changes.append("یادداشت")
-    if invoice_file:
-        _validate_invoice_file(invoice_file)
-        purchase.invoice_file, _name = optimize_named(invoice_file, invoice_file.name or "")
-        changes.append("فایل فاکتور")
     if not changes and not lines:
         raise ValueError("تغییری ثبت نشد.")
     if changes:

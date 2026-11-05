@@ -10,6 +10,7 @@ urlpatterns = [
     path("inventory/items/<int:item_id>/toggle-active/", views.item_toggle_active, name="item_toggle_active"),
     path("inventory/stock-table/", views.stock_table, name="stock_table"),
     path("inventory/purchases/new/", views.purchase_new, name="purchase_new"),
+    path("inventory/purchases/<int:purchase_id>/files/", views.purchase_file_upload, name="purchase_file_upload"),
     path("inventory/stock-movements/new/", views.stock_movement_new, name="stock_movement_new"),
     path("inventory/bulk-opening/", views_bulk.bulk_opening_page, name="bulk_opening"),
     path("inventory/bulk-reconciliation/", views_bulk.bulk_reconciliation_page, name="bulk_reconciliation"),

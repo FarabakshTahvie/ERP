@@ -121,7 +121,7 @@ class StockMovementDirectionTests(BaseAccountingTestCase):
 class OverviewNumbersTests(BaseAccountingTestCase):
     def test_overview_numbers(self):
         create_purchase_from_form(
-            supplier_party_id=self.supplier.id, invoice_number="PUR-01", invoice_file=None,
+            supplier_party_id=self.supplier.id, invoice_number="PUR-01",
             purchased_at=timezone.now(), notes="خرید رسمی", lines_raw=[{"id": self.item.id, "warehouse_id": self.warehouse.id, "qty": "10", "unit_cost": "1000"}],
         )
 

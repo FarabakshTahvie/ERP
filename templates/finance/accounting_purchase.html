@@ -26,10 +26,10 @@
             <a href="{% url 'finance:accounting_supplier' purchase.supplier_id %}" class="link link-primary">{{ purchase.supplier.name }}</a></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">شماره فاکتور خرید</span>
             <span class="font-technical">{% if purchase.invoice_number %}{{ purchase.invoice_number|fa_digits }}{% else %}—{% endif %}</span></div>
-        <div class="flex justify-between items-center gap-2"><span class="fb-muted">فایل فاکتور</span>
-            {% if purchase.invoice_file %}<a href="{{ purchase.invoice_file.url }}" target="_blank" rel="noopener" class="btn btn-soft btn-xs">{% icon "file-text" "w-4 h-4" %} مشاهده</a>{% else %}<span class="fb-muted">ندارد</span>{% endif %}</div>
         {% if purchase.notes %}<p class="fb-inset text-xs whitespace-pre-line">{{ purchase.notes }}</p>{% endif %}
     </section>
+
+    {% include "inventory/partials/purchase_files.html" %}
 
     <section class="fb-card fb-pad flex flex-col gap-3">
         <h2 class="fb-section-title">اقلام</h2>
@@ -52,14 +52,22 @@
             </table>
         </div>
     </section>
+    {% include "inventory/partials/purchase_files.html" %}
+
     <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
         <h2 class="fb-section-title">سابقه‌ی ویرایش</h2>
         {% for e in events %}
-        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
-            <span>{{ e.text }}</span>
-            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
-        </div>
-        {% empty %}<p class="fb-hint">این خرید ویرایش نشده است.</p>{% endfor %}
+            <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+                <span>{{ e.text }}</span>
+                <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"—" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+            </div>
+            {% empty %}<p class="fb-hint">این خرید ویرایش نشده است.</p>
+        {% endfor %}
     </section>
 </div>
+{% include "utils/partials/image_zoom.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
 {% endblock %}

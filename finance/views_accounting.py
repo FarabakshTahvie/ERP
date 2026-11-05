@@ -280,6 +280,7 @@ def purchase_detail(request, purchase_id):
         "nav_active": "purchases", "purchase": purchase, "lines": lines,
         "total": sum((l.line_total for l in lines), accounting.ZERO),
         "events": purchase.accounting_events.select_related("actor")[:50],
+        "files": list(purchase.files.select_related("uploaded_by")),
     })
 
 
@@ -310,7 +311,6 @@ def purchase_edit(request, purchase_id):
                 supplier_party_data=None if supplier_id else _extract_supplier_party_data(request.POST),
                 invoice_number=request.POST.get("invoice_number", ""),
                 notes=request.POST.get("notes", ""),
-                invoice_file=request.FILES.get("invoice_file"),
                 lines_raw=_purchase_lines_from_post(request.POST.get("lines_json")))
         except ValueError as e:
             messages.error(request, str(e))

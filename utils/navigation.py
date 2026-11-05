@@ -100,7 +100,7 @@ NON_PAGE = {
     "finance:payment_decide", "finance:payment_cheque_status", "finance:payment_cheque_info",
     "finance:payments_table", "finance:portal_invoice_pdf",
     "inventory:bulk_template", "inventory:item_quick_create", "inventory:item_toggle_active",
-    "inventory:stock_table", "manifest", "najva_sw", "notifications:broadcast_detail_table",
+    "inventory:stock_table", "inventory:purchase_file_upload", "manifest", "najva_sw", "notifications:broadcast_detail_table",
     "notifications:broadcast_history_table", "notifications:broadcast_retry",
     "notifications:mark_all_seen", "notifications:track_click", "people:customers_table",
     "people:search", "people:staff_table", "people:user_toggle_active", "projects:group_create", "projects:group_cut_set",

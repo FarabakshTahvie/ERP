@@ -6,10 +6,10 @@
     <div>
         <a href="{% url 'finance:accounting_purchase' purchase.id %}" class="link link-hover text-sm fb-muted">بازگشت به جزئیات خرید</a>
         <h1 class="fb-page-title mt-2">ویرایش خرید</h1>
-        <p class="fb-page-sub">تاریخ خرید (<span class="font-technical">{{ purchase.purchased_at|to_jalali:"%Y/%m/%d" }}</span>) و ردیف‌های ثبت‌شده در این صفحه تغییر نمی‌کنند؛ فقط می‌توانید اطلاعات سند را اصلاح و ردیف تازه اضافه کنید. ردیف تازه با همین تاریخ وارد انبار می‌شود.</p>
+        <p class="fb-page-sub">تاریخ خرید (<span class="font-technical">{{ purchase.purchased_at|to_jalali:"%Y/%m/%d" }}</span>) و ردیف‌های ثبت‌شده در این صفحه تغییر نمی‌کنند؛ فقط می‌توانید اطلاعات سند را اصلاح و ردیف تازه اضافه کنید. فایل‌ها را از صفحه‌ی جزئیات خرید اضافه کنید. ردیف تازه با همین تاریخ وارد انبار می‌شود.</p>
     </div>
 
-    <form method="post" enctype="multipart/form-data" id="edit-purchase-form" data-fb-once data-upload-progress class="space-y-5">
+    <form method="post" id="edit-purchase-form" data-fb-once class="space-y-5">
         {% csrf_token %}
 
         <section class="fb-card fb-pad flex flex-col gap-3">
@@ -39,11 +39,7 @@
                 <label class="fb-label" for="invoice-number-input">شماره فاکتور خرید</label>
                 <input type="text" id="invoice-number-input" name="invoice_number" value="{{ purchase.invoice_number }}" class="input w-full font-technical" dir="ltr">
             </div>
-            <div class="fb-field">
-                <label class="fb-label" for="invoice-file-input">فایل فاکتور خرید</label>
-                <input type="file" id="invoice-file-input" name="invoice_file" accept="image/*,.pdf" class="file-input w-full">
-                <span class="fb-hint">{% if purchase.invoice_file %}فایل فعلی هست؛ فایل تازه جایگزینش می‌شود.{% else %}عکس (JPG، PNG، WEBP) یا PDF، حداکثر ۱۰ مگابایت.{% endif %}</span>
-            </div>
+
             <div class="fb-field">
                 <label class="fb-label" for="notes-input">یادداشت</label>
                 <textarea id="notes-input" name="notes" class="textarea w-full" rows="2">{{ purchase.notes }}</textarea>

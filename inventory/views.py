@@ -18,9 +18,12 @@ from utils.jalali_forms import JalaliDateField
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from .models import StockLot
+from core.capabilities import can, cap_required
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
 from .services import (
     user_can_manage_inventory, user_can_create_purchases, create_purchase_from_form, record_manual_stock_change,
-    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError,
+    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file
 )
 
 
@@ -149,13 +152,20 @@ def _extract_supplier_party_data(post):
 @user_passes_test(user_can_create_purchases)
 def purchase_new(request):
     if request.method == "POST":
+        ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if ajax:
+                return JsonResponse({"ok": False, "error": message})
+            messages.error(request, message)
+            return redirect("inventory:purchase_new")
+
         raw_date = (request.POST.get("purchased_at") or "").strip()
         if raw_date:
             try:
                 purchase_date = JalaliDateField().clean(raw_date)
             except ValidationError as e:
-                messages.error(request, " ".join(e.messages))
-                return redirect("inventory:purchase_new")
+                return fail(" ".join(e.messages))
         else:
             purchase_date = timezone.localdate()
         purchased_at = timezone.make_aware(datetime.combine(purchase_date, timezone.localtime().time()))
@@ -165,20 +175,23 @@ def purchase_new(request):
         supplier_party_data = None if supplier_party_id else _extract_supplier_party_data(request.POST)
 
         try:
-            create_purchase_from_form(
+            purchase = create_purchase_from_form(
                 supplier_party_id=supplier_party_id,
                 supplier_party_data=supplier_party_data,
                 purchased_at=purchased_at,
                 invoice_number=request.POST.get("invoice_number", ""),
                 notes=request.POST.get("notes", ""),
-                invoice_file=request.FILES.get("invoice_file"),
                 lines_raw=lines_raw,
             )
         except ValueError as e:
-            messages.error(request, str(e))
-            return redirect("inventory:purchase_new")
+            return fail(str(e))
 
         messages.success(request, "خرید با موفقیت ثبت شد و موجودی کالاها به‌روزرسانی شد.")
+        if ajax:
+            detail = (reverse("finance:accounting_purchase", args=[purchase.id])
+                      if can(request.user, "accounting.access") else reverse("home"))
+            return JsonResponse({"ok": True, "redirect": reverse("home"), "project_url": detail,
+                                 "upload_url": reverse("inventory:purchase_file_upload", args=[purchase.id])})
         return redirect("home")
 
     return render(request, "inventory/purchase_new.html", {
@@ -186,6 +199,17 @@ def purchase_new(request):
         "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
         **item_form_choices(),
     })
+
+
+@cap_required("purchases.create")
+@require_POST
+def purchase_file_upload(request, purchase_id):
+    """آپلود یک فایل (JSON)؛ هر فایل یک درخواست تا نوار پیشرفت هر فایل جدا باشد."""
+    try:
+        f = add_purchase_file(purchase_id=purchase_id, uploaded=request.FILES.get("file"), actor=request.user)
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "id": f.id, "name": f.display_name})
 
 
 @login_required

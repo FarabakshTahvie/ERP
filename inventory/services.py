@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+import os, re, uuid
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import F, Sum, Value, DecimalField, ExpressionWrapper
@@ -6,7 +7,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from catalog.models import Item, ItemCategory
 from core.models import Party
-from .models import StockLot, StockMovement, Purchase, PurchaseLine, Warehouse
+from .models import StockLot, StockMovement, Purchase, PurchaseLine, Warehouse, PurchaseFile
 
 WAREHOUSE_KEEPER_SPECIALTY_NAME = "انباردار"
 ACCOUNTANT_SPECIALTY_NAME = "حسابدار"
@@ -181,19 +182,38 @@ def stock_map(item_ids):
     return {r["item_id"]: r["total"] or Decimal("0") for r in rows}
 
 
-ALLOWED_INVOICE_EXTENSIONS = ("jpg", "jpeg", "png", "webp", "pdf")
-MAX_INVOICE_FILE_BYTES = 10 * 1024 * 1024
+@transaction.atomic
+def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=None,
+                              purchased_at, invoice_number="", notes="", lines_raw):
+    from core.periods import assert_open
+    assert_open(purchased_at, "خرید")
+    lines = _clean_purchase_lines(lines_raw)
+    if not lines:
+        raise ValueError("حداقل یک ردیف کالا باید وارد شود.")
 
+    warehouse = Warehouse.objects.filter(is_default=True).first()
+    if not warehouse:
+        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
 
-def _validate_invoice_file(invoice_file):
-    if not invoice_file:
-        return
-    name = (getattr(invoice_file, "name", "") or "").lower()
-    ext = name.rsplit(".", 1)[-1] if "." in name else ""
-    if ext not in ALLOWED_INVOICE_EXTENSIONS:
-        raise ValueError("فرمت فایل فاکتور خرید مجاز نیست؛ عکس (JPG، PNG، WEBP) یا PDF بارگذاری کنید.")
-    if invoice_file.size > MAX_INVOICE_FILE_BYTES:
-        raise ValueError("حجم فایل فاکتور خرید بیشتر از ۱۰ مگابایت است.")
+    supplier = _resolve_supplier_party(party_id=supplier_party_id, party_data=supplier_party_data)
+    purchase = Purchase.objects.create(
+        supplier=supplier,
+        invoice_number=(invoice_number or "").strip(),
+        notes=(notes or "").strip(),
+        purchased_at=purchased_at,
+    )
+    items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
+    for line in lines:
+        item = items_by_id[line["item_id"]]
+        purchase_line = PurchaseLine.objects.create(
+            purchase=purchase, item=item, warehouse=warehouse,
+            qty=line["qty"], unit_cost=line["unit_cost"],
+        )
+        receive_stock(
+            item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"],
+            received_at=purchased_at, purchase_line=purchase_line,
+        )
+    return purchase
 
 
 def _clean_purchase_lines(raw_lines):
@@ -240,44 +260,34 @@ def _resolve_supplier_party(*, party_id=None, party_data=None):
     return Party.objects.create(**party_data)
 
 
+MAX_PURCHASE_FILES = 20
+MAX_PURCHASE_FILE_BYTES = 25 * 1024 * 1024   # هم‌سقف nginx
+
+
 @transaction.atomic
-def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=None,
-                              purchased_at, invoice_number="", notes="", invoice_file=None, lines_raw):
+def add_purchase_file(*, purchase_id, uploaded, actor):
+    """یک فایل به سند خرید اضافه می‌کند؛ هر نوع فایلی مجاز است. عکس بهینه می‌شود (قانون ۵۷)،
+    نام اصلی ثبت و نام ذخیره‌شده تصادفی است. ماه بسته مانع است."""
     from core.periods import assert_open
-    assert_open(purchased_at, "خرید")
-    lines = _clean_purchase_lines(lines_raw)
-    if not lines:
-        raise ValueError("حداقل یک ردیف کالا باید وارد شود.")
-
-    warehouse = Warehouse.objects.filter(is_default=True).first()
-    if not warehouse:
-        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
-
-    _validate_invoice_file(invoice_file)
-    supplier = _resolve_supplier_party(party_id=supplier_party_id, party_data=supplier_party_data)
-    if invoice_file:
-        from utils.image_utils import optimize_named
-        invoice_file, _name = optimize_named(invoice_file, invoice_file.name or "")
-
-    purchase = Purchase.objects.create(
-        supplier=supplier,
-        invoice_number=(invoice_number or "").strip(),
-        notes=(notes or "").strip(),
-        purchased_at=purchased_at,
-        invoice_file=invoice_file,
-    )
-    items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
-    for line in lines:
-        item = items_by_id[line["item_id"]]
-        purchase_line = PurchaseLine.objects.create(
-            purchase=purchase, item=item, warehouse=warehouse,
-            qty=line["qty"], unit_cost=line["unit_cost"],
-        )
-        receive_stock(
-            item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"],
-            received_at=purchased_at, purchase_line=purchase_line,
-        )
-    return purchase
+    from utils.image_utils import optimize_named
+    if not can(actor, "purchases.create"):
+        raise ValueError("شما اجازه‌ی ارسال فایل برای خرید را ندارید.")
+    if uploaded is None:
+        raise ValueError("فایلی ارسال نشده است.")
+    name = os.path.basename((uploaded.name or "").replace("\\", "/"))[:255] or "file"
+    if uploaded.size > MAX_PURCHASE_FILE_BYTES:
+        raise ValueError(f"حجم «{name}» بیشتر از ۲۵ مگابایت است.")
+    try:
+        purchase = Purchase.objects.select_for_update(of=("self",)).get(pk=purchase_id)
+    except (Purchase.DoesNotExist, TypeError, ValueError):
+        raise ValueError("این خرید پیدا نشد.")
+    assert_open(purchase.purchased_at, "اصلاح خرید")
+    if purchase.files.count() >= MAX_PURCHASE_FILES:
+        raise ValueError(f"حداکثر {MAX_PURCHASE_FILES} فایل برای هر خرید مجاز است.")
+    uploaded, name = optimize_named(uploaded, name)
+    ext = re.sub(r"[^a-z0-9]", "", name.rsplit(".", 1)[-1].lower())[:8] if "." in name else ""
+    uploaded.name = f"{uuid.uuid4().hex[:16]}.{ext or 'bin'}"
+    return PurchaseFile.objects.create(purchase=purchase, file=uploaded, original_name=name, uploaded_by=actor)
 
 
 CHANGE_KIND_CONSUME = "consume"

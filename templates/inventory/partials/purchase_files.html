@@ -1,0 +1,32 @@
+{% load custom_tags %}
+<section id="purchase-files" class="fb-card fb-pad flex flex-col gap-3">
+    <h2 class="fb-section-title">فایل‌ها ({{ files|length|fa_digits }})</h2>
+    {% if files %}
+    <div class="flex gap-2 overflow-x-auto pb-2" role="list">
+        {% for f in files %}
+        <div role="listitem" class="fb-inset shrink-0 w-40 flex flex-col gap-2">
+            {% if f.is_displayable_image %}
+            <img src="{{ f.file.url }}" alt="{{ f.display_name }}" loading="lazy" class="w-full h-24 object-cover rounded-field bg-base-300">
+            {% else %}
+            <div class="w-full h-24 flex items-center justify-center text-primary bg-base-300 rounded-field">{% icon "file-text" "w-5 h-5" %}</div>
+            {% endif %}
+            <span class="text-xs break-all line-clamp-2" dir="auto" title="{{ f.display_name }}">{{ f.display_name }}</span>
+            <span class="text-xs fb-muted">{{ f.uploaded_by|person_name:"سیستم" }} · {{ f.created_at|to_jalali:"%Y/%m/%d" }}</span>
+            <div class="flex items-center gap-1">
+                {% if f.is_displayable_image %}
+                <button type="button" class="btn btn-ghost btn-xs" data-zoom="{{ f.file.url }}" data-zoom-name="{{ f.display_name }}" aria-label="بزرگ‌نمایی">{% icon "eye" "w-4 h-4" %}</button>
+                {% endif %}
+                <a href="{{ f.file.url }}" download="{{ f.display_name }}" class="btn btn-ghost btn-xs" aria-label="دانلود">{% icon "download" "w-4 h-4" %}</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="fb-hint">فایلی ثبت نشده است.</p>
+    {% endif %}
+    {% if caps.purchases_create %}
+    {% url 'inventory:purchase_file_upload' purchase.id as upload_url %}
+    {% include "utils/partials/file_dropzone.html" with mode="instant" url=upload_url anchor="purchase-files" %}
+    {% endif %}
+</section>
+
