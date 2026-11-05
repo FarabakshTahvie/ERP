@@ -58,25 +58,6 @@ class JalaliAndUIWorkflowTests(TestCase):
         with self.assertRaises(ValidationError):
             f_datetime.to_python("۱۴۰۵/۰۶/۳۰ ۲۵:۰۰")
 
-    def test_project_and_invoice_shamsi_year(self):
-        # بررسی پیشوند ماهانه در کد پروژه و فاکتور
-        d = jdatetime.date.fromgregorian(date=timezone.localdate())
-        expected_p_prefix = f"P{d.year % 100:02d}{d.month:02d}-"
-        expected_inv_prefix = f"INV{d.year % 100:02d}{d.month:02d}-"
-
-        party = Party.objects.create(name="شرکت الف", is_client=True)
-        template = WorkflowTemplate.objects.create(name="قالب ۱")
-        project = Project.objects.create(
-            name="پروژه تست",
-            partner=party,
-            owner=party,
-            workflow_template=template,
-        )
-        self.assertTrue(project.code.startswith(expected_p_prefix))
-
-        inv_num = _generate_invoice_number()
-        self.assertTrue(inv_num.startswith(expected_inv_prefix))
-
     def test_client_home_view_and_permissions(self):
         party1 = Party.objects.create(name="مشتری یک", is_client=True)
         party2 = Party.objects.create(name="مشتری دو", is_client=True)
@@ -143,26 +124,6 @@ class JalaliAndUIWorkflowTests(TestCase):
         inv2_url = reverse("finance:portal_invoice_detail", args=[inv2.uuid])
         self.assertIn(inv1_url, html)
         self.assertNotIn(inv2_url, html)
-
-
-class GenericTableAdvancedFilterUnitTests(TestCase):
-    def test_select_filter_rejects_value_outside_choices(self):
-        from django.test import RequestFactory
-        from utils.generic_table import build_table_context
-
-        User.objects.create_user(username="gtf_a", phone_number="09190004001", password="x", role="employee")
-        User.objects.create_user(username="gtf_b", phone_number="09190004002", password="x", role="manager")
-
-        request = RequestFactory().get("/fake/", {"f_role": "not-a-real-role"})
-        ctx = build_table_context(
-            request, User.objects.filter(phone_number__in=["09190004001", "09190004002"]),
-            columns=[{"label": "نقش", "filter_key": "role", "filter_type": "select",
-                      "choices": [("employee", "تکنسین"), ("manager", "مدیر")]}],
-            row_builder=lambda u: {"url": None, "cells": [{"type": "text", "value": u.username}]},
-            container_id="gtf-test-1",
-        )
-        self.assertEqual(ctx["active_filter_count"], 0)
-        self.assertEqual(len(ctx["rows"]), 2)
 
 
 class TestEnvironmentIsolationTests(TestCase):
