@@ -350,9 +350,9 @@ def parse_qty(raw, label="مقدار"):
     return value.quantize(QTY_Q)
 
 
-def log_event(*, kind, text, actor, project=None, amount=None):
+def log_event(*, kind, text, actor, project=None, amount=None, purchase=None):
     return AccountingEvent.objects.create(
-        project=project, kind=kind, text=(text or "")[:500],
+        project=project, purchase=purchase, kind=kind, text=(text or "")[:500],
         amount=amount, actor=actor if getattr(actor, "pk", None) else None)
 
 
@@ -501,3 +501,81 @@ def record_accountant_payment(*, invoice, method, amount_raw, paid_date, referen
     log_event(kind=AccountingEvent.Kind.PAYMENT, project=invoice.project, actor=actor, amount=amount,
               text=f"پرداخت {payment.get_method_display()} ثبت شد")
     return payment
+
+
+@transaction.atomic
+def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_data=None,
+                    invoice_number=None, notes=None, invoice_file=None, lines_raw=None):
+    """
+    ویرایش سند خرید (فقط حسابدار یا مدیر). فقط اطلاعات سند و «افزودن ردیف تازه»؛ ردیف ثبت‌شده، تاریخ خرید
+    و موجودی قبلی دست نمی‌خورند (حرکت انبار هرگز ویرایش نمی‌شود). None یعنی «دست نزن».
+    ردیف‌های تازه با تاریخ همان سند وارد انبار می‌شوند. ماه بسته مانع است.
+    """
+    from core.capabilities import can
+    from core.models import Party
+    from core.periods import assert_open
+    from inventory.models import Purchase, PurchaseLine, Warehouse
+    from inventory.services import (
+        _clean_purchase_lines, _resolve_supplier_party, _validate_invoice_file, receive_stock,
+    )
+    from utils.image_utils import optimize_named
+    if not can(actor, "purchases.edit"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند خرید را ویرایش کند.")
+    purchase = Purchase.objects.select_for_update(of=("self",)).get(pk=purchase.pk)
+    assert_open(purchase.purchased_at, "اصلاح خرید")
+
+    lines = _clean_purchase_lines(lines_raw)
+    warehouse = None
+    if lines:
+        warehouse = Warehouse.objects.filter(is_default=True).first()
+        if not warehouse:
+            raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
+
+    changes = []
+    if supplier_party_id or supplier_party_data:
+        if supplier_party_id:
+            try:
+                supplier_party_id = int(supplier_party_id)
+            except (TypeError, ValueError):
+                raise ValueError("تأمین‌کننده‌ی انتخاب‌شده معتبر نیست.")
+            if not Party.objects.filter(pk=supplier_party_id).exists():
+                raise ValueError("تأمین‌کننده‌ی انتخاب‌شده پیدا نشد.")
+        supplier = _resolve_supplier_party(party_id=supplier_party_id or None, party_data=supplier_party_data)
+        if supplier.pk != purchase.supplier_id:
+            purchase.supplier = supplier
+            changes.append("تأمین‌کننده")
+    if invoice_number is not None:
+        number = (invoice_number or "").strip()
+        if number != purchase.invoice_number:
+            purchase.invoice_number = number
+            changes.append("شماره فاکتور")
+    if notes is not None:
+        text = (notes or "").strip()
+        if text != purchase.notes:
+            purchase.notes = text
+            changes.append("یادداشت")
+    if invoice_file:
+        _validate_invoice_file(invoice_file)
+        purchase.invoice_file, _name = optimize_named(invoice_file, invoice_file.name or "")
+        changes.append("فایل فاکتور")
+    if not changes and not lines:
+        raise ValueError("تغییری ثبت نشد.")
+    if changes:
+        purchase.save()
+
+    added = ZERO
+    if lines:
+        from catalog.models import Item
+        items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
+        for line in lines:
+            item = items_by_id[line["item_id"]]
+            purchase_line = PurchaseLine.objects.create(
+                purchase=purchase, item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"])
+            receive_stock(item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"],
+                          received_at=purchase.purchased_at, purchase_line=purchase_line)
+            added += line["qty"] * line["unit_cost"]
+        changes.append(f"افزودن {len(lines)} ردیف")
+    log_event(kind=AccountingEvent.Kind.PURCHASE, purchase=purchase, actor=actor,
+              amount=added.quantize(Decimal("1")) if lines else None,
+              text=f"ویرایش خرید از «{purchase.supplier.name}»: " + "، ".join(changes))
+    return purchase
