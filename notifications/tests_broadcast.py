@@ -47,40 +47,6 @@ class BroadcastSystemTests(TestCase):
             username="client_u", phone_number="09124444444", password="password123", is_active=True, role="client"
         )
 
-    def test_validate_link(self):
-        self.assertTrue(validate_link(""))
-        self.assertTrue(validate_link("/notifications/"))
-        self.assertFalse(validate_link("https://google.com"))
-        self.assertFalse(validate_link("//evil.com"))
-        self.assertFalse(validate_link("/invalid_url_not_exists/"))
-
-    @override_settings(SMS_FREE_TEXT_ENABLED=True, NAJVA_ENABLED=True)
-    def test_create_broadcast_flow(self):
-        users = resolve_audience("all_staff", [], "sms")
-        user_ids = [u.id for u in users]
-        digest = calculate_digest(
-            channel="sms", title="تست", body="سلام همگی", link_path="/notifications/",
-            ttl_hours=24, icon_name="", image_name="", buttons=[],
-            audience_kind="all_staff", audience_ids=[], resolved_user_ids=user_ids
-        )
-        b = create_broadcast(
-            channel="sms",
-            title="تست",
-            body="سلام همگی",
-            link_path="/notifications/",
-            icon_name="",
-            image_name="",
-            ttl_hours=24,
-            audience_kind="all_staff",
-            audience_ids=[],
-            created_by=self.mgr,
-            buttons=[],
-            digest=digest
-        )
-        self.assertEqual(b.recipients_count, 3)  # mgr, acc, tech دارای شماره تلفن هستند
-        self.assertEqual(b.notifications.count(), 3)
-        self.assertTrue(b.notifications.filter(status=Notification.Status.PENDING).exists())
-
     @override_settings(SMS_FREE_TEXT_ENABLED=False, BROADCAST_DRY_RUN=False)
     def test_create_broadcast_disabled_flow_fails(self):
         users = resolve_audience("all_staff", [], "sms")

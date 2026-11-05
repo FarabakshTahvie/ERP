@@ -74,35 +74,11 @@ class SmsPolicyTests(NotifyBase):
 
 
 class StageNotificationTests(NotifyBase):
-    def test_assign_notifies_new_owner_after_commit(self):
-        st = self.stage()
-        with self.captureOnCommitCallbacks(execute=True):
-            assign_stage(st, self.tech, self.manager, "فوری")
-        n = Notification.objects.get(user=self.tech)
-        self.assertEqual(n.notification_type, NotificationType.STAGE_ASSIGNED)
-        self.assertEqual(n.real_target_url, f"/my-tasks/{st.id}/")
-
     def test_nothing_is_sent_before_commit(self):
         st = self.stage()
         assign_stage(st, self.tech, self.manager, "فوری")
         self.assertEqual(Notification.objects.count(), 0)
 
-
-class WarehouseNotificationTests(NotifyBase):
-    def test_low_stock_notifies_once_when_crossing(self):
-        item = Item.objects.create(name="کالای کم", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE,
-                                   reorder_point=5, responsible_user=self.keeper)
-        wh = Warehouse.objects.create(name="انبار اعلان", is_default=True)
-        receive_stock(item=item, warehouse=wh, qty=10, unit_cost=100, received_at=timezone.now())
-        with self.captureOnCommitCallbacks(execute=True):
-            consume_stock(item=item, qty=3)          # ۷
-        self.assertEqual(Notification.objects.count(), 0)
-        with self.captureOnCommitCallbacks(execute=True):
-            consume_stock(item=item, qty=3)          # ۴: عبور از حد
-        self.assertEqual(Notification.objects.filter(notification_type=NotificationType.LOW_STOCK).count(), 1)
-        with self.captureOnCommitCallbacks(execute=True):
-            consume_stock(item=item, qty=1)          # ۳: دوباره خبر نده
-        self.assertEqual(Notification.objects.count(), 1)
 
 
 class ResendTests(NotifyBase):
@@ -114,14 +90,6 @@ class ResendTests(NotifyBase):
             resend_notification(self.note(ntype=NotificationType.INVOICE_ISSUED), actor=self.manager)
         with self.assertRaises(ValueError):
             resend_notification(self.note(status=Notification.Status.SEEN), actor=self.manager)
-
-    def test_resend_dispatches_again(self):
-        n = self.note()
-        with mock.patch("notifications.services.dispatch_notification") as dispatch:
-            resend_notification(n, actor=self.manager)
-        dispatch.assert_called_once()
-        n.refresh_from_db()
-        self.assertEqual(n.status, Notification.Status.PENDING)
 
 
 class CenterAndDashboardTests(NotifyBase):

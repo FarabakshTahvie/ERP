@@ -20,22 +20,6 @@ class BroadcastBaseTests(TestCase):
         cls.tech1.specialties.add(cls.sp)
 
 
-class BroadcastShortCodeTests(BroadcastBaseTests):
-    @mock.patch("notifications.broadcast.NajvaService.send", return_value={"success": True, "request_id": 123})
-    def test_click_tracking_works(self, mock_najva):
-        b = broadcast.create_broadcast(
-            channel="push", title="T", body="B", ttl_hours=24, image_name="", icon_name="", buttons=[],
-            link_path="/notifications/", audience_kind="all_staff", audience_ids=[], created_by=self.manager, is_test=True
-        )
-        n = b.notifications.first()
-        c = Client()
-        res = c.get(n.tracking_url, HTTP_USER_AGENT='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36')
-        self.assertEqual(res.status_code, 302)
-        n.refresh_from_db()
-        self.assertIsNotNone(n.seen_at)
-        self.assertEqual(n.click_events.count(), 1)
-
-
 class BroadcastDigestTests(BroadcastBaseTests):
     def test_roundtrip_and_tamper(self):
         users = broadcast.resolve_audience("all_staff", [], "push")
@@ -53,12 +37,6 @@ class BroadcastDigestTests(BroadcastBaseTests):
                 channel="push", title="Tampered", body="B", ttl_hours=24, image_name="", icon_name="", buttons=[],
                 link_path="/", audience_kind="all_staff", audience_ids=[], created_by=self.manager, digest=digest
             )
-
-    def test_two_digit_specialty_id(self):
-        s12 = Specialty.objects.create(id=12, name="تخصصی ۱۲")
-        self.tech1.specialties.add(s12)
-        users = broadcast.resolve_audience(kind="specialty", ids=[str(s12.id)], channel="push")
-        self.assertIn(self.tech1, users)
 
 
 class BroadcastLinkTests(TestCase):

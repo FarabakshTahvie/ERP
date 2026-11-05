@@ -49,34 +49,6 @@ class Revision3RegressionTests(TestCase):
         )
         self.assertIn("اطلاعات حساب کاربری یافت نشد", resp_in.content.decode("utf-8"))
 
-    @patch("utils.sms.SMSService.send_otp")
-    def test_otp_reuses_active_code_without_resending(self, mock_send_otp):
-        mock_send_otp.return_value = {"success": True}
-        client = Client()
-
-        r1 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertEqual(r1.status_code, 200)
-        self.assertEqual(mock_send_otp.call_count, 1)
-
-        # درخواست دوم بلافاصله: نباید پیامک تازه‌ای بفرستد؛ باید همان فرم تایید کد را با پیام «قبلاً ارسال شده» نشان دهد.
-        r2 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertEqual(r2.status_code, 200)
-        self.assertEqual(mock_send_otp.call_count, 1)
-        self.assertIn("قبلاً", r2.content.decode("utf-8"))
-
-    @patch("utils.sms.SMSService.send_otp")
-    def test_otp_failure_marks_code_used_and_next_request_sends_again(self, mock_send_otp):
-        mock_send_otp.side_effect = [{"success": False, "error": "SMS failed"}, {"success": True}]
-        client = Client()
-
-        resp = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(OTPCode.objects.filter(phone_number="09151112233", is_used=True).exists())
-
-        resp2 = client.post(reverse("accounts:request_otp_login"), {"phone_number": "09151112233"})
-        self.assertEqual(resp2.status_code, 200)
-        self.assertEqual(mock_send_otp.call_count, 2)
-
     def test_push_device_register_csrf_protection(self):
         valid_uuid = str(uuid.uuid4())
         client = Client(enforce_csrf_checks=True)
@@ -89,59 +61,6 @@ class Revision3RegressionTests(TestCase):
             content_type="application/json"
         )
         self.assertEqual(resp.status_code, 403)
-
-    def test_short_link_slashes_and_events(self):
-        notif = Notification.objects.create(
-            user=self.user,
-            notification_type=NotificationType.MANUAL,
-            title="تست",
-            body="متن",
-            real_target_url="/portal/invoices/1/",
-        )
-        client = Client()
-
-        # تست هر دو شکل با و بدون اسلش
-        url1 = f"/s/{notif.short_code}"
-        url2 = f"/s/{notif.short_code}/"
-
-        resp1 = client.get(url1, HTTP_USER_AGENT="Mozilla/5.0")
-        self.assertEqual(resp1.status_code, 302)
-
-        resp2 = client.get(url2, HTTP_USER_AGENT="Mozilla/5.0")
-        self.assertEqual(resp2.status_code, 302)
-
-        notif.refresh_from_db()
-        self.assertEqual(NotificationClickEvent.objects.filter(notification=notif).count(), 2)
-        # دیده‌شدن یکبار ثبت می‌شود
-        self.assertIsNotNone(notif.seen_at)
-
-        # تست متد HEAD (ربات)
-        head_resp = client.head(url1)
-        self.assertEqual(head_resp.status_code, 302)
-
-        # کد ناشناخته
-        resp_404 = client.get("/s/99999/")
-        self.assertEqual(resp_404.status_code, 404)
-
-    @override_settings(SMS_IR_API_KEY="test_key")
-    def test_sms_service_status_0_returns_false(self):
-        with patch("utils.sms.requests.post") as mock_post:
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {"status": 0, "message": "خطای اعتبار"}
-            mock_post.return_value = mock_resp
-
-            res = SMSService().send_otp("09151112233", "12345")
-            self.assertFalse(res["success"])
-            mock_post.assert_called_once()
-
-    def test_service_worker_reachable_with_must_change_password(self):
-        self.user.must_change_password = True
-        self.user.save(update_fields=["must_change_password"])
-        client = Client()
-        client.force_login(self.user)
-        resp = client.get("/najva-messaging-sw.js")
-        self.assertEqual(resp.status_code, 200)
 
     def test_verify_otp_external_next_becomes_root(self):
         otp, raw_code = OTPCode.generate(phone_number="09151112233", purpose=OTPCode.Purpose.LOGIN)

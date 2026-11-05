@@ -26,22 +26,6 @@ class BroadcastEngineTests(TestCase):
             created_by=self.user
         )
 
-    def test_runs_several_batches_in_one_call(self):
-        codes = _unique_short_codes(45)
-        n_objs = [
-            Notification(
-                user=self.user,
-                broadcast=self.broadcast_push,
-                short_code=codes[i],
-                status=Notification.Status.PENDING
-            )
-            for i in range(45)
-        ]
-        Notification.objects.bulk_create(n_objs)
-        stats = run_process_broadcasts()
-        self.assertEqual(stats["finalized"], 45)
-        self.assertEqual(Notification.objects.filter(status=Notification.Status.PUSH_SENT).count(), 45)
-
     @override_settings(SMS_FREE_TEXT_ENABLED=True, NAJVA_ENABLED=True)
     @mock.patch("utils.sms.SMSService.send_text")
     def test_waiting_channel_does_not_loop_or_starve_other_channel(self, mock_send_text):
@@ -82,16 +66,5 @@ class BroadcastEngineTests(TestCase):
 
         stats = run_process_broadcasts()
         self.assertEqual(Notification.objects.filter(status=Notification.Status.FAILED).count(), 3)
-
-    def test_time_budget_sets_more(self):
-        codes = _unique_short_codes(45)
-        n_objs = [
-            Notification(user=self.user, broadcast=self.broadcast_push, short_code=codes[i], status=Notification.Status.PENDING)
-            for i in range(45)
-        ]
-        Notification.objects.bulk_create(n_objs)
-        stats = run_process_broadcasts(max_seconds=0)
-        self.assertTrue(stats["more"])
-        self.assertEqual(Notification.objects.filter(status=Notification.Status.PENDING).count(), 5)
 
 

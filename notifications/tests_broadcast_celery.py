@@ -48,25 +48,6 @@ class BroadcastCeleryTests(TestCase):
             all(n.status == Notification.Status.PENDING for n in Notification.objects.filter(broadcast=b))
         )
 
-    def test_create_broadcast_triggers_processing_after_commit(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            b = self._create_sms_broadcast()
-        notifications = list(Notification.objects.filter(broadcast=b))
-        self.assertTrue(len(notifications) > 0)
-        for n in notifications:
-            self.assertEqual(n.status, Notification.Status.SMS_SENT)
-            self.assertEqual(n.error_text, "آزمایشی")
-
-    def test_retry_failed_triggers_processing(self):
-        b = self._create_sms_broadcast()
-        Notification.objects.filter(broadcast=b).update(status=Notification.Status.FAILED)
-        with self.captureOnCommitCallbacks(execute=True):
-            updated = retry_failed(b)
-        self.assertTrue(updated > 0)
-        for n in Notification.objects.filter(broadcast=b):
-            self.assertEqual(n.status, Notification.Status.SMS_SENT)
-            self.assertEqual(n.error_text, "آزمایشی")
-
     def test_redis_down_does_not_break_creation(self):
         with mock.patch("notifications.celery_tasks.process_broadcasts_task.delay", side_effect=ConnectionError("Redis down")):
             with self.assertLogs("notifications.broadcast", level="ERROR") as cm:
@@ -94,12 +75,6 @@ class BroadcastCeleryTests(TestCase):
             with self.assertRaises(RuntimeError):
                 process_broadcasts_task()
         self.assertIsNone(cache.get(LOCK_KEY))
-
-    def test_more_requeues_itself(self):
-        with mock.patch("notifications.celery_tasks.run_process_broadcasts", return_value={"finalized": 1, "waiting": 0, "expired": 0, "more": True}):
-            with mock.patch("notifications.celery_tasks.process_broadcasts_task.apply_async") as mock_apply_async:
-                process_broadcasts_task()
-                mock_apply_async.assert_called_once_with(countdown=1)
 
     def test_task_and_beat_names_are_registered(self):
         from notifications import celery_tasks

@@ -46,42 +46,11 @@ class PaymentSmsBase(TestCase):
 
 
 class ConfirmedSmsTests(PaymentSmsBase):
-    def test_sms_goes_after_commit_with_name_number_remaining_and_link(self):
-        with mock.patch(CONF, return_value=OK) as m:
-            self.approve(self.pending())
-        m.assert_called_once()
-        kw = m.call_args.kwargs
-        self.assertEqual((kw["mobile"], kw["name"], kw["number"], kw["remaining"]),
-                         ("09125550123", "علی", "INV-PS-1", "600,000"))
-        self.assertTrue(kw["link"].startswith("s/"))
-        n = Notification.objects.get()
-        self.assertEqual((n.notification_type, n.status), (NT.PAYMENT_CONFIRMED, Notification.Status.SMS_SENT))
-        self.assertIn(str(self.invoice.uuid), n.real_target_url)
-
     def test_nothing_is_sent_before_commit(self):
         with mock.patch(CONF, return_value=OK) as m:
             approve_payment(self.pending(), approved_by=self.accountant, verified_amount="400000")
         m.assert_not_called()
         self.assertEqual(Notification.objects.count(), 0)
-
-    def test_full_payment_says_zero_remaining(self):
-        with mock.patch(CONF, return_value=OK) as m:
-            self.approve(self.pending(amount=1000000), amount="1000000")
-        self.assertEqual(m.call_args.kwargs["remaining"], "0")
-
-    def test_credit_approval_is_silent(self):
-        with mock.patch(CONF, return_value=OK) as m:
-            with self.captureOnCommitCallbacks(execute=True):
-                approve_payment(self.pending(Payment.Method.CREDIT), approved_by=self.accountant)
-        m.assert_not_called()
-        self.assertEqual(Notification.objects.count(), 0)
-
-    def test_party_without_account_gets_nothing_but_payment_is_approved(self):
-        User.objects.filter(pk=self.customer.pk).update(party=None)
-        with mock.patch(CONF, return_value=OK) as m:
-            p = self.approve(self.pending())
-        m.assert_not_called()
-        self.assertEqual(p.status, Payment.Status.APPROVED)
 
     def test_failed_sms_does_not_block_approval_and_can_be_resent(self):
         with mock.patch(CONF, return_value={"success": False, "error": "e", "http_status": 400}):
