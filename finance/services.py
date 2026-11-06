@@ -121,6 +121,8 @@ def create_customer_payment(*, invoice, method, amount_raw="", reference_number=
         raise ValueError("روش پرداخت معتبر انتخاب کنید.")
     if invoice.status == Invoice.Status.CANCELLED:
         raise ValueError("این فاکتور لغو شده است و پرداخت جدید ثبت نمی‌شود.")
+    from .deadline import assert_not_expired
+    assert_not_expired(invoice)
     reference_number = (reference_number or "").strip()
     note = (note or "").strip()
 

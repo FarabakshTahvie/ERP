@@ -910,7 +910,8 @@ def proforma_editor(request, project_id):
             )
             if action == "issue":
                 invoice, conflict = issue_proforma(
-                    project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on")
+                    project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
+                    deadline_days=request.POST.get("deadline_days"))
                 messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
                 if conflict:
                     messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")

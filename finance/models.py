@@ -42,6 +42,7 @@ class Invoice(TimeStampedModel):
     contract_date = models.DateField(null=True, blank=True, verbose_name="تاریخ عقد قرارداد")
     issue_date = models.DateField(verbose_name="تاریخ صدور")
     due_date = models.DateField(null=True, blank=True, verbose_name="تاریخ سررسید")
+    valid_until = models.DateField(null=True, blank=True, verbose_name="آخرین روز تایید پیش‌فاکتور")
     settled_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تسویه کامل")
 
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="شناسه یکتا")

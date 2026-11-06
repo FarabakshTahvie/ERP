@@ -180,9 +180,11 @@ def save_proforma(*, project, actor, service_rows=None, extra_rows=None, install
 
 
 @transaction.atomic
-def issue_proforma(*, project, actor, send_sms=False):
+def issue_proforma(*, project, actor, send_sms=False, deadline_days=None):
     """صدور پیش‌فاکتور + حساب طرف‌حساب + تکمیل مرحله. خروجی: (invoice, account_conflict)"""
     from finance.services import generate_invoice_for_project, ensure_billed_party_account, notify_invoice_issued
+    from finance.deadline import last_day_for, parse_deadline_days
+    days = parse_deadline_days(deadline_days)   # اول از همه؛ مهلت نامعتبر هیچ‌چیز نمی‌سازد
     if not can_edit_pricing(actor, project):
         raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
     stage = proforma_stage(project)
@@ -202,7 +204,8 @@ def issue_proforma(*, project, actor, send_sms=False):
         raise ValueError("جمع پیش‌فاکتور باید بیشتر از صفر باشد.")
     from finance.models import Invoice
     invoice.status = Invoice.Status.SENT
-    invoice.save(update_fields=["status"])
+    invoice.valid_until = last_day_for(days)
+    invoice.save(update_fields=["status", "valid_until"])
     user, raw_password = ensure_billed_party_account(invoice)   # قبل از پیشروی؛ مرحله‌ی بعد به این حساب اطلاع می‌دهد
     advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment="پیش‌فاکتور صادر شد.")
     if send_sms and user:
