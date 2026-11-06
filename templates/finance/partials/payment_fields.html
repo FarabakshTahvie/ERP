@@ -11,6 +11,13 @@
         </select>
     </div>
 
+    <div id="credit-hint" class="hidden">
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">لطفاً قبل از استفاده از این گزینه، حداقل ۳۰ درصد مبلغ را با سایر روش‌ها پرداخت کنید.</span>
+        </div>
+    </div>
+
     <div id="bank-cards-box" class="hidden">
         {% bank_cards_slider %}
         <p class="fb-hint mt-2">بعد از پرداخت، تصویر رسید یا شماره پیگیری را در همین فرم ثبت کنید.</p>
@@ -79,6 +86,7 @@ function fbTogglePaymentFields(method) {
     el('receipt-label').textContent = isCheque ? 'تصویر چک (اجباری)' : (isCard ? 'تصویر رسید' : 'تصویر رسید (اجباری)');
     el('either-hint').classList.toggle('hidden', !isCard);
     el('cheque-fields').classList.toggle('hidden', !isCheque);
+    el('credit-hint').classList.toggle('hidden', !isCredit);
     el('reference-field').classList.toggle('hidden', isCredit);
     el('reference-input').required = false;
     el('reference-label').textContent = isCard ? 'شماره پیگیری / تراکنش' : 'شماره پیگیری / تراکنش';

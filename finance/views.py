@@ -3,7 +3,7 @@ import io
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import BooleanField, Case, IntegerField, Sum, Value, When
+from django.db.models import BooleanField, Case, DateTimeField, F, IntegerField, Sum, Value, When
 from django.http import Http404, FileResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -14,6 +14,7 @@ import weasyprint
 
 from core.capabilities import can, cap_required
 from .bank_cards import BANK_CHOICES
+from .deadline import deadline_info, expired_message
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
@@ -49,6 +50,7 @@ def invoice_detail(request, invoice_uuid):
     payments = invoice.payments.order_by("-created_at")
     return render(request, "finance/portal_invoice.html", {
         "invoice": invoice, "pending_approval": pending_approval, "payments": payments, "is_owner": is_owner,
+        "deadline": deadline_info(invoice),
     })
 
 
@@ -73,6 +75,11 @@ def add_payment(request, invoice_uuid):
         raise Http404
     if invoice.remaining_amount <= 0:
         messages.info(request, "این فاکتور تسویه شده است.")
+        return redirect("finance:portal_invoice_detail", invoice.uuid)
+
+    expired = expired_message(invoice)
+    if expired:
+        messages.error(request, expired)
         return redirect("finance:portal_invoice_detail", invoice.uuid)
 
     if request.method == "POST":
@@ -152,8 +159,9 @@ PAYMENT_EXPORT_EXTRA = [
 def _payments_table_context(request):
     qs = _visible_payments(request.user).annotate(
         review_rank=Case(When(status=Payment.Status.PENDING, then=0), default=1, output_field=IntegerField()),
+        pending_at=Case(When(status=Payment.Status.PENDING, then=F("created_at")), output_field=DateTimeField()),
         cheque_soon=Case(When(cheque_soon_q(), then=Value(True)), default=Value(False), output_field=BooleanField()),
-    ).order_by("review_rank", "-created_at")
+    ).order_by("review_rank", "pending_at", "-created_at")
     today = timezone.localdate()
  
     def cheque_cells(p):

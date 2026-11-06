@@ -462,6 +462,7 @@ def staff_project_overview(request, project_id):
 def portal_stage_approval(request, approval_id):
     from finance.services import create_customer_payment
     from core.capabilities import can
+    from finance.deadline import deadline_info
 
     approval = get_object_or_404(
         StageApproval.objects.select_related("stage__project", "stage__step_template", "sent_to_party"),
@@ -478,7 +479,8 @@ def portal_stage_approval(request, approval_id):
 
     def render_page(**extra):
         ctx = {"approval": approval, "stage": stage, "invoice": invoice,
-               "needs_payment": needs_payment, "readonly": not is_owner}
+               "needs_payment": needs_payment, "readonly": not is_owner,
+               "deadline": deadline_info(invoice) if invoice else None}
         ctx.update(extra)
         return render(request, "projects/portal_stage_approval.html", ctx)
 

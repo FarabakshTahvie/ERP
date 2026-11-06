@@ -32,6 +32,23 @@
     {% else %}
     <form method="post" enctype="multipart/form-data" data-fb-once data-upload-progress class="fb-card fb-pad flex flex-col gap-4">
         {% csrf_token %}
+        {% if deadline.state == 'active' %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "clock" "w-4 h-4 shrink-0" %}
+            <div class="text-sm flex flex-col gap-1">
+                <span class="font-semibold">مهلت تایید تا ساعت ۲۴ روز <span class="font-technical">{{ deadline.last_day|to_jalali:"%Y/%m/%d" }}</span></span>
+                <span class="text-xs">اگر تا آن زمان تایید نشود، پیش‌فاکتور منقضی می‌شود و قیمت‌ها باید دوباره بررسی شوند. لطفاً همین حالا تایید و پرداخت را انجام دهید.</span>
+            </div>
+        </div>
+        {% elif deadline.state == 'expired' %}
+        <div role="alert" class="alert alert-soft alert-error">
+            {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+            <div class="text-sm flex flex-col gap-2">
+                <span>مهلت تایید تمام شده است؛ فقط می‌توانید پاسخ را رد کنید یا با دفتر تماس بگیرید.</span>
+                <a href="tel:{{ deadline.phone_tel }}" class="btn btn-soft btn-sm self-start">{% icon "phone" "w-4 h-4" %} تماس با دفتر: <span dir="ltr" class="font-technical">{{ deadline.phone }}</span></a>
+            </div>
+        </div>
+        {% endif %}
         {% if needs_payment and invoice %}
         <input type="hidden" name="seen_total" value="{{ invoice.total_amount|stringformat:'d' }}">
         {% endif %}
@@ -42,7 +59,7 @@
         </div>
         {% endif %}
 
-        {% if needs_payment %}
+        {% if needs_payment and deadline.state != 'expired' %}
             {% include "finance/partials/payment_fields.html" with hide_note_field=True %}
         {% endif %}
 
@@ -52,7 +69,7 @@
         </div>
 
         <div class="flex gap-2">
-            <button type="submit" name="action" value="approve" class="btn btn-primary flex-1">تایید</button>
+            {% if deadline.state != 'expired' %}<button type="submit" name="action" value="approve" class="btn btn-primary flex-1">تایید</button>{% endif %}
             <button type="submit" name="action" value="reject" formnovalidate class="btn btn-soft btn-error flex-1">رد</button>
         </div>
     </form>

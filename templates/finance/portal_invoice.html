@@ -25,6 +25,23 @@
             <span class="text-sm">این فاکتور لغو شده است.</span>
         </div>
         {% endif %}
+        {% if deadline.state == 'active' %}
+        <div role="alert" class="alert alert-soft alert-warning">
+            {% icon "clock" "w-4 h-4 shrink-0" %}
+            <div class="text-sm flex flex-col gap-1">
+                <span class="font-semibold">مهلت تایید تا ساعت ۲۴ روز <span class="font-technical">{{ deadline.last_day|to_jalali:"%Y/%m/%d" }}</span></span>
+                <span class="text-xs">اگر تا آن زمان تایید نشود، پیش‌فاکتور منقضی می‌شود و قیمت‌ها باید دوباره بررسی شوند. لطفاً همین حالا تایید و پرداخت را انجام دهید.</span>
+            </div>
+        </div>
+        {% elif deadline.state == 'expired' %}
+        <div role="alert" class="alert alert-soft alert-error">
+            {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+            <div class="text-sm flex flex-col gap-2">
+                <span>مهلت تایید این پیش‌فاکتور تمام شده است. قیمت‌ها ممکن است تغییر کرده باشد؛ برای تایید با دفتر تماس بگیرید.</span>
+                <a href="tel:{{ deadline.phone_tel }}" class="btn btn-soft btn-sm self-start">{% icon "phone" "w-4 h-4" %} تماس با دفتر: <span dir="ltr" class="font-technical">{{ deadline.phone }}</span></a>
+            </div>
+        </div>
+        {% endif %}
         <div class="flex items-start justify-between gap-4 flex-wrap pb-5 border-b border-base-300">
             <img src="{% static 'icons/logo-invoice.svg' %}" alt="فرابخش تهویه"
                  class="h-12 bg-white rounded-field p-1.5 border border-base-300">
@@ -130,9 +147,9 @@
         {% if is_owner %}
             {% if pending_approval %}
             <a href="{% nav_url 'projects:portal_stage_approval' pending_approval.id %}" class="btn btn-primary w-full md:w-80 md:self-center">
-                {% icon "check-circle" "w-4 h-4" %} تایید و پرداخت
+                {% icon "check-circle" "w-4 h-4" %} {% if deadline.state == 'expired' %}مشاهده و پاسخ{% else %}تایید و پرداخت{% endif %}
             </a>
-            {% elif invoice.remaining_amount > 0 and invoice.status != 'cancelled' %}
+            {% elif invoice.remaining_amount > 0 and invoice.status != 'cancelled' and deadline.state != 'expired' %}
             <a href="{% url 'finance:portal_add_payment' invoice.uuid %}" class="btn btn-primary w-full md:w-80 md:self-center">
                 {% icon "credit-card" "w-4 h-4" %} افزودن پرداخت
             </a>

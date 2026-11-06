@@ -81,3 +81,16 @@ def extend_deadline(*, invoice, days_raw, reason, actor):
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
               text=f"مهلت تایید پیش‌فاکتور {invoice.number}: {show(old)} ← {show(new)} — {reason}")
     return invoice
+
+
+def deadline_info(invoice, today=None):
+    """برای نمایش در قالب‌ها؛ مشتری و حسابدار هر دو از همین می‌خوانند."""
+    today = today or timezone.localdate()
+    state = deadline_state(invoice, today)
+    return {
+        "state": state,
+        "last_day": invoice.valid_until if state != "none" else None,
+        "days_left": (invoice.valid_until - today).days if state == "active" else None,
+        "phone": office_phone_text(),
+        "phone_tel": settings.COMPANY_CONTACT["office_phone"]["tel"],
+    }
