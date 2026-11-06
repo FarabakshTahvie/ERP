@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_ops, views_confirm
+from . import views, views_ops, views_confirm, views_proforma
 
 app_name = "projects"
 
@@ -12,6 +12,9 @@ urlpatterns = [
     path("staff/projects/<int:project_id>/move-stage/", views_ops.move_stage, name="move_stage"),
     path("staff/projects/<int:project_id>/edit/", views.project_edit, name="project_edit"),
     path("staff/projects/<int:project_id>/proforma/", views.proforma_editor, name="proforma_editor"),
+    path("staff/projects/<int:project_id>/proforma/row/preview/", views_proforma.row_preview, name="proforma_row_preview"),
+    path("staff/projects/<int:project_id>/proforma/row/save/", views_proforma.row_save, name="proforma_row_save"),
+    path("staff/projects/<int:project_id>/proforma/row/delete/", views_proforma.row_delete, name="proforma_row_delete"),
     path("staff/projects/<int:project_id>/overview/", views.staff_project_overview, name="staff_project_overview"),
     path("staff/stages/<int:stage_id>/files/", views.stage_file_upload, name="stage_file_upload"),
     path("staff/groups/<int:group_id>/cut/", views.group_cut_set, name="group_cut_set"),
