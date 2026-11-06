@@ -15,6 +15,7 @@ urlpatterns = [
     path("staff/projects/<int:project_id>/proforma/row/preview/", views_proforma.row_preview, name="proforma_row_preview"),
     path("staff/projects/<int:project_id>/proforma/row/save/", views_proforma.row_save, name="proforma_row_save"),
     path("staff/projects/<int:project_id>/proforma/row/delete/", views_proforma.row_delete, name="proforma_row_delete"),
+    path("staff/projects/<int:project_id>/proforma/body/", views.proforma_body, name="proforma_body"),
     path("staff/projects/<int:project_id>/overview/", views.staff_project_overview, name="staff_project_overview"),
     path("staff/stages/<int:stage_id>/files/", views.stage_file_upload, name="stage_file_upload"),
     path("staff/groups/<int:group_id>/cut/", views.group_cut_set, name="group_cut_set"),

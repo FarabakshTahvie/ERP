@@ -1,0 +1,195 @@
+{% load static custom_tags %}
+<div id="pf-body" class="flex flex-col gap-5"
+     data-fragment-url="{% url 'projects:proforma_body' project.id %}"
+     data-preview-url="{% url 'projects:proforma_row_preview' project.id %}"
+     data-save-url="{% url 'projects:proforma_row_save' project.id %}"
+     data-delete-url="{% url 'projects:proforma_row_delete' project.id %}"
+     data-sprite="{% static 'icons/sprite.svg' %}">
+
+    {% if not editable %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "lock" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">ویرایش قیمت‌ها بسته است؛ پیش‌فاکتور تایید شده، پرداختی ثبت شده، یا پروژه تکمیل یا لغو شده است.</span>
+    </div>
+    {% else %}
+    {% if not has_global_margin %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">قانون سود عمومی (درصدی) تعریف نشده؛ سود همه‌ی کالاها صفر حساب می‌شود. از پنل مدیریت ← «قوانین سود» یک قانون سراسری بسازید.</span>
+    </div>
+    {% endif %}
+    {% if stale_items %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">قیمت یا سود این کالاها بعد از آخرین ثبت تغییر کرده: {{ stale_items|join:"، " }}. برای به‌روزشدن، ردیف مربوط را با مداد باز کنید و دوباره ثبت کنید؛ مودال تفاوت را نشان می‌دهد. تا آن موقع پیش‌فاکتور با همان عدد قبلی می‌ماند.</span>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-5">
+        <div class="flex items-start justify-between gap-4 flex-wrap pb-5 border-b border-base-300">
+            <img src="{% static 'icons/logo-invoice.svg' %}" alt="فرابخش تهویه"
+                 class="h-12 bg-white rounded-field p-1.5 border border-base-300">
+            <div class="text-xs flex flex-col gap-1">
+                <div><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ billing_party.name }}</span></div>
+                <div><span class="fb-muted">پروژه:</span> <span class="font-semibold">{{ project.name }}</span></div>
+                <div class="flex items-center gap-1">
+                    <span class="fb-muted">وضعیت:</span>
+                    {% if invoice %}
+                    <span class="fb-badge fb-badge-neutral">{{ invoice.get_status_display }}</span>
+                    <span class="font-technical">{{ invoice.number|fa_digits }}</span>
+                    {% else %}
+                    <span class="fb-badge fb-badge-warning">هنوز صادر نشده</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <p class="fb-hint">مشتری فقط جمع هر خدمت را می‌بیند؛ کالاهای زیر هر خدمت فقط برای شماست. هر تغییر روی ردیف‌های موجود قبل از ذخیره، «چه به چه» را در مودال نشان می‌دهد.</p>
+
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr class="text-xs fb-muted">
+                        <th class="w-12 text-center font-medium">ردیف</th>
+                        <th class="font-medium">شرح</th>
+                        <th class="text-center font-medium">مقدار</th>
+                        <th class="text-center font-medium">مبلغ واحد (تومان)</th>
+                        <th class="text-center font-medium">جمع (تومان)</th>
+                        {% if editable %}<th class="w-24"><span class="sr-only">عملیات</span></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in summary.services %}
+                    <tr data-row data-kind="service" data-pk="{{ s.line.pk }}" data-json="{{ s.json }}">
+                        <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
+                        <td>
+                            <div class="font-medium">{{ s.line.service.name }}</div>
+                            {% for m in s.materials %}
+                            <div class="text-xs fb-muted">{{ m.item.name }} — <span class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }}</span> {{ m.item.get_unit_display }} — <span class="font-technical">{{ m.line_total|intcomma_fa }}</span></div>
+                            {% endfor %}
+                        </td>
+                        <td class="text-center font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center font-technical">{{ s.line.unit_price|intcomma_fa }}</td>
+                        <td class="text-center font-technical font-semibold">{{ s.total|intcomma_fa }}</td>
+                        {% if editable %}
+                        <td>
+                            <div class="flex items-center justify-end gap-1">
+                                <button type="button" class="btn btn-ghost btn-xs btn-square" data-edit aria-label="ویرایش ردیف">{% icon "pencil" "w-4 h-4" %}</button>
+                                <button type="button" class="btn btn-soft btn-error btn-xs btn-square" data-delete aria-label="حذف ردیف">{% icon "trash-2" "w-4 h-4" %}</button>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% if editable %}<tr class="hidden"><td colspan="6"><div data-editor-mount class="fb-inset"></div></td></tr>{% endif %}
+                    {% endfor %}
+
+                    {% with base=summary.services|length %}
+                    {% for x in summary.extras %}
+                    <tr data-row data-kind="extra" data-pk="{{ x.line.pk }}" data-json="{{ x.json }}">
+                        <td class="text-center font-technical">{{ forloop.counter|add:base|fa_digits }}</td>
+                        <td>
+                            <span class="font-medium">{{ x.line.title }}</span>
+                            <span class="fb-badge {% if x.line.kind == 'discount' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ x.line.get_kind_display }}</span>
+                        </td>
+                        <td class="text-center font-technical">{{ x.line.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center font-technical">{{ x.line.unit_price|intcomma_fa }}</td>
+                        <td class="text-center font-technical font-semibold">{{ x.total|intcomma_fa }}</td>
+                        {% if editable %}
+                        <td>
+                            <div class="flex items-center justify-end gap-1">
+                                <button type="button" class="btn btn-ghost btn-xs btn-square" data-edit aria-label="ویرایش ردیف">{% icon "pencil" "w-4 h-4" %}</button>
+                                <button type="button" class="btn btn-soft btn-error btn-xs btn-square" data-delete aria-label="حذف ردیف">{% icon "trash-2" "w-4 h-4" %}</button>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% if editable %}<tr class="hidden"><td colspan="6"><div data-editor-mount class="fb-inset"></div></td></tr>{% endif %}
+                    {% endfor %}
+                    {% endwith %}
+
+                    {% if not summary.services and not summary.extras %}
+                    <tr><td colspan="6" class="fb-empty">هنوز ردیفی ثبت نشده است.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if editable %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" class="btn btn-dash btn-primary btn-sm w-full" data-add="service">{% icon "plus" "w-4 h-4" %} افزودن خدمت</button>
+            <button type="button" class="btn btn-dash btn-sm w-full" data-add="extra">{% icon "plus" "w-4 h-4" %} ردیف اضافه یا تخفیف</button>
+        </div>
+        <div class="hidden fb-inset" data-add-mount></div>
+        {% endif %}
+
+        <div class="flex flex-col">
+            {% for f in summary.fees %}
+            <div class="flex items-center justify-between gap-2 flex-wrap py-2 border-t border-base-300" data-fee-row data-field="{{ f.field }}" data-raw="{{ f.raw }}">
+                <span class="text-sm">{{ f.label }}</span>
+                <div class="flex items-center gap-2">
+                    <div data-fee-value class="flex items-center gap-2 flex-wrap">
+                        <span data-fee-text class="font-technical text-sm">{% if f.value %}{{ f.value|intcomma_fa }} تومان{% else %}—{% endif %}</span>
+                    </div>
+                    {% if editable %}<button type="button" class="btn btn-ghost btn-xs btn-square" data-fee-edit aria-label="ویرایش {{ f.label }}">{% icon "pencil" "w-4 h-4" %}</button>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="flex items-center justify-between gap-2 flex-wrap py-2 border-t border-base-300" data-fee-row data-field="contract_date" data-raw="{{ summary.contract_raw }}">
+                <span class="text-sm">تاریخ قرارداد</span>
+                <div class="flex items-center gap-2">
+                    <div data-fee-value class="flex items-center gap-2 flex-wrap">
+                        <span data-fee-text class="font-technical text-sm">{% if summary.contract_date %}{{ summary.contract_date|to_jalali:"%Y/%m/%d" }}{% else %}—{% endif %}</span>
+                    </div>
+                    {% if editable %}<button type="button" class="btn btn-ghost btn-xs btn-square" data-fee-edit aria-label="ویرایش تاریخ قرارداد">{% icon "pencil" "w-4 h-4" %}</button>{% endif %}
+                </div>
+            </div>
+            {% if summary.participants_cost %}
+            <div class="flex items-center justify-between gap-2 flex-wrap py-2 border-t border-base-300">
+                <span class="text-sm">هزینه‌ی عوامل اجرایی بیرونی</span>
+                <span class="font-technical text-sm">{{ summary.participants_cost|intcomma_fa }} تومان</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="flex justify-end">
+            <div class="w-full md:w-80 flex flex-col gap-2 text-sm">
+                <div class="flex justify-between gap-2 font-bold">
+                    <span>جمع پیش‌فاکتور</span>
+                    <span><span class="font-technical" data-grand>{{ summary.grand_total|intcomma_fa }}</span> تومان</span>
+                </div>
+                {% if invoice %}
+                <div class="flex justify-between gap-2 text-success">
+                    <span>پرداخت‌شده</span><span><span class="font-technical">{{ invoice.paid_amount|intcomma_fa }}</span> تومان</span>
+                </div>
+                <div class="flex justify-between gap-2 border-t border-base-300 pt-2">
+                    <span>مانده</span><span><span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {% if can_issue %}
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="issue">
+        <h2 class="fb-section-title">صدور پیش‌فاکتور</h2>
+        <div class="fb-field max-w-xs">
+            <label class="fb-label" for="pf-deadline">مهلت تایید مشتری (روز)</label>
+            <input type="text" id="pf-deadline" name="deadline_days" value="1" data-digits maxlength="2" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+            <span class="fb-hint">مشتری تا ساعت ۲۴ روز آخر مهلت دارد؛ مثلاً امروز با مهلت ۱ روز یعنی تا ساعت ۲۴ فردا.</span>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
+            <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm self-start">صدور پیش‌فاکتور</button>
+    </form>
+    {% endif %}
+
+    {% if editable %}
+    {{ services_data|json_script:"services-data" }}
+    {{ items_data|json_script:"items-data" }}
+    {% endif %}
+</div>

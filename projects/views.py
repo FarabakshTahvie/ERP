@@ -42,25 +42,14 @@ from .services import (
     update_project_from_technician_edit, EDITABLE_PROJECT_STATUSES,
     stage_approval_action, can_search_parties_for_purchase, NOT_SENT,
     update_visit_date, user_is_accountant, user_can_access_accounting,
-    client_preview_files,
+    client_preview_files, resolve_billing_party,
 )
 from .proforma import (
-    parse_service_rows, parse_extra_rows, save_proforma, issue_proforma, proforma_stage, can_issue_proforma
+    issue_proforma, proforma_stage, can_issue_proforma
 )
+from .proforma_rows import proforma_summary
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count, stock_map
-
-
-def _cost_values(project):
-    def money(v):
-        return str(int(v)) if v else ""
-    return {
-        "installation_fee": money(project.installation_fee),
-        "shipping_fee": money(project.shipping_fee),
-        "extra_fee": money(project.extra_fee),
-        "contract_date": jalali_str(project.contract_date, fmt="%Y/%m/%d") if project.contract_date else "",
-        "notes": project.notes or "",
-    }
 
 
 
@@ -861,21 +850,44 @@ def new_project_submit(request):
         return fail(str(e))
 
 
-def _proforma_extra_rows(project):
-    return [{"pk": l.pk, "title": l.title, "kind": l.kind, "qty": format(l.qty.normalize(), "f"),
-             "unit_price": str(int(l.unit_price))} for l in project.extra_lines.all()]
+def _stale_items(project):
+    """کالاهایی که میانگین یا سودشان بعد از آخرین ثبت ردیف عوض شده (جمع دستی‌نوشته نباشد)."""
+    mats = [m for l in project.services.prefetch_related("materials__item") for m in l.materials.all()]
+    if not mats:
+        return []
+    now_margin = resolve_margin_percents({m.item for m in mats})
+    return sorted({
+        m.item.name for m in mats
+        if not m.manual_total and (
+            m.cost_snapshot != m.item.moving_average_cost
+            or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01")))
+    })
 
 
-def _proforma_initial_rows(project):
-    def qty_str(v):
-        return format(v.normalize(), "f")
-    return [
-        {"pk": l.pk, "service_id": l.service_id, "qty": qty_str(l.qty), "unit_price": str(int(l.unit_price)),
-         "materials": [{"pk": m.pk, "item_id": m.item_id, "qty": qty_str(m.qty),
-                        "line_total": str(int(m.line_total)) if m.manual_total else ""}
-                       for m in sorted(l.materials.all(), key=lambda m: m.pk)]}
-        for l in project.services.prefetch_related("materials").order_by("pk")
-    ]
+def _proforma_context(request, project):
+    invoice = getattr(project, "invoice", None)
+    prices_open = project_prices_editable(project)
+    editable = prices_open and project.status in EDITABLE_PROJECT_STATUSES
+    stage = proforma_stage(project)
+    can_issue = bool(editable and invoice is None and stage
+                     and stage.status == ProjectStage.Status.IN_PROGRESS
+                     and can_issue_proforma(request.user, stage))
+    services, items = _line_choices(project)
+    margins = resolve_margin_percents(items)
+    stock = stock_map(i.pk for i in items)
+    return {
+        "project": project, "invoice": invoice, "stage": stage,
+        "billing_party": resolve_billing_party(project),
+        "editable": editable, "prices_open": prices_open, "can_issue": can_issue,
+        "summary": proforma_summary(project),
+        "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""}
+                          for s in services],
+        "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
+                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk]),
+                        "stock": str(stock.get(i.pk, Decimal("0")))} for i in items],
+        "has_global_margin": has_global_margin(),
+        "stale_items": _stale_items(project) if editable else [],
+    }
 
 
 @login_required
@@ -883,100 +895,27 @@ def proforma_editor(request, project_id):
     project = get_object_or_404(Project.objects.select_related("location", "partner", "owner"), pk=project_id)
     if not can_edit_pricing(request.user, project):
         raise Http404
-    if project.status not in EDITABLE_PROJECT_STATUSES:
-        messages.error(request, "پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
-        return redirect("projects:staff_project_overview", project.id)
-
-    error = None
-    if request.method == "POST":
-        action = request.POST.get("action", "save")
-        try:
-            raw_date = request.POST.get("contract_date")
-            if raw_date is None:
-                contract_date = NOT_SENT
-            elif not raw_date.strip():
-                contract_date = None
-            else:
-                try:
-                    contract_date = JalaliDateField().clean(raw_date.strip())
-                except ValidationError as e:
-                    raise ValueError(" ".join(e.messages))
-            rebuilt = save_proforma(
-                project=project, actor=request.user,
-                service_rows=parse_service_rows(request.POST.get("services_json")),
-                extra_rows=parse_extra_rows(request.POST.get("extras_json")),
-                installation_fee_raw=request.POST.get("installation_fee"),
-                shipping_fee_raw=request.POST.get("shipping_fee"),
-                extra_fee_raw=request.POST.get("extra_fee"),
-                contract_date=contract_date,
-            )
-            if action == "issue":
+    if request.method == "POST":   # ردیف‌ها دیگر با فرم نمی‌آیند (مسیرهای row_save/row_delete)؛ فقط صدور
+        if request.POST.get("action") == "issue":
+            try:
                 invoice, conflict = issue_proforma(
                     project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
                     deadline_days=request.POST.get("deadline_days"))
-                messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
-                if conflict:
-                    messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
-                return redirect("projects:staff_project_overview", project.id)
-            messages.success(request, "ذخیره شد." + (" پیش‌فاکتور با مبلغ جدید بازتولید شد." if rebuilt else ""))
-            return redirect("projects:proforma_editor", project.id)
-        except ValueError as e:
-            error = str(e)
-            messages.error(request, error)
+            except ValueError as e:
+                messages.error(request, str(e))
+                return redirect("projects:proforma_editor", project.id)
+            messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
+            if conflict:
+                messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
+            return redirect("projects:staff_project_overview", project.id)
+        return redirect("projects:proforma_editor", project.id)
+    return render(request, "projects/proforma_editor.html", _proforma_context(request, project))
 
-    project.refresh_from_db()
-    invoice = getattr(project, "invoice", None)
-    prices_open = project_prices_editable(project)
-    stage = proforma_stage(project)
-    can_issue = bool(prices_open and invoice is None and stage
-                     and stage.status == ProjectStage.Status.IN_PROGRESS
-                     and can_issue_proforma(request.user, stage))
 
-    services, items = _line_choices(project)
-    margins = resolve_margin_percents(items)
-    stock = stock_map(i.pk for i in items)
-    initial_rows = _proforma_initial_rows(project)
-    initial_extras = _proforma_extra_rows(project)
-    costs = _cost_values(project)
-    if error:   # خطا = ورودی کاربر گم نشود
-        try:
-            posted = json.loads(request.POST.get("services_json") or "null")
-            if isinstance(posted, list):
-                initial_rows = posted
-        except (ValueError, TypeError):
-            pass
-        try:
-            posted_ex = json.loads(request.POST.get("extras_json") or "null")
-            if isinstance(posted_ex, list):
-                initial_extras = posted_ex
-        except (ValueError, TypeError):
-            pass
-        for key in ("installation_fee", "shipping_fee", "extra_fee", "contract_date"):
-            if key in request.POST:
-                costs[key] = request.POST.get(key, "")
-
-    stale = []
-    if prices_open:
-        mats = [m for l in project.services.prefetch_related("materials__item") for m in l.materials.all()]
-        now_margin = resolve_margin_percents({m.item for m in mats})
-        stale = sorted({
-            m.item.name for m in mats
-            if not m.manual_total and (
-                m.cost_snapshot != m.item.moving_average_cost
-                or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01")))
-        })
-
-    return render(request, "projects/proforma_editor.html", {
-        "project": project, "invoice": invoice, "stage": stage,
-        "prices_open": prices_open, "can_issue": can_issue,
-        "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""} for s in services],
-        "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
-                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk]),
-                        "stock": str(stock.get(i.pk, Decimal("0")))} for i in items],
-        "initial_rows": initial_rows, "initial_extras": initial_extras, "costs": costs,
-        "extra_lines": project.extra_lines.all(),
-        "participants_cost": project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0,
-        "has_global_margin": has_global_margin(),
-        "lines": project.services.select_related("service").prefetch_related("materials__item"),
-        "stale_items": stale,
-    })
+@login_required
+def proforma_body(request, project_id):
+    """فقط بخش جدول؛ بعد از هر ذخیره‌ی ردیف با htmx جایگزین می‌شود (صفحه رفرش نمی‌شود)."""
+    project = get_object_or_404(Project, pk=project_id)
+    if not can_edit_pricing(request.user, project):
+        raise Http404
+    return render(request, "projects/partials/proforma_body.html", _proforma_context(request, project))

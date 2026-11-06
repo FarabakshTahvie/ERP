@@ -135,7 +135,7 @@
         level.rows.splice(level.rows.indexOf(row), 1);
         notify();
       });
-      cellsEl.appendChild(rm);
+      if (!ctx.noRemove) cellsEl.appendChild(rm);
       if (spec.children) {
         var kids = el('div', 'flex flex-col gap-2 border-s border-base-300 ps-3');
         kids.appendChild(el('div', 'text-xs fb-muted font-semibold', spec.children.title));
@@ -208,7 +208,8 @@
     var rowsBox = el('div', 'flex flex-col gap-3 empty:hidden');
     var empty = el('p', 'fb-hint', cfg.emptyText || 'هنوز ردیفی اضافه نشده.');
     var add = addButton(cfg.addLabel || 'افزودن ردیف', sprite);
-    root.appendChild(rowsBox); root.appendChild(empty); root.appendChild(add);
+    root.appendChild(rowsBox);
+    if (!cfg.single) { root.appendChild(empty); root.appendChild(add); }
     var top;
     function notify() {
       if (loading) return;
@@ -219,10 +220,11 @@
       empty.classList.toggle('hidden', top.rows.length > 0);
       if (cfg.onChange) cfg.onChange(data);
     }
-    top = makeLevel(cfg, rowsBox, notify, { sprite: sprite, nested: false });
+    top = makeLevel(cfg, rowsBox, notify, { sprite: sprite, nested: false, noRemove: !!cfg.single });
     hidden.name = hidden.dataset.name || hidden.name;   // اگر JS اجرا نشود، فیلد ارسال نمی‌شود (سرور دست نمی‌زند)
     add.addEventListener('click', function () { top.addRow(); notify(); });
     (cfg.initial || []).forEach(function (r) { top.addRow(r); });
+    if (cfg.single && !top.rows.length) top.addRow();
     loading = false;
     notify();
     return { notify: notify };
