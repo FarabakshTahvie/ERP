@@ -14,6 +14,7 @@ urlpatterns = [
     path("accounting/suppliers/", views_accounting.suppliers_page, name="accounting_suppliers"),
     path("accounting/suppliers/table/", views_accounting.suppliers_table, name="accounting_suppliers_table"),
     path("accounting/suppliers/<int:party_id>/", views_accounting.supplier_detail, name="accounting_supplier"),
+    path("accounting/suppliers/<int:party_id>/items/table/", views_accounting.supplier_items_table, name="accounting_supplier_items_table"),
     path("accounting/periods/", views_accounting.periods_page, name="accounting_periods"),
     path("accounting/periods/toggle/", views_accounting.period_toggle, name="accounting_period_toggle"),
     path("accounting/reports/", views_accounting.financial_report_page, name="accounting_reports"),

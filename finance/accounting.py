@@ -38,18 +38,13 @@ LOT_VALUE = ExpressionWrapper(F("qty_remaining") * F("unit_cost"), output_field=
 SUPPLIER_VALUE = ExpressionWrapper(F("purchases__lines__qty") * F("purchases__lines__unit_cost"), output_field=MONEY)
 
 
-def supplier_items(party):
-    """چه چیزی از این تأمین‌کننده خریده‌ایم."""
-    from catalog.models import Item
-    labels = dict(Item.Unit.choices)
-    rows = list(PurchaseLine.objects.filter(purchase__supplier=party)
-                .values("item_id", "item__name", "item__unit")
-                .annotate(qty_sum=Sum("qty"), total=Sum(VALUE), last_at=Max("purchase__purchased_at"),
-                          n=Count("purchase", distinct=True))
-                .order_by("-total"))
-    for r in rows:
-        r["unit_label"] = labels.get(r["item__unit"], "")
-    return rows
+def supplier_items_qs(party):
+    """چه چیزی از این تأمین‌کننده خریده‌ایم: یک سطر برای هر کالا (queryset گروه‌بندی‌شده؛ برای generic_table)."""
+    return (PurchaseLine.objects.filter(purchase__supplier=party)
+            .values("item_id", "item__name", "item__unit")
+            .annotate(qty_sum=Sum("qty"), total=Sum(VALUE), last_at=Max("purchase__purchased_at"),
+                      n=Count("purchase", distinct=True))
+            .order_by("-total"))
 MT, DIR = StockMovement.MovementType, StockMovement.Direction
 
 PERIODS = (

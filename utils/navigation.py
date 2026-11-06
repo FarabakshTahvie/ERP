@@ -98,6 +98,7 @@ NON_PAGE = {
     "finance:accounting_projects_table", "finance:accounting_purchases_table", "finance:accounting_inventory_table",
     "finance:accounting_purchase_line_add",
     "finance:accounting_set_due", "finance:accounting_stock_table", "finance:accounting_suppliers_table",
+    "finance:accounting_supplier_items_table",
     "finance:payment_decide", "finance:payment_cheque_status", "finance:payment_cheque_info",
     "finance:payments_table", "finance:portal_invoice_pdf",
     "inventory:bulk_template", "inventory:item_quick_create", "inventory:item_toggle_active",

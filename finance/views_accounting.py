@@ -2,7 +2,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Max, OuterRef, Subquery, Sum, Value
+from django.db.models import Count, Exists, Max, OuterRef, Subquery, Sum, Value
+from catalog.models import Item
 from django.db.models.functions import Coalesce
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
@@ -241,7 +242,8 @@ def _purchases_ctx(request):
         columns=[
             {"label": "تأمین‌کننده", "sort_field": "supplier__name", "filter_key": "supplier",
              "filter_type": "select", "filter_field": "supplier_id",
-             "choices": [(p.id, p.name) for p in Party.objects.filter(purchases__isnull=False).distinct().order_by("name")]},
+             "choices": list(Party.objects.filter(Exists(Purchase.objects.filter(supplier=OuterRef("pk"))))
+                             .order_by("name").values_list("id", "name"))},
             {"label": "تاریخ", "sort_field": "purchased_at", "filter_key": "date",
              "filter_type": "date_range", "filter_field": "purchased_at"},
             {"label": "شماره فاکتور"},
@@ -608,6 +610,34 @@ def _suppliers_ctx(request):
     )
 
 
+def _supplier_items_ctx(request, party):
+    labels = dict(Item.Unit.choices)
+
+    def row_builder(r):
+        return {"url": None, "cells": [
+            {"type": "text", "value": r["item__name"]},
+            {"type": "muted", "value": f"{_q(r['qty_sum'])} {labels.get(r['item__unit'], '')}".strip()},
+            {"type": "muted", "value": to_fa_digits(r["n"])},
+            {"type": "text", "value": _m(r["total"])},
+            {"type": "muted", "value": jalali_str(r["last_at"], fmt="%Y/%m/%d")},
+        ]}
+
+    return build_table_context(
+        request, accounting.supplier_items_qs(party),
+        columns=[
+            {"label": "کالا", "sort_field": "item__name"},
+            {"label": "مقدار کل", "sort_field": "qty_sum"},
+            {"label": "تعداد خرید", "sort_field": "n"},
+            {"label": "جمع (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+            {"label": "آخرین خرید", "sort_field": "last_at"},
+        ],
+        row_builder=row_builder, container_id="table-acc-supplier-items", param_prefix="si_",
+        empty_icon="receipt", empty_text="هنوز خریدی از این تأمین‌کننده ثبت نشده.",
+        list_url=reverse("finance:accounting_supplier_items_table", args=[party.id]),
+        search_fields=["item__name"], search_placeholder="جستجو در نام کالا...",
+    )
+
+
 @login_required
 @user_passes_test(_can)
 def suppliers_page(request):
@@ -626,11 +656,20 @@ def suppliers_table(request):
 def supplier_detail(request, party_id):
     party = get_object_or_404(Party, pk=party_id)
     lines = PurchaseLine.objects.filter(purchase__supplier=party)
-    return render(request, "finance/accounting_supplier.html", {
-        "nav_active": "suppliers", "party": party, "items": accounting.supplier_items(party),
+    ctx = {
+        "nav_active": "suppliers", "party": party,
         "purchases_count": party.purchases.count(),
         "total": accounting._sum(lines, accounting.VALUE),
-    })
+    }
+    ctx.update(_supplier_items_ctx(request, party))
+    return render(request, "finance/accounting_supplier.html", ctx)
+
+
+@login_required
+@user_passes_test(_can)
+def supplier_items_table(request, party_id):
+    party = get_object_or_404(Party, pk=party_id)
+    return render_table(request, _supplier_items_ctx(request, party))
 
 
 @login_required
