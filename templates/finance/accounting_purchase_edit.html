@@ -6,7 +6,7 @@
     <div>
         <a href="{% url 'finance:accounting_purchase' purchase.id %}" class="link link-hover text-sm fb-muted">بازگشت به جزئیات خرید</a>
         <h1 class="fb-page-title mt-2">ویرایش خرید</h1>
-        <p class="fb-page-sub">تاریخ خرید (<span class="font-technical">{{ purchase.purchased_at|to_jalali:"%Y/%m/%d" }}</span>) و ردیف‌های ثبت‌شده در این صفحه تغییر نمی‌کنند؛ فقط می‌توانید اطلاعات سند را اصلاح و ردیف تازه اضافه کنید. فایل‌ها را از صفحه‌ی جزئیات خرید اضافه کنید. ردیف تازه با همین تاریخ وارد انبار می‌شود.</p>
+        <p class="fb-page-sub">تاریخ خرید و ردیف‌های ثبت‌شده در این صفحه تغییر نمی‌کنند؛ فقط اطلاعات سند را می‌توانید اصلاح کنید. ردیف تازه را با دکمه‌ی + در بخش «اقلام» و فایل را از بخش «فایل‌ها» در صفحه‌ی جزئیات خرید اضافه کنید.</p>
     </div>
 
     <form method="post" id="edit-purchase-form" data-fb-once class="space-y-5">
@@ -46,13 +46,13 @@
             </div>
         </section>
 
-        {% include "inventory/partials/purchase_lines_editor.html" %}
+
 
         <div class="fb-sticky-bar">
             <a href="{% url 'finance:accounting_purchase' purchase.id %}" class="btn btn-ghost">انصراف</a>
             <button type="submit" class="btn btn-primary">ذخیره</button>
         </div>
     </form>
-    {% if caps.inventory_manage %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
+
 </div>
 {% endblock %}

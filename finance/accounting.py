@@ -505,30 +505,20 @@ def record_accountant_payment(*, invoice, method, amount_raw, paid_date, referen
 
 @transaction.atomic
 def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_data=None,
-                    invoice_number=None, notes=None, lines_raw=None):
+                    invoice_number=None, notes=None):
     """
-    ویرایش سند خرید (فقط حسابدار یا مدیر). فقط اطلاعات سند و «افزودن ردیف تازه»؛ ردیف ثبت‌شده، تاریخ خرید
-    و موجودی قبلی دست نمی‌خورند (حرکت انبار هرگز ویرایش نمی‌شود). None یعنی «دست نزن».
-    ردیف‌های تازه با تاریخ همان سند وارد انبار می‌شوند. ماه بسته مانع است.
+    ویرایش اطلاعات سند خرید (فقط حسابدار یا مدیر): تأمین‌کننده، شماره‌ی فاکتور و یادداشت. None یعنی «دست نزن».
+    ردیف‌های ثبت‌شده، تاریخ خرید و موجودی قبلی دست نمی‌خورند؛ ردیف تازه فقط با add_purchase_line. ماه بسته مانع است.
     """
     from core.capabilities import can
     from core.models import Party
     from core.periods import assert_open
-    from inventory.models import Purchase, PurchaseLine, Warehouse
-    from inventory.services import (
-        _clean_purchase_lines, _resolve_supplier_party, receive_stock,
-    )
+    from inventory.models import Purchase
+    from inventory.services import _resolve_supplier_party
     if not can(actor, "purchases.edit"):
         raise ValueError("فقط حسابدار یا مدیر می‌تواند خرید را ویرایش کند.")
     purchase = Purchase.objects.select_for_update(of=("self",)).get(pk=purchase.pk)
     assert_open(purchase.purchased_at, "اصلاح خرید")
-
-    lines = _clean_purchase_lines(lines_raw)
-    warehouse = None
-    if lines:
-        warehouse = Warehouse.objects.filter(is_default=True).first()
-        if not warehouse:
-            raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
 
     changes = []
     if supplier_party_id or supplier_party_data:
@@ -553,24 +543,43 @@ def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_d
         if text != purchase.notes:
             purchase.notes = text
             changes.append("یادداشت")
-    if not changes and not lines:
+    if not changes:
         raise ValueError("تغییری ثبت نشد.")
-    if changes:
-        purchase.save()
-
-    added = ZERO
-    if lines:
-        from catalog.models import Item
-        items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
-        for line in lines:
-            item = items_by_id[line["item_id"]]
-            purchase_line = PurchaseLine.objects.create(
-                purchase=purchase, item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"])
-            receive_stock(item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"],
-                          received_at=purchase.purchased_at, purchase_line=purchase_line)
-            added += line["qty"] * line["unit_cost"]
-        changes.append(f"افزودن {len(lines)} ردیف")
+    purchase.save()
     log_event(kind=AccountingEvent.Kind.PURCHASE, purchase=purchase, actor=actor,
-              amount=added.quantize(Decimal("1")) if lines else None,
               text=f"ویرایش خرید از «{purchase.supplier.name}»: " + "، ".join(changes))
     return purchase
+
+
+@transaction.atomic
+def add_purchase_line(*, purchase, actor, item_id, qty_raw, unit_cost_raw):
+    """
+    یک ردیف تازه به سند خرید (فقط حسابدار یا مدیر). ردیف با تاریخ همان سند وارد انبار می‌شود؛ ماه بسته مانع است.
+    ردیف ثبت‌شده هرگز ویرایش یا حذف نمی‌شود (حرکت انبار تغییرناپذیر است). خروجی: ردیف ساخته‌شده.
+    """
+    from core.capabilities import can
+    from core.periods import assert_open
+    from inventory.models import Purchase, PurchaseLine, Warehouse
+    from inventory.services import get_active_item, parse_decimal_input, receive_stock
+    if not can(actor, "purchases.edit"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند ردیف خرید اضافه کند.")
+    purchase = Purchase.objects.select_for_update(of=("self",)).select_related("supplier").get(pk=purchase.pk)
+    assert_open(purchase.purchased_at, "اصلاح خرید")
+    item = get_active_item(item_id)
+    qty = parse_decimal_input(qty_raw, label="مقدار")
+    cost = parse_decimal_input(unit_cost_raw, label="بهای واحد")
+    if qty > Decimal("9999999") or cost > Decimal("1000000000000"):
+        raise ValueError("مقدار یا بهای واحد بیش از حد بزرگ است.")
+    qty, cost = qty.quantize(QTY_Q), cost.quantize(Decimal("0.01"))
+    if qty <= 0 or cost <= 0:
+        raise ValueError("مقدار و بهای واحد باید بزرگ‌تر از صفر باشند.")
+    warehouse = Warehouse.objects.filter(is_default=True).first()
+    if not warehouse:
+        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
+    line = PurchaseLine.objects.create(purchase=purchase, item=item, warehouse=warehouse, qty=qty, unit_cost=cost)
+    receive_stock(item=item, warehouse=warehouse, qty=qty, unit_cost=cost,
+                  received_at=purchase.purchased_at, purchase_line=line)
+    log_event(kind=AccountingEvent.Kind.PURCHASE, purchase=purchase, actor=actor,
+              amount=(qty * cost).quantize(Decimal("1")),
+              text=f"افزودن ردیف به خرید از «{purchase.supplier.name}»: {item.name}")
+    return line

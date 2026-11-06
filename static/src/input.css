@@ -17,6 +17,7 @@
 @source "../js/route_link.js";
 @source "../js/my_location.js";
 @source "../js/upload_progress.js";
+@source "../js/purchase_lines.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }

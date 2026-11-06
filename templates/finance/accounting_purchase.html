@@ -16,8 +16,8 @@
     {% include "finance/partials/accounting_nav.html" %}
 
     <div class="grid grid-cols-2 gap-3">
-        {% include "finance/partials/stat_card.html" with label="تعداد ردیف" value=lines|length tone="" hint="" %}
-        {% include "finance/partials/stat_card.html" with label="جمع خرید (تومان)" value=total tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="تعداد ردیف" value=lines|length tone="" hint="" hook="purchase-count" %}
+        {% include "finance/partials/stat_card.html" with label="جمع خرید (تومان)" value=total tone="" hint="" hook="purchase-total" %}
     </div>
 
     <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
@@ -32,11 +32,49 @@
     {% include "inventory/partials/purchase_files.html" %}
 
     <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">اقلام</h2>
+        <div class="flex items-center justify-between gap-2">
+            <h2 class="fb-section-title">اقلام</h2>
+            {% if caps.purchases_edit %}
+            <button type="button" class="btn btn-soft btn-sm btn-square" data-line-toggle aria-label="افزودن ردیف" aria-expanded="false" aria-controls="purchase-line-panel">{% icon "plus" "w-4 h-4" %}</button>
+            {% endif %}
+        </div>
+        {% if caps.purchases_edit %}
+        <form id="purchase-line-panel" class="hidden" data-purchase-line-form novalidate
+              data-url="{% url 'finance:accounting_purchase_line_add' purchase.id %}">
+            <div class="fb-inset flex flex-col gap-3">
+                <div class="fb-field">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="fb-label">کالا</span>
+                        {% if caps.inventory_manage %}
+                        <button type="button" id="open-quick-item" class="btn btn-ghost btn-xs">{% icon "package" "w-4 h-4" %} کالای جدید</button>
+                        {% endif %}
+                    </div>
+                    <div data-line-picker></div>
+                    <input type="hidden" name="item_id">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="fb-field">
+                        <label class="fb-label" for="line-qty">مقدار</label>
+                        <input type="text" id="line-qty" name="qty" data-decimal dir="ltr" inputmode="decimal" autocomplete="off" class="input input-sm w-full font-technical">
+                    </div>
+                    <div class="fb-field">
+                        <label class="fb-label" for="line-cost">بهای واحد (تومان)</label>
+                        <input type="text" id="line-cost" name="unit_cost" data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off" class="input input-sm w-full font-technical">
+                    </div>
+                </div>
+                <p class="fb-error hidden" data-line-error></p>
+                <p class="text-xs text-success hidden" data-line-ok></p>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">افزودن</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-line-close>بستن</button>
+                </div>
+            </div>
+        </form>
+        {% endif %}
         <div class="overflow-x-auto">
             <table class="table table-sm text-xs">
                 <thead><tr class="fb-muted"><th>کالا</th><th>مقدار</th><th>بهای واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
-                <tbody>
+                <tbody data-purchase-lines>
                 {% for l in lines %}
                     <tr>
                         <td class="font-semibold">{{ l.item.name }}</td>
@@ -45,10 +83,10 @@
                         <td class="font-technical font-semibold">{{ l.line_total|intcomma_fa }}</td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="4" class="fb-empty">ردیفی ثبت نشده است.</td></tr>
+                    <tr data-empty-row><td colspan="4" class="fb-empty">ردیفی ثبت نشده است.</td></tr>
                 {% endfor %}
                 </tbody>
-                <tfoot><tr class="font-bold"><td colspan="3">جمع کل</td><td class="font-technical">{{ total|intcomma_fa }}</td></tr></tfoot>
+                <tfoot><tr class="font-bold"><td colspan="3">جمع کل</td><td class="font-technical" data-purchase-total>{{ total|intcomma_fa }}</td></tr></tfoot>
             </table>
         </div>
     </section>
@@ -66,8 +104,13 @@
     </section>
 </div>
 {% include "utils/partials/image_zoom.html" %}
+{% if caps.inventory_manage and caps.purchases_edit %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static_v 'js/uploader.js' %}"></script>
-{% endblock %}
+{% if caps.purchases_edit %}
+<script src="{% static_v 'js/item_picker.js' %}"></script>
+{{ line_items|json_script:"purchase-line-items" }}
+<script src="{% static_v 'js/purchase_lines.js' %}"></script>
+{% endif %}

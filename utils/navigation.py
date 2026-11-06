@@ -96,6 +96,7 @@ NON_PAGE = {
     "finance:accounting_delete_cost",    "finance:accounting_period_toggle",
     "finance:bank_card_create", "finance:bank_card_update", "finance:bank_card_active", "finance:bank_card_delete",
     "finance:accounting_projects_table", "finance:accounting_purchases_table", "finance:accounting_inventory_table",
+    "finance:accounting_purchase_line_add",
     "finance:accounting_set_due", "finance:accounting_stock_table", "finance:accounting_suppliers_table",
     "finance:payment_decide", "finance:payment_cheque_status", "finance:payment_cheque_info",
     "finance:payments_table", "finance:portal_invoice_pdf",

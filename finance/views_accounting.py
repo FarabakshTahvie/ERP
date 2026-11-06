@@ -1,11 +1,10 @@
-import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Max, OuterRef, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -276,31 +275,46 @@ def purchases_table(request):
 def purchase_detail(request, purchase_id):
     purchase = get_object_or_404(Purchase.objects.select_related("supplier"), pk=purchase_id)
     lines = list(purchase.lines.select_related("item").annotate(line_total=accounting.VALUE).order_by("pk"))
-    return render(request, "finance/accounting_purchase.html", {
+    ctx = {
         "nav_active": "purchases", "purchase": purchase, "lines": lines,
         "total": sum((l.line_total for l in lines), accounting.ZERO),
         "events": purchase.accounting_events.select_related("actor")[:50],
         "files": list(purchase.files.select_related("uploaded_by")),
+    }
+    if can(request.user, "purchases.edit"):
+        from catalog.models import Item
+        from inventory.views import item_form_choices
+        ctx["line_items"] = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()}
+                             for i in Item.objects.filter(is_active=True).order_by("name")]
+        ctx.update(item_form_choices())
+    return render(request, "finance/accounting_purchase.html", ctx)
+
+
+@cap_required("purchases.edit")
+@require_POST
+def purchase_line_add(request, purchase_id):
+    purchase = get_object_or_404(Purchase, pk=purchase_id)
+    try:
+        line = accounting.add_purchase_line(
+            purchase=purchase, actor=request.user, item_id=request.POST.get("item_id"),
+            qty_raw=request.POST.get("qty"), unit_cost_raw=request.POST.get("unit_cost"))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    agg = purchase.lines.aggregate(n=Count("id"), t=Sum(accounting.VALUE))
+    return JsonResponse({
+        "ok": True,
+        "line": {"id": line.pk, "item": line.item.name, "unit": line.item.get_unit_display(),
+                 "qty": _q(line.qty), "unit_cost": _m(line.unit_cost), "total": _m(line.qty * line.unit_cost)},
+        "count": to_fa_digits(agg["n"]), "grand_total": _m(agg["t"] or 0),
     })
 
 
-def _purchase_lines_from_post(raw):
-    """None یا خالی = ردیف تازه‌ای نیست. JSON خراب خطا می‌دهد (نه رد بی‌صدای ردیف‌ها)."""
-    if raw is None or not raw.strip():
-        return []
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        raise ValueError("اطلاعات ردیف‌های خرید نامعتبر است؛ صفحه را دوباره باز کنید.")
-    if not isinstance(data, list):
-        raise ValueError("اطلاعات ردیف‌های خرید نامعتبر است؛ صفحه را دوباره باز کنید.")
-    return data
+
 
 
 @cap_required("purchases.edit")
 def purchase_edit(request, purchase_id):
-    from catalog.models import Item
-    from inventory.views import _extract_supplier_party_data, item_form_choices
+    from inventory.views import _extract_supplier_party_data
     purchase = get_object_or_404(Purchase.objects.select_related("supplier"), pk=purchase_id)
     if request.method == "POST":
         try:
@@ -310,18 +324,13 @@ def purchase_edit(request, purchase_id):
                 supplier_party_id=supplier_id,
                 supplier_party_data=None if supplier_id else _extract_supplier_party_data(request.POST),
                 invoice_number=request.POST.get("invoice_number", ""),
-                notes=request.POST.get("notes", ""),
-                lines_raw=_purchase_lines_from_post(request.POST.get("lines_json")))
+                notes=request.POST.get("notes", ""))
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("finance:accounting_purchase_edit", purchase.id)
         messages.success(request, "خرید ذخیره شد.")
         return redirect("finance:accounting_purchase", purchase.id)
-    return render(request, "finance/accounting_purchase_edit.html", {
-        "purchase": purchase,
-        "items": Item.objects.filter(is_active=True).order_by("name"),
-        **item_form_choices(),
-    })
+    return render(request, "finance/accounting_purchase_edit.html", {"purchase": purchase})
 
 
 # ---------- پرونده‌ی مالی پروژه ----------
