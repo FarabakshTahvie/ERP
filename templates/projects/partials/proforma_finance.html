@@ -1,7 +1,59 @@
 {% load custom_tags %}
 {% if finance %}
+{% if finance.cancelled and finance.project_cancelled %}
+<div role="alert" class="alert alert-soft alert-warning">
+    {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+    <span class="text-xs">پروژه هم لغو شده است. فاکتور فقط همراه پروژه برمی‌گردد؛ از «پروژه‌های معلق ← لغوشده» گزینه‌ی «بازگرداندن پروژه از لغو» را بزنید.</span>
+</div>
+{% endif %}
+
+{% if finance.can_restore %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-restore">
+    <h2 class="fb-section-title">برگرداندن فاکتور لغوشده</h2>
+    <p class="fb-hint">پرداخت‌های منتظر که هنگام لغو رد شدند برنمی‌گردند؛ مشتری باید دوباره ثبت کند. اگر ماهِ صدور فاکتور بسته باشد، اول باید ماه باز شود.</p>
+    <form method="post" data-fb-once class="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="restore_invoice">
+        <div class="fb-field sm:col-span-2">
+            <label class="fb-label" for="restore-reason">دلیل (اجباری)</label>
+            <input type="text" id="restore-reason" name="reason" required maxlength="300" class="input input-sm w-full">
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="restore-days">مهلت تایید (روز)</label>
+            <input type="text" id="restore-days" name="days" value="1" data-digits maxlength="2" dir="ltr" inputmode="numeric" autocomplete="off" class="input input-sm w-full font-technical">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">برگرداندن فاکتور</button>
+    </form>
+</section>
+{% endif %}
+
+{% if finance.held %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-held">
+    <h2 class="fb-section-title">مشتری پیش‌فاکتور را رد کرده است</h2>
+    {% if finance.held.comment %}<p class="fb-inset text-sm">دلیل مشتری: {{ finance.held.comment }}</p>
+    {% else %}<p class="fb-hint">دلیلی ثبت نشده است.</p>{% endif %}
+    <p class="fb-hint">ردیف‌ها را همین‌جا اصلاح کنید. بعد از اصلاح، مدیر مرحله را به چرخه برمی‌گرداند و مشتری دوباره درخواست تایید می‌گیرد.</p>
+    {% if finance.held.can_resume %}
+    <form method="post" data-fb-once class="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="resume_held">
+        <div class="fb-field sm:col-span-2">
+            <label class="fb-label" for="resume-reason">دلیل برگشت به چرخه (اجباری)</label>
+            <input type="text" id="resume-reason" name="reason" required maxlength="300" class="input input-sm w-full">
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="resume-days">مهلت تایید (روز)</label>
+            <input type="text" id="resume-days" name="days" value="1" data-digits maxlength="2" dir="ltr" inputmode="numeric" autocomplete="off" class="input input-sm w-full font-technical">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">برگشت به چرخه و ارسال برای مشتری</button>
+    </form>
+    {% else %}
+    <p class="fb-hint">برگرداندن به چرخه فقط با مدیر است.</p>
+    {% endif %}
+</section>
+{% endif %}
+
 <section class="fb-card fb-pad flex flex-col gap-3" id="invoice-payments">
-    <div class="flex items-center justify-between gap-2 flex-wrap">
         <h2 class="fb-section-title">پرداخت‌ها و وضعیت فاکتور</h2>
         <span class="fb-badge {% if finance.cancelled %}fb-badge-error{% elif invoice.status == 'paid' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{{ invoice.get_status_display }}</span>
     </div>

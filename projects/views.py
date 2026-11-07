@@ -868,6 +868,12 @@ def _stale_items(project):
     })
 
 
+def _held_stage(project):
+    """مرحله‌ی تاییدِ مشتری که با رد او معلق شده (تعلیق دستی مدیر از مسیر داشبورد می‌رود)."""
+    return project.stages.filter(status=ProjectStage.Status.SUSPENDED,
+                                 step_template__requires_payment_selection=True).first()
+
+
 def _finance_context(request, project, invoice):
     """بخش‌های مالی صفحه‌ی فاکتور: پرداخت، سررسید، لغو، ردیف دستی. بدون فاکتور هیچ‌کدام نیست."""
     from finance.models import Invoice
@@ -875,7 +881,14 @@ def _finance_context(request, project, invoice):
     if invoice is None:
         return {"finance": None}
     live = invoice.status != Invoice.Status.CANCELLED
+    held = _held_stage(project) if live and project.status == Project.Status.IN_PROGRESS else None
+    last = held.approvals.order_by("-sent_at").first() if held else None
     return {"finance": {
+        "can_restore": (not live) and project.status != Project.Status.CANCELLED
+                       and can(request.user, "projects.restore"),
+        "project_cancelled": project.status == Project.Status.CANCELLED,
+        "held": {"stage": held, "can_resume": can(request.user, "stages.assign"),
+                 "comment": last.comment if last and last.decision == "rejected" else ""} if held else None,
         "payments": list(invoice.payments.order_by("-created_at")),
         "can_pay": live and invoice.remaining_amount > 0,
         "can_due": invoice.status not in (Invoice.Status.CANCELLED, Invoice.Status.PAID),
@@ -967,6 +980,28 @@ def proforma_editor(request, project_id):
                     raise ValueError("پیش‌فاکتور هنوز صادر نشده است.")
                 resend_invoice_sms(invoice=invoice, actor=request.user)
                 messages.success(request, "درخواست ارسال ثبت شد؛ نتیجه را در بخش «پیامک پیش‌فاکتور» ببینید.")
+                return redirect("projects:proforma_editor", project.id)
+            elif action == "restore_invoice":
+                invoice = getattr(project, "invoice", None)
+                if invoice is None:
+                    raise ValueError("پیش‌فاکتور هنوز صادر نشده است.")
+                from finance.services import restore_invoice as restore_invoice_service
+                restore_invoice_service(invoice=invoice, reason=request.POST.get("reason"), actor=request.user,
+                                        deadline_days=request.POST.get("days"))
+                messages.success(request, "فاکتور برگشت. پرداخت‌های ردشده‌ی قبلی برنمی‌گردند؛ مشتری باید پرداخت تازه ثبت کند.")
+                return redirect("projects:proforma_editor", project.id)
+            elif action == "resume_held":
+                from .services import resume_suspended_stage
+                with transaction.atomic():
+                    stage = _held_stage(project)
+                    if stage is None:
+                        raise ValueError("مرحله‌ی معلقی از رد مشتری پیدا نشد.")
+                    resume_suspended_stage(stage, actor=request.user, comment=request.POST.get("reason"))
+                    invoice = getattr(project, "invoice", None)
+                    if invoice is not None and deadline_open(invoice):
+                        extend_deadline(invoice=invoice, days_raw=request.POST.get("days"),
+                                        reason=request.POST.get("reason"), actor=request.user)
+                messages.success(request, "مرحله به چرخه برگشت و دوباره برای تایید مشتری فرستاده شد.")
                 return redirect("projects:proforma_editor", project.id)
         except ValueError as e:
             messages.error(request, str(e))
