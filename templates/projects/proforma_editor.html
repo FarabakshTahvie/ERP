@@ -11,6 +11,7 @@
     {% if preview %}{% include "projects/partials/proforma_preview.html" %}{% endif %}
 
     {% include "projects/partials/proforma_body.html" %}
+    {% include "projects/partials/proforma_finance.html" %}
 </div>
 
 <dialog id="pf-confirm" class="modal">
@@ -37,4 +38,26 @@
 <script src="{% static_v 'js/item_picker.js' %}"></script>
 <script src="{% static_v 'js/line_editor.js' %}"></script>
 <script src="{% static_v 'js/proforma_page.js' %}"></script>
+<script>
+(function () {
+    var form = document.getElementById('acc-payment-form');
+    if (!form) return;
+    var method = form.querySelector('#acc-method');
+    function el(id) { return form.querySelector('#' + id); }
+    function sync() {
+        var m = method.value, cheque = m === 'cheque', cash = m === 'cash';
+        el('acc-ref-wrap').classList.toggle('hidden', cash);
+        el('acc-file-wrap').classList.toggle('hidden', cash);
+        el('acc-cheque-box').classList.toggle('hidden', !cheque);
+        el('acc-file').required = m === 'receipt' || cheque;
+        el('acc-note').required = cash;
+        el('acc-cheque-number').required = cheque;
+        el('acc-cheque-due').required = cheque;
+        el('acc-file-label').textContent = cheque ? 'تصویر چک (اجباری)' : (m === 'receipt' ? 'تصویر رسید (اجباری)' : 'تصویر رسید');
+        el('acc-note-label').textContent = cash ? 'توضیح (اجباری) — مثلاً چه کسی پول را داد' : 'توضیح';
+    }
+    method.addEventListener('change', sync);
+    sync();
+})();
+</script>
 {% endblock %}
