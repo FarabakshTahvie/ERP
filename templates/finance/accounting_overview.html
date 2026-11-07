@@ -26,6 +26,7 @@
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
             {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
+            {% include "finance/partials/stat_card.html" with label="فروش کالا (بدون پروژه)" value=stats.goods_sales tone="" hint="فروش‌های ثبت‌شده از «ثبت مصرف، تعدیل یا فروش»؛ جدا از فاکتورها و «دریافت‌شده»." %}
             <div class="fb-card fb-pad min-w-0">
                 <div class="fb-stat-value font-technical text-warning">{{ stats.receivable|intcomma_fa }}</div>
                 <div class="fb-stat-label">مانده‌ی بدهی مشتریان</div>

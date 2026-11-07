@@ -2,7 +2,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Exists, Max, OuterRef, Subquery, Sum, Value
+from django.db.models import BooleanField, Case, CharField, Count, ExpressionWrapper, Exists, F, Max, OuterRef, Q, Subquery, Sum, Value, When
 from catalog.models import Item
 from django.db.models.functions import Coalesce
 from django.http import Http404, JsonResponse
@@ -14,7 +14,7 @@ from core.models import Party
 from projects.services import project_prices_editable
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from inventory.models import Purchase, PurchaseLine, StockMovement
+from inventory.models import Purchase, PurchaseLine, Sale, SaleLine, StockMovement
 from projects import ops
 from projects.usage import project_usage_by_stage
 from projects.models import Project, ProjectCost, StageKind
@@ -22,6 +22,9 @@ from utils.jalali_forms import JalaliDateField
 from utils.generic_table import build_table_context, render_table
 from utils.jalali import jalali_str, to_fa_digits
 from utils.utils import separate_digits
+from urllib.parse import quote
+from utils.tabs import build_tabs_context
+from utils.templatetags.custom_tags import person_name
 
 from . import accounting
 from .services import cancel_invoice, cheque_due_warning, set_invoice_due_date
@@ -271,6 +274,133 @@ def purchases_page(request):
 @user_passes_test(_can)
 def purchases_table(request):
     return render_table(request, _purchases_ctx(request))
+
+
+# ---------- فروش کالا و مشتریان فروش ----------
+LEAD_VALUE = ExpressionWrapper(F("lines__qty") * F("lines__unit_price"), output_field=accounting.MONEY)
+
+
+def _sales_base_qs():
+    per_sale = SaleLine.objects.filter(sale=OuterRef("pk")).order_by().values("sale")
+    return (Sale.objects
+            .annotate(
+                total=Coalesce(Subquery(per_sale.annotate(t=Sum(accounting.SALE_VALUE)).values("t"),
+                                        output_field=accounting.MONEY),
+                               Value(accounting.ZERO), output_field=accounting.MONEY),
+                with_customer=Case(When(customer_name="", customer_phone="", then=Value(False)),
+                                   default=Value(True), output_field=BooleanField()))
+            .prefetch_related("lines__item").order_by("-sold_at", "-id"))
+
+
+def _sale_items_text(sale, limit=3):
+    lines = list(sale.lines.all())
+    parts = [f"{l.item.name} ({_q(l.qty)} {l.item.get_unit_display()})" for l in lines[:limit]]
+    rest = len(lines) - limit
+    return "، ".join(parts) + (f" و {to_fa_digits(rest)} قلم دیگر" if rest > 0 else "")
+
+
+SALE_EXPORT_EXTRA = [
+    {"label": "اقلام", "value": lambda s: "؛ ".join(f"{l.item.name} × {l.qty.normalize():f}" for l in s.lines.all())},
+    {"label": "بهای انبار (تومان)", "value": lambda s: sum((l.cost_total for l in s.lines.all()), accounting.ZERO)},
+    {"label": "ثبت‌کننده", "value": lambda s: person_name(s.created_by)},
+]
+
+
+def _sales_ctx(request):
+    def row_builder(s):
+        return {"url": None, "cells": [
+            {"type": "muted", "value": jalali_str(s.sold_at, fmt="%Y/%m/%d %H:%M")},
+            {"type": "text", "value": s.customer_name or "—"},
+            {"type": "muted", "value": to_fa_digits(s.customer_phone) or "—"},
+            {"type": "text", "value": _sale_items_text(s)},
+            {"type": "text", "value": _m(s.total)},
+        ]}
+
+    return build_table_context(
+        request, _sales_base_qs(),
+        columns=[
+            {"label": "زمان", "sort_field": "sold_at", "filter_key": "date", "filter_type": "date_range",
+             "filter_field": "sold_at"},
+            {"label": "مشتری", "sort_field": "customer_name", "filter_key": "customer", "filter_type": "boolean",
+             "filter_field": "with_customer", "true_label": "مشتری ثبت‌شده", "false_label": "بدون نام و شماره"},
+            {"label": "شماره"},
+            {"label": "اقلام"},
+            {"label": "جمع فروش (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+        ],
+        row_builder=row_builder, container_id="table-acc-sales", param_prefix="sl_",
+        empty_icon="receipt", empty_text="هنوز فروشی ثبت نشده.",
+        list_url=reverse("finance:accounting_sales_table"),
+        search_fields=["customer_name", "customer_phone", "lines__item__name"],
+        search_placeholder="جستجو در نام مشتری، شماره یا نام کالا...",
+        export_extra=SALE_EXPORT_EXTRA,
+    )
+
+
+def _leads_qs():
+    """یک سطر برای هر مشتری: با شماره یکی می‌شود؛ بدون شماره با نام."""
+    key = Case(When(~Q(customer_phone=""), then=F("customer_phone")), default=F("customer_name"),
+               output_field=CharField())
+    return (Sale.objects.exclude(customer_name="", customer_phone="")
+            .annotate(lead_key=key).values("lead_key")
+            .annotate(phone=Max("customer_phone"), name=Max("customer_name"),
+                      n=Count("id", distinct=True), last_at=Max("sold_at"),
+                      total=Coalesce(Sum(LEAD_VALUE), Value(accounting.ZERO), output_field=accounting.MONEY))
+            .order_by("-last_at"))
+
+
+def _leads_ctx(request):
+    def row_builder(r):
+        who = r["phone"] or r["name"]
+        return {"url": reverse("finance:accounting_sales") + f"?tab=sales&sl_q={quote(who)}", "cells": [
+            {"type": "text", "value": r["name"] or "—"},
+            {"type": "muted", "value": to_fa_digits(r["phone"]) or "—"},
+            {"type": "muted", "value": to_fa_digits(r["n"])},
+            {"type": "text", "value": _m(r["total"])},
+            {"type": "muted", "value": jalali_str(r["last_at"], fmt="%Y/%m/%d")},
+        ]}
+
+    return build_table_context(
+        request, _leads_qs(),
+        columns=[
+            {"label": "نام", "sort_field": "name"},
+            {"label": "شماره", "sort_field": "phone"},
+            {"label": "تعداد خرید", "sort_field": "n"},
+            {"label": "جمع خرید (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+            {"label": "آخرین خرید", "sort_field": "last_at"},
+        ],
+        row_builder=row_builder, container_id="table-acc-leads", param_prefix="ld_",
+        empty_icon="users", empty_text="هنوز مشتری‌ای با نام یا شماره ثبت نشده.",
+        list_url=reverse("finance:accounting_leads_table"),
+        search_fields=["customer_name", "customer_phone"],
+        search_placeholder="جستجو در نام یا شماره...",
+    )
+
+
+@login_required
+@user_passes_test(_can)
+def sales_page(request):
+    sales_ctx, leads_ctx = _sales_ctx(request), _leads_ctx(request)
+    tabs = build_tabs_context(request, tabs=[
+        {"key": "sales", "label": "فروش‌ها", "url": reverse("finance:accounting_sales_table"),
+         "container_id": sales_ctx["container_id"], "count_builder": lambda: Sale.objects.count(),
+         "eager_render": lambda: render_table(request, sales_ctx).content.decode("utf-8")},
+        {"key": "leads", "label": "مشتریان", "url": reverse("finance:accounting_leads_table"),
+         "container_id": leads_ctx["container_id"], "count_builder": lambda: _leads_qs().count(),
+         "eager_render": lambda: render_table(request, leads_ctx).content.decode("utf-8")},
+    ])
+    return render(request, "finance/accounting_sales.html", {"nav_active": "sales", "tabs": tabs})
+
+
+@login_required
+@user_passes_test(_can)
+def sales_table(request):
+    return render_table(request, _sales_ctx(request))
+
+
+@login_required
+@user_passes_test(_can)
+def leads_table(request):
+    return render_table(request, _leads_ctx(request))
 
 
 @login_required
