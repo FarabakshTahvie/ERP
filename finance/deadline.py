@@ -94,3 +94,23 @@ def deadline_info(invoice, today=None):
         "phone": office_phone_text(),
         "phone_tel": settings.COMPANY_CONTACT["office_phone"]["tel"],
     }
+
+
+def suspended_invoices_qs(today=None):
+    """پیش‌فاکتورهای معلق (مهلت تایید گذشته) یک‌جا روی دیتابیس. همان تعریف deadline_state == "expired" است؛
+    شرط‌ها آینه‌ی project_prices_editable‌اند و تست هویت این دو را با هم می‌سنجد."""
+    from django.db.models import Exists, OuterRef
+    from projects.models import ProjectStage
+    from projects.services import EDITABLE_PROJECT_STATUSES
+    from .models import Invoice, Payment
+    today = today or timezone.localdate()
+    confirmed = Exists(ProjectStage.objects.filter(
+        project=OuterRef("project"), step_template__requires_payment_selection=True,
+        status=ProjectStage.Status.DONE))
+    has_payment = Exists(Payment.objects.filter(invoice=OuterRef("pk")).exclude(status=Payment.Status.REJECTED))
+    return (Invoice.objects
+            .filter(document_type=Invoice.DocumentType.PROFORMA, valid_until__lt=today,
+                    project__status__in=EDITABLE_PROJECT_STATUSES)
+            .exclude(status=Invoice.Status.CANCELLED)
+            .annotate(is_confirmed=confirmed, has_payment=has_payment)
+            .filter(is_confirmed=False, has_payment=False))

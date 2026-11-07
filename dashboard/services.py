@@ -11,6 +11,7 @@ from django.utils import timezone
 from core.models import PeriodLock
 from core.periods import current_ym, month_label
 from finance import accounting
+from finance.deadline import suspended_invoices_qs
 from finance.models import Invoice, Payment
 from inventory.services import low_stock_items_count
 from notifications.models import Notification
@@ -160,6 +161,14 @@ def attention_items(stats, now=None):
         rows=[{"title": f"{i.number} — {i.billed_party.name}", "sub": i.project.name,
                "amount": i.remaining, "url": reverse("finance:accounting_project", args=[i.project_id])}
               for i in overdue[:LIST_LIMIT]])
+
+    suspended = list(suspended_invoices_qs(today).select_related("billed_party", "project")
+                     .order_by("valid_until", "pk"))
+    add("suspended_proformas", "پیش‌فاکتور معلق (مهلت تایید گذشته)", len(suspended), level="warning",
+        url=reverse("finance:accounting_overview") + "#suspended-proformas",
+        hint="مشتری نمی‌تواند تایید کند؛ قیمت‌ها را اصلاح و مهلت را تمدید کنید.",
+        rows=[{"title": f"{i.number} — {i.billed_party.name}", "sub": i.project.name,
+               "url": reverse("projects:proforma_editor", args=[i.project_id])} for i in suspended[:LIST_LIMIT]])
 
     label = previous_month_open(today)
     if label:

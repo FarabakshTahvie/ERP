@@ -58,6 +58,7 @@ def overview(request):
         "attention": accounting.attention_items(),
         "review_queue": accounting.final_review_queue(),
         "proforma_queue": accounting.proforma_queue(),
+        "suspended_queue": accounting.suspended_proforma_queue(),
     })
 
 

@@ -12,6 +12,7 @@ from .request_meta import parse_user_agent
 from projects.models import Project, ProjectStage
 from projects.services import stage_approval_action
 from finance.models import Invoice
+from finance.deadline import deadline_info
 from notifications.models import Notification
 
 
@@ -69,12 +70,14 @@ def home_view(request):
         p.current_client_stage = current_stage
 
         # اقدام معطل تایید مشتری (بنر بالای صفحه)
-        p.action_url = p.action_label = p.action_stage_title = None
+        p.action_url = p.action_label = p.action_stage_title = p.deadline = None
         waiting = next((s for s in c_stages if s.status == ProjectStage.Status.WAITING_APPROVAL), None)
         if waiting:
             p.action_url, p.action_label = stage_approval_action(waiting, invoices_map.get(p.id))
             if p.action_url:
                 p.action_stage_title = waiting.client_label or waiting.title
+                if invoices_map.get(p.id):
+                    p.deadline = deadline_info(invoices_map[p.id])
 
     context = {
         'projects': projects_list,
