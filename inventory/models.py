@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -97,6 +98,7 @@ class StockMovement(TimeStampedModel):
         ADJUST = "adjust", "اصلاح دستی"
         TRANSFER = "transfer", "انتقال بین انبارها"
         OPENING = "opening", "موجودی اولیه"
+        SALE = "sale", "فروش"
 
     class Direction(models.TextChoices):
         IN = "in", "افزایش موجودی"
@@ -120,3 +122,41 @@ class StockMovement(TimeStampedModel):
         verbose_name = "حرکت انبار"
         verbose_name_plural = "حرکت‌های انبار"
         indexes = [models.Index(fields=["item", "-created_at"])]
+
+
+class Sale(TimeStampedModel):
+    """فروش کالا از انبار بیرون از پروژه. نام و شماره‌ی مشتری در صورت نیاز نوشته می‌شود؛
+    همین جدول منبع فهرست مشتریان فروش (lead) است."""
+    sold_at = models.DateTimeField(verbose_name="زمان فروش")
+    customer_name = models.CharField(max_length=150, blank=True, verbose_name="نام مشتری")
+    customer_phone = models.CharField(max_length=11, blank=True, db_index=True, verbose_name="شماره‌ی مشتری")
+    notes = models.CharField(max_length=255, blank=True, verbose_name="توضیح")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="ثبت‌کننده")
+
+    class Meta:
+        verbose_name = "فروش کالا"
+        verbose_name_plural = "فروش‌های کالا"
+        ordering = ["-sold_at", "-id"]
+
+    @property
+    def has_customer(self):
+        return bool(self.customer_name or self.customer_phone)
+
+
+class SaleLine(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="lines", verbose_name="فروش")
+    item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="sale_lines", verbose_name="کالا")
+    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
+    unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="قیمت فروش یک واحد (تومان)")
+    cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0,
+                                     verbose_name="بهای انبار همین قلم در لحظه‌ی فروش (تومان)")
+
+    class Meta:
+        verbose_name = "قلم فروش"
+        verbose_name_plural = "اقلام فروش"
+        ordering = ["pk"]
+
+    @property
+    def line_total(self):
+        return (self.qty * self.unit_price).quantize(Decimal("1"))
