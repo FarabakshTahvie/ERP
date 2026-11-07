@@ -35,6 +35,19 @@ def parse_decimal_input(raw, *, label="مقدار"):
     return value
 
 
+def assert_stockable(item):
+    """کالای ساختنی (مثل کانال) ساخته می‌شود و موجودی ندارد؛ مصرفش فقط با StageUsage ثبت می‌شود."""
+    if item.item_type == Item.ItemType.MANUFACTURED:
+        raise ValueError(
+            f"«{item.name}» کالای ساختنی است و موجودی ندارد؛ خرید، ورود و تعدیل برای آن ثبت نمی‌شود. "
+            "مصرفش را تکنسین در مرحله می‌نویسد.")
+
+
+def stockable_items():
+    """کالاهای فعالی که می‌شود خرید یا تعدیلشان کرد (برای فهرست‌های انتخاب)."""
+    return Item.objects.filter(is_active=True).exclude(item_type=Item.ItemType.MANUFACTURED)
+
+
 @transaction.atomic
 def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line=None,
                    movement_type=StockMovement.MovementType.IN, notes="", created_by=None, related_object=None,
@@ -44,6 +57,7 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
     movement_type پیش‌فرض IN (خرید) است؛ برای تعدیل افزایشی دستی (W3)، ADJUST پاس داده می‌شود.
     notes/created_by/related_object اختیاری‌اند تا خرید عادی (W2) دست‌نخورده بماند.
     """
+    assert_stockable(item)
     qty = Decimal(qty)
     unit_cost = Decimal(unit_cost)
 
@@ -235,6 +249,10 @@ def _clean_purchase_lines(raw_lines):
     ids = {c["item_id"] for c in cleaned}
     if ids and Item.objects.filter(pk__in=ids, is_active=True).count() != len(ids):
         raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد یا غیرفعال است.")
+    blocked = list(Item.objects.filter(pk__in=ids, item_type=Item.ItemType.MANUFACTURED)
+                   .values_list("name", flat=True))
+    if blocked:
+        raise ValueError("کالای ساختنی خرید نمی‌شود: " + "، ".join(blocked))
     return cleaned
 
 
@@ -333,6 +351,7 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         raise ValueError("ثبت دلیل الزامی است.")
     if kind not in CHANGE_KIND_CHOICES:
         raise ValueError("نوع تغییر معتبر انتخاب کنید.")
+    assert_stockable(item)
 
     target_date = movement_date or timezone.now()
     assert_open(target_date, "تراکنش انبار")

@@ -7,8 +7,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from catalog.models import Item
-from inventory.services import record_manual_stock_change
+from inventory.services import record_manual_stock_change, stockable_items
 from . import ops, shipping_slip, usage
 from .models import Project, ProjectStage, StageKind, StageUsage
 from .stage_ops import complete_stage
@@ -116,7 +115,7 @@ def final_review(request, project_id):
         "breakdown": ops.proforma_breakdown(project),
         "events": project.accounting_events.select_related("actor")[:50],
         "moves": accounting.project_movements(project),
-        "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in Item.objects.filter(is_active=True)],
+        "stock_items": [{"id": i.id, "name": i.name, "unit": i.get_unit_display()} for i in stockable_items()],
     })
 
 

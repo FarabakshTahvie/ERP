@@ -285,10 +285,10 @@ def purchase_detail(request, purchase_id):
         "files": list(purchase.files.select_related("uploaded_by")),
     }
     if can(request.user, "purchases.edit"):
-        from catalog.models import Item
+        from inventory.services import stockable_items
         from inventory.views import item_form_choices
         ctx["line_items"] = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()}
-                             for i in Item.objects.filter(is_active=True).order_by("name")]
+                             for i in stockable_items().order_by("name")]
         ctx.update(item_form_choices())
     return render(request, "finance/accounting_purchase.html", ctx)
 
