@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Item
-from inventory.models import PurchaseLine, StockLot, StockMovement
+from inventory.models import PurchaseLine, SaleLine, StockLot, StockMovement
 from inventory.services import (
     low_stock_items_count, consume_stock, record_manual_stock_change,
     CHANGE_KIND_RETURN, CHANGE_KIND_ADJUST_INCREASE, _FA_TO_EN,
@@ -36,6 +36,7 @@ QTY_Q = Decimal("0.0001")
 MONEY = DecimalField(max_digits=24, decimal_places=2)
 VALUE = ExpressionWrapper(F("qty") * F("unit_cost"), output_field=MONEY)
 LOT_VALUE = ExpressionWrapper(F("qty_remaining") * F("unit_cost"), output_field=MONEY)
+SALE_VALUE = ExpressionWrapper(F("qty") * F("unit_price"), output_field=MONEY)
 SUPPLIER_VALUE = ExpressionWrapper(F("purchases__lines__qty") * F("purchases__lines__unit_cost"), output_field=MONEY)
 
 
@@ -122,6 +123,7 @@ def accounting_overview(period_key="all", today=None):
         "receivable": _remaining(debts.exclude(project_id__in=held)),
         "held_receivable": _remaining(debts.filter(project_id__in=held)),
         "purchases": _sum(PurchaseLine.objects.filter(_range_q("purchase__purchased_at", start, end)), VALUE),
+        "goods_sales": _sum(SaleLine.objects.filter(_range_q("sale__sold_at", start, end)), SALE_VALUE),
         "opening": _sum(moves.filter(movement_type=MT.OPENING), VALUE),
         "consumption": _sum(moves_linked_held.filter(movement_type=MT.OUT), VALUE),
         "consumption_unlinked": _sum(moves.filter(movement_type=MT.OUT, related_content_type__isnull=True), VALUE),
