@@ -162,13 +162,14 @@
                     <div data-voice-recorder data-sprite="{% static 'icons/sprite.svg' %}"></div>
                     <p class="fb-error hidden" data-complete-error></p>
                     <div class="flex flex-wrap gap-2">
-                        <button class="btn btn-primary btn-sm flex-1 min-w-0">تکمیل شد</button>
+                        <button class="btn btn-primary btn-sm flex-1 min-w-32 whitespace-nowrap">تکمیل شد</button>
                         {% if s.transfer_candidates %}
-                        <button type="button" class="btn btn-soft btn-sm flex-1 min-w-0" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
-                        {% elif s.transfer_locked %}
-                        <span class="fb-hint">بعد از ثبت اولین تیک یا مصرف، واگذاری ممکن نیست.</span>
+                        <button type="button" class="btn btn-soft btn-sm flex-1 min-w-32 whitespace-nowrap" onclick="document.getElementById('fb_transfer_modal_{{ s.id }}').showModal()">واگذاری به همکار</button>
                         {% endif %}
                     </div>
+                    {% if s.transfer_locked %}
+                    <p class="fb-hint">بعد از ثبت اولین تیک یا مصرف، واگذاری ممکن نیست.</p>
+                    {% endif %}
                 </form>
                 {% endif %}
             </div>

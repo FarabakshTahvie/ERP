@@ -37,11 +37,10 @@ def slip_data(stage):
     party = resolve_billing_party(project)
     location = project.location
     address = (location.address_text or "").strip() if location else ""
-    coords = f"{location.latitude}, {location.longitude}" if location and location.has_exact_coordinates else ""
     rows = [{"name": u.item.name, "qty": u.qty, "unit": u.item.get_unit_display()}
             for u in StageUsage.objects.filter(stage=stage).select_related("item").order_by("item__name", "pk")]
     return {"party_name": party.name if party else BLANK, "project_code": project.code,
-            "address": address or BLANK, "location": coords or BLANK, "rows": rows}
+            "address": address or BLANK, "rows": rows}
 
 
 def stage_context(user, stage):

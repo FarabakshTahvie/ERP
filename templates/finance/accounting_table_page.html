@@ -13,8 +13,10 @@
             {% if caps.purchases_create %}
             <a href="{% nav_url 'inventory:purchase_new' %}" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} ثبت خرید</a>
             {% endif %}
-            {% if nav_active == 'inventory' and caps.inventory_manage %}
+            {% if nav_active == 'inventory' and caps.items_create %}
             <a href="{% url 'inventory:item_new' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} کالای جدید</a>
+            {% endif %}
+            {% if nav_active == 'inventory' and caps.inventory_manage %}
             <a href="{% url 'inventory:stock_movement_new' %}" class="btn btn-soft btn-sm">{% icon "arrow-left-right" "w-4 h-4" %} ثبت مصرف یا تعدیل</a>
             {% endif %}
         </div>
@@ -22,7 +24,7 @@
     </div>
     {% include "finance/partials/accounting_nav.html" %}
     {% if nav_active == 'inventory' and not caps.inventory_manage %}
-    <p class="fb-hint">این صفحه فقط برای دیدن است؛ ثبت و ویرایش موجودی را انباردار یا حسابدار انجام می‌دهد.</p>
+    <p class="fb-hint">ثبت مصرف، تعدیل و ویرایش موجودی را انباردار یا حسابدار انجام می‌دهد.</p>
     {% endif %}
     {% include "utils/partials/generic_table.html" %}
 </div>

@@ -19,6 +19,7 @@ EXPECTED = {
     "tables.export": MGR_ACC,
     "inventory.manage": {"warehouse", "accountant"},
     "purchases.create": MGR | {"warehouse", "accountant"},
+    "items.create": MGR | {"warehouse", "accountant"},
     "projects.create": MGR | {"reception", "accountant"},
     "broadcast.use": MGR | {"accountant", "reception"},
     "messenger.use": MGR | {"accountant", "reception", "warehouse", "installer"},

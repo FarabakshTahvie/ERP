@@ -22,7 +22,7 @@ from core.capabilities import can, cap_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from .services import (
-    user_can_manage_inventory, user_can_create_purchases, create_purchase_from_form, record_manual_stock_change,
+    user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
     create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file
 )
 
@@ -306,7 +306,7 @@ def _render_item_form(request, *, item, values, specs, locked, duplicate_warning
 
 
 @login_required
-@user_passes_test(user_can_manage_inventory)
+@user_passes_test(user_can_create_items)
 def item_new(request):
     values, specs, duplicate_warning = {}, [], None
     if request.method == "POST":
@@ -379,7 +379,7 @@ def item_toggle_active(request, item_id):
 
 
 @login_required
-@user_passes_test(user_can_manage_inventory)
+@user_passes_test(user_can_create_items)
 @require_POST
 def item_quick_create(request):
     """ساخت سریع کالا از داخل فرم خرید (JSON)."""

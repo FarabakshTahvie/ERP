@@ -64,7 +64,7 @@
             <button type="submit" id="submit-purchase-btn" class="btn btn-primary">ثبت خرید</button>
         </div>
     </form>
-    {% if caps.inventory_manage %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
+    {% if caps.items_create %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
 </div>
 {% endblock %}
 
