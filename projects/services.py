@@ -620,7 +620,8 @@ def restore_cancelled_project(project, actor, comment, *, restore_invoice=False)
         from finance.models import Invoice
         if invoice.status == Invoice.Status.CANCELLED:
             from finance.services import restore_invoice as restore_invoice_service
-            restore_invoice_service(invoice=invoice, reason=f"برگرداندن پروژه: {comment}", actor=actor)
+            restore_invoice_service(invoice=invoice, reason=f"برگرداندن پروژه: {comment}", actor=actor,
+                                    via_project=True)
     project.status = Project.Status.IN_PROGRESS
     project.save(update_fields=["status", "updated_at"])
     for st in ProjectStage.objects.filter(project=project, status=ProjectStage.Status.WAITING_APPROVAL):

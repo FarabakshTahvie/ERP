@@ -509,26 +509,38 @@ def set_invoice_due_date(*, invoice, due_date, actor):
 
 
 @transaction.atomic
-def restore_invoice(*, invoice, reason, actor):
-    """برگرداندن فاکتور لغوشده (فقط مدیر). پرداخت‌های ردشده‌ی هنگام لغو برنمی‌گردند."""
+def restore_invoice(*, invoice, reason, actor, deadline_days=None, via_project=False):
+    """برگرداندن فاکتور لغوشده (فقط مدیر). پرداخت‌های ردشده‌ی هنگام لغو برنمی‌گردند.
+    deadline_days: اگر داده شود و پیش‌فاکتور هنوز باز است، مهلت تایید از امروز دوباره حساب می‌شود (None = دست نزن).
+    via_project=True فقط از restore_cancelled_project؛ بدون آن، فاکتورِ پروژه‌ی لغوشده تنها برنمی‌گردد."""
     from core.capabilities import can
     from core.periods import assert_open
     from .accounting import log_event
+    from .deadline import deadline_open, last_day_for, parse_deadline_days
     from .models import AccountingEvent
     if not can(actor, "projects.restore"):
         raise ValueError("فقط مدیر می‌تواند فاکتور لغوشده را برگرداند.")
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("دلیل برگرداندن فاکتور را بنویسید.")
+    days = None if deadline_days is None else parse_deadline_days(deadline_days)   # قبل از هر تغییر
     invoice = Invoice.objects.select_for_update(of=("self",)).select_related("project").get(pk=invoice.pk)
     if invoice.status != Invoice.Status.CANCELLED:
         raise ValueError("این فاکتور لغو نشده است.")
     assert_open(invoice.issue_date, "برگرداندن فاکتور")
+    if invoice.project.status == "cancelled" and not via_project:
+        raise ValueError("پروژه لغو شده است؛ فاکتور را با «بازگرداندن پروژه از لغو» برگردانید.")
     invoice.status = Invoice.Status.SENT
     invoice.save(update_fields=["status"])
     recalculate_invoice_paid_amount(invoice)
+    extra = ""
+    if days is not None and deadline_open(invoice):
+        from utils.jalali import jalali_str
+        invoice.valid_until = last_day_for(days)
+        invoice.save(update_fields=["valid_until", "updated_at"])
+        extra = f"؛ مهلت تایید تا {jalali_str(invoice.valid_until, fmt='%Y/%m/%d')}"
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
-              amount=invoice.total_amount, text=f"فاکتور {invoice.number} برگردانده شد — {reason}")
+              amount=invoice.total_amount, text=f"فاکتور {invoice.number} برگردانده شد — {reason}{extra}")
     return invoice
 
 
