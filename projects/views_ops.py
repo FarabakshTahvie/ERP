@@ -1,13 +1,16 @@
+import io
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from catalog.models import Item
 from inventory.services import record_manual_stock_change
-from . import ops, usage
-from .models import Project, ProjectStage, StageKind
+from . import ops, shipping_slip, usage
+from .models import Project, ProjectStage, StageKind, StageUsage
 from .stage_ops import complete_stage
 from .stage_move import move_to_stage
 
@@ -158,4 +161,21 @@ def move_stage(request, project_id):
     else:
         messages.success(request, f"مرحله‌ی «{target.title}» باز شد.")
     return redirect("projects:staff_project_overview", project.id)
+
+
+@login_required
+def shipping_slip_pdf(request, stage_id):
+    """برگه‌ی ارسال به‌صورت PDF؛ همان لحظه ساخته می‌شود و جایی ذخیره نمی‌شود."""
+    stage = _obj(ProjectStage.objects.select_related("project"), stage_id)
+    if not shipping_slip.can_view_slip(request.user, stage):
+        raise Http404
+    if not StageUsage.objects.filter(stage=stage).exists():
+        messages.error(request, "برای این مرحله هنوز مصرفی ثبت نشده است.")
+        return redirect(reverse("projects:staff_project_overview", args=[stage.project_id]) + f"#stage-{stage.id}")
+    pdf = shipping_slip.render_pdf(request, stage)
+    shipping_slip.mark_downloaded(stage, request.user)
+    response = FileResponse(io.BytesIO(pdf), as_attachment=True, content_type="application/pdf",
+                            filename=f"shipping-slip-{stage.project.code}.pdf")
+    response["Cache-Control"] = "private, no-store"
+    return response
 

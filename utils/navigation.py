@@ -109,7 +109,7 @@ NON_PAGE = {
     "people:search", "people:staff_table", "people:user_toggle_active", "projects:group_create", "projects:group_cut_set",
     "projects:dashboard_claimable_table", "projects:dashboard_completed_table",
     "projects:dashboard_my_projects_table", "projects:dashboard_my_tasks_table",
-    "projects:final_review_consume", "projects:usage_set",
+    "projects:final_review_consume", "projects:usage_set", "projects:shipping_slip_pdf",
     "projects:proforma_row_preview", "projects:proforma_row_save", "projects:proforma_row_delete", "projects:proforma_body",
     "projects:install_service_set", "projects:move_stage", "projects:my_task_claim",
     "projects:my_task_complete", "projects:my_task_transfer", "projects:new_project_party_search",

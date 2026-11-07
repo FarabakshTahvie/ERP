@@ -79,6 +79,9 @@ def set_usage(*, stage, item_id, qty_raw, actor):
         raise ValueError("کالا را از فهرست انتخاب کنید.")
     qty = parse_usage_qty(qty_raw)
     row = StageUsage.objects.filter(stage=stage, item=item).first()
+    changed = bool(row) if qty is None else (row is None or row.qty != qty)
+    if changed and stage.kind == StageKind.SHIPPING:
+        ProjectStage.objects.filter(pk=stage.pk).update(slip_downloaded_at=None)   # بعد از هر تغییر اقلام، برگه باید دوباره دانلود شود
     manufactured = item.item_type == Item.ItemType.MANUFACTURED   # کالای ساختنی از انبار کم نمی‌شود
     if qty is None:
         if row:

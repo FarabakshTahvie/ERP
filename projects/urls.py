@@ -5,6 +5,7 @@ app_name = "projects"
 
 urlpatterns = [
     path("staff/stages/<int:stage_id>/usage/", views_ops.usage_set, name="usage_set"),
+    path("staff/stages/<int:stage_id>/shipping-slip/pdf/", views_ops.shipping_slip_pdf, name="shipping_slip_pdf"),
     path("staff/stages/<int:stage_id>/install-service/", views_ops.install_service_set, name="install_service_set"),
     path("staff/projects/<int:project_id>/final-review/", views_ops.final_review, name="final_review"),
     path("staff/projects/<int:project_id>/final-review/consume/", views_ops.final_review_consume, name="final_review_consume"),

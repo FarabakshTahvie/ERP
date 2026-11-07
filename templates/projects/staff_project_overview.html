@@ -129,6 +129,7 @@
             {% include "projects/partials/stage_files.html" %}
             {% if s.install %}{% include "projects/partials/stage_install.html" %}{% endif %}
             {% if s.usage %}{% include "projects/partials/stage_usage.html" %}{% endif %}
+            {% if s.slip %}{% include "projects/partials/stage_slip.html" %}{% endif %}
             {% if s.kind == 'cutting' and s.status == 'in_progress' %}{% include "projects/partials/stage_cuts.html" %}{% endif %}
 
             {% if s.can_claim %}

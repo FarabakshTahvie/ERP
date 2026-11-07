@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from core.capabilities import can
-from . import confirmations
+from . import confirmations, shipping_slip
 from .models import Project, ProjectFile, ProjectStage, StageConfirmation, StageKind
 
 D = StageConfirmation.Decision
@@ -54,8 +54,8 @@ def stage_confirmation(request, stage_id):
     return render(request, "projects/portal_stage_confirmation.html", {
         "conf": conf, "project": project, "is_shipping": shipping, "readonly": not is_owner,
         "show_buttons": can_decide and not install_done,
-        "services": confirmations.shipped_services(project) if shipping else [],
-        "images": [] if shipping else [
+        "slip": shipping_slip.slip_data(stage) if shipping else None,
+        "images": [
             {"name": f.display_name, "url": reverse("projects:portal_confirmation_image", args=[stage.id, f.id])}
             for f in confirmations.install_images(stage)],
     })
@@ -64,7 +64,7 @@ def stage_confirmation(request, stage_id):
 @login_required
 def confirmation_image(request, stage_id, file_id):
     conf = get_object_or_404(StageConfirmation.objects.select_related("stage__project"),
-                             stage_id=stage_id, stage__kind=StageKind.INSTALL)
+                             stage_id=stage_id, stage__kind__in=(StageKind.INSTALL, StageKind.SHIPPING))
     if not (confirmations.is_recipient_party(request.user, conf.stage.project)
             or can(request.user, "accounting.access")):
         raise Http404

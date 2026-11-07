@@ -1,0 +1,24 @@
+{% load custom_tags %}
+<div class="flex flex-col gap-3">
+    <div class="fb-inset flex flex-col gap-1.5 text-sm">
+        <div class="flex justify-between gap-2"><span class="fb-muted">طرف‌حساب</span><span class="font-semibold min-w-0 break-words">{{ slip.party_name }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">کد پروژه</span><span dir="ltr" class="font-technical">{{ slip.project_code|fa_digits }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">آدرس</span><span class="min-w-0 break-words whitespace-pre-line text-end">{{ slip.address }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">موقعیت</span><span dir="ltr" class="font-technical">{{ slip.location|fa_digits }}</span></div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="table table-sm text-xs">
+            <thead><tr class="fb-muted"><th>نام</th><th>تعداد</th></tr></thead>
+            <tbody>
+            {% for r in slip.rows %}
+                <tr>
+                    <td class="font-semibold">{{ r.name }}</td>
+                    <td><span class="font-technical">{{ r.qty|floatformat:"-4"|fa_digits }}</span> {{ r.unit }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="2" class="fb-empty">اقلامی ثبت نشده است.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -17,19 +17,12 @@
 
     {% if is_shipping %}
     <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">اقلام مربوط به این خدمات به محل پروژه ارسال شد</h2>
-        {% for s in services %}
-        <div class="fb-inset flex items-center justify-between gap-2 text-sm">
-            <span class="min-w-0 break-words">{{ s.name }}</span>
-            <span class="font-technical shrink-0">{{ s.qty|floatformat:"-2"|fa_digits }}{% if s.unit %} {{ s.unit }}{% endif %}</span>
-        </div>
-        {% empty %}
-        <p class="fb-hint">خدمتی در پیش‌فاکتور ثبت نشده است.</p>
-        {% endfor %}
+        <h2 class="fb-section-title">برگه‌ی اقلام ارسال‌شده</h2>
+        {% include "projects/partials/shipping_slip_form.html" %}
     </section>
-    {% else %}
+    {% endif %}
     <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">تصاویر نصب</h2>
+        <h2 class="fb-section-title">{% if is_shipping %}تصاویر ارسال{% else %}تصاویر نصب{% endif %}</h2>
         {% if images %}
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {% for img in images %}
@@ -42,7 +35,6 @@
         <p class="fb-hint">تصویری ثبت نشده است.</p>
         {% endif %}
     </section>
-    {% endif %}
 
     {% if conf.decision != 'pending' %}
     <div role="alert" class="alert alert-soft {% if conf.decision == 'not_received' %}alert-error{% else %}alert-success{% endif %}">
