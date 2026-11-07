@@ -262,6 +262,7 @@ class ProjectStage(TimeStampedModel):
     rejection_count = models.PositiveSmallIntegerField(default=0, verbose_name="تعداد دفعات رد شدن")
     return_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
                                   related_name="reopened_stages", verbose_name="بعد از تکمیل برگرد به")
+    slip_downloaded_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان دانلود برگه‌ی ارسال")
 
     class Meta:
         verbose_name = "مرحله پروژه"

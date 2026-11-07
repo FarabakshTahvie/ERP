@@ -72,6 +72,18 @@
     return out;
   }
 
+  function slipBlock(stage) {
+    var box = stage.querySelector('[data-slip-box]');
+    if (!box || box.dataset.tracked !== '1' || box.dataset.downloaded === '1') return null;
+    var any = false;
+    stage.querySelectorAll('[data-usage-row] [data-usage-qty]').forEach(function (i) { if (i.value.trim()) any = true; });
+    if (!any) return null;
+    var out = block('برگه ارسال');
+    out.appendChild(el('p', 'text-xs text-warning',
+      'برگه ارسال بعد از آخرین ثبت اقلام دانلود نشده است. دانلود و چاپ کنید، از برگه عکس بگیرید و برگه‌ی اصلی را به راننده بدهید.'));
+    return out;
+  }
+
   function noteBlock(form) {
     var ta = form.querySelector('[data-complete-comment]');
     var text = ta ? ta.value.trim() : '';
@@ -91,7 +103,7 @@
     var body = dlg.querySelector('[data-confirm-body]');
     body.textContent = '';
     if (!stage) return;
-    [usageBlock(stage), installBlock(stage), cutsBlock(stage), noteBlock(form)].forEach(function (b) {
+    [usageBlock(stage), installBlock(stage), cutsBlock(stage), slipBlock(stage), noteBlock(form)].forEach(function (b) {
       if (b) body.appendChild(b);
     });
   }

@@ -382,12 +382,13 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         .order_by("order")
     )
 
-    from . import ops, usage
+    from . import ops, shipping_slip, usage
     my_stage_ids = set()
     can_claim_any = can(user, "stages.assign")
     for s in stages:
         s.install = usage.install_context(user, s)
         s.usage = usage.usage_context(user, s)
+        s.slip = shipping_slip.stage_context(user, s)
         candidate_ids = {u.id for u in s.candidate_users.all()}
         s.is_mine = s.assigned_to_id == user.id
         s.is_candidate = user.id in candidate_ids

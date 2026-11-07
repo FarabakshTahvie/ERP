@@ -1,0 +1,32 @@
+{% load custom_tags %}
+<div class="fb-inset mt-3 flex flex-col gap-2" data-slip-box
+     data-tracked="{% if s.slip.tracks %}1{% else %}0{% endif %}"
+     data-downloaded="{% if s.slip.downloaded_at %}1{% else %}0{% endif %}">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="fb-label">برگه ارسال</div>
+        {% if s.slip.tracks %}
+        <span data-slip-badge class="fb-badge {% if s.slip.downloaded_at %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{% if s.slip.downloaded_at %}دانلود شد{% else %}دانلود نشده{% endif %}</span>
+        {% endif %}
+    </div>
+    <p class="fb-hint">برگه از روی مصرف ثبت‌شده‌ی همین مرحله ساخته می‌شود. دانلود و چاپ کنید، از برگه عکس بگیرید و بارگذاری کنید و برگه‌ی اصلی را به راننده بدهید. با هر تغییر اقلام، برگه باید دوباره دانلود شود.</p>
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ s.slip.pdf_url }}" class="btn btn-primary btn-sm" data-slip-download>{% icon "download" "w-4 h-4" %} دانلود برگه (PDF)</a>
+        {% if s.slip.can_preview %}
+        <button type="button" class="btn btn-soft btn-sm" onclick="document.getElementById('slip-dialog-{{ s.id }}').showModal()">{% icon "eye" "w-4 h-4" %} مشاهده</button>
+        {% endif %}
+    </div>
+</div>
+{% if s.slip.can_preview %}
+<dialog id="slip-dialog-{{ s.id }}" class="modal">
+    <div class="modal-box max-w-md flex flex-col gap-3">
+        <h3 class="font-bold text-base">برگه ارسال</h3>
+        <p class="text-xs fb-muted">فقط برای دیدن است؛ برگه از روی مصرف ثبت‌شده‌ی همین مرحله ساخته می‌شود و ویرایش ندارد.</p>
+        {% include "projects/partials/shipping_slip_form.html" with slip=s.slip %}
+        <div class="modal-action">
+            <a href="{{ s.slip.pdf_url }}" class="btn btn-primary btn-sm">{% icon "download" "w-4 h-4" %} دانلود PDF</a>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('dialog').close()">بستن</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}

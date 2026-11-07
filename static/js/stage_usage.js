@@ -11,6 +11,22 @@
   }
   window.fbUsageFlush = function () { return Promise.all(pending.slice()); };
 
+  // برگه‌ی ارسال: دانلود ← «دانلود شد»؛ هر تغییر مصرف ← «دانلود نشده»
+  function slipSet(stage, on) {
+    var box = stage && stage.querySelector('[data-slip-box]');
+    if (!box) return;
+    box.dataset.downloaded = on ? '1' : '0';
+    var badge = box.querySelector('[data-slip-badge]');
+    if (!badge) return;
+    badge.className = 'fb-badge ' + (on ? 'fb-badge-success' : 'fb-badge-warning');
+    badge.textContent = on ? 'دانلود شد' : 'دانلود نشده';
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('[data-slip-download]') : null;
+    var box = a && a.closest('[data-slip-box]');
+    if (box && box.dataset.tracked === '1') slipSet(box.closest('[id^="stage-"]'), true);
+  });
+
   function say(cell, text, bad, keep) {
     cell.textContent = text || '';
     cell.className = 'text-xs ' + (bad ? 'text-error' : keep ? 'text-warning' : 'text-success');
@@ -43,6 +59,7 @@
     track(send(box, row.dataset.item, value).then(function (res) {
       input.disabled = false;
       if (res.ok) {
+        slipSet(input.closest('[id^="stage-"]'), false);
         input.value = res.qty;
         input.dataset.saved = res.qty;
         row.dataset.short = res.short || '';
