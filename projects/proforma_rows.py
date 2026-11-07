@@ -123,6 +123,10 @@ def _guard(project, actor):
         raise ValueError("شما اجازه‌ی ویرایش این پروژه را ندارید.")
     if project.status not in EDITABLE_PROJECT_STATUSES:
         raise ValueError("پروژه‌ی تکمیل‌شده یا لغوشده قابل ویرایش نیست.")
+    from finance.models import Invoice
+    invoice = getattr(project, "invoice", None)
+    if invoice is not None and invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("فاکتور لغو شده است؛ ردیف‌ها قابل ویرایش نیست.")
     if not project_prices_editable(project):
         raise ValueError("قیمت‌ها قفل شده‌اند (پیش‌فاکتور تایید شده یا پرداختی ثبت شده است).")
 

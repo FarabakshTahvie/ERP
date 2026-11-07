@@ -432,6 +432,7 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
         "project": project, "stages": stages, "highlight_stage_id": highlight_stage_id,
         "can_edit": can_edit_project(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
         "can_price": can_edit_pricing(user, project) and project.status in EDITABLE_PROJECT_STATUSES,
+        "can_invoice": can_edit_pricing(user, project),
         "cut_groups": cut_group_rows, "cut_total": len(cut_group_rows),
         "cut_done": sum(1 for g in cut_group_rows if g.cut_done),
         "gcode_groups": gcode_groups,

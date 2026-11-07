@@ -78,7 +78,7 @@
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پروژه‌های منتظر صدور پیش‌فاکتور</h2>
         {% for st in proforma_queue %}
-        <a href="{% url 'projects:proforma_editor' st.project.id %}" class="fb-inset flex items-center justify-between gap-2 text-sm hover:bg-base-300">
+        <a href="{% nav_url 'projects:proforma_editor' st.project.id %}" class="fb-inset flex items-center justify-between gap-2 text-sm hover:bg-base-300">
             <span class="font-semibold">{{ st.project.name }}</span><span class="fb-hint">ورود به ویرایشگر</span>
         </a>
         {% empty %}<p class="fb-hint">پروژه‌ای منتظر پیش‌فاکتور نیست.</p>{% endfor %}

@@ -15,7 +15,7 @@
             <a href="{% nav_url 'projects:staff_project_overview' project.id %}" class="btn btn-soft btn-sm">نمای پروژه</a>
             {% if has_final_review %}<a href="{% nav_url 'projects:final_review' project.id %}" class="btn btn-soft btn-sm">بازبینی نهایی</a>{% endif %}
             {% if invoice %}<a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">فاکتور</a>{% endif %}
-            <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور و پرداخت</a>
+            <a href="{% nav_url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور و پرداخت</a>
         </div>
     </div>
 
