@@ -11,6 +11,7 @@ from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
 
+from catalog.models import Item
 from inventory.models import PurchaseLine, StockLot, StockMovement
 from inventory.services import (
     low_stock_items_count, consume_stock, record_manual_stock_change,
@@ -271,8 +272,8 @@ def project_reconciliation(project):
             "out_qty": ZERO, "back_qty": ZERO, "value": ZERO,
         })
 
-    for u in (StageUsage.objects.filter(stage__project=project).select_related("item", "stage")
-              .order_by("stage__order", "pk")):
+    for u in (StageUsage.objects.filter(stage__project=project).exclude(item__item_type=Item.ItemType.MANUFACTURED)
+              .select_related("item", "stage").order_by("stage__order", "pk")):
         r = row(u.item)
         r["used"] += u.qty
         r["by_stage"].append({"stage": u.stage, "qty": u.qty})
