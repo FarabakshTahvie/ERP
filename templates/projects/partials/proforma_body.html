@@ -38,7 +38,12 @@
     {% endif %}
     {% endif %}
 
-    {% if not editable %}
+    {% if cancelled %}
+    <div role="alert" class="alert alert-soft alert-error">
+        {% icon "x-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">این فاکتور لغو شده است؛ ردیف‌ها فقط دیده می‌شوند و پرداخت یا اصلاحی ثبت نمی‌شود.</span>
+    </div>
+    {% elif not editable %}
     <div role="alert" class="alert alert-soft alert-warning">
         {% icon "lock" "w-4 h-4 shrink-0" %}
         <span class="text-xs">ویرایش قیمت‌ها بسته است؛ پیش‌فاکتور تایید شده، پرداختی ثبت شده، یا پروژه تکمیل یا لغو شده است.</span>
@@ -140,7 +145,18 @@
                     {% endfor %}
                     {% endwith %}
 
-                    {% if not summary.services and not summary.extras %}
+                    {% for l in summary.manual_lines %}
+                    <tr>
+                        <td class="text-center font-technical">—</td>
+                        <td><span class="font-medium">{{ l.title }}</span> <span class="fb-badge fb-badge-info">ردیف دستی</span></td>
+                        <td class="text-center font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center font-technical">{{ l.unit_price|intcomma_fa }}</td>
+                        <td class="text-center font-technical font-semibold">{{ l.total|intcomma_fa }}</td>
+                        {% if editable %}<td></td>{% endif %}
+                    </tr>
+                    {% endfor %}
+
+                    {% if not summary.services and not summary.extras and not summary.manual_lines %}
                     <tr><td colspan="6" class="fb-empty">هنوز ردیفی ثبت نشده است.</td></tr>
                     {% endif %}
                 </tbody>

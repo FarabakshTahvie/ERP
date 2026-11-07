@@ -103,7 +103,11 @@ def proforma_summary(project):
         fees.append({"field": field, "label": label, "value": value, "raw": str(int(value)) if value else ""})
     participants = project.participants.aggregate(t=Sum("agreed_cost"))["t"] or 0
     total += participants
+    from finance.models import InvoiceLine
+    manual = list(InvoiceLine.objects.filter(invoice__project=project, is_manual=True).order_by("pk"))
+    total += sum((l.total for l in manual), Decimal(0))
     return {"services": services, "extras": extras, "fees": fees, "participants_cost": participants,
+            "manual_lines": manual,
             "contract_date": project.contract_date,
             "contract_raw": jalali_str(project.contract_date, fmt="%Y/%m/%d") if project.contract_date else "",
             "grand_total": total}

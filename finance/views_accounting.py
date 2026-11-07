@@ -390,7 +390,7 @@ def project_adjust_invoice(request, project_id):
         messages.error(request, str(e))
     else:
         messages.success(request, "ردیف به فاکتور اضافه شد.")
-    return redirect("finance:accounting_project", project.id)
+    return redirect("projects:proforma_editor", project.id)
 
 
 @login_required
@@ -426,7 +426,7 @@ def project_add_payment(request, project_id):
         warning = cheque_due_warning(cheque_due) if request.POST.get("method") == "cheque" else ""
         if warning:
             messages.warning(request, warning)
-    return redirect("finance:accounting_project", project.id)
+    return redirect("projects:proforma_editor", project.id)
 
 
 @login_required
@@ -448,7 +448,7 @@ def project_set_due(request, project_id):
         messages.error(request, str(e))
     else:
         messages.success(request, "سررسید ثبت شد." if due else "سررسید پاک شد.")
-    return redirect("finance:accounting_project", project.id)
+    return redirect("projects:proforma_editor", project.id)
 
 
 @login_required
@@ -465,7 +465,7 @@ def project_cancel_invoice(request, project_id):
         messages.error(request, str(e))
     else:
         messages.success(request, "فاکتور لغو شد.")
-    return redirect("finance:accounting_project", project.id)
+    return redirect("projects:proforma_editor", project.id)
 
 
 
@@ -687,8 +687,6 @@ def project_detail(request, project_id):
         "data": ops.final_review_data(project),
         "moves": accounting.project_movements(project),
         "events": project.accounting_events.select_related("actor")[:50],
-        "can_adjust_invoice": bool(invoice and not project_prices_editable(project)),
         "has_final_review": project.stages.filter(kind=StageKind.FINAL_REVIEW).exists(),
         "cost_kinds": ProjectCost.Kind.choices,
-        "due_value": jalali_str(invoice.due_date, fmt="%Y/%m/%d") if invoice and invoice.due_date else "",
     })

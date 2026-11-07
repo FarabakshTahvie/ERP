@@ -866,10 +866,29 @@ def _stale_items(project):
     })
 
 
+def _finance_context(request, project, invoice):
+    """بخش‌های مالی صفحه‌ی فاکتور: پرداخت، سررسید، لغو، ردیف دستی. بدون فاکتور هیچ‌کدام نیست."""
+    from finance.models import Invoice
+    from core.capabilities import can
+    if invoice is None:
+        return {"finance": None}
+    live = invoice.status != Invoice.Status.CANCELLED
+    return {"finance": {
+        "payments": list(invoice.payments.order_by("-created_at")),
+        "can_pay": live and invoice.remaining_amount > 0,
+        "can_due": invoice.status not in (Invoice.Status.CANCELLED, Invoice.Status.PAID),
+        "can_adjust": live and not project_prices_editable(project),
+        "can_cancel": live and can(request.user, "invoice.cancel"),
+        "cancelled": not live,
+        "due_value": jalali_str(invoice.due_date, fmt="%Y/%m/%d") if invoice.due_date else "",
+    }}
+
+
 def _proforma_context(request, project):
     invoice = getattr(project, "invoice", None)
+    cancelled = bool(invoice and invoice.status == "cancelled")
     prices_open = project_prices_editable(project)
-    editable = prices_open and project.status in EDITABLE_PROJECT_STATUSES
+    editable = prices_open and project.status in EDITABLE_PROJECT_STATUSES and not cancelled
     stage = proforma_stage(project)
     can_issue = bool(editable and invoice is None and stage
                      and stage.status == ProjectStage.Status.IN_PROGRESS
@@ -893,6 +912,7 @@ def _proforma_context(request, project):
         "can_extend": bool(invoice and deadline_open(invoice)),
         "can_sms": bool(invoice and invoice.status != "cancelled"),
         "last_sms": last_invoice_sms(invoice) if invoice else None,
+        "cancelled": cancelled,
     }
 
 
@@ -952,6 +972,7 @@ def proforma_editor(request, project_id):
         if preview is None:
             return redirect("projects:proforma_editor", project.id)
     ctx = _proforma_context(request, project)
+    ctx.update(_finance_context(request, project, ctx["invoice"]))
     ctx["preview"] = preview
     return render(request, "projects/proforma_editor.html", ctx)
 

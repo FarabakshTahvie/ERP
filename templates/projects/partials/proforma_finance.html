@@ -1,0 +1,122 @@
+{% load custom_tags %}
+{% if finance %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-payments">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+        <h2 class="fb-section-title">پرداخت‌ها و وضعیت فاکتور</h2>
+        <span class="fb-badge {% if finance.cancelled %}fb-badge-error{% elif invoice.status == 'paid' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{{ invoice.get_status_display }}</span>
+    </div>
+    {% for p in finance.payments %}
+    <a href="{% nav_url 'finance:payment_detail' p.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs hover:bg-base-300">
+        <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.created_at|to_jalali:"%Y/%m/%d" }}</span></span>
+        <span class="flex items-center gap-2">
+            <span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>
+            <span class="fb-badge fb-badge-{{ p.status_variant }}">{{ p.status_label }}</span>
+        </span>
+    </a>
+    {% empty %}<p class="fb-hint">پرداختی ثبت نشده است.</p>{% endfor %}
+</section>
+
+{% if finance.can_pay %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-pay">
+    <h2 class="fb-section-title">ثبت پرداخت</h2>
+    <p class="fb-hint">برای پولی که مشتری حضوری یا خارج از پرتال داده. چون خودتان تایید می‌کنید، مستقیم «تاییدشده» ثبت می‌شود. مانده‌ی فاکتور: <span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان. بعد از ثبت پرداخت، قیمت‌ها قفل می‌شوند.</p>
+    <form method="post" action="{% url 'finance:accounting_add_payment' project.id %}" enctype="multipart/form-data" id="acc-payment-form" data-fb-once data-upload-progress class="flex flex-col gap-3">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="acc-method">روش پرداخت</label>
+                <select id="acc-method" name="method" required class="select w-full">
+                    <option value="card_to_card">کارت به کارت</option>
+                    <option value="receipt">رسید واریز</option>
+                    <option value="cheque">چک</option>
+                    <option value="cash">نقدی</option>
+                </select>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="acc-amount">مبلغ (تومان)</label>
+                <input type="text" id="acc-amount" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="acc-paid-date">تاریخ پرداخت</label>
+                <input type="text" id="acc-paid-date" name="paid_date" data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off" placeholder="۱۴۰۵/۰۷/۲۰" class="input w-full font-technical">
+                <span class="fb-hint">خالی یعنی امروز؛ تاریخ آینده مجاز نیست.</span>
+            </div>
+            <div class="fb-field" id="acc-ref-wrap">
+                <label class="fb-label" for="acc-ref">شماره پیگیری / تراکنش</label>
+                <input type="text" id="acc-ref" name="reference_number" dir="ltr" autocomplete="off" class="input w-full font-technical">
+            </div>
+        </div>
+        <div class="fb-field" id="acc-file-wrap">
+            <label class="fb-label" for="acc-file" id="acc-file-label">تصویر رسید</label>
+            <input type="file" id="acc-file" name="receipt_file" accept="image/*,.pdf" class="file-input w-full">
+            <span class="fb-hint">برای کارت به کارت، حداقل یکی از «تصویر» یا «شماره پیگیری» لازم است.</span>
+        </div>
+        <div class="hidden" id="acc-cheque-box">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-cheque-number">شناسه‌ی صیادی (۱۶ رقم)</label>
+                    <input type="text" id="acc-cheque-number" name="cheque_number" data-digits maxlength="16" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-cheque-bank">بانک</label>
+                    <input type="text" id="acc-cheque-bank" name="cheque_bank" maxlength="100" class="input w-full">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="acc-cheque-due">تاریخ سررسید چک</label>
+                    <input type="text" id="acc-cheque-due" name="cheque_due_date" data-jalali-date dir="ltr" inputmode="none" autocomplete="off" class="input w-full font-technical">
+                </div>
+            </div>
+        </div>
+        <div class="fb-field">
+            <label class="fb-label" for="acc-note" id="acc-note-label">توضیح</label>
+            <textarea id="acc-note" name="note" rows="2" class="textarea w-full"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm self-start">ثبت پرداخت</button>
+    </form>
+</section>
+{% endif %}
+
+{% if finance.can_due or finance.can_cancel %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-due">
+    {% if finance.can_due %}
+    <h2 class="fb-section-title">سررسید پرداخت</h2>
+    <form method="post" action="{% url 'finance:accounting_set_due' project.id %}" data-fb-once class="flex flex-wrap items-end gap-2">
+        {% csrf_token %}
+        <div class="fb-field">
+            <label class="fb-label" for="due-date-input">تاریخ سررسید</label>
+            <input type="text" id="due-date-input" name="due_date" value="{{ finance.due_value }}" dir="ltr" inputmode="none" autocomplete="off"
+                   data-jalali-date data-clearable placeholder="۱۴۰۵/۰۷/۲۰" class="input input-sm w-40 font-technical">
+        </div>
+        <button type="submit" class="btn btn-soft btn-sm">ثبت سررسید</button>
+    </form>
+    <p class="fb-hint">بدون سررسید، سن بدهی از تاریخ صدور فاکتور حساب می‌شود. این با «مهلت تایید» بالای صفحه فرق دارد: مهلت تایید می‌گوید مشتری تا کی باید تایید کند، سررسید می‌گوید پول تا کی باید برسد.</p>
+    {% endif %}
+    {% if finance.can_cancel %}
+    <form method="post" action="{% url 'finance:accounting_cancel_invoice' project.id %}" data-fb-once class="flex flex-col gap-2 {% if finance.can_due %}pt-3 border-t border-base-300{% endif %}">
+        {% csrf_token %}
+        <span class="fb-label">لغو فاکتور</span>
+        <p class="fb-hint">فقط وقتی پرداخت تاییدشده ندارد. پرداخت‌های منتظر تایید خودکار رد می‌شوند. ماه بسته مانع است.</p>
+        <input type="text" name="reason" required placeholder="دلیل لغو (اجباری)" class="input input-sm w-full">
+        <button type="submit" class="btn btn-soft btn-error btn-sm self-start">لغو فاکتور</button>
+    </form>
+    {% endif %}
+</section>
+{% endif %}
+
+{% if finance.can_adjust %}
+<section class="fb-card fb-pad flex flex-col gap-3" id="invoice-adjust">
+    <h2 class="fb-section-title">ردیف دستی فاکتور</h2>
+    <p class="fb-hint">قیمت‌ها قفل شده‌اند (تایید مشتری یا پرداخت)؛ تغییر بعدی فقط با ردیف دستی است. عنوان روی فاکتور مشتری دیده می‌شود؛ دلیل فقط داخلی است. برای لغو یک ردیف، ردیف مخالف آن را ثبت کنید.</p>
+    <form method="post" action="{% url 'finance:accounting_adjust_invoice' project.id %}" data-fb-once class="flex flex-col gap-2">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            <select name="kind" aria-label="نوع" class="select select-sm w-full"><option value="increase">افزایش</option><option value="decrease">کاهش (تخفیف)</option></select>
+            <input type="text" name="title" required placeholder="عنوان روی فاکتور" class="input input-sm w-full">
+            <input type="text" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" placeholder="مبلغ (تومان)" class="input input-sm w-full font-technical">
+            <input type="text" name="reason" required placeholder="دلیل داخلی (اجباری)" class="input input-sm w-full">
+            <button type="submit" class="btn btn-soft btn-sm">ثبت ردیف</button>
+        </div>
+    </form>
+</section>
+{% endif %}
+{% endif %}
