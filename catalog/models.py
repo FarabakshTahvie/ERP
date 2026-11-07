@@ -25,6 +25,7 @@ class Item(TimeStampedModel):
         MATERIAL = "material", "متریال"
         PART = "part", "قطعه"
         CONSUMABLE = "consumable", "مصرفی"
+        MANUFACTURED = "manufactured", "ساختنی"
 
     class Unit(models.TextChoices):
         METER = "meter", "متر"

@@ -79,9 +79,10 @@ def set_usage(*, stage, item_id, qty_raw, actor):
         raise ValueError("کالا را از فهرست انتخاب کنید.")
     qty = parse_usage_qty(qty_raw)
     row = StageUsage.objects.filter(stage=stage, item=item).first()
+    manufactured = item.item_type == Item.ItemType.MANUFACTURED   # کالای ساختنی از انبار کم نمی‌شود
     if qty is None:
         if row:
-            if row.deducted > 0:
+            if row.deducted > 0 and not manufactured:
                 _give_back(item=item, qty=row.deducted, stage=stage, actor=actor)
             row.delete()
         return {"qty": "", "removed": True, "short": ""}
@@ -90,7 +91,9 @@ def set_usage(*, stage, item_id, qty_raw, actor):
             raise ValueError("این کالا غیرفعال است.")
         row = StageUsage(stage=stage, item=item, deducted=Decimal("0"))
     row.qty, row.updated_by = qty, actor
-    if row.deducted > qty:
+    if manufactured:
+        row.deducted = qty
+    elif row.deducted > qty:
         _give_back(item=item, qty=row.deducted - qty, stage=stage, actor=actor)
         row.deducted = qty
     elif row.deducted < qty:
