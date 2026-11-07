@@ -142,6 +142,9 @@ def attention_items():
         if count:
             out.append({"label": label, "count": count, "url": url, "level": level})
 
+    from .deadline import suspended_invoices_qs
+    add("پیش‌فاکتور معلق (مهلت تایید گذشته)", suspended_invoices_qs().count(),
+        reverse("finance:accounting_overview") + "#suspended-proformas")
     add("پرداخت منتظر تایید",
         Payment.objects.filter(status=Payment.Status.PENDING).exclude(method=Payment.Method.GATEWAY).count(),
         reverse("finance:payments_review"))
@@ -331,6 +334,15 @@ def stock_integrity():
 def proforma_queue(limit=20):
     return list(ProjectStage.objects.filter(kind=StageKind.PROFORMA, status=ProjectStage.Status.IN_PROGRESS)
                 .select_related("project").order_by("project__name")[:limit])
+
+
+def suspended_proforma_queue(limit=30):
+    """پیش‌فاکتورهای معلق برای مرکز حسابداری؛ قدیمی‌ترین انقضا اول."""
+    from .deadline import suspended_invoices_qs
+    today = timezone.localdate()
+    qs = suspended_invoices_qs(today).select_related("project", "billed_party").order_by("valid_until", "pk")
+    return [{"invoice": inv, "project": inv.project, "days_late": (today - inv.valid_until).days}
+            for inv in qs[:limit]]
 
 
 def parse_qty(raw, label="مقدار"):

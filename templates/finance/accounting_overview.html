@@ -84,6 +84,20 @@
         {% empty %}<p class="fb-hint">پروژه‌ای منتظر پیش‌فاکتور نیست.</p>{% endfor %}
     </section>
 
+    <section class="fb-card fb-pad flex flex-col gap-2" id="suspended-proformas">
+        <h2 class="fb-section-title">پیش‌فاکتورهای معلق (مهلت تایید گذشته)</h2>
+        <p class="fb-hint">مشتری این‌ها را نمی‌تواند تایید کند و باید با دفتر تماس بگیرد. قیمت‌ها را اصلاح و مهلت را تمدید کنید.</p>
+        {% for r in suspended_queue %}
+        <a href="{% nav_url 'projects:proforma_editor' r.project.id %}" class="fb-inset flex items-center justify-between gap-2 flex-wrap text-sm hover:bg-base-300">
+            <span class="font-semibold">{{ r.project.name }} <span class="fb-muted font-technical">{{ r.invoice.number|fa_digits }}</span></span>
+            <span class="flex items-center gap-2">
+                <span class="fb-muted text-xs">{{ r.invoice.billed_party.name }}</span>
+                <span class="fb-badge fb-badge-error">{{ r.days_late|fa_digits }} روز پیش منقضی شد</span>
+            </span>
+        </a>
+        {% empty %}<p class="fb-hint">پیش‌فاکتور معلقی نیست.</p>{% endfor %}
+    </section>
+
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">پروژه‌های منتظر بازبینی نهایی</h2>
         {% for r in review_queue %}

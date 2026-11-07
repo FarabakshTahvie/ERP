@@ -20,11 +20,19 @@
     </div>
 
     {% for project in projects %}{% if project.action_url %}
+    {% if project.deadline.state == 'expired' %}
+    <div role="alert" class="alert alert-soft alert-error">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">مهلت تایید پیش‌فاکتور پروژه «{{ project.name }}» تمام شده است. برای تایید و به‌روزشدن قیمت‌ها با دفتر تماس بگیرید.</span>
+        <a href="tel:{{ project.deadline.phone_tel }}" class="btn btn-soft btn-sm">{% icon "phone" "w-4 h-4" %} <span dir="ltr" class="font-technical">{{ project.deadline.phone }}</span></a>
+    </div>
+    {% else %}
     <div role="alert" class="alert alert-soft alert-warning">
         {% icon "bell" "w-4 h-4 shrink-0" %}
-        <span class="text-sm">مرحله «{{ project.action_stage_title }}» از پروژه «{{ project.name }}» منتظر تایید شماست.</span>
+        <span class="text-sm">مرحله «{{ project.action_stage_title }}» از پروژه «{{ project.name }}» منتظر تایید شماست.{% if project.deadline.state == 'active' %} مهلت تا ساعت ۲۴ روز <span class="font-technical">{{ project.deadline.last_day|to_jalali:"%Y/%m/%d" }}</span>.{% endif %}</span>
         <a href="{{ project.action_url }}" class="btn btn-primary btn-sm">{{ project.action_label }}</a>
     </div>
+    {% endif %}
     {% endif %}{% endfor %}
 
     <div class="grid grid-cols-2 {% if party %}lg:grid-cols-4{% else %}lg:grid-cols-3{% endif %} gap-3">
