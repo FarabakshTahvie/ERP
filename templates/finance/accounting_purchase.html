@@ -45,7 +45,7 @@
                 <div class="fb-field">
                     <div class="flex items-center justify-between gap-2">
                         <span class="fb-label">کالا</span>
-                        {% if caps.inventory_manage %}
+                        {% if caps.items_create %}
                         <button type="button" id="open-quick-item" class="btn btn-ghost btn-xs">{% icon "package" "w-4 h-4" %} کالای جدید</button>
                         {% endif %}
                     </div>
@@ -90,8 +90,6 @@
             </table>
         </div>
     </section>
-    {% include "inventory/partials/purchase_files.html" %}
-
     <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
         <h2 class="fb-section-title">سابقه‌ی ویرایش</h2>
         {% for e in events %}
@@ -104,7 +102,7 @@
     </section>
 </div>
 {% include "utils/partials/image_zoom.html" %}
-{% if caps.inventory_manage and caps.purchases_edit %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
+{% if caps.items_create and caps.purchases_edit %}{% include "inventory/partials/quick_item_dialog.html" %}{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -114,3 +112,4 @@
 {{ line_items|json_script:"purchase-line-items" }}
 <script src="{% static_v 'js/purchase_lines.js' %}"></script>
 {% endif %}
+{% endblock %}

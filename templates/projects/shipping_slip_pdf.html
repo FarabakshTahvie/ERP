@@ -3,7 +3,7 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>برگه ارسال {{ slip.project_code|fa_digits }}</title>
+    <title>{{ slip.project_code|fa_digits }}</title>
     <style>
         @font-face {
             font-family: 'Vazirmatn';
@@ -13,7 +13,7 @@
         }
         @page {
             size: A5;
-            margin: 10mm 9mm 14mm 9mm;
+            margin: 8mm 8mm 12mm 8mm;
             @bottom-center {
                 content: "صفحه " counter(page, persian) " از " counter(pages, persian);
                 font-family: 'Vazirmatn', sans-serif;
@@ -21,36 +21,33 @@
                 color: #6b7280;
             }
         }
-        body { font-family: 'Vazirmatn', sans-serif; direction: rtl; color: #1f2937; font-size: 10pt; line-height: 1.5; margin: 0; }
-        table.slip { width: 100%; border-collapse: collapse; }
-        .slip thead { display: table-header-group; }
-        .slip tr { page-break-inside: avoid; }
-        .slip .ttl { text-align: center; font-size: 14pt; font-weight: 800; padding: 0 0 3mm; border-bottom: 2px solid #0d9488; }
-        .slip .ttl img { height: 9mm; vertical-align: middle; margin-left: 3mm; }
-        .slip .meta { padding: 1.5mm 1mm; font-size: 9.5pt; border-bottom: 1px solid #e5e7eb; text-align: right; }
-        .slip .meta b { color: #4b5563; font-weight: 700; }
-        .slip .gap td { height: 3mm; }
-        .slip th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 2mm; font-size: 10pt; }
-        .slip th.qt-h { width: 30%; }
-        .slip td.nm, .slip td.qt { border: 1px solid #d1d5db; padding: 2mm 3mm; font-size: 10pt; }
-        .slip td.nm { text-align: right; font-weight: 700; }
-        .slip td.qt { text-align: center; width: 30%; }
+        body { font-family: 'Vazirmatn', sans-serif; direction: rtl; color: #111827; font-size: 10pt; line-height: 1.45; margin: 0; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        td, th { border: 1px solid #9ca3af; padding: 1.6mm 2.4mm; text-align: right; vertical-align: top; overflow-wrap: anywhere; }
+        th { background: #f3f4f6; font-weight: 700; }
+        .info b { color: #4b5563; font-weight: 700; }
+        .code { width: 26%; }
+        .qty { text-align: center; }
+        .nm { font-weight: 700; }
     </style>
 </head>
 <body>
-<table class="slip">
+<table>
     <thead>
-        <tr><td colspan="2" class="ttl"><img src="{% static 'icons/logo-invoice.svg' %}" alt="">برگه ارسال</td></tr>
-        <tr><td colspan="2" class="meta"><b>طرف‌حساب:</b> {{ slip.party_name }}</td></tr>
-        <tr><td colspan="2" class="meta"><b>کد پروژه:</b> <span dir="ltr">{{ slip.project_code|fa_digits }}</span></td></tr>
-        <tr><td colspan="2" class="meta"><b>آدرس:</b> {{ slip.address|linebreaksbr }}</td></tr>
-        <tr><td colspan="2" class="meta"><b>موقعیت:</b> <span dir="ltr">{{ slip.location|fa_digits }}</span></td></tr>
-        <tr class="gap"><td colspan="2"></td></tr>
-        <tr><th>نام</th><th class="qt-h">تعداد</th></tr>
+        <tr>
+            <td class="info"><b>طرف‌حساب:</b> {{ slip.party_name }}</td>
+            <td class="info code"><b>کد پروژه:</b> <span dir="ltr">{{ slip.project_code|fa_digits }}</span></td>
+        </tr>
+        <tr>
+            <td class="info" colspan="2"><b>آدرس:</b> {{ slip.address|linebreaksbr }}</td>
+        </tr>
+        <tr><th>نام</th><th class="qty">تعداد</th></tr>
     </thead>
     <tbody>
         {% for r in slip.rows %}
-        <tr><td class="nm">{{ r.name }}</td><td class="qt"><span dir="ltr">{{ r.qty|floatformat:"-4"|fa_digits }}</span> {{ r.unit }}</td></tr>
+        <tr><td class="nm">{{ r.name }}</td><td class="qty"><span dir="ltr">{{ r.qty|floatformat:"-4"|fa_digits }}</span> {{ r.unit }}</td></tr>
         {% endfor %}
     </tbody>
 </table>

@@ -15,6 +15,9 @@
             {% if caps.purchases_create %}
             <a href="{% nav_url 'inventory:purchase_new' %}" class="btn btn-soft btn-sm">{% icon "receipt" "w-4 h-4" %} ثبت خرید</a>
             {% endif %}
+            {% if caps.items_create %}
+            <a href="{% url 'inventory:item_new' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} کالای جدید</a>
+            {% endif %}
             <a href="{% url 'finance:accounting_overview' %}" class="btn btn-soft btn-sm">{% icon "bar-chart-3" "w-4 h-4" %} مرکز حسابداری</a>
             <a href="{% url 'finance:payments_review' %}" class="btn btn-soft btn-sm">
                 {% icon "credit-card" "w-4 h-4" %} پرداخت‌ها

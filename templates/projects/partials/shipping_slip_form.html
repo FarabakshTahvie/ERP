@@ -1,14 +1,13 @@
 {% load custom_tags %}
-<div class="flex flex-col gap-3">
-    <div class="fb-inset flex flex-col gap-1.5 text-sm">
-        <div class="flex justify-between gap-2"><span class="fb-muted">طرف‌حساب</span><span class="font-semibold min-w-0 break-words">{{ slip.party_name }}</span></div>
-        <div class="flex justify-between gap-2"><span class="fb-muted">کد پروژه</span><span dir="ltr" class="font-technical">{{ slip.project_code|fa_digits }}</span></div>
-        <div class="flex justify-between gap-2"><span class="fb-muted">آدرس</span><span class="min-w-0 break-words whitespace-pre-line text-end">{{ slip.address }}</span></div>
-        <div class="flex justify-between gap-2"><span class="fb-muted">موقعیت</span><span dir="ltr" class="font-technical">{{ slip.location|fa_digits }}</span></div>
+<div class="flex flex-col gap-2">
+    <div class="flex items-start justify-between gap-3 text-sm">
+        <span class="min-w-0 break-words"><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ slip.party_name }}</span></span>
+        <span class="shrink-0"><span class="fb-muted">کد پروژه:</span> <span dir="ltr" class="font-technical">{{ slip.project_code|fa_digits }}</span></span>
     </div>
+    <div class="text-sm"><span class="fb-muted">آدرس:</span> <span class="break-words whitespace-pre-line">{{ slip.address }}</span></div>
     <div class="overflow-x-auto">
         <table class="table table-sm text-xs">
-            <thead><tr class="fb-muted"><th>نام</th><th>تعداد</th></tr></thead>
+            <thead><tr class="fb-muted"><th>نام</th><th class="w-28">تعداد</th></tr></thead>
             <tbody>
             {% for r in slip.rows %}
                 <tr>

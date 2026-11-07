@@ -62,8 +62,10 @@ CAPABILITIES = {
     "tables.export": _manager_or_accountant,   # خروجی CSV از جدول‌ها (generic_table)
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
-    # ثبت خرید: برخلاف inventory.manage مدیر هم می‌تواند (کالا نمی‌سازد؛ ساخت کالا همان inventory.manage است)
+    # ثبت خرید: برخلاف inventory.manage مدیر هم می‌تواند. ویرایش کالا و تغییر موجودی همان inventory.manage است
     "purchases.create": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT})),
+    # ساخت کالای تازه (فقط ساخت): مدیر هم می‌تواند
+    "items.create": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT})),
     "purchases.edit": _manager_or_accountant,
     "projects.create": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_INTAKE, SPECIALTY_ACCOUNTANT})),
     "broadcast.use": lambda f: f.manager or (f.employee and bool(f.names & {SPECIALTY_ACCOUNTANT, SPECIALTY_INTAKE})),
