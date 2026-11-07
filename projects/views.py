@@ -48,6 +48,8 @@ from .proforma import (
     issue_proforma, proforma_stage, can_issue_proforma
 )
 from .proforma_rows import proforma_summary
+from finance.deadline import deadline_info, deadline_open, extend_deadline, last_day_for, parse_deadline_days
+from finance.services import build_invoice_lines, last_invoice_sms, resend_invoice_sms
 from finance.services import create_customer_payment
 from inventory.services import user_can_manage_inventory, low_stock_items_count, stock_map
 
@@ -887,7 +889,15 @@ def _proforma_context(request, project):
                         "stock": str(stock.get(i.pk, Decimal("0")))} for i in items],
         "has_global_margin": has_global_margin(),
         "stale_items": _stale_items(project) if editable else [],
+        "deadline": deadline_info(invoice) if invoice else None,
+        "can_extend": bool(invoice and deadline_open(invoice)),
+        "can_sms": bool(invoice and invoice.status != "cancelled"),
+        "last_sms": last_invoice_sms(invoice) if invoice else None,
     }
+
+
+def _lines_total(project):
+    return int(sum((l.total for l in build_invoice_lines(project)), Decimal("0")))
 
 
 @login_required
@@ -895,21 +905,55 @@ def proforma_editor(request, project_id):
     project = get_object_or_404(Project.objects.select_related("location", "partner", "owner"), pk=project_id)
     if not can_edit_pricing(request.user, project):
         raise Http404
-    if request.method == "POST":   # ردیف‌ها دیگر با فرم نمی‌آیند (مسیرهای row_save/row_delete)؛ فقط صدور
-        if request.POST.get("action") == "issue":
-            try:
+    preview = None
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "preview":
+                if not _proforma_context(request, project)["can_issue"]:
+                    raise ValueError("الان نمی‌شود پیش‌فاکتور صادر کرد؛ مرحله‌ی صدور فعال نیست یا قبلاً صادر شده.")
+                if not project.services.exists():
+                    raise ValueError("حداقل یک خدمت باید ثبت شود.")
+                days = parse_deadline_days(request.POST.get("deadline_days"))
+                lines = build_invoice_lines(project)
+                preview = {"lines": lines, "total": sum((l.total for l in lines), Decimal("0")),
+                           "days": days, "last_day": last_day_for(days),
+                           "send_sms": request.POST.get("send_sms") == "on",
+                           "seen_total": _lines_total(project)}
+            elif action == "issue":
+                if request.POST.get("seen_total") != str(_lines_total(project)):
+                    messages.warning(request, "مبلغ پیش‌فاکتور بعد از پیش‌نمایش تغییر کرده یا پیش‌نمایش دیده نشده است. پیش‌نمایش را دوباره بگیرید.")
+                    return redirect("projects:proforma_editor", project.id)
                 invoice, conflict = issue_proforma(
                     project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
                     deadline_days=request.POST.get("deadline_days"))
-            except ValueError as e:
-                messages.error(request, str(e))
+                messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
+                if conflict:
+                    messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
                 return redirect("projects:proforma_editor", project.id)
-            messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
-            if conflict:
-                messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
-            return redirect("projects:staff_project_overview", project.id)
-        return redirect("projects:proforma_editor", project.id)
-    return render(request, "projects/proforma_editor.html", _proforma_context(request, project))
+            elif action == "extend":
+                invoice = getattr(project, "invoice", None)
+                if invoice is None:
+                    raise ValueError("پیش‌فاکتور هنوز صادر نشده است.")
+                extend_deadline(invoice=invoice, days_raw=request.POST.get("days"),
+                                reason=request.POST.get("reason"), actor=request.user)
+                messages.success(request, "مهلت تمدید شد؛ پیش‌فاکتور دوباره برای مشتری فعال است.")
+                return redirect("projects:proforma_editor", project.id)
+            elif action == "resend_sms":
+                invoice = getattr(project, "invoice", None)
+                if invoice is None:
+                    raise ValueError("پیش‌فاکتور هنوز صادر نشده است.")
+                resend_invoice_sms(invoice=invoice, actor=request.user)
+                messages.success(request, "درخواست ارسال ثبت شد؛ نتیجه را در بخش «پیامک پیش‌فاکتور» ببینید.")
+                return redirect("projects:proforma_editor", project.id)
+        except ValueError as e:
+            messages.error(request, str(e))
+            return redirect("projects:proforma_editor", project.id)
+        if preview is None:
+            return redirect("projects:proforma_editor", project.id)
+    ctx = _proforma_context(request, project)
+    ctx["preview"] = preview
+    return render(request, "projects/proforma_editor.html", ctx)
 
 
 @login_required

@@ -184,7 +184,8 @@ def _service_line_title(ps):
     return f"{ps.service.name} ({qty} {unit})".replace(" )", ")")
 
 
-def _rebuild_lines(invoice, project):
+def build_invoice_lines(project, invoice=None):
+    """ردیف‌های فاکتور از روی پروژه، ذخیره‌نشده. invoice=None یعنی فقط پیش‌نمایش."""
     lines = []
     for ps in project.services.select_related("service").prefetch_related("materials"):
         mats = list(ps.materials.all())
@@ -214,8 +215,11 @@ def _rebuild_lines(invoice, project):
     extra_total = (project.extra_fee or 0) + participants_cost
     if extra_total:
         lines.append(_make_line(invoice, InvoiceLine.LineType.EXTRA, "هزینه‌های مازاد (شامل عوامل اجرایی بیرونی)", 1, extra_total))
+    return lines
 
-    InvoiceLine.objects.bulk_create(lines)
+
+def _rebuild_lines(invoice, project):
+    InvoiceLine.objects.bulk_create(build_invoice_lines(project, invoice))
     recalculate_invoice_total(invoice)
 
 
@@ -689,4 +693,51 @@ def set_bank_card_active(*, actor, card_id, active):
 def delete_bank_card(*, actor, card_id):
     _require_bank_card_manager(actor)
     _locked_bank_card(card_id).delete()
+
+
+SMS_RESEND_SECONDS = 60
+
+
+def last_invoice_sms(invoice):
+    """آخرین اعلان «پیش‌فاکتور شما ثبت شد» برای همین فاکتور (خودکار یا دستی)؛ None اگر هیچ‌وقت نرفته."""
+    from notifications.models import Notification, NotificationType
+    return (Notification.objects
+            .filter(notification_type=NotificationType.INVOICE_ISSUED,
+                    real_target_url=f"/portal/invoices/{invoice.uuid}/")
+            .order_by("-created_at", "-pk").first())
+
+
+@transaction.atomic
+def resend_invoice_sms(*, invoice, actor):
+    """ارسال دستیِ پیامک پیش‌فاکتور. هیچ رمزی عوض نمی‌شود: اگر حساب از قبل بود پیامک «رمز فعلی شما» را می‌نویسد؛
+    فقط وقتی حساب همین لحظه ساخته شد رمز تازه‌اش در پیامک می‌رود. پیامکِ موفق تا یک دقیقه دوباره نمی‌رود."""
+    from core.capabilities import can
+    from notifications.models import Notification, NotificationType
+    from notifications.services import notify_users
+    from .accounting import log_event
+    from .models import AccountingEvent
+    if not can(actor, "pricing.edit"):
+        raise ValueError("فقط حسابدار یا مدیر می‌تواند پیامک پیش‌فاکتور را بفرستد.")
+    invoice = (Invoice.objects.select_for_update(of=("self",))
+               .select_related("billed_party", "project").get(pk=invoice.pk))
+    if invoice.status == Invoice.Status.CANCELLED:
+        raise ValueError("این فاکتور لغو شده است.")
+    last = last_invoice_sms(invoice)
+    if (last is not None and last.status != Notification.Status.FAILED
+            and last.created_at >= timezone.now() - timedelta(seconds=SMS_RESEND_SECONDS)):
+        raise ValueError("همین پیامک لحظاتی پیش فرستاده شد؛ یک دقیقه صبر کنید.")
+    user, raw_password = ensure_billed_party_account(invoice)
+    if user is None:
+        raise ValueError("این شماره‌ی موبایل برای حساب دیگری (مثلاً پرسنل) ثبت شده؛ پیامک نرفت.")
+    if not user.is_active:
+        raise ValueError("حساب ورود این طرف‌حساب غیرفعال است.")
+    if not user.phone_number:
+        raise ValueError("طرف‌حساب شماره‌ی موبایل ندارد.")
+    notify_users([user], notification_type=NotificationType.INVOICE_ISSUED, title="پیش‌فاکتور شما صادر شد",
+                 body=f"پیش‌فاکتور شماره {invoice.number} صادر شد.",
+                 real_target_url=f"/portal/invoices/{invoice.uuid}/",
+                 extra_data={"invoice_number": invoice.number, "username": user.username,
+                             "password": raw_password or ""})
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
+              text=f"ارسال دستی پیامک پیش‌فاکتور {invoice.number} به {user.phone_number}")
 

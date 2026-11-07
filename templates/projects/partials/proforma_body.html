@@ -6,6 +6,38 @@
      data-delete-url="{% url 'projects:proforma_row_delete' project.id %}"
      data-sprite="{% static 'icons/sprite.svg' %}">
 
+    {% if invoice and deadline %}
+    {% if deadline.state == 'active' %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "clock" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">مهلت تایید مشتری تا ساعت ۲۴ روز <span class="font-technical">{{ deadline.last_day|to_jalali:"%Y/%m/%d" }}</span>؛ {% if deadline.days_left == 0 %}امروز آخرین روز است.{% else %}<span class="font-technical">{{ deadline.days_left|fa_digits }}</span> روز دیگر.{% endif %}</span>
+    </div>
+    {% elif deadline.state == 'expired' %}
+    <div role="alert" class="alert alert-soft alert-error">
+        {% icon "alert-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">مهلت تایید تمام شده و پیش‌فاکتور برای مشتری معلق است؛ مشتری نمی‌تواند تایید یا پرداخت کند و باید با دفتر تماس بگیرد. قیمت‌ها را اصلاح کنید و بعد مهلت را تمدید کنید.</span>
+    </div>
+    {% endif %}
+    {% if can_extend %}
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="extend">
+        <h2 class="fb-section-title">{% if deadline.state == 'expired' %}تمدید مهلت و خروج از تعلیق{% else %}تمدید مهلت{% endif %}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="pf-extend-days">چند روز از امروز</label>
+                <input type="text" id="pf-extend-days" name="days" value="1" data-digits maxlength="2" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+            </div>
+            <div class="fb-field sm:col-span-2">
+                <label class="fb-label" for="pf-extend-reason">دلیل (اجباری)</label>
+                <input type="text" id="pf-extend-reason" name="reason" required maxlength="300" class="input w-full">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm self-start">ثبت تمدید</button>
+    </form>
+    {% endif %}
+    {% endif %}
+
     {% if not editable %}
     <div role="alert" class="alert alert-soft alert-warning">
         {% icon "lock" "w-4 h-4 shrink-0" %}
@@ -170,10 +202,29 @@
         </div>
     </section>
 
+    {% if invoice and can_sms %}
+    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="resend_sms">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+            <h2 class="fb-section-title">پیامک پیش‌فاکتور</h2>
+            {% if last_sms %}
+            <span class="fb-badge {% if last_sms.status == 'failed' %}fb-badge-error{% elif last_sms.status == 'sms_sent' or last_sms.status == 'seen' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">
+                {{ last_sms.get_status_display }} — <span class="font-technical">{{ last_sms.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+            </span>
+            {% else %}
+            <span class="fb-badge fb-badge-warning">هنوز پیامکی نرفته</span>
+            {% endif %}
+        </div>
+        <p class="fb-hint">بعد از ویرایش، پیامک خودکار نمی‌رود؛ هر وقت لازم بود خودتان بفرستید. متن همان «پیش‌فاکتور شما ثبت شد» است با نام کاربری (شماره‌ی موبایل) و لینک صفحه‌ی فاکتور. رمز در پیامک نیست؛ مشتری با «ورود با کد پیامکی» وارد می‌شود. اگر طرف‌حساب حساب ورود نداشته باشد، همین دکمه حسابش را می‌سازد و رمزش را در پیامک می‌فرستد.</p>
+        <button type="submit" class="btn btn-soft btn-sm self-start">{% icon "send" "w-4 h-4" %} ارسال پیامک به طرف‌حساب</button>
+    </form>
+    {% endif %}
+
     {% if can_issue %}
     <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
         {% csrf_token %}
-        <input type="hidden" name="action" value="issue">
+        <input type="hidden" name="action" value="preview">
         <h2 class="fb-section-title">صدور پیش‌فاکتور</h2>
         <div class="fb-field max-w-xs">
             <label class="fb-label" for="pf-deadline">مهلت تایید مشتری (روز)</label>
@@ -184,7 +235,7 @@
             <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
             <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
         </label>
-        <button type="submit" class="btn btn-primary btn-sm self-start">صدور پیش‌فاکتور</button>
+        <button type="submit" class="btn btn-primary btn-sm self-start">پیش‌نمایش پیش‌فاکتور مشتری</button>
     </form>
     {% endif %}
 

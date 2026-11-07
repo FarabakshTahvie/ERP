@@ -1,0 +1,52 @@
+{% load custom_tags %}
+<section id="proforma-preview" class="fb-card fb-pad flex flex-col gap-4">
+    <div>
+        <h2 class="fb-section-title">پیش‌نمایش آنچه مشتری می‌بیند</h2>
+        <p class="fb-hint">هنوز صادر نشده است. اگر همه‌چیز درست است «تایید و صدور» را بزنید؛ برای اصلاح به ردیف‌های پایین برگردید.</p>
+    </div>
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "clock" "w-4 h-4 shrink-0" %}
+        <div class="text-sm flex flex-col gap-1">
+            <span class="font-semibold">مهلت تایید تا ساعت ۲۴ روز <span class="font-technical">{{ preview.last_day|to_jalali:"%Y/%m/%d" }}</span></span>
+            <span class="text-xs">اگر تا آن زمان تایید نشود، پیش‌فاکتور منقضی می‌شود و قیمت‌ها باید دوباره بررسی شوند. لطفاً همین حالا تایید و پرداخت را انجام دهید.</span>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="table table-sm">
+            <thead>
+                <tr class="text-xs fb-muted">
+                    <th class="w-12 text-center font-medium">ردیف</th><th class="font-medium">شرح</th>
+                    <th class="text-center font-medium">مقدار</th><th class="text-center font-medium">مبلغ واحد (تومان)</th>
+                    <th class="text-center font-medium">جمع کل (تومان)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in preview.lines %}
+                <tr>
+                    <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
+                    <td class="font-medium">{{ l.title }}</td>
+                    <td class="text-center font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</td>
+                    <td class="text-center font-technical">{{ l.unit_price|intcomma_fa }}</td>
+                    <td class="text-center font-technical font-semibold">{{ l.total|intcomma_fa }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="flex justify-end">
+        <div class="w-full md:w-80 flex justify-between gap-2 text-sm font-bold">
+            <span>مبلغ کل فاکتور</span>
+            <span><span class="font-technical">{{ preview.total|intcomma_fa }}</span> تومان</span>
+        </div>
+    </div>
+    <p class="fb-inset text-xs">مشتری بالای صفحه‌ی فاکتورش همین پیام را با دکمه‌ی «تایید و پرداخت» می‌بیند.</p>
+    <form method="post" data-fb-once class="flex flex-wrap items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="issue">
+        <input type="hidden" name="deadline_days" value="{{ preview.days }}">
+        <input type="hidden" name="seen_total" value="{{ preview.seen_total }}">
+        {% if preview.send_sms %}<input type="hidden" name="send_sms" value="on">{% endif %}
+        <button type="submit" class="btn btn-primary btn-sm">تایید و صدور</button>
+        <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-ghost btn-sm">بازگشت و اصلاح</a>
+    </form>
+</section>

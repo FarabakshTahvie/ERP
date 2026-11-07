@@ -8,6 +8,8 @@
         <h1 class="fb-page-title mt-2">پیش‌فاکتور</h1>
         <p class="fb-page-sub">{{ project.name }} — <span class="font-technical">{{ project.code|fa_digits }}</span></p>
     </div>
+    {% if preview %}{% include "projects/partials/proforma_preview.html" %}{% endif %}
+
     {% include "projects/partials/proforma_body.html" %}
 </div>
 
