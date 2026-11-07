@@ -59,6 +59,10 @@
         track.scrollBy({ left: (+b.dataset.slide) * step() * (rtl ? -1 : 1), behavior: 'smooth' });
       });
     });
+    root._showCard = function (i) {
+      var rtl = getComputedStyle(track).direction === 'rtl';
+      track.scrollTo({ left: (rtl ? -1 : 1) * i * step(), behavior: 'smooth' });
+    };
     paint();
   }
 
@@ -96,6 +100,27 @@
     box.textContent = text || '';
     box.classList.toggle('hidden', !text);
   }
+
+  // کلیک روی ردیف کارت در «همه‌ی کارت‌ها»: همان کارت روی اسلایدر نشان داده می‌شود
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    var row = e.target.closest('[data-bankcard-show]');
+    if (!row || e.target.closest('button, a')) return;
+    var slider = document.querySelector('[data-bankcards]');
+    var card = slider && slider.querySelector('[data-card-id="' + row.dataset.cardId + '"]');
+    if (!card) {
+      listError('این کارت غیرفعال است و روی اسلایدر نمایش داده نمی‌شود.');
+      return;
+    }
+    listError('');
+    var track = slider.querySelector('[data-track]');
+    if (slider._showCard) slider._showCard(Array.prototype.indexOf.call(track.children, card));
+    slider.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.querySelectorAll('[data-bankcard-show]').forEach(function (r) {
+      r.classList.toggle('ring-1', r === row);
+      r.classList.toggle('ring-primary', r === row);
+    });
+  });
 
   // دکمه‌های فهرست مدیریت: ویرایش، فعال/غیرفعال، حذف (شنونده‌ی تفویضی)
   document.addEventListener('click', function (e) {

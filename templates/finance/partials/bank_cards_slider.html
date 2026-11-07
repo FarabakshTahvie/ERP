@@ -3,7 +3,7 @@
 <div class="mx-auto w-full max-w-sm" data-bankcards>
     <div class="fb-bankcards-track" data-track tabindex="0" role="region" aria-label="کارتهای بانکی">
         {% for c in cards %}
-        <article class="fb-bankcard" style="--c1: {{ c.colors.0 }}; --c2: {{ c.colors.1 }};">
+        <article class="fb-bankcard" data-card-id="{{ c.id }}" style="--c1: {{ c.colors.0 }}; --c2: {{ c.colors.1 }};">
             <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                     <div class="text-sm font-bold truncate">{{ c.bank_display }}</div>

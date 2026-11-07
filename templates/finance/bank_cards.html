@@ -20,8 +20,9 @@
     {% if can_manage and all_cards %}
     <section class="fb-card fb-pad flex flex-col gap-2">
         <h2 class="fb-section-title">همه‌ی کارت‌ها</h2>
+        <p class="fb-hint">برای دیدن هر کارت روی اسلایدر، روی ردیف آن بزنید.</p>
         {% for c in all_cards %}
-        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap cursor-pointer" data-bankcard-show data-card-id="{{ c.id }}">
             <div class="min-w-0">
                 <div class="text-sm font-semibold truncate">{{ c.bank_display }} <span dir="ltr" class="font-technical fb-muted">{{ c.card_number|slice:"-4:" }}</span></div>
                 <div class="text-xs fb-muted truncate">{{ c.holder_name }}</div>
