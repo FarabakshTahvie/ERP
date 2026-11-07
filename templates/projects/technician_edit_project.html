@@ -31,7 +31,7 @@
                 <h2 class="fb-section-title">خدمات، متریال و قیمت‌ها</h2>
                 <p class="fb-hint">از ویرایشگر پیش‌فاکتور انجام می‌شود.</p>
             </div>
-            <a href="{% url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">ویرایشگر پیش‌فاکتور</a>
+            <a href="{% nav_url 'projects:proforma_editor' project.id %}" class="btn btn-soft btn-sm">پیش‌فاکتور و پرداخت</a>
         </section>
         {% else %}
         <p class="fb-hint">قیمت‌گذاری فقط با حسابدار است.</p>

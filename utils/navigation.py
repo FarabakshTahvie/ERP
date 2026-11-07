@@ -82,6 +82,7 @@ MULTI_ENTRY = {
     "projects:staff_project_overview", "finance:accounting_project", "finance:payment_detail", "finance:accounting_purchase",
     "finance:portal_invoice_detail", "people:user_detail", "people:party_detail",
     "projects:final_review", "projects:portal_stage_approval", "notifications:broadcast_detail",
+    "projects:proforma_editor",
 }
 
 # هر نام URL پروژه که نه صفحه است و نه ریشه (POST، JSON، جزء htmx، فایل، ریدایرکت)

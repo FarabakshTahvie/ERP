@@ -1,12 +1,20 @@
 {% extends "base.html" %}
 {% load static custom_tags %}
-{% block title %}پیش‌فاکتور | فرابخش{% endblock %}
+{% block title %}فاکتور و پرداخت | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--lg">
     <div>
         <a href="{% nav_url 'projects:staff_project_overview' project.id %}" class="link link-hover text-sm fb-muted">بازگشت به پروژه</a>
-        <h1 class="fb-page-title mt-2">پیش‌فاکتور</h1>
-        <p class="fb-page-sub">{{ project.name }} — <span class="font-technical">{{ project.code|fa_digits }}</span></p>
+        <h1 class="fb-page-title mt-2">{% if invoice and invoice.document_type == 'final' %}فاکتور{% else %}پیش‌فاکتور{% endif %}</h1>
+        <p class="fb-page-sub">{{ project.name }} — <span class="font-technical">{{ project.code|fa_digits }}</span>{% if invoice %} — <span class="font-technical">{{ invoice.number|fa_digits }}</span>{% endif %}</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+            {% if caps.accounting_access %}
+            <a href="{% nav_url 'finance:accounting_project' project.id %}" class="btn btn-soft btn-sm">{% icon "bar-chart-3" "w-4 h-4" %} پرونده‌ی مالی</a>
+            {% endif %}
+            {% if invoice %}
+            <a href="{% nav_url 'finance:portal_invoice_detail' invoice.uuid %}" class="btn btn-soft btn-sm">{% icon "eye" "w-4 h-4" %} صفحه‌ی مشتری</a>
+            {% endif %}
+        </div>
     </div>
     {% if preview %}{% include "projects/partials/proforma_preview.html" %}{% endif %}
 
