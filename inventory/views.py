@@ -23,7 +23,7 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from .services import (
     user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
-    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file
+    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items
 )
 
 
@@ -195,7 +195,7 @@ def purchase_new(request):
         return redirect("home")
 
     return render(request, "inventory/purchase_new.html", {
-        "items": Item.objects.filter(is_active=True).order_by("name"),
+        "items": stockable_items().order_by("name"),
         "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
         **item_form_choices(),
     })

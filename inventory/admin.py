@@ -1,6 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
+from catalog.models import Item
 from .models import Warehouse, Purchase, PurchaseLine, StockLot, StockMovement
 
 
@@ -29,6 +30,9 @@ class PurchaseAdmin(JalaliAdminMixin, ModelAdmin):
         instances = formset.save(commit=False)
         from .services import receive_stock
         for line in instances:
+            if line.item.item_type == Item.ItemType.MANUFACTURED:
+                self.message_user(request, f"«{line.item.name}» کالای ساختنی است و خرید نمی‌شود؛ این ردیف ثبت نشد.", level="error")
+                continue
             line.save()
             receive_stock(
                 item=line.item,
