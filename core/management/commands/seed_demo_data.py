@@ -78,7 +78,7 @@ class Command(BaseCommand):
             )
 
             service_duct = Service.objects.create(name="کانال‌کشی گالوانیزه", unit=Item.Unit.METER)
-            ServiceBOM.objects.create(service=service_duct, item=item_sheet, qty_per_unit=2, waste_percent=5)
+            ServiceBOM.objects.create(service=service_duct, item=item_sheet)
 
             warehouse, _ = Warehouse.objects.get_or_create(name="انبار مرکزی", defaults={"is_default": True})
 
