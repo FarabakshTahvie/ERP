@@ -156,8 +156,8 @@ class DefaultItemsPreviewTests(DefaultItemsBase):
         prev = rows.preview_change(project=self.project, actor=self.acc, kind="service", row=r)
         self.assertFalse(prev["same"])
         labels = [c["label"] for c in prev["changes"]]
-        self.assertIn("کالای اضافه‌شده به فرم مصرف", labels)
-        self.assertIn("کالای برداشته‌شده از فرم مصرف", labels)
+        self.assertIn("اضافه به فرم مصرف", labels)
+        self.assertIn("حذف از فرم مصرف", labels)
         self.assertEqual(prev["grand_before"], prev["grand_after"])
 
     def test_preview_is_same_when_nothing_changed(self):

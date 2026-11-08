@@ -5,7 +5,7 @@
 <div class="fb-page fb-page--sm">
     <div>
         <h1 class="fb-page-title">ثبت مصرف، تعدیل یا فروش</h1>
-        <p class="fb-page-sub">همه‌ی حالت‌های زیر بلافاصله در موجودی کالا اثر می‌گذارند و برگشت‌پذیر نیستند؛ اطلاعات را دقیق بنویسید.</p>
+        <p class="fb-page-sub">هر ثبت همان لحظه روی موجودی اثر می‌گذارد و پاک نمی‌شود؛ اشتباه را با تعدیل اصلاح کنید.</p>
     </div>
 
     <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4" id="stock-movement-form">
@@ -18,7 +18,7 @@
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات/اشتباه شمارش)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی جا افتاده)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="opening" class="sr-only"> موجودی اولیه (کالایی که از قبل در انبار بوده؛ خرید حساب نمی‌شود)</label>
-                <label class="fb-choice justify-start"><input type="radio" name="kind" value="sale" class="sr-only" {% if sale.active %}checked{% endif %}> فروش (فروش کالا به مشتری، بیرون از پروژه)</label>
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="sale" class="sr-only" {% if sale.active %}checked{% endif %}> فروش به مشتری (بیرون از پروژه)</label>
             </div>
         </div>
 
@@ -63,7 +63,6 @@
                     <span class="fb-label">اقلام فروش</span>
                     <div id="sale-lines" data-sprite="{% static 'icons/sprite.svg' %}"></div>
                     <input type="hidden" id="sale-lines-json" data-name="lines_json">
-                    <span class="fb-hint">برای هر قلم کالا، تعداد و قیمت فروش یک واحد (تومان) را بنویسید.</span>
                 </div>
                 <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
                     <span>جمع فروش (تومان)</span>
@@ -79,7 +78,7 @@
                         <input type="text" id="sale-phone" name="customer_phone" value="{{ sale.phone }}" data-digits maxlength="11" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
                     </div>
                 </div>
-                <p class="fb-hint">اگر نام یا شماره را بنویسید، مشتری در «فروش کالا ← مشتریان» ثبت می‌شود و بعداً می‌توانید ببینید چه چیزی خریده.</p>
+                <p class="fb-hint">اگر نام یا شماره بنویسید، خرید او در صفحه‌ی «فروش کالا»، تب «مشتریان» می‌آید.</p>
             </div>
         </div>
 
@@ -88,7 +87,7 @@
             <textarea id="movement-notes" name="notes" required class="textarea w-full" rows="2" placeholder="مثلاً: مصرف در پروژه... یا: در انبارگردانی کسری پیدا شد">{{ sale.notes }}</textarea>
         </div>
 
-        <button type="submit" class="btn btn-primary w-full">ثبت</button>
+        <button type="submit" id="movement-submit" class="btn btn-primary w-full">ثبت مصرف</button>
     </form>
 </div>
 
@@ -122,6 +121,10 @@
     });
     el('movement-item-picker').appendChild(picker.el);
 
+    var SUBMIT_LABEL = { consume: 'ثبت مصرف', adjust_decrease: 'ثبت تعدیل', adjust_increase: 'ثبت تعدیل',
+                         opening: 'ثبت موجودی اولیه', sale: 'ثبت فروش' };
+    var NOTES_HINT = el('movement-notes').placeholder;
+
     function syncKind() {
         var kind = kindNow();
         var isSale = kind === 'sale', isConsume = kind === 'consume';
@@ -138,6 +141,8 @@
         el('movement-project').required = isConsume;
         el('movement-notes').required = !isSale;
         el('movement-notes-label').textContent = isSale ? 'توضیح (در صورت نیاز)' : 'دلیل (اجباری)';
+        el('movement-notes').placeholder = isSale ? 'مثلاً: فروش نقدی در دفتر' : NOTES_HINT;
+        el('movement-submit').textContent = SUBMIT_LABEL[kind];
     }
     document.querySelectorAll('input[name="kind"]').forEach(function (r) { r.addEventListener('change', syncKind); });
 
@@ -146,7 +151,7 @@
     E({
         mount: el('sale-lines'), hidden: el('sale-lines-json'),
         initial: JSON.parse(el('sale-initial').textContent || '[]'),
-        addLabel: 'افزودن قلم', emptyText: 'هنوز قلمی اضافه نشده.',
+        addLabel: 'افزودن کالا', emptyText: 'کالایی اضافه نشده.',
         columns: [
             { key: 'id', type: 'picker', label: 'کالا', items: data, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
             { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
@@ -154,7 +159,7 @@
             { key: 'stock', type: 'readonly', label: 'موجودی', cls: 'w-24',
               compute: function (d) { var it = byId[parseInt(d.id, 10)]; return it ? nf.format(parseFloat(it.stock)) : '—'; } }
         ],
-        footer: function (d) { var t = num(d.qty) * num(d.unit_price); return t > 0 ? 'جمع این قلم: ' + fmt(t) + ' تومان' : ''; },
+        footer: function (d) { var t = num(d.qty) * num(d.unit_price); return t > 0 ? 'جمع این کالا: ' + fmt(t) + ' تومان' : ''; },
         onChange: function (rows) {
             var t = 0;
             rows.forEach(function (r) { t += num(r.qty) * num(r.unit_price); });

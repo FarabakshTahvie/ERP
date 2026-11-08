@@ -31,7 +31,7 @@ class PurchaseAdmin(JalaliAdminMixin, ModelAdmin):
         from .services import receive_stock
         for line in instances:
             if line.item.item_type == Item.ItemType.MANUFACTURED:
-                self.message_user(request, f"«{line.item.name}» کالای ساختنی است و خرید نمی‌شود؛ این ردیف ثبت نشد.", level="error")
+                self.message_user(request, f"«{line.item.name}» ساختنی است و خرید نمی‌شود؛ این ردیف ثبت نشد.", level="error")
                 continue
             line.save()
             receive_stock(
