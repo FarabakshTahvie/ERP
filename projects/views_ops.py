@@ -6,6 +6,7 @@ from django.db import transaction
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inventory.services import record_manual_stock_change, stockable_items
 from . import ops, shipping_slip, usage
@@ -171,8 +172,9 @@ def shipping_slip_pdf(request, stage_id):
     if not StageUsage.objects.filter(stage=stage).exists():
         messages.error(request, "برای این مرحله هنوز مصرفی ثبت نشده است.")
         return redirect(reverse("projects:staff_project_overview", args=[stage.project_id]) + f"#stage-{stage.id}")
-    pdf = shipping_slip.render_pdf(request, stage)
-    shipping_slip.mark_downloaded(stage, request.user)
+    when = timezone.now() if shipping_slip.tracks_download(request.user, stage) else None
+    pdf = shipping_slip.render_pdf(request, stage, when=when)
+    shipping_slip.mark_downloaded(stage, request.user, when=when)
     response = FileResponse(io.BytesIO(pdf), as_attachment=True, content_type="application/pdf",
                             filename=f"shipping-slip-{stage.project.code}.pdf")
     response["Cache-Control"] = "private, no-store"
