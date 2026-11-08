@@ -652,7 +652,8 @@ def my_task_complete(request, stage_id):
             voice = prepare_voice(request.FILES.get("voice"), request.POST.get("voice_duration"),
                                   request.POST.get("voice_peaks"))
             complete_stage(stage=stage, actor=request.user, comment=request.POST.get("comment", "").strip(),
-                           show_to_client=request.POST.get("show_to_client") == "1", voice=voice)
+                           show_to_client=request.POST.get("show_to_client") == "1", voice=voice,
+                           undone_reason=request.POST.get("undone_reason", ""))
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("projects:my_task_detail", stage_id=stage.id)

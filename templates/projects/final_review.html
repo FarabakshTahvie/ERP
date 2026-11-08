@@ -256,6 +256,11 @@
                 <ul class="list-disc list-inside mt-1 space-y-1">
                     {% for ps in data.undone_services %}<li>{{ ps.service.name }}</li>{% endfor %}
                 </ul>
+                {% if data.undone_reason %}
+                <p class="fb-inset mt-2 whitespace-pre-line"><span class="font-semibold">دلیل تکنسین:</span> {{ data.undone_reason }}</p>
+                {% else %}
+                <p class="fb-hint mt-2">تکنسین دلیلی ننوشته است.</p>
+                {% endif %}
             </div>
             {% else %}
             <p class="text-xs text-success">همه‌ی خدمت‌های پیش‌فاکتور تیک «انجام شد» خورده‌اند.</p>

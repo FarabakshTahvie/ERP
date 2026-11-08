@@ -6,7 +6,7 @@ from django.db.models import Prefetch
 from core.capabilities import can
 from .models import Project, ProjectCost, ProjectFile, ProjectStage, ServiceTick, StageConfirmation, StageEvent, StageKind
 from .services import parse_fee
-from .stage_ops import _is_manager
+from .stage_ops import _is_manager, undone_services
 
 REASON_MAX = 1000
 _ACTIVE = (ProjectStage.Status.IN_PROGRESS, ProjectStage.Status.DONE)
@@ -86,14 +86,13 @@ def final_review_data(project):
         s.client_confirm = confirms.get(s.pk)
     costs = list(project.recorded_costs.all())
     install = next((s for s in stages if s.kind == StageKind.INSTALL), None)
-    undone = []
-    if install is not None:
-        ticked = set(ServiceTick.objects.filter(stage=install).values_list("service_line_id", flat=True))
-        undone = [ps for ps in project.services.select_related("service").order_by("pk") if ps.pk not in ticked]
+    undone = undone_services(install) if install is not None else []
     return {
         "stages": stages, "costs": costs,
         "totals": {"costs_total": sum((c.amount for c in costs), Decimal(0))},
-        "has_install": install is not None, "undone_services": undone,
+        "has_install": install is not None,
+        "undone_reason": install.undone_reason if install is not None else "",
+        "undone_services": undone,
     }
 
 

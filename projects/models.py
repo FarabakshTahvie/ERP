@@ -259,6 +259,7 @@ class ProjectStage(TimeStampedModel):
     return_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
                                   related_name="reopened_stages", verbose_name="بعد از تکمیل برگرد به")
     slip_downloaded_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان دانلود برگه‌ی ارسال")
+    undone_reason = models.TextField(blank=True, verbose_name="دلیل خدمت‌های نصب‌نشده")
 
     class Meta:
         verbose_name = "مرحله پروژه"

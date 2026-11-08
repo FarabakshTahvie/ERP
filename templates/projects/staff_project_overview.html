@@ -160,6 +160,16 @@
                         <textarea id="complete-comment-{{ s.id }}" name="comment" required data-complete-comment class="textarea textarea-sm w-full" rows="2" placeholder="بنویسید یا پیام صوتی ضبط کنید"></textarea>
                     </div>
                     <div data-voice-recorder data-sprite="{% static 'icons/sprite.svg' %}"></div>
+                    {% if s.install %}
+                    <div class="hidden" data-undone-box>
+                        <div class="fb-field">
+                            <label class="fb-label" for="undone-reason-{{ s.id }}">دلیل خدمت‌هایی که نصب نشده (اجباری)</label>
+                            <textarea id="undone-reason-{{ s.id }}" name="undone_reason" rows="2" maxlength="1000" data-undone-reason
+                                      class="textarea textarea-sm w-full" placeholder="مثلاً چرا انجام نشد و چه باید کرد"></textarea>
+                            <span class="fb-hint">خدمت تیک‌نخورده مانع تکمیل مرحله نیست؛ فقط دلیلش را بنویسید. حسابدار در بازبینی نهایی می‌بیند.</span>
+                        </div>
+                    </div>
+                    {% endif %}
                     <p class="fb-error hidden" data-complete-error></p>
                     <div class="flex flex-wrap gap-2">
                         <button class="btn btn-primary btn-sm flex-1 min-w-32 whitespace-nowrap">تکمیل شد</button>

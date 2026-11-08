@@ -92,13 +92,17 @@ class InstallLockTests(InstallBase):
 
 
 class InstallCompletionTests(InstallBase):
-    def test_completion_needs_photo_but_not_every_tick(self):
+    def test_completion_needs_photo_and_reason_for_unticked_services(self):
         self.assertIn("عکس", stage_completion_problem(self.stage))
         add_stage_file(stage=self.stage, uploaded=make_image_file("site.jpg"), uploader=self.installer)
-        self.assertIsNone(stage_completion_problem(self.stage))
-        complete_stage(stage=self.stage, actor=self.installer, comment="نصب شد")
+        self.assertIn("دلیل", stage_completion_problem(self.stage))
+        self.assertIsNone(stage_completion_problem(self.stage, undone_reason="مشتری اجازه نداد"))
+        with self.assertRaises(ValueError):
+            complete_stage(stage=self.stage, actor=self.installer, comment="نصب شد")
+        complete_stage(stage=self.stage, actor=self.installer, comment="نصب شد", undone_reason="مشتری اجازه نداد")
         self.stage.refresh_from_db()
         self.assertEqual(self.stage.status, ProjectStage.Status.DONE)
+        self.assertEqual(self.stage.undone_reason, "مشتری اجازه نداد")
         self.assertEqual(ServiceTick.objects.count(), 0)
 
 

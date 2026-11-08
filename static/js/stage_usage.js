@@ -112,6 +112,17 @@
     });
   });
 
+  // دلیل خدمت‌های نصب‌نشده: تا وقتی همه تیک نخورده‌اند، کادر دلیل نشان داده و اجباری می‌شود
+  function syncUndone(stage) {
+    if (!stage) return;
+    var box = stage.querySelector('[data-undone-box]');
+    if (!box) return;
+    var some = false;
+    stage.querySelectorAll('[data-install-check]').forEach(function (c) { if (!c.checked) some = true; });
+    box.classList.toggle('hidden', !some);
+    box.querySelector('[data-undone-reason]').required = some;
+  }
+
   // تیک «انجام شد» خدمت‌های نصب (ثبت لحظه‌ای)
   document.addEventListener('change', function (e) {
     var cb = e.target.closest ? e.target.closest('[data-install-check]') : null;
@@ -121,7 +132,8 @@
     fd.append('service_id', row.dataset.service);
     fd.append('done', cb.checked ? '1' : '0');
     cb.disabled = true;
-    function fail(text) { cb.checked = !cb.checked; err.textContent = text; err.classList.remove('hidden'); }
+    function fail(text) { cb.checked = !cb.checked; syncUndone(cb.closest('[id^="stage-"]')); err.textContent = text; err.classList.remove('hidden'); }
+    syncUndone(cb.closest('[id^="stage-"]'));
     track(window.fbSend(row.dataset.url, fd, window.FB_CSRF).then(function (res) {
       cb.disabled = false;
       if (res.ok) {
@@ -131,4 +143,5 @@
       } else { fail(res.error || 'ثبت نشد.'); }
     }));
   });
+  document.querySelectorAll('[data-undone-box]').forEach(function (b) { syncUndone(b.closest('[id^="stage-"]')); });
 })();

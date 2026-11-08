@@ -6,7 +6,7 @@ from django.utils import timezone
 from accounts.models import User
 from utils.image_utils import optimize_named
 from utils.utils import guess_file_kind
-from .models import FileGroup, Project, ProjectFile, ProjectStage, StageKind
+from .models import FileGroup, Project, ProjectFile, ProjectService, ProjectStage, ServiceTick, StageKind
 from .services import advance_stage, user_is_accountant
 from .confirmations import open_confirmation
 
@@ -15,6 +15,7 @@ MAX_FILE_BYTES = 25 * 1024 * 1024   # هم‌سقف nginx
 MAX_CUTS = 999
 GROUP_TITLE_MAX = 100
 MAX_GROUPS = 50
+UNDONE_REASON_MAX = 1000
 _FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
@@ -204,7 +205,14 @@ def set_group_cut_done(*, group, done, actor):
     return group
 
 
-def stage_completion_problem(stage, *, show_to_client=False):
+def undone_services(stage):
+    """خدمت‌های پیش‌فاکتور که در مرحله‌ی نصب تیک نخورده‌اند."""
+    ticked = set(ServiceTick.objects.filter(stage=stage).values_list("service_line_id", flat=True))
+    return [ps for ps in ProjectService.objects.filter(project_id=stage.project_id)
+            .select_related("service").order_by("pk") if ps.pk not in ticked]
+
+
+def stage_completion_problem(stage, *, show_to_client=False, undone_reason=""):
     """پیام خطا یا None. تنها منبع شرط‌های تکمیل."""
     need = upload_requirement(stage)
     files = stage.files.all()
@@ -223,11 +231,17 @@ def stage_completion_problem(stage, *, show_to_client=False):
     if stage.kind == StageKind.DESIGN_INITIAL and show_to_client and not files.filter(
             kind__in=(ProjectFile.Kind.PDF, ProjectFile.Kind.IMAGE)).exists():
         return "برای نمایش به مشتری، حداقل یک عکس یا PDF از طرح بارگذاری کنید تا مشتری بتواند بدون نرم‌افزار ببیند."
+    if stage.kind == StageKind.INSTALL and undone_services(stage):
+        reason = (undone_reason or "").strip()
+        if not reason:
+            return "برای خدمت‌هایی که نصب نشده، دلیلش را بنویسید."
+        if len(reason) > UNDONE_REASON_MAX:
+            return "دلیل خدمت‌های نصب‌نشده بیش از حد طولانی است."
     return None
 
 
 @transaction.atomic
-def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=False, voice=None):
+def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=False, voice=None, undone_reason=""):
     stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("step_template", "project").get(pk=stage.pk)
     if stage.kind == StageKind.PROFORMA:
         raise ValueError("این مرحله فقط با «صدور پیش‌فاکتور» از صفحه‌ی ویرایشگر تکمیل می‌شود.")
@@ -238,7 +252,7 @@ def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=Fa
     if (actor.role == User.Role.EMPLOYEE and stage.assigned_to_id != actor.id
             and not (stage.kind == StageKind.FINAL_REVIEW and user_is_accountant(actor))):
         raise ValueError("ابتدا این کار را برای خودتان بردارید.")
-    problem = stage_completion_problem(stage, show_to_client=show_to_client)
+    problem = stage_completion_problem(stage, show_to_client=show_to_client, undone_reason=undone_reason)
     if problem:
         raise ValueError(problem)
 
@@ -250,6 +264,14 @@ def complete_stage(*, stage, actor, comment, show_to_client=False, via_review=Fa
         stage.client_preview = bool(show_to_client)
         stage.save(update_fields=["client_preview", "updated_at"])
         note = f"{comment}\n[{'طرح برای مشتری نمایش داده می‌شود' if show_to_client else 'طرح برای مشتری نمایش داده نمی‌شود'}]"
+    if stage.kind == StageKind.INSTALL:
+        undone = undone_services(stage)
+        if undone:
+            reason = (undone_reason or "").strip()
+            stage.undone_reason = reason
+            stage.save(update_fields=["undone_reason", "updated_at"])
+            names = "، ".join(ps.service.name for ps in undone)
+            note = f"{comment}\n[خدمت‌های نصب‌نشده: {names} — دلیل: {reason}]"
     result = advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=note, voice=voice)
     open_confirmation(result)   # فقط برای ارسال و نصب کاری می‌کند
     return result
