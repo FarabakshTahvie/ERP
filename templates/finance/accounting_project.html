@@ -47,14 +47,13 @@
         <div class="overflow-x-auto">
             <table class="table table-sm text-xs">
                 <thead><tr class="fb-muted">
-                    <th>کالا</th><th>پیش‌فاکتور</th><th>مصرف ثبت‌شده‌ی مرحله‌ها</th>
+                    <th>کالا</th><th>مصرف ثبت‌شده‌ی مرحله‌ها</th>
                     <th>کسر از انبار (خالص)</th><th>مصرف نهایی پیشنهادی</th><th>تسویه‌نشده</th><th>وضعیت</th>
                 </tr></thead>
                 <tbody>
                     {% for r in recon %}
                     <tr>
                         <td class="font-semibold">{{ r.item.name }}</td>
-                        <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                         <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
                         <td class="font-technical">{{ r.expected|floatformat:"-4"|fa_digits }}</td>
@@ -66,7 +65,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
+                    <tr><td colspan="6" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

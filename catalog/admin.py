@@ -22,6 +22,7 @@ class ItemAdmin(JalaliAdminMixin, ModelAdmin):
 class ServiceBOMInline(JalaliAdminMixin, TabularInline):
     model = ServiceBOM
     extra = 0
+    autocomplete_fields = ("item",)
 
 
 @admin.register(Service)

@@ -2,7 +2,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from accounts.models import User
 from catalog.models import Service, Item
-from catalog.services import resolve_margin_percents
 from utils.line_editor import Col, parse_rows
 from .models import ProjectService, ProjectServiceMaterial, ProjectExtraLine, ProjectStage, StageKind
 from .services import (
@@ -12,8 +11,7 @@ from .services import (
 
 MATERIAL_COLS = (
     Col("item_id", "کالا", "picker"),
-    Col("qty", "مقدار کالا", "number", positive=True),
-    Col("line_total", "جمع کالا", "money", required=False),   # خالی = خودکار از میانگین و سود
+    Col("on", "در این پروژه", "checkbox"),   # بی‌تیک = در این پروژه نیست و ذخیره نمی‌شود
 )
 SERVICE_COLS = (
     Col("service_id", "خدمت", "picker"),
@@ -42,15 +40,9 @@ def _round0(value):
     return Decimal(value).quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
 
-def material_totals(item, qty, margin_percent):
-    """(بهای میانگین، جمع فروش) — تنها فرمول رسمی قیمت کالا."""
-    cost = Decimal(item.moving_average_cost or 0)
-    return cost, _round0(Decimal(qty) * cost * (Decimal(100) + Decimal(margin_percent)) / Decimal(100))
-
-
 def service_line_total(service_line):
-    mats = sum((m.line_total for m in service_line.materials.all()), Decimal(0))
-    return _round0(service_line.qty * service_line.unit_price + mats)
+    """قیمت خدمت = مقدار × قیمت واحد. کالاها قیمت ندارند."""
+    return _round0(service_line.qty * service_line.unit_price)
 
 
 def proforma_stage(project):
@@ -63,25 +55,30 @@ def can_issue_proforma(user, stage):
         user.is_superuser or user.role == User.Role.ADMIN or stage.assigned_to_id in (None, user.id))
 
 
-def _sync_materials(line, rows, items, margins):
-    existing = {m.pk: m for m in line.materials.all()}
-    keep = set()
+def check_material_items(project, rows):
+    """کالای ناموجود یا غیرفعال (مگر قبلاً در همین پروژه تیک خورده) رد می‌شود. فقط ردیف‌های تیک‌خورده مهم‌اند."""
+    ids = {m["item_id"] for m in rows if m.get("on")}
+    items = {i.pk: i for i in Item.objects.filter(pk__in=ids)}
+    if len(items) != len(ids):
+        raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
+    used = set(ProjectServiceMaterial.objects.filter(service_line__project=project)
+               .values_list("item_id", flat=True))
+    for iid in ids - used:
+        if not items[iid].is_active:
+            raise ValueError(f"کالای «{items[iid].name}» غیرفعال است.")
+
+
+def _sync_materials(line, rows):
+    """کالاهای تیک‌خورده‌ی یک خدمت. بقیه‌ی ردیف‌های ذخیره‌شده پاک می‌شوند؛ هر کالا حداکثر یک‌بار."""
+    wanted = []
     for row in rows:
-        m = existing.get(row["pk"]) if row["pk"] not in keep else None
-        if m is None:
-            m = ProjectServiceMaterial(service_line=line)
-        item = items[row["item_id"]]
-        qty = row["qty"].quantize(Decimal("0.0001"))
-        if qty <= 0:
-            raise ValueError("مقدار کالا خیلی کوچک است.")
-        margin = Decimal(margins[item.pk]).quantize(Decimal("0.01"))
-        cost, auto_total = material_totals(item, qty, margin)
-        typed = row.get("line_total")
-        m.item, m.qty, m.cost_snapshot, m.margin_percent = item, qty, cost, margin
-        m.line_total, m.manual_total = (auto_total, False) if typed is None else (typed, True)
-        m.save()
-        keep.add(m.pk)
-    line.materials.exclude(pk__in=keep).delete()
+        if row.get("on") and row["item_id"] not in wanted:
+            wanted.append(row["item_id"])
+    line.materials.exclude(item_id__in=wanted).delete()
+    have = set(line.materials.values_list("item_id", flat=True))
+    for item_id in wanted:
+        if item_id not in have:
+            ProjectServiceMaterial.objects.create(service_line=line, item_id=item_id)
 
 
 def _sync_extra_rows(project, rows, actor):
@@ -104,18 +101,7 @@ def _sync_service_rows(project, rows):
     service_ids = {r["service_id"] for r in rows}
     if service_ids and Service.objects.filter(pk__in=service_ids).count() != len(service_ids):
         raise ValueError("یکی از خدمات انتخاب‌شده در سیستم پیدا نشد.")
-    item_ids = {m["item_id"] for r in rows for m in r["materials"]}
-    items = {i.pk: i for i in Item.objects.filter(pk__in=item_ids)}
-    if len(items) != len(item_ids):
-        raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
-    already_used = set(
-        ProjectServiceMaterial.objects.filter(service_line__project=project).values_list("item_id", flat=True)
-    )
-    for iid in item_ids - already_used:
-        if not items[iid].is_active:
-            raise ValueError(f"کالای «{items[iid].name}» غیرفعال است.")
-    margins = resolve_margin_percents(items.values())
-
+    check_material_items(project, [m for r in rows for m in r["materials"]])
     existing = {l.pk: l for l in project.services.all()}
     keep = set()
     for row in rows:
@@ -128,7 +114,7 @@ def _sync_service_rows(project, rows):
         line.service_id, line.qty, line.unit_price = row["service_id"], qty, row["unit_price"]
         line.save()
         keep.add(line.pk)
-        _sync_materials(line, row["materials"], items, margins)
+        _sync_materials(line, row["materials"])
     project.services.exclude(pk__in=keep).delete()
 
 

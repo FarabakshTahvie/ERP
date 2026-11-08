@@ -6,14 +6,13 @@ from django.db import transaction
 from django.db.models import Sum
 
 from catalog.models import Item, Service
-from catalog.services import resolve_margin_percents
 from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
 from utils.line_editor import parse_rows
 from utils.utils import separate_digits
-from .models import Project, ProjectExtraLine, ProjectService, ProjectServiceMaterial
+from .models import Project, ProjectExtraLine, ProjectService
 from .proforma import (
-    EXTRA_COLS, MATERIAL_COLS, SERVICE_COLS, _round0, _sync_materials, material_totals, service_line_total,
+    EXTRA_COLS, MATERIAL_COLS, SERVICE_COLS, _round0, _sync_materials, check_material_items, service_line_total,
 )
 from .services import EDITABLE_PROJECT_STATUSES, can_edit_pricing, parse_fee, project_prices_editable
 
@@ -68,10 +67,13 @@ def _parse_date(raw):
 # ---------- خلاصه‌ی عددی (تنها منبع عدد صفحه) ----------
 def service_row_initial(line):
     q = lambda v: format(Decimal(v).normalize(), "f")
-    return {"pk": line.pk, "service_id": line.service_id, "qty": q(line.qty), "unit_price": str(int(line.unit_price)),
-            "materials": [{"pk": m.pk, "item_id": m.item_id, "qty": q(m.qty),
-                           "line_total": str(int(m.line_total)) if m.manual_total else ""}
-                          for m in sorted(line.materials.all(), key=lambda m: m.pk)]}
+    saved = sorted(line.materials.all(), key=lambda m: m.pk)
+    have = {m.item_id for m in saved}
+    mats = [{"pk": m.pk, "item_id": m.item_id, "on": True} for m in saved]
+    mats += [{"item_id": b.item_id, "on": False} for b in line.service.bom_lines.all()
+             if b.item_id not in have and b.item.is_active]
+    return {"pk": line.pk, "service_id": line.service_id, "qty": q(line.qty),
+            "unit_price": str(int(line.unit_price)), "materials": mats}
 
 
 def extra_row_initial(x):
@@ -86,7 +88,7 @@ def _signed(x):
 
 def proforma_summary(project):
     total, services, extras = Decimal(0), [], []
-    qs = project.services.select_related("service").prefetch_related("materials__item").order_by("pk")
+    qs = project.services.select_related("service").prefetch_related("materials__item", "service__bom_lines__item").order_by("pk")
     for line in qs:
         t = service_line_total(line)
         total += t
@@ -166,17 +168,10 @@ def save_service_line(*, project, actor, row):
     if qty <= 0:
         raise ValueError("مقدار خدمت خیلی کوچک است.")
     line = _line_or_none(project.services.all(), row["pk"]) or ProjectService(project=project)
-    item_ids = {m["item_id"] for m in row["materials"]}
-    items = {i.pk: i for i in Item.objects.filter(pk__in=item_ids)}
-    if len(items) != len(item_ids):
-        raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
-    used = set(ProjectServiceMaterial.objects.filter(service_line__project=project).values_list("item_id", flat=True))
-    for iid in item_ids - used:
-        if not items[iid].is_active:
-            raise ValueError(f"کالای «{items[iid].name}» غیرفعال است.")
+    check_material_items(project, row["materials"])
     line.service_id, line.qty, line.unit_price = row["service_id"], qty, row["unit_price"]
     line.save()
-    _sync_materials(line, row["materials"], items, resolve_margin_percents(items.values()))   # فقط همین ردیف
+    _sync_materials(line, row["materials"])   # فقط همین ردیف
     _refresh_invoice(project)
     return line
 
@@ -234,32 +229,23 @@ def set_project_field(*, project, actor, field, raw):
 
 # ---------- پیش‌نمایش «چه به چه» (چیزی ذخیره نمی‌شود) ----------
 def _old_view(line):
-    mats = [{"pk": m.pk, "name": m.item.name, "qty": m.qty, "total": m.line_total}
-            for m in sorted(line.materials.all(), key=lambda m: m.pk)]
-    return {"name": line.service.name, "qty": line.qty, "unit_price": line.unit_price, "materials": mats,
+    return {"name": line.service.name, "qty": line.qty, "unit_price": line.unit_price,
+            "items": {m.item_id: m.item.name for m in sorted(line.materials.all(), key=lambda m: m.pk)},
             "total": service_line_total(line)}
 
 
-def _new_view(row, old_line):
+def _new_view(row):
     service = Service.objects.filter(pk=row["service_id"]).first()
     if service is None:
         raise ValueError("خدمت انتخاب‌شده در سیستم پیدا نشد.")
-    items = {i.pk: i for i in Item.objects.filter(pk__in={m["item_id"] for m in row["materials"]})}
-    margins = resolve_margin_percents(items.values())
-    old_pks = {m.pk for m in old_line.materials.all()} if old_line else set()
-    svc_qty = row["qty"].quantize(Decimal("0.01"))
-    total, mats = svc_qty * row["unit_price"], []
-    for m in row["materials"]:
-        item = items.get(m["item_id"])
-        if item is None:
-            raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
-        mqty = m["qty"].quantize(Decimal("0.0001"))
-        _cost, auto = material_totals(item, mqty, Decimal(margins[item.pk]).quantize(Decimal("0.01")))
-        mtotal = auto if m["line_total"] is None else m["line_total"]
-        mats.append({"pk": m["pk"] if m["pk"] in old_pks else None, "name": item.name, "qty": mqty, "total": mtotal})
-        total += mtotal
-    return {"name": service.name, "qty": svc_qty, "unit_price": row["unit_price"], "materials": mats,
-            "total": _round0(total)}
+    ids = {m["item_id"] for m in row["materials"]}
+    names = {i.pk: i.name for i in Item.objects.filter(pk__in=ids)}
+    if len(names) != len(ids):
+        raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
+    qty = row["qty"].quantize(Decimal("0.01"))
+    return {"name": service.name, "qty": qty, "unit_price": row["unit_price"],
+            "items": {m["item_id"]: names[m["item_id"]] for m in row["materials"] if m.get("on")},
+            "total": _round0(qty * row["unit_price"])}
 
 
 def _diff_service(old, new):
@@ -270,22 +256,12 @@ def _diff_service(old, new):
         out.append(_change("مقدار خدمت", _q(old["qty"]), _q(new["qty"])))
     if old["unit_price"] != new["unit_price"]:
         out.append(_change("قیمت خود خدمت (تومان)", money_text(old["unit_price"]), money_text(new["unit_price"])))
-    old_by_pk, seen = {m["pk"]: m for m in old["materials"]}, set()
-    for m in new["materials"]:
-        o = old_by_pk.get(m["pk"]) if m["pk"] else None
-        if o is None:
-            out.append(_change(f"کالای تازه: {m['name']}", "—", f"{_q(m['qty'])} — {money_text(m['total'])} تومان"))
-            continue
-        seen.add(m["pk"])
-        if o["name"] != m["name"]:
-            out.append(_change("کالا", o["name"], m["name"]))
-        if o["qty"] != m["qty"]:
-            out.append(_change(f"مقدار «{m['name']}»", _q(o["qty"]), _q(m["qty"])))
-        if o["total"] != m["total"]:
-            out.append(_change(f"جمع «{m['name']}» (تومان)", money_text(o["total"]), money_text(m["total"])))
-    for pk, o in old_by_pk.items():
-        if pk not in seen:
-            out.append(_change(f"کالای حذف‌شده: {o['name']}", f"{_q(o['qty'])} — {money_text(o['total'])} تومان", "—"))
+    for iid, name in new["items"].items():
+        if iid not in old["items"]:
+            out.append(_change("کالای اضافه‌شده به فرم مصرف", "—", name))
+    for iid, name in old["items"].items():
+        if iid not in new["items"]:
+            out.append(_change("کالای برداشته‌شده از فرم مصرف", name, "—"))
     if old["total"] != new["total"]:
         out.append(_change("جمع این ردیف (تومان)", money_text(old["total"]), money_text(new["total"])))
     return out
@@ -336,7 +312,7 @@ def preview_change(*, project, actor, kind, row=None, field=None, raw=None):
     if kind == "service":
         base = project.services.select_related("service").prefetch_related("materials__item")
         line = _line_or_none(base, row["pk"])
-        new = _new_view(row, line)
+        new = _new_view(row)
         if line is None:
             return _result(before, new["total"], [_change(f"ردیف تازه: {new['name']}", "—",
                                                           f"{money_text(new['total'])} تومان")], is_new=True)

@@ -83,16 +83,14 @@ class Service(TimeStampedModel):
 
 
 class ServiceBOM(models.Model):
-    """فهرست متریال مورد نیاز هر خدمت — اختیاری، فقط برای برآورد اولیه، نه محاسبه‌ی خودکار قیمت فاکتور."""
+    """کالاهای پیش‌فرض یک خدمت. هنگام انتخاب خدمت در پیش‌فاکتور خودکار (و تیک‌خورده) می‌آیند و فقط
+    فرم مصرف تکنسین‌ها را می‌سازند؛ مقدار و قیمت ندارند و در جمع پیش‌فاکتور اثر نمی‌گذارند."""
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="bom_lines", verbose_name="خدمت")
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="used_in_services", verbose_name="کالا")
-    qty_per_unit = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار به ازای هر واحد خدمت")
-    waste_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="درصد ضایعات")
-    is_optional = models.BooleanField(default=False, verbose_name="اختیاری")
 
     class Meta:
-        verbose_name = "متریال مورد نیاز خدمت"
-        verbose_name_plural = "متریال‌های مورد نیاز خدمات"
+        verbose_name = "کالای پیش‌فرض"
+        verbose_name_plural = "کالاهای پیش‌فرض"
         unique_together = ("service", "item")
 
 

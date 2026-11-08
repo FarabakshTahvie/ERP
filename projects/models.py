@@ -98,18 +98,14 @@ class ProjectService(models.Model):
 
 
 class ProjectServiceMaterial(models.Model):
-    """کالای مصرفی زیر یک خدمت. فقط برای محاسبه‌ی قیمت خدمت؛ در فاکتور دیده نمی‌شود."""
+    """کالای تیک‌خورده‌ی یک خدمت در پیش‌فاکتور. مقدار و قیمت ندارد؛ فقط فرم مصرف تکنسین‌ها را می‌سازد
+    و در فاکتور مشتری نیست."""
     service_line = models.ForeignKey(ProjectService, on_delete=models.CASCADE, related_name="materials", verbose_name="خدمت پروژه")
     item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="service_line_usages", verbose_name="کالا")
-    qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
-    cost_snapshot = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون (اسنپ‌شات)")
-    margin_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="سود ٪ (اسنپ‌شات)")
-    line_total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع فروش (تومان)")
-    manual_total = models.BooleanField(default=False, verbose_name="جمع را حسابدار خودش نوشته")
 
     class Meta:
-        verbose_name = "کالای زیر خدمت"
-        verbose_name_plural = "کالاهای زیر خدمت"
+        verbose_name = "کالای خدمت"
+        verbose_name_plural = "کالاهای خدمت"
 
 
 class ProjectExtraLine(models.Model):

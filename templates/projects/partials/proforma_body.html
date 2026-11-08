@@ -48,19 +48,6 @@
         {% icon "lock" "w-4 h-4 shrink-0" %}
         <span class="text-xs">ویرایش قیمت‌ها بسته است؛ پیش‌فاکتور تایید شده، پرداختی ثبت شده، یا پروژه تکمیل یا لغو شده است.</span>
     </div>
-    {% else %}
-    {% if not has_global_margin %}
-    <div role="alert" class="alert alert-soft alert-warning">
-        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-        <span class="text-xs">قانون سود عمومی (درصدی) تعریف نشده؛ سود همه‌ی کالاها صفر حساب می‌شود. از پنل مدیریت ← «قوانین سود» یک قانون سراسری بسازید.</span>
-    </div>
-    {% endif %}
-    {% if stale_items %}
-    <div role="alert" class="alert alert-soft alert-warning">
-        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-        <span class="text-xs">قیمت یا سود این کالاها بعد از آخرین ثبت تغییر کرده: {{ stale_items|join:"، " }}. برای به‌روزشدن، ردیف مربوط را با مداد باز کنید و دوباره ثبت کنید؛ مودال تفاوت را نشان می‌دهد. تا آن موقع پیش‌فاکتور با همان عدد قبلی می‌ماند.</span>
-    </div>
-    {% endif %}
     {% endif %}
 
     <section class="fb-card fb-pad flex flex-col gap-5">
@@ -82,7 +69,7 @@
             </div>
         </div>
 
-        <p class="fb-hint">مشتری فقط جمع هر خدمت را می‌بیند؛ کالاهای زیر هر خدمت فقط برای شماست. هر تغییر روی ردیف‌های موجود قبل از ذخیره، «چه به چه» را در مودال نشان می‌دهد.</p>
+        <p class="fb-hint">قیمت هر خدمت = مقدار × قیمت واحد. کالاهای زیر هر خدمت قیمت ندارند؛ فقط فرم مصرف تکنسین‌ها را می‌سازند و مشتری نمی‌بیندشان. هر تغییر روی ردیف‌های موجود قبل از ذخیره، «چه به چه» را در مودال نشان می‌دهد.</p>
 
         <div class="overflow-x-auto">
             <table class="table table-sm">
@@ -102,9 +89,7 @@
                         <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
                         <td>
                             <div class="font-medium">{{ s.line.service.name }}</div>
-                            {% for m in s.materials %}
-                            <div class="text-xs fb-muted">{{ m.item.name }} — <span class="font-technical">{{ m.qty|floatformat:"-4"|fa_digits }}</span> {{ m.item.get_unit_display }} — <span class="font-technical">{{ m.line_total|intcomma_fa }}</span></div>
-                            {% endfor %}
+                            {% if s.materials %}<div class="text-xs fb-muted">کالاهای فرم مصرف: {% for m in s.materials %}{{ m.item.name }}{% if not forloop.last %}، {% endif %}{% endfor %}</div>{% endif %}
                         </td>
                         <td class="text-center font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</td>
                         <td class="text-center font-technical">{{ s.line.unit_price|intcomma_fa }}</td>

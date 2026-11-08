@@ -19,8 +19,7 @@ from utils.jalali import jalali_str, to_fa_digits
 from core.capabilities import can
 from accounts.models import User
 from core.models import Party
-from catalog.models import Service, Item
-from catalog.services import has_global_margin, resolve_margin_percents
+from catalog.models import Service, Item, ServiceBOM
 from .models import Project, ProjectStage, StageApproval, StageKind, ProjectFile, FileGroup
 from .usage import stage_has_progress
 from .stage_ops import (
@@ -75,7 +74,8 @@ def _line_choices(project):
     if used:
         services += list(Service.objects.filter(pk__in=used))
     items = list(Item.objects.filter(is_active=True))
-    used = set(project.extra_materials.values_list("item_id", flat=True)) - {i.id for i in items}
+    used = (set(project.extra_materials.values_list("item_id", flat=True))
+            | set(project.services.values_list("materials__item_id", flat=True))) - {None} - {i.id for i in items}
     if used:
         items += list(Item.objects.filter(pk__in=used))
     return services, items
@@ -854,18 +854,7 @@ def new_project_submit(request):
         return fail(str(e))
 
 
-def _stale_items(project):
-    """کالاهایی که میانگین یا سودشان بعد از آخرین ثبت ردیف عوض شده (جمع دستی‌نوشته نباشد)."""
-    mats = [m for l in project.services.prefetch_related("materials__item") for m in l.materials.all()]
-    if not mats:
-        return []
-    now_margin = resolve_margin_percents({m.item for m in mats})
-    return sorted({
-        m.item.name for m in mats
-        if not m.manual_total and (
-            m.cost_snapshot != m.item.moving_average_cost
-            or m.margin_percent != Decimal(now_margin[m.item_id]).quantize(Decimal("0.01")))
-    })
+
 
 
 def _held_stage(project):
@@ -909,20 +898,21 @@ def _proforma_context(request, project):
                      and stage.status == ProjectStage.Status.IN_PROGRESS
                      and can_issue_proforma(request.user, stage))
     services, items = _line_choices(project)
-    margins = resolve_margin_percents(items)
     stock = stock_map(i.pk for i in items)
+    defaults = {}
+    for service_id, item_id in (ServiceBOM.objects.filter(item__is_active=True).order_by("pk")
+                                .values_list("service_id", "item_id")):
+        defaults.setdefault(service_id, []).append(item_id)
     return {
         "project": project, "invoice": invoice, "stage": stage,
         "billing_party": resolve_billing_party(project),
         "editable": editable, "prices_open": prices_open, "can_issue": can_issue,
         "summary": proforma_summary(project),
-        "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else ""}
-                          for s in services],
+        "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else "",
+                           "items": defaults.get(s.id, [])} for s in services],
         "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
-                        "cost": str(i.moving_average_cost), "margin": str(margins[i.pk]),
-                        "stock": str(stock.get(i.pk, Decimal("0")))} for i in items],
-        "has_global_margin": has_global_margin(),
-        "stale_items": _stale_items(project) if editable else [],
+                        "cost": str(i.moving_average_cost), "stock": str(stock.get(i.pk, Decimal("0"))),
+                        "manufactured": i.item_type == Item.ItemType.MANUFACTURED} for i in items],
         "deadline": deadline_info(invoice) if invoice else None,
         "can_extend": bool(invoice and deadline_open(invoice)),
         "can_sms": bool(invoice and invoice.status != "cancelled"),

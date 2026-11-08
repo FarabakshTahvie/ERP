@@ -17,10 +17,7 @@ from inventory.services import (
     low_stock_items_count, consume_stock, record_manual_stock_change,
     CHANGE_KIND_RETURN, CHANGE_KIND_ADJUST_INCREASE, _FA_TO_EN,
 )
-from projects.models import (
-    Project, ProjectCost,
-    ProjectServiceMaterial, ProjectStage, StageKind, StageUsage,
-)
+from projects.models import Project, ProjectCost, ProjectStage, StageKind, StageUsage
 from projects.services import user_can_access_accounting, project_prices_editable
 from .models import Invoice, InvoiceLine, Payment, AccountingEvent, ChequeEvent
 from .services import (
@@ -263,14 +260,11 @@ def project_reconciliation(project):
     unsettled = expected − net_out
     """
     ct = ContentType.objects.get_for_model(Project)
-    planned = {}
-    for m in ProjectServiceMaterial.objects.filter(service_line__project=project):
-        planned[m.item_id] = planned.get(m.item_id, ZERO) + m.qty
     rows = {}
 
     def row(item):
         return rows.setdefault(item.pk, {
-            "item": item, "planned": planned.get(item.pk, ZERO), "used": ZERO, "by_stage": [],
+            "item": item, "used": ZERO, "by_stage": [],
             "out_qty": ZERO, "back_qty": ZERO, "value": ZERO,
         })
 
