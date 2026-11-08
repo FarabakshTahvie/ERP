@@ -36,7 +36,7 @@ class UsageBase(TestCase):
         self.other = Item.objects.create(name="پیچ", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
         line = ProjectService.objects.create(project=self.project, service=Service.objects.create(name="خدمت مصرف"),
                                              qty=1, unit_price=1000)
-        ProjectServiceMaterial.objects.create(service_line=line, item=self.item, qty=Decimal("10"))
+        ProjectServiceMaterial.objects.create(service_line=line, item=self.item)
         self.cutting = self.open_stage(StageKind.CUTTING)
         self.assembly = self.open_stage(StageKind.ASSEMBLY)
         self.client.force_login(self.worker)
@@ -120,8 +120,8 @@ class UsageReconTests(UsageBase):
         self.put(self.assembly, self.item, "2")
         rows = accounting.project_reconciliation(self.project)
         self.assertEqual(len(rows), 1)
-        self.assertEqual((rows[0]["basis"], rows[0]["expected"], rows[0]["planned"]),
-                         ("usage", Decimal("6.5"), Decimal("10")))
+        self.assertEqual((rows[0]["basis"], rows[0]["expected"]),
+                         ("usage", Decimal("6.5")))
         self.assertEqual([b["qty"] for b in rows[0]["by_stage"]], [Decimal("4.5"), Decimal("2")])
 
     def test_deducted_without_usage_is_manual_basis(self):

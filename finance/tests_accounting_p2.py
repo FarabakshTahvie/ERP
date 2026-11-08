@@ -53,9 +53,7 @@ class P2BaseScenarioMixin:
 
         ps = ProjectService.objects.create(project=self.project, service=self.service, qty=1, unit_price=Decimal("12276000"))
         ProjectServiceMaterial.objects.create(
-            service_line=ps, item=self.item, qty=Decimal("12"),
-            cost_snapshot=Decimal("920000"), margin_percent=Decimal("0"),
-            line_total=Decimal("11040000"),
+            service_line=ps, item=self.item,
         )
 
         self.invoice = Invoice.objects.create(

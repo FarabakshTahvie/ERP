@@ -128,7 +128,7 @@
                     {% for m in s.materials %}
                     <div class="fb-inset flex items-center justify-between gap-2 text-xs">
                         <span class="min-w-0 break-words">{{ m.item.name }}</span>
-                        <span class="font-technical shrink-0">{{ m.qty|floatformat:"-4"|fa_digits }} {{ m.unit }}</span>
+                        <span class="fb-muted shrink-0">{{ m.unit }}</span>
                     </div>
                     {% empty %}
                     <p class="fb-hint">کالایی زیر این خدمت ثبت نشده است.</p>
@@ -350,13 +350,12 @@
             {% endif %}
             <div class="overflow-x-auto" data-settle-root data-revenue="{{ pnl.revenue|stringformat:'d' }}" data-stock-cost="{{ pnl.stock_cost|stringformat:'d' }}" data-recorded="{{ pnl.recorded_costs|stringformat:'d' }}">
                 <table class="table table-sm text-xs">
-                    <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>پیش‌فاکتور</th><th>جمع مصرف مرحله‌ها</th><th>کسرشده تاکنون</th><th>موجودی انبار</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
+                    <thead><tr class="fb-muted"><th>کالا</th><th>واحد</th><th>جمع مصرف مرحله‌ها</th><th>کسرشده تاکنون</th><th>موجودی انبار</th><th>مصرف نهایی</th><th>تغییر</th></tr></thead>
                     <tbody>
                     {% for r in recon %}
                         <tr data-net="{{ r.net_str }}" data-unit="{{ r.unit_str }}">
                             <td class="font-semibold">{{ r.item.name }}</td>
                             <td>{{ r.unit_label }}</td>
-                            <td class="font-technical">{{ r.planned|floatformat:"-4"|fa_digits }}</td>
                             <td class="font-technical">{% if r.basis == 'usage' %}{{ r.used|floatformat:"-4"|fa_digits }}{% else %}—{% endif %}</td>
                             <td class="font-technical">{{ r.net_out|floatformat:"-4"|fa_digits }}</td>
                             <td class="font-technical">{{ r.stock|floatformat:"-4"|fa_digits }}{% if r.stock_short %} <span class="fb-badge fb-badge-warning">کسری {{ r.shortfall_str|fa_digits }}</span>{% endif %}</td>
@@ -376,7 +375,7 @@
                             <td class="font-technical" data-change>—</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="8" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
+                        <tr><td colspan="7" class="fb-empty">مصرفی ثبت نشده است.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

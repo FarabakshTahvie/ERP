@@ -34,42 +34,38 @@
     var items = data('items-data'), byId = {};
     items.forEach(function (i) { byId[i.id] = i; });
     function item(d) { return byId[parseInt(d.item_id, 10)]; }
-    function matAuto(d) { var it = item(d); return it ? Math.round(num(d.qty) * parseFloat(it.cost) * (100 + parseFloat(it.margin)) / 100) : 0; }
-    function matTotal(d) { var t = String(d.line_total == null ? '' : d.line_total).trim(); return t !== '' ? num(t) : matAuto(d); }
-    function svcTotal(d) {
-      var t = num(d.qty) * num(d.unit_price);
-      (d.materials || []).forEach(function (m) { t += matTotal(m); });
-      return Math.round(t);
-    }
-    function stockNote(d) {
-      var it = item(d);
-      if (!it) return '';
-      var stock = parseFloat(it.stock), qty = num(d.qty);
-      if (stock <= 0 && !(parseFloat(it.cost) > 0)) return { tone: 'warning', text: 'موجودی انبار صفر است و میانگینی هم ندارد؛ جمع این کالا را خودتان بنویسید.' };
-      if (stock <= 0) return { tone: 'warning', text: 'موجودی انبار صفر است؛ میانگین مال آخرین خریدهاست و ممکن است قدیمی باشد.' };
-      if (qty > stock) return { tone: 'warning', text: 'موجودی انبار ' + qtyFmt.format(stock) + ' ' + it.unit + ' است؛ ' + qtyFmt.format(qty - stock) + ' ' + it.unit + ' کم دارید.' };
-      return 'موجودی انبار: ' + qtyFmt.format(stock) + ' ' + it.unit;
+    function svcTotal(d) { return Math.round(num(d.qty) * num(d.unit_price)); }
+    // با انتخاب خدمت، کالاهای پیش‌فرضش با تیک می‌آیند؛ پیش‌فرض‌های دست‌نخورده‌ی خدمت قبلی برداشته می‌شوند
+    function fillDefaults(svc, row) {
+      var kids = row.children, have = {};
+      kids.rows.filter(function (r) { return r.auto; }).forEach(function (r) { kids.remove(r); });
+      kids.rows.forEach(function (r) { have[r.cells.item_id.get()] = true; });
+      (svc.items || []).forEach(function (id) {
+        if (!have[id] && byId[id]) kids.addRow({ item_id: id, on: true, auto: true });
+      });
     }
     return {
       single: true, mount: box, hidden: hidden, initial: initial ? [initial] : [],
       columns: [
-        { key: 'service_id', type: 'picker', label: 'خدمت', items: data('services-data'), placeholder: 'جستجوی خدمت...', cls: 'flex-1 min-w-48' },
+        { key: 'service_id', type: 'picker', label: 'خدمت', items: data('services-data'), placeholder: 'جستجوی خدمت...',
+          cls: 'flex-1 min-w-48', onSelect: fillDefaults },
         { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
-        { key: 'unit_price', type: 'money', label: 'قیمت خود خدمت (تومان، هر واحد)', cls: 'w-44' }
+        { key: 'unit_price', type: 'money', label: 'قیمت واحد (تومان)', cls: 'w-44' }
       ],
       children: {
-        key: 'materials', title: 'متریال / قطعات / مصرفی این خدمت', addLabel: 'افزودن کالا',
+        key: 'materials', title: 'کالاهای فرم مصرف تکنسین (قیمت ندارند)', addLabel: 'افزودن کالا',
         columns: [
           { key: 'item_id', type: 'picker', label: 'کالا', items: items, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
-          { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
-          { key: 'cost', type: 'readonly', label: 'میانگین', cls: 'w-28',
-            compute: function (d) { var it = item(d); return !it ? '—' : (parseFloat(it.cost) > 0 ? fmt(parseFloat(it.cost)) : 'بدون بها!'); } },
-          { key: 'margin', type: 'readonly', label: 'سود ٪', cls: 'w-16',
-            compute: function (d) { var it = item(d); return it ? fmt(parseFloat(it.margin)) : '—'; } },
-          { key: 'line_total', type: 'money', label: 'جمع (تومان)', cls: 'w-36', center: true,
-            auto: function (d) { return item(d) && num(d.qty) > 0 ? String(matAuto(d)) : ''; } }
+          { key: 'stock', type: 'readonly', label: 'موجودی', cls: 'w-32',
+            compute: function (d) { var it = item(d); return !it || it.manufactured ? '—' : qtyFmt.format(parseFloat(it.stock)) + ' ' + it.unit; } },
+          { key: 'cost', type: 'readonly', label: 'میانگین قیمت', cls: 'w-28',
+            compute: function (d) { var it = item(d); return !it || it.manufactured || !(parseFloat(it.cost) > 0) ? '—' : fmt(parseFloat(it.cost)); } },
+          { key: 'on', type: 'checkbox', label: 'در این پروژه', cls: 'w-24', center: true }
         ],
-        footer: stockNote
+        footer: function (d) {
+          var it = item(d);
+          return it && it.manufactured ? 'ساختنی است؛ از انبار کم نمی‌شود و مصرفش را تکنسین در مرحله می‌نویسد.' : '';
+        }
       },
       footer: function (d) { return 'جمع این خدمت (برآوردی): ' + fmt(svcTotal(d)) + ' تومان'; }
     };

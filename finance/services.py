@@ -178,24 +178,13 @@ def _make_line(invoice, line_type, title, qty, unit_price, cost_snapshot=None):
     )
 
 
-def _service_line_title(ps):
-    qty = format(ps.qty.normalize(), "f")
-    unit = ps.service.get_unit_display() if ps.service.unit else ""
-    return f"{ps.service.name} ({qty} {unit})".replace(" )", ")")
-
-
 def build_invoice_lines(project, invoice=None):
     """ردیف‌های فاکتور از روی پروژه، ذخیره‌نشده. invoice=None یعنی فقط پیش‌نمایش."""
     lines = []
-    for ps in project.services.select_related("service").prefetch_related("materials"):
-        mats = list(ps.materials.all())
-        if mats:   # کالاها فقط داخل جمع خدمت می‌روند؛ بهای واقعی در cost_snapshot برای گزارش سود
-            total = (ps.qty * ps.unit_price + sum((m.line_total for m in mats), Decimal(0))).quantize(
-                Decimal(1), rounding=ROUND_HALF_UP)
-            cost = sum((m.qty * m.cost_snapshot for m in mats), Decimal(0)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
-            lines.append(_make_line(invoice, InvoiceLine.LineType.SERVICE, _service_line_title(ps), 1, total, cost))
-        else:
-            lines.append(_make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price))
+    for ps in project.services.select_related("service").order_by("pk"):   # کالاهای زیر خدمت قیمت ندارند و در فاکتور نیستند
+        line = _make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price)
+        line.total = (ps.qty * ps.unit_price).quantize(Decimal(1), rounding=ROUND_HALF_UP)   # bulk_create متد save را صدا نمی‌زند
+        lines.append(line)
     lines += [
         _make_line(invoice, InvoiceLine.LineType.MATERIAL, pm.item.name, pm.qty, pm.unit_price, pm.item.moving_average_cost)
         for pm in project.extra_materials.all()   # مسیر قدیمی (پروژه‌های پیش از نسخه‌ی ۲)

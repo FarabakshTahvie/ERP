@@ -226,7 +226,7 @@ class ReconciliationTests(BaseAccountingTestCase):
         self.catalog_service = Service.objects.create(name="خدمت نصب")
         self.service = ProjectService.objects.create(project=self.project, service=self.catalog_service, qty=1, unit_price=Decimal("10000"))
         self.mat = ProjectServiceMaterial.objects.create(
-            service_line=self.service, item=self.item, qty=Decimal("10"), cost_snapshot=Decimal("1000"),
+            service_line=self.service, item=self.item,
         )
 
     def row(self, item=None):
@@ -240,8 +240,8 @@ class ReconciliationTests(BaseAccountingTestCase):
         self.assertEqual(accounting.project_reconciliation(self.project), [])   # فقط پیش‌فاکتور؛ مصرفی نیست
         StageUsage.objects.create(stage=self.stage, item=self.item, qty=Decimal("12"))
         r = self.row()
-        self.assertEqual((r["basis"], r["planned"], r["used"], r["expected"], r["status"]),
-                         ("usage", Decimal("10"), Decimal("12"), Decimal("12"), "short"))
+        self.assertEqual((r["basis"], r["used"], r["expected"], r["status"]),
+                         ("usage", Decimal("12"), Decimal("12"), "short"))
         self.consume(self.item, "5")
         r = self.row()
         self.assertEqual((r["status"], r["unsettled"]), ("short", Decimal("7")))

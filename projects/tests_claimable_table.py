@@ -47,20 +47,11 @@ class ClaimableTableDateTests(TestCase):
         content = resp.content.decode()
         self.assertTrue(content.index("دومین پروژه") < content.index("نخستین پروژه"))
 
-    # موقتاً غیرفعال: این تست تاریخ «امروز» را دستی ۱۴۰۵/۰۸/۱۴ فرض کرده و از ۱۴۰۵/۰۸/۱۷
-    # شکست می‌خورد (stage1 = پنج روز پیش = ۱۴۰۵/۰۸/۱۲، دقیقاً روی مرز فیلتر `gte`).
-    # برای برگرداندن: from_date را از داده بگیرید نه از تقویم —
-    #   from_date = jalali_str(self.stage2.started_at, fmt="%Y/%m/%d")
-    #
-    # def test_table_filtering(self):
-    #     # از تاریخ دو روز پیش (تاریخ امروز 1405/08/14 است، پس از 1405/08/12)
-    #     # مرحله 2 (proj2) تاریخ شروعش 1405/08/13 است
-    #     # مرحله 1 (proj1) تاریخ شروعش 1405/08/09 است
-    #     # فیلتر از 1405/08/12 باید فقط مرحله 2 را برگرداند
-    #     from_date = "1405/08/12"
-    #     resp = self.web.get(self.url, {"cl_ffrom_date": from_date})
-    #     self.assertContains(resp, "دومین پروژه")
-    #     self.assertNotContains(resp, "نخستین پروژه")
+    def test_table_filtering(self):
+        from_date = jalali_str(self.stage2.started_at, fmt="%Y/%m/%d")
+        resp = self.web.get(self.url, {"cl_ffrom_date": from_date})
+        self.assertContains(resp, "دومین پروژه")
+        self.assertNotContains(resp, "نخستین پروژه")
 
     def test_none_started_at(self):
         self.stage1.started_at = None

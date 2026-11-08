@@ -197,7 +197,7 @@ class SnapshotImmutabilityTests(TestCase):
 
         rows = parse_service_rows(json.dumps([{
             "service_id": self.service.id, "qty": "40", "unit_price": "850000",
-            "materials": [{"item_id": self.item.id, "qty": "10"}],
+            "materials": [{"item_id": self.item.id, "on": True}],
         }]))
         save_proforma(
             project=self.project, actor=self.accountant,
@@ -209,7 +209,6 @@ class SnapshotImmutabilityTests(TestCase):
         before = list(self.invoice.lines.values_list("title", "qty", "unit_price", "total", "cost_snapshot"))
         total = self.invoice.total_amount
         mat = ProjectServiceMaterial.objects.get()
-        snap = (mat.cost_snapshot, mat.margin_percent, mat.line_total)
 
         receive_stock(item=self.item, warehouse=self.wh, qty=10, unit_cost=Decimal("900000"), received_at=timezone.now())
         MarginRule.objects.create(scope="global", value_type="percent", value=Decimal("50"), valid_from=timezone.now())
@@ -221,4 +220,3 @@ class SnapshotImmutabilityTests(TestCase):
         mat.refresh_from_db()
         self.assertEqual(list(self.invoice.lines.values_list("title", "qty", "unit_price", "total", "cost_snapshot")), before)
         self.assertEqual(self.invoice.total_amount, total)
-        self.assertEqual((mat.cost_snapshot, mat.margin_percent, mat.line_total), snap)

@@ -38,7 +38,7 @@ class ReviewBase(TestCase):
         self.other = Item.objects.create(name="پیچ", item_type=Item.ItemType.MATERIAL, unit=Item.Unit.PIECE)
         line = ProjectService.objects.create(project=self.project, service=Service.objects.create(name="خدمت بازبینی"),
                                              qty=1, unit_price=1000)
-        ProjectServiceMaterial.objects.create(service_line=line, item=self.item, qty=Decimal("10"))
+        ProjectServiceMaterial.objects.create(service_line=line, item=self.item)
         self.cutting = self.project.stages.get(kind=StageKind.CUTTING)
         self.assembly = self.project.stages.get(kind=StageKind.ASSEMBLY)
         self.final = self.project.stages.get(kind=StageKind.FINAL_REVIEW)

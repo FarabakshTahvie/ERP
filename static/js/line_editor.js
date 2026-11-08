@@ -34,18 +34,23 @@
     return b;
   }
 
-  function buildCell(col, value, notify) {
+  function buildCell(col, value, notify, getRow) {
     var wrap = el('div', 'flex flex-col gap-1 ' + (col.cls || 'flex-1 min-w-40') + (col.type === 'readonly' ? ' items-center text-center' : ''));
     if (col.label) wrap.appendChild(el('span', 'text-xs fb-muted' + (col.center ? ' self-center' : ''), col.label));
     var cell = { el: wrap };
     if (col.type === 'picker') {
+      var preset = true;   // انتخاب اولیه‌ی ردیف ذخیره‌شده، انتخاب کاربر حساب نمی‌شود
       var picker = window.fbItemPicker({
         items: col.items, placeholder: col.placeholder, ariaLabel: col.label,
-        onSelect: function () { notify(); }
+        onSelect: function (raw) {
+          if (!preset && raw && col.onSelect && getRow) col.onSelect(raw, getRow());
+          notify();
+        }
       });
       wrap.appendChild(picker.el);
       cell.get = function () { return picker.getId(); };
       if (value != null && value !== '') picker.select(parseInt(value, 10));
+      preset = false;
     } else if (col.type === 'readonly') {
       var out = el('span', 'font-technical text-sm py-1.5', '—');
       wrap.appendChild(out);
@@ -115,6 +120,10 @@
 
   function makeLevel(spec, box, notify, ctx) {
     var level = { rows: [] };
+    level.remove = function (row) {
+      row.el.remove();
+      level.rows.splice(level.rows.indexOf(row), 1);
+    };
     level.addRow = function (values) {
       values = values || {};
       var rowEl = el('div', ctx.nested
@@ -122,17 +131,16 @@
         : 'fb-inset flex flex-col gap-2');
       var cellsEl = el('div', 'flex flex-wrap items-end gap-2');
       rowEl.appendChild(cellsEl);
-      var row = { el: rowEl, pk: values.pk || null, cells: {}, children: null, footer: null };
+      var row = { el: rowEl, pk: values.pk || null, auto: !!values.auto, cells: {}, children: null, footer: null };
       spec.columns.forEach(function (col) {
-        row.cells[col.key] = buildCell(col, values[col.key], notify);
+        row.cells[col.key] = buildCell(col, values[col.key], notify, function () { return row; });
         cellsEl.appendChild(row.cells[col.key].el);
       });
       var rm = el('button', 'btn btn-soft btn-error btn-sm', 'حذف');
       rm.type = 'button';
       rm.setAttribute('aria-label', 'حذف ردیف');
       rm.addEventListener('click', function () {
-        rowEl.remove();
-        level.rows.splice(level.rows.indexOf(row), 1);
+        level.remove(row);
         notify();
       });
       if (!ctx.noRemove) cellsEl.appendChild(rm);

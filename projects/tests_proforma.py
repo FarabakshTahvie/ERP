@@ -18,7 +18,6 @@ from projects.proforma import (
     parse_service_rows,
     save_proforma,
     issue_proforma,
-    material_totals,
     service_line_total,
 )
 
@@ -61,16 +60,16 @@ class ProformaPricingTests(TestCase):
     def test_service_total_and_invoice_collapse(self):
         rows = parse_service_rows(json.dumps([{
             "service_id": self.service.id, "qty": "40", "unit_price": "850000",
-            "materials": [{"item_id": self.item.id, "qty": "10"}],
+            "materials": [{"item_id": self.item.id, "on": True}],
         }]))
         save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
         invoice, _ = issue_proforma(project=self.project, actor=self.accountant)
-        # 40×850000 + 10×200000×1.2 = 34,000,000 + 2,400,000
-        self.assertEqual(invoice.total_amount, Decimal("36400000"))
+        # 40×850000 = 34,000,000 (کالاها قیمت ندارند)
+        self.assertEqual(invoice.total_amount, Decimal("34000000"))
         line = invoice.lines.get()
-        self.assertEqual((line.line_type, line.qty), ("service", 1))
-        self.assertEqual(line.cost_snapshot, Decimal("2000000"))
-        self.assertIn("40", line.title)
+        self.assertEqual((line.line_type, line.qty), ("service", Decimal("40")))
+        self.assertIsNone(line.cost_snapshot)
+        self.assertEqual(line.title, self.service.name)
         self.assertFalse(invoice.lines.filter(line_type="material").exists())
 
     def test_advance_stage_proforma_guard(self):
@@ -90,18 +89,17 @@ class ProformaPricingTests(TestCase):
             created_by=self.creator, party_id=self.partner.id, visit_at=timezone.now(), issue_proforma=False,
         )
         s1 = ProjectService.objects.create(project=p2, service=self.service, qty=1, unit_price=1000)
-        m1 = ProjectServiceMaterial.objects.create(service_line=s1, item=self.item, qty=1, line_total=1000)
+        m1 = ProjectServiceMaterial.objects.create(service_line=s1, item=self.item)
 
         # Trying to update self.project service with pk of m1 from p2
         rows = parse_service_rows(json.dumps([{
             "service_id": self.service.id, "qty": "1", "unit_price": "1000",
-            "materials": [{"pk": m1.pk, "item_id": self.item.id, "qty": "5"}],
+            "materials": [{"pk": m1.pk, "item_id": self.item.id, "on": True}],
         }]))
         save_proforma(project=self.project, actor=self.accountant, service_rows=rows)
         # m1 on p2 must not be modified or moved
         m1.refresh_from_db()
         self.assertEqual(m1.service_line_id, s1.pk)
-        self.assertEqual(m1.qty, Decimal("1"))
 
 
 class ProformaViewTests(TestCase):

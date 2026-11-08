@@ -104,7 +104,7 @@ def proforma_breakdown(project):
     services = []
     qs = project.services.select_related("service").prefetch_related("materials__item").order_by("pk")
     for ps in qs:
-        mats = [{"item": m.item, "qty": m.qty, "unit": m.item.get_unit_display()}
+        mats = [{"item": m.item, "unit": m.item.get_unit_display()}
                 for m in sorted(ps.materials.all(), key=lambda m: m.pk)]
         services.append({"line": ps, "total": service_line_total(ps), "materials": mats})
     invoice = getattr(project, "invoice", None)
