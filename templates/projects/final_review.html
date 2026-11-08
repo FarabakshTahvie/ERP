@@ -126,10 +126,7 @@
                 <div class="collapse-content flex flex-col gap-2">
                     <p class="text-xs fb-muted">مقدار خدمت: <span class="font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</span>{% if s.line.service.unit %} {{ s.line.service.get_unit_display }}{% endif %} — قیمت هر واحد: <span class="font-technical">{{ s.line.unit_price|intcomma_fa }}</span> تومان</p>
                     {% for m in s.materials %}
-                    <div class="fb-inset flex items-center justify-between gap-2 text-xs">
-                        <span class="min-w-0 break-words">{{ m.item.name }}</span>
-                        <span class="fb-muted shrink-0">{{ m.unit }}</span>
-                    </div>
+                    <div class="fb-inset text-xs break-words">{{ m.item.name }}</div>
                     {% empty %}
                     <p class="fb-hint">کالایی زیر این خدمت ثبت نشده است.</p>
                     {% endfor %}

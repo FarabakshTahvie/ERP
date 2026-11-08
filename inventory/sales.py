@@ -9,7 +9,7 @@ from utils.utils import normalize_phone
 from .models import Sale, SaleLine, StockMovement
 from .services import assert_stockable, consume_stock, get_active_item, parse_decimal_input
 
-BAD_LINES = "اطلاعات اقلام نامعتبر است؛ صفحه را دوباره باز کنید."
+BAD_LINES = "کالاهای فروش درست ارسال نشد؛ صفحه را دوباره باز کنید."
 MAX_LINES = 50
 MAX_QTY = Decimal("9999999")
 MAX_PRICE = Decimal("1000000000000")
@@ -23,15 +23,15 @@ def clean_customer(name, phone):
         raise ValueError(f"نام مشتری نباید بیش از {NAME_MAX} نویسه باشد.")
     phone = normalize_phone(phone)
     if phone and not re.fullmatch(r"0\d{10}", phone):
-        raise ValueError("شماره‌ی مشتری باید ۱۱ رقم و با صفر شروع شود (مثل ۰۹۱۲۳۴۵۶۷۸۹).")
+        raise ValueError("شماره‌ی مشتری را ۱۱ رقمی بنویسید، مثل ۰۹۱۲۳۴۵۶۷۸۹.")
     return name, phone
 
 
 def _clean_lines(raw_lines):
     if not isinstance(raw_lines, list) or not raw_lines:
-        raise ValueError("حداقل یک قلم برای فروش وارد کنید.")
+        raise ValueError("حداقل یک کالا برای فروش بنویسید.")
     if len(raw_lines) > MAX_LINES:
-        raise ValueError(f"حداکثر {MAX_LINES} قلم را می‌توان یک‌جا فروخت.")
+        raise ValueError(f"در هر فروش حداکثر {MAX_LINES} کالا ثبت می‌شود.")
     lines = []
     for raw in raw_lines:
         if not isinstance(raw, dict):
@@ -46,7 +46,7 @@ def _clean_lines(raw_lines):
         if qty <= 0:
             raise ValueError(f"مقدار «{item.name}» خیلی کوچک است.")
         if price != price.to_integral_value():
-            raise ValueError(f"قیمت فروش «{item.name}» باید عدد صحیح (تومان) باشد.")
+            raise ValueError(f"قیمت «{item.name}» را به تومان و بدون اعشار بنویسید.")
         lines.append({"item": item, "qty": qty, "unit_price": price.to_integral_value()})
     return lines
 

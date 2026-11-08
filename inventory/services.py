@@ -39,8 +39,8 @@ def assert_stockable(item):
     """کالای ساختنی (مثل کانال) ساخته می‌شود و موجودی ندارد؛ مصرفش فقط با StageUsage ثبت می‌شود."""
     if item.item_type == Item.ItemType.MANUFACTURED:
         raise ValueError(
-            f"«{item.name}» کالای ساختنی است و موجودی ندارد؛ خرید، ورود و تعدیل برای آن ثبت نمی‌شود. "
-            "مصرفش را تکنسین در مرحله می‌نویسد.")
+            f"«{item.name}» ساختنی است و موجودی ندارد؛ خرید و تعدیل برایش ثبت نمی‌شود. "
+            "مصرفش را تکنسین در مرحله ثبت می‌کند.")
 
 
 def stockable_items():
@@ -252,7 +252,7 @@ def _clean_purchase_lines(raw_lines):
     blocked = list(Item.objects.filter(pk__in=ids, item_type=Item.ItemType.MANUFACTURED)
                    .values_list("name", flat=True))
     if blocked:
-        raise ValueError("کالای ساختنی خرید نمی‌شود: " + "، ".join(blocked))
+        raise ValueError("این کالاها ساختنی‌اند و خرید نمی‌شوند: " + "، ".join(blocked))
     return cleaned
 
 

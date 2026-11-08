@@ -53,7 +53,7 @@
         { key: 'unit_price', type: 'money', label: 'قیمت واحد (تومان)', cls: 'w-44' }
       ],
       children: {
-        key: 'materials', title: 'کالاهای فرم مصرف تکنسین (قیمت ندارند)', addLabel: 'افزودن کالا',
+        key: 'materials', title: 'کالاهای فرم مصرف', addLabel: 'افزودن کالا',
         columns: [
           { key: 'item_id', type: 'picker', label: 'کالا', items: items, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
           { key: 'stock', type: 'readonly', label: 'موجودی', cls: 'w-32',
@@ -64,10 +64,10 @@
         ],
         footer: function (d) {
           var it = item(d);
-          return it && it.manufactured ? 'ساختنی است؛ از انبار کم نمی‌شود و مصرفش را تکنسین در مرحله می‌نویسد.' : '';
+          return it && it.manufactured ? 'ساختنی است؛ موجودی ندارد و مصرفش را تکنسین در مرحله ثبت می‌کند.' : '';
         }
       },
-      footer: function (d) { return 'جمع این خدمت (برآوردی): ' + fmt(svcTotal(d)) + ' تومان'; }
+      footer: function (d) { return 'جمع این خدمت: ' + fmt(svcTotal(d)) + ' تومان'; }
     };
   }
   function extraSpec(box, hidden, initial) {

@@ -258,10 +258,10 @@ def _diff_service(old, new):
         out.append(_change("قیمت خود خدمت (تومان)", money_text(old["unit_price"]), money_text(new["unit_price"])))
     for iid, name in new["items"].items():
         if iid not in old["items"]:
-            out.append(_change("کالای اضافه‌شده به فرم مصرف", "—", name))
+            out.append(_change("اضافه به فرم مصرف", "—", name))
     for iid, name in old["items"].items():
         if iid not in new["items"]:
-            out.append(_change("کالای برداشته‌شده از فرم مصرف", name, "—"))
+            out.append(_change("حذف از فرم مصرف", name, "—"))
     if old["total"] != new["total"]:
         out.append(_change("جمع این ردیف (تومان)", money_text(old["total"]), money_text(new["total"])))
     return out
