@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url("{% static 'fonts/Vazirmatn[wght].woff2' %}") format('woff2');
+            font-weight: 100 900;
+            font-style: normal;
+        }
+        @page {
+            size: A4 landscape;
+            margin: 10mm 8mm 12mm 8mm;
+            @bottom-center {
+                content: "صفحه " counter(page, persian) " از " counter(pages, persian);
+                font-family: 'Vazirmatn', sans-serif;
+                font-size: 8pt;
+                color: #6b7280;
+            }
+        }
+        body { font-family: 'Vazirmatn', sans-serif; direction: rtl; color: #111827; font-size: 8.5pt; line-height: 1.45; margin: 0; }
+        h1 { font-size: 13pt; margin: 0 0 1mm 0; }
+        .meta { color: #6b7280; font-size: 8.5pt; margin: 0 0 3mm 0; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th, td { border: 1px solid #9ca3af; padding: 1.2mm 1.8mm; text-align: right; vertical-align: top; overflow-wrap: anywhere; }
+        th { background: #f3f4f6; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <p class="meta">{{ stamp }} — {{ count }} ردیف{% if truncated %} — فقط {{ count }} ردیف اول از {{ total }} ردیف جدول در این خروجی آمده است{% endif %}</p>
+    <table>
+        <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+            {% for row in rows %}<tr>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>
+            {% empty %}<tr><td colspan="{{ headers|length }}">ردیفی نیست.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

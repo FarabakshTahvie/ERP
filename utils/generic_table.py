@@ -307,7 +307,7 @@ def render_table(request, context, template="utils/partials/generic_table.html")
     همین جدول (همه‌ی کلیدهای با param_prefix) با مقدار جدید جایگزین می‌شوند و بقیه
     (جدول‌های دیگر و تب فعال) دست‌نخورده می‌مانند. param_prefix باید غیرخالی باشد.
     """
-    if request.GET.get(context.get("export_param", ""), "") == "csv" and request.path == context.get("list_url"):
+    if request.GET.get(context.get("export_param", ""), "") in ("csv", "pdf") and request.path == context.get("list_url"):
         return export_response(request, context)
     response = render(request, template, context)
     current_url = request.headers.get("HX-Current-URL")
