@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.capabilities import can, is_manager
+from utils.jalali import jalali_str
 from .models import ProjectStage, StageKind, StageUsage
 from .ops import can_edit_ops
 from .services import resolve_billing_party
@@ -25,13 +26,19 @@ def tracks_download(user, stage):
         stage.assigned_to_id == user.id or is_manager(user))
 
 
-def mark_downloaded(stage, user):
+def mark_downloaded(stage, user, when=None):
     if tracks_download(user, stage):
         ProjectStage.objects.filter(pk=stage.pk, status=ProjectStage.Status.IN_PROGRESS).update(
-            slip_downloaded_at=timezone.now())
+            slip_downloaded_at=when or timezone.now())
 
 
-def slip_data(stage):
+def slip_date(stage, when=None):
+    """تاریخ برگه: لحظه‌ی همین دانلود (when)، وگرنه آخرین دانلود تکنسین، وگرنه زمان تکمیل مرحله، وگرنه الان."""
+    value = when or stage.slip_downloaded_at or stage.completed_at or timezone.now()
+    return jalali_str(value, fmt="%Y/%m/%d")
+
+
+def slip_data(stage, when=None):
     """تنها منبع محتوای برگه (PDF، مودال و صفحه‌ی مشتری). فقط اقلام ثبت‌شده در همین مرحله."""
     project = stage.project
     party = resolve_billing_party(project)
@@ -40,7 +47,7 @@ def slip_data(stage):
     rows = [{"name": u.item.name, "qty": u.qty, "unit": u.item.get_unit_display()}
             for u in StageUsage.objects.filter(stage=stage).select_related("item").order_by("item__name", "pk")]
     return {"party_name": party.name if party else BLANK, "project_code": project.code,
-            "address": address or BLANK, "rows": rows}
+            "address": address or BLANK, "rows": rows, "date": slip_date(stage, when)}
 
 
 def stage_context(user, stage):
@@ -55,7 +62,7 @@ def stage_context(user, stage):
     return ctx
 
 
-def render_pdf(request, stage):
+def render_pdf(request, stage, when=None):
     import weasyprint
-    html = render_to_string("projects/shipping_slip_pdf.html", {"slip": slip_data(stage)})
+    html = render_to_string("projects/shipping_slip_pdf.html", {"slip": slip_data(stage, when)})
     return weasyprint.HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
