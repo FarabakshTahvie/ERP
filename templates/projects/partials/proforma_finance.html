@@ -54,6 +54,7 @@
 {% endif %}
 
 <section class="fb-card fb-pad flex flex-col gap-3" id="invoice-payments">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
         <h2 class="fb-section-title">پرداخت‌ها و وضعیت فاکتور</h2>
         <span class="fb-badge {% if finance.cancelled %}fb-badge-error{% elif invoice.status == 'paid' %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{{ invoice.get_status_display }}</span>
     </div>
