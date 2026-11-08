@@ -193,7 +193,7 @@ COMPANY_CONTACT = {
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_NAME = 'farabakhsh_sessionid'
-
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Django REST Framework configuration
 # https://www.django-rest-framework.org/
