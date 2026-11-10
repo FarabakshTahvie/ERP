@@ -125,12 +125,26 @@ class StockMovement(TimeStampedModel):
 
 
 class Sale(TimeStampedModel):
-    """فروش کالا از انبار بیرون از پروژه. نام و شماره‌ی مشتری در صورت نیاز نوشته می‌شود؛
-    همین جدول منبع فهرست مشتریان فروش (lead) است."""
+    """فروش کالا بیرون از پروژه. «ثبت» فقط سند می‌سازد؛ موجودی با «تحویل» کم می‌شود (inventory/sales.py).
+    number و warehouse برای ردیف‌های قبل از این تغییر در مایگریشن پر شده‌اند؛ سرویس همیشه پرشان می‌کند."""
+
+    class Status(models.TextChoices):
+        REGISTERED = "registered", "ثبت‌شده"
+        DELIVERED = "delivered", "تحویل‌شده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    number = models.CharField(max_length=20, unique=True, null=True, blank=True, verbose_name="شماره فروش")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED,
+                              db_index=True, verbose_name="وضعیت")
+    warehouse = models.ForeignKey(Warehouse, null=True, blank=True, on_delete=models.PROTECT,
+                                  related_name="sales", verbose_name="انبار")
     sold_at = models.DateTimeField(verbose_name="زمان فروش")
     customer_name = models.CharField(max_length=150, blank=True, verbose_name="نام مشتری")
     customer_phone = models.CharField(max_length=11, blank=True, db_index=True, verbose_name="شماره‌ی مشتری")
     notes = models.CharField(max_length=255, blank=True, verbose_name="توضیح")
+    delivered_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تحویل")
+    delivered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+", verbose_name="تحویل‌دهنده")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name="+", verbose_name="ثبت‌کننده")
 
@@ -149,8 +163,9 @@ class SaleLine(models.Model):
     item = models.ForeignKey('catalog.Item', on_delete=models.PROTECT, related_name="sale_lines", verbose_name="کالا")
     qty = models.DecimalField(max_digits=12, decimal_places=4, verbose_name="مقدار")
     unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="قیمت فروش یک واحد (تومان)")
+    total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع ردیف (تومان)")
     cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0,
-                                     verbose_name="بهای انبار همین قلم در لحظه‌ی فروش (تومان)")
+                                     verbose_name="بهای انبار همین قلم در لحظه‌ی تحویل (تومان)")
 
     class Meta:
         verbose_name = "قلم فروش"
@@ -159,4 +174,40 @@ class SaleLine(models.Model):
 
     @property
     def line_total(self):
-        return (self.qty * self.unit_price).quantize(Decimal("1"))
+        return self.total
+
+
+class SalePayment(TimeStampedModel):
+    class Method(models.TextChoices):
+        CASH = "cash", "نقدی"
+        CARD_TO_CARD = "card_to_card", "کارت به کارت"
+        TRANSFER = "transfer", "واریز بانکی"
+
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="payments", verbose_name="فروش")
+    method = models.CharField(max_length=20, choices=Method.choices, verbose_name="روش پرداخت")
+    amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
+    paid_date = models.DateField(verbose_name="تاریخ پرداخت")
+    reference_number = models.CharField(max_length=100, blank=True, verbose_name="شماره پیگیری")
+    note = models.CharField(max_length=255, blank=True, verbose_name="توضیح")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="ثبت‌کننده")
+
+    class Meta:
+        verbose_name = "پرداخت فروش"
+        verbose_name_plural = "پرداخت‌های فروش"
+        ordering = ["-paid_date", "-id"]
+
+
+class SaleEvent(models.Model):
+    """سابقه‌ی فروش (append-only)."""
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="events", verbose_name="فروش")
+    text = models.CharField(max_length=500, verbose_name="شرح")
+    amount = models.DecimalField(max_digits=18, decimal_places=0, null=True, blank=True, verbose_name="مبلغ")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "رویداد فروش"
+        verbose_name_plural = "رویدادهای فروش"
+        ordering = ["-created_at", "-id"]

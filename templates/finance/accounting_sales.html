@@ -8,9 +8,6 @@
             <h1 class="fb-page-title">فروش کالا</h1>
             <p class="fb-page-sub">فروش کالا بیرون از پروژه. در تب «مشتریان» هر مشتری یک‌بار می‌آید؛ برای دیدن خریدهایش روی او بزنید.</p>
         </div>
-        {% if caps.inventory_manage %}
-        <a href="{% url 'inventory:stock_movement_new' %}" class="btn btn-soft btn-sm">{% icon "plus" "w-4 h-4" %} ثبت فروش</a>
-        {% endif %}
     </div>
     {% include "finance/partials/accounting_nav.html" %}
     {% include "utils/partials/tab_panels.html" %}

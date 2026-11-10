@@ -13,7 +13,7 @@ EXPECTED = {
     "projects.restore": MGR,
     "accounting.access": MGR_ACC, "payments.review": MGR_ACC, "pricing.edit": MGR_ACC, "costs.manage": MGR_ACC,
     "final_review.view": MGR_ACC, "money.view": MGR_ACC, "periods.lock": MGR_ACC, "invoice.adjust": MGR_ACC,
-    "people.view": MGR_ACC, "suspended.view": MGR_ACC, "tasks.manage": MGR_ACC,
+    "people.view": MGR_ACC, "suspended.view": MGR_ACC, "tasks.manage": MGR_ACC, "sales.create": MGR_ACC,
     "bank_cards.manage": MGR_ACC,
     "purchases.edit": MGR_ACC,
     "tables.export": MGR_ACC,
