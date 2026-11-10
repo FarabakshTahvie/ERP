@@ -58,4 +58,10 @@ SMS_PATTERNS = {
         # reference_text را عیناً از پنل sms.ir کپی کن؛ فقط توضیح است و در ارسال اثری ندارد.
         "reference_text": "فاکتور پروژه %PROJECT% نهایی شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
     },
+    "proforma_expired": {
+        "pattern_code": "795967",
+        "parameters": ["INVOICE", "LINK"],
+        # در پنل sms.ir تا تایید «در حال بررسی» است؛ reference_text را عیناً از پنل بگذار.
+        "reference_text": "مهلت تایید پیش‌فاکتور %INVOICE% تمام شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
+    },
 }

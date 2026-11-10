@@ -109,3 +109,6 @@ class SMSService:
 
     def send_invoice_finalized(self, mobile, project, link):
         return self.send_pattern(mobile, "invoice_finalized", PROJECT=project, LINK=link)
+
+    def send_proforma_expired(self, mobile, invoice, link):
+        return self.send_pattern(mobile, "proforma_expired", INVOICE=invoice, LINK=link)
