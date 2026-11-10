@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import IntegrityError, transaction
@@ -194,6 +194,27 @@ def customer_q(sale):
 
 def customer_sales_qs(sale):
     return sales_queryset().filter(customer_q(sale))
+
+
+def _day_start(day):
+    return timezone.make_aware(datetime.combine(day, time.min))
+
+
+def period_numbers(start=None, end=None):
+    """مرکز حسابداری. start/end = تاریخ میلادی (انتها غیرشامل) یا None = همه‌ی زمان‌ها. فروش لغوشده نمی‌آید.
+    sales: جمع فروش‌هایی که زمان ثبتشان در بازه است؛ collected: پرداخت‌هایی که تاریخ پرداختشان در بازه است؛
+    remaining: مانده‌ی همه‌ی زمان‌ها (به بازه وابسته نیست)."""
+    qs = sales_queryset().exclude(status=Sale.Status.CANCELLED)
+    paid = SalePayment.objects.exclude(sale__status=Sale.Status.CANCELLED)
+    if start:
+        qs, paid = qs.filter(sold_at__gte=_day_start(start)), paid.filter(paid_date__gte=start)
+    if end:
+        qs, paid = qs.filter(sold_at__lt=_day_start(end)), paid.filter(paid_date__lt=end)
+    return {
+        "sales": sum(qs.values_list("total", flat=True), ZERO),
+        "collected": paid.aggregate(t=Coalesce(Sum("amount"), Value(ZERO), output_field=MONEY))["t"],
+        "remaining": sales_stats()["remaining"],
+    }
 
 
 # ---------- ثبت، ویرایش، تحویل، لغو ----------

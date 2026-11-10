@@ -27,6 +27,8 @@
             {% include "finance/partials/stat_card.html" with label="فروش (فاکتور صادرشده)" value=stats.sales tone="" hint="" %}
             {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تاییدشده)" value=stats.collected tone="text-success" hint="" %}
             {% include "finance/partials/stat_card.html" with label="فروش کالا (بیرون از پروژه)" value=stats.goods_sales tone="" hint="در «فروش» و «دریافت‌شده» بالا حساب نشده." %}
+            {% include "finance/partials/stat_card.html" with label="دریافت فروش کالا" value=stats.goods_collected tone="text-success" hint="طبق تاریخ پرداخت." %}
+            {% include "finance/partials/stat_card.html" with label="مانده‌ی فروش کالا" value=stats.goods_receivable tone="text-warning" hint="کل زمان؛ به بازه وابسته نیست." %}
             <div class="fb-card fb-pad min-w-0">
                 <div class="fb-stat-value font-technical text-warning">{{ stats.receivable|intcomma_fa }}</div>
                 <div class="fb-stat-label">مانده‌ی بدهی مشتریان</div>

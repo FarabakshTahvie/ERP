@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ base.customer_name|default:base.customer_phone }} | مشتری فروش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% url 'finance:accounting_sales' %}?tab=leads" class="link link-hover text-sm fb-muted">بازگشت به مشتریان</a>
+        <h1 class="fb-page-title mt-2">{{ base.customer_name|default:"بدون نام" }}</h1>
+        <p class="fb-page-sub"><span class="font-technical" dir="ltr">{% if base.customer_phone %}{{ base.customer_phone|fa_digits }}{% else %}بدون شماره{% endif %}</span></p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {% include "finance/partials/stat_card.html" with label="تعداد فروش" value=stats.count tone="" hint="لغوشده نیست." %}
+        {% include "finance/partials/stat_card.html" with label="جمع فروش (تومان)" value=stats.total tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تومان)" value=stats.paid tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="مانده (تومان)" value=stats.remaining tone="text-warning" hint="" %}
+    </div>
+
+    {% if caps.sales_create %}
+    <form method="post" action="{% url 'finance:accounting_sale_customer_edit' base.id %}" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+        {% csrf_token %}
+        <h2 class="fb-section-title">اصلاح مشتری</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="fb-field">
+                <label class="fb-label" for="cust-name">نام</label>
+                <input type="text" id="cust-name" name="customer_name" value="{{ base.customer_name }}" maxlength="150" autocomplete="off" class="input w-full">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="cust-phone">شماره</label>
+                <input type="text" id="cust-phone" name="customer_phone" value="{{ base.customer_phone }}" data-digits maxlength="11" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+            </div>
+        </div>
+        <p class="fb-hint">نام و شماره در همه‌ی فروش‌های این مشتری عوض می‌شود، از جمله تحویل‌شده و لغوشده. اگر شماره‌ی مشتری دیگری را بنویسید، فروش‌های این دو مشتری یکی می‌شوند.</p>
+        <button type="submit" class="btn btn-primary btn-sm self-start">ذخیره در همه‌ی فروش‌ها</button>
+    </form>
+    {% endif %}
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">فروش‌های این مشتری</h2>
+        {% include "utils/partials/generic_table.html" %}
+    </section>
+</div>
+{% endblock %}

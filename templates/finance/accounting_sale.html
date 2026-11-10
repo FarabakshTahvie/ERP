@@ -54,7 +54,8 @@
 
     <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
         <h2 class="fb-section-title">اطلاعات فروش</h2>
-        <div class="flex justify-between gap-2"><span class="fb-muted">مشتری</span><span>{{ sale.customer_name|default:"—" }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">مشتری</span>
+            {% if sale.has_customer %}<a href="{% url 'finance:accounting_sale_customer' sale.id %}" class="link link-primary">{{ sale.customer_name|default:sale.customer_phone }}</a>{% else %}<span>—</span>{% endif %}</div>
         <div class="flex justify-between gap-2"><span class="fb-muted">شماره‌ی مشتری</span><span class="font-technical" dir="ltr">{{ sale.customer_phone|default:"—" }}</span></div>
         <div class="flex justify-between gap-2"><span class="fb-muted">انبار</span><span>{{ sale.warehouse.name|default:"—" }}</span></div>
         {% if sale.notes %}<p class="fb-inset text-xs">{{ sale.notes }}</p>{% endif %}
