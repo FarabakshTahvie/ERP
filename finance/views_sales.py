@@ -1,5 +1,6 @@
 import io
 import json
+from decimal import Decimal
 
 import weasyprint
 from django.contrib import messages
@@ -52,29 +53,27 @@ def _form_context(sale, post):
         items += [l.item for l in sale.lines.select_related("item") if l.item_id not in known]
     stock = stock_by_warehouse(i.pk for i in items)
     if post is not None:
-        values = {"warehouse": post.get("warehouse_id") or (sale.warehouse_id if sale else ""),
-                  "name": post.get("customer_name", ""), "phone": post.get("customer_phone", ""),
+        values = {"name": post.get("customer_name", ""), "phone": post.get("customer_phone", ""),
                   "notes": post.get("notes", ""), "pay_amount": post.get("pay_amount", ""),
                   "pay_method": post.get("pay_method", "cash")}
         lines = _lines_json(post) or []
     elif sale is not None:
-        values = {"warehouse": sale.warehouse_id, "name": sale.customer_name, "phone": sale.customer_phone,
+        values = {"name": sale.customer_name, "phone": sale.customer_phone,
                   "notes": sale.notes, "pay_amount": "", "pay_method": "cash"}
-        lines = [{"id": l.item_id, "qty": format(l.qty.normalize(), "f"), "unit_price": str(int(l.unit_price))}
-                 for l in sale.lines.order_by("pk")]
+        lines = [{"id": l.item_id, "qty": format(l.qty.normalize(), "f"), "unit_price": str(int(l.unit_price)),
+                  "warehouse_id": l.warehouse_id} for l in sale.lines.order_by("pk")]
     else:
-        default = Warehouse.objects.filter(is_default=True).first()
-        values = {"warehouse": default.pk if default else "", "name": "", "phone": "", "notes": "",
-                  "pay_amount": "", "pay_method": "cash"}
+        values = {"name": "", "phone": "", "notes": "", "pay_amount": "", "pay_method": "cash"}
         lines = []
     return {
         "nav_active": "sales", "sale": sale, "values": values, "initial_lines": lines,
-        "warehouses": list(Warehouse.objects.order_by("-is_default", "name")),
+        "warehouses_data": [{"id": w.id, "name": w.name}
+                            for w in Warehouse.objects.order_by("-is_default", "name")],
         "items_data": [{"id": i.id, "name": i.name, "unit": i.get_unit_display(),
                         "stock": {str(w): str(q) for w, q in stock.get(i.id, {}).items()}} for i in items],
         "methods": SalePayment.Method.choices,
         "lines_editable": sale is None or sale.status == Sale.Status.REGISTERED,
-        "lines": list(sale.lines.select_related("item").order_by("pk")) if sale is not None else [],
+        "lines": list(sale.lines.select_related("item", "warehouse").order_by("pk")) if sale is not None else [],
     }
 
 
@@ -84,7 +83,6 @@ def sale_new(request):
         try:
             sale = sales_svc.create_sale(
                 actor=request.user, lines_raw=_lines_json(request.POST) or [],
-                warehouse_id=request.POST.get("warehouse_id"),
                 customer_name=request.POST.get("customer_name", ""),
                 customer_phone=request.POST.get("customer_phone", ""),
                 notes=request.POST.get("notes", ""),
@@ -101,10 +99,20 @@ def sale_new(request):
 def sale_detail(request, sale_id):
     sale = get_object_or_404(sales_svc.sales_queryset(), pk=sale_id)
     payments = list(sale.payments.select_related("created_by"))
+    lines = list(sale.lines.select_related("item", "warehouse").order_by("pk"))
+    stock = stock_by_warehouse({l.item_id for l in lines})
+    need = {}
+    for l in lines:
+        key = (l.item_id, l.warehouse_id)
+        need[key] = need.get(key, Decimal("0")) + l.qty
+    registered = sale.status == Sale.Status.REGISTERED
+    for l in lines:
+        l.stock_now = stock.get(l.item_id, {}).get(l.warehouse_id, Decimal("0"))
+        l.short = registered and need[(l.item_id, l.warehouse_id)] > l.stock_now
     return render(request, "finance/accounting_sale.html", {
         "nav_active": "sales", "sale": sale,
         "status_variant": sales_svc.STATUS_VARIANT.get(sale.status, "neutral"),
-        "lines": list(sale.lines.select_related("item").order_by("pk")),
+        "lines": lines, "short_count": sum(1 for l in lines if l.short),
         "payments": payments, "events": list(sale.events.select_related("actor")[:50]),
         "can_cancel": sale.status == Sale.Status.REGISTERED and not payments,
         "methods": SalePayment.Method.choices,
@@ -123,8 +131,7 @@ def sale_edit(request, sale_id):
             sales_svc.update_sale(
                 sale, actor=request.user, customer_name=request.POST.get("customer_name", ""),
                 customer_phone=request.POST.get("customer_phone", ""), notes=request.POST.get("notes", ""),
-                lines_raw=_lines_json(request.POST) if full else None,
-                warehouse_id=request.POST.get("warehouse_id") if full else None)
+                lines_raw=_lines_json(request.POST) if full else None)
         except ValueError as e:
             messages.error(request, str(e))
             return render(request, FORM, _form_context(sale, request.POST))

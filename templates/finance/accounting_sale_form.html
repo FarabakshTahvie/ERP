@@ -16,13 +16,7 @@
         <section class="fb-card fb-pad flex flex-col gap-3">
             <h2 class="fb-section-title">اقلام</h2>
             {% if lines_editable %}
-            <div class="fb-field">
-                <label class="fb-label" for="sale-warehouse">کم‌شدن از انبار</label>
-                <select id="sale-warehouse" name="warehouse_id" required class="select w-full sm:w-72">
-                    {% for w in warehouses %}<option value="{{ w.id }}" {% if values.warehouse|stringformat:"s" == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
-                </select>
-                <span class="fb-hint">موجودی همین لحظه کم نمی‌شود؛ بعد از دکمه‌ی «تحویل» از همین انبار کم می‌شود.</span>
-            </div>
+            <p class="fb-hint">برای هر کالا انبار را انتخاب کنید. موجودی همین لحظه کم نمی‌شود؛ بعد از «تحویل» از انبارِ همان ردیف کم می‌شود. تا قبل از تحویل می‌توانید ویرایش کنید و انبار را عوض کنید.</p>
             <div id="sale-lines" data-sprite="{% static 'icons/sprite.svg' %}"></div>
             <input type="hidden" id="sale-lines-json" data-name="lines_json">
             <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
@@ -30,13 +24,13 @@
                 <span class="font-technical" id="sale-total">۰</span>
             </div>
             {% else %}
-            <p class="text-sm"><span class="fb-muted">انبار:</span> {{ sale.warehouse.name }}</p>
             <div class="overflow-x-auto">
                 <table class="table table-sm text-xs">
-                    <thead><tr class="fb-muted"><th>کالا</th><th>مقدار</th><th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
+                    <thead><tr class="fb-muted"><th>کالا</th><th>انبار</th><th>مقدار</th><th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
                     <tbody>
                     {% for l in lines %}
                         <tr><td class="font-semibold">{{ l.item.name }}</td>
+                            <td>{{ l.warehouse.name|default:"—" }}</td>
                             <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
                             <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td>
                             <td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
@@ -93,6 +87,7 @@
 </div>
 {% if lines_editable %}
 {{ items_data|json_script:"sale-items-data" }}
+{{ warehouses_data|json_script:"sale-warehouses" }}
 {{ initial_lines|json_script:"sale-initial" }}
 {% endif %}
 {% endblock %}
@@ -104,34 +99,48 @@
 <script>
 (function () {
     var data = JSON.parse(document.getElementById('sale-items-data').textContent || '[]');
+    var warehouses = JSON.parse(document.getElementById('sale-warehouses').textContent || '[]');
     var byId = {};
     data.forEach(function (it) { byId[it.id] = it; });
     function el(id) { return document.getElementById(id); }
     var E = window.fbLineEditor, num = E.num, fmt = E.fmt;
     var nf = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 4 });
-    var editor = E({
+    function haveIn(it, wid) { return parseFloat(((it && it.stock) || {})[wid] || 0); }
+    E({
         mount: el('sale-lines'), hidden: el('sale-lines-json'),
         initial: JSON.parse(el('sale-initial').textContent || '[]'),
         addLabel: 'افزودن کالا', emptyText: 'کالایی اضافه نشده.',
         columns: [
             { key: 'id', type: 'picker', label: 'کالا', items: data, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
+            { key: 'warehouse_id', type: 'select', label: 'کم‌شدن از انبار', cls: 'w-44',
+              options: warehouses.map(function (w) { return [String(w.id), w.name]; }) },
             { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
             { key: 'unit_price', type: 'money', label: 'قیمت فروش یک واحد (تومان)', cls: 'w-44' },
-            { key: 'stock', type: 'readonly', label: 'موجودی انبار', cls: 'w-28',
+            { key: 'stock', type: 'readonly', label: 'موجودی این انبار', cls: 'w-28',
               compute: function (d) {
-                  var it = byId[parseInt(d.id, 10)], w = el('sale-warehouse');
-                  if (!it || !w) return '—';
-                  return nf.format(parseFloat((it.stock || {})[w.value] || 0));
+                  var it = byId[parseInt(d.id, 10)];
+                  return it ? nf.format(haveIn(it, d.warehouse_id)) : '—';
               } }
         ],
-        footer: function (d) { var t = num(d.qty) * num(d.unit_price); return t > 0 ? 'جمع این کالا: ' + fmt(t) + ' تومان' : ''; },
+        footer: function (d) {
+            var it = byId[parseInt(d.id, 10)];
+            if (!it) return '';
+            var want = num(d.qty), have = haveIn(it, d.warehouse_id);
+            var wh = warehouses.filter(function (w) { return String(w.id) === String(d.warehouse_id); })[0];
+            if (want > 0 && want > have) {
+                return { tone: 'warning', text: 'موجودی «' + (wh ? wh.name : '') + '» ' + nf.format(have) + ' ' + it.unit +
+                    ' است و از مقدار فروش کمتر است. انبار دیگری انتخاب کنید یا مقدار را کم کنید؛ با همین حالت تحویل انجام نمی‌شود.' };
+            }
+            var parts = warehouses.map(function (w) { return w.name + ': ' + nf.format(haveIn(it, w.id)); });
+            var t = Math.round(want * num(d.unit_price));
+            return 'موجودی ' + it.name + ' — ' + parts.join('، ') + (t > 0 ? ' | جمع این کالا: ' + fmt(t) + ' تومان' : '');
+        },
         onChange: function (rows) {
             var t = 0;
             rows.forEach(function (r) { t += Math.round(num(r.qty) * num(r.unit_price)); });
             el('sale-total').textContent = fmt(t);
         }
     });
-    el('sale-warehouse').addEventListener('change', function () { editor.notify(); });
 })();
 </script>
 {% endif %}

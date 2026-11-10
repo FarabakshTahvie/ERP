@@ -59,11 +59,19 @@ def _money(raw, label="مبلغ"):
     return Decimal(int(text))
 
 
-def _get_warehouse(raw):
+def _get_warehouse(raw, item=None, cache=None):
+    label = f"برای «{item.name}» " if item is not None else ""
     try:
-        return Warehouse.objects.get(pk=int(to_latin_digits(raw).strip()))
-    except (TypeError, ValueError, Warehouse.DoesNotExist):
-        raise ValueError("انبار را از فهرست انتخاب کنید.")
+        pk = int(to_latin_digits(raw).strip())
+    except (TypeError, ValueError):
+        raise ValueError(f"{label}انبار را از فهرست انتخاب کنید.")
+    cache = {} if cache is None else cache
+    if pk not in cache:
+        found = Warehouse.objects.filter(pk=pk).first()
+        if found is None:
+            raise ValueError(f"{label}انبار را از فهرست انتخاب کنید.")
+        cache[pk] = found
+    return cache[pk]
 
 
 def _check_method(method):
@@ -86,12 +94,13 @@ def _clean_lines(raw_lines):
         raise ValueError("حداقل یک کالا برای فروش بنویسید.")
     if len(raw_lines) > MAX_LINES:
         raise ValueError(f"در هر فروش حداکثر {MAX_LINES} کالا ثبت می‌شود.")
-    lines = []
+    lines, warehouses = [], {}
     for raw in raw_lines:
         if not isinstance(raw, dict):
             raise ValueError(BAD_LINES)
         item = get_active_item(raw.get("id"))
         assert_stockable(item)
+        warehouse = _get_warehouse(raw.get("warehouse_id"), item, warehouses)
         qty = parse_decimal_input(raw.get("qty"), label=f"مقدار «{item.name}»")
         price = parse_decimal_input(raw.get("unit_price"), label=f"قیمت فروش «{item.name}»")
         if qty > MAX_QTY or price >= MAX_PRICE:
@@ -104,13 +113,15 @@ def _clean_lines(raw_lines):
         total = (qty * price).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         if total <= 0:
             raise ValueError(f"جمع «{item.name}» صفر می‌شود؛ مقدار یا قیمت را بزرگ‌تر بنویسید.")
-        lines.append({"item": item, "qty": qty, "unit_price": price.to_integral_value(), "total": total})
+        lines.append({"item": item, "qty": qty, "unit_price": price.to_integral_value(), "total": total,
+                      "warehouse": warehouse})
     return lines
 
 
 def _save_lines(sale, lines):
     SaleLine.objects.bulk_create([
-        SaleLine(sale=sale, item=l["item"], qty=l["qty"], unit_price=l["unit_price"], total=l["total"])
+        SaleLine(sale=sale, item=l["item"], qty=l["qty"], unit_price=l["unit_price"], total=l["total"],
+                 warehouse=l["warehouse"])
         for l in lines])
 
 
@@ -127,7 +138,7 @@ def _require_accounting(actor):
 
 def _locked(sale_or_pk):
     pk = getattr(sale_or_pk, "pk", sale_or_pk)
-    sale = Sale.objects.select_for_update(of=("self",)).select_related("warehouse").filter(pk=pk).first()
+    sale = Sale.objects.select_for_update(of=("self",)).filter(pk=pk).first()
     if sale is None:
         raise ValueError("این فروش پیدا نشد.")
     return sale
@@ -169,7 +180,7 @@ def sales_queryset():
     zero = Value(ZERO, output_field=MONEY)
     total = Coalesce(Subquery(lines.annotate(t=Sum("total")).values("t"), output_field=MONEY), zero)
     paid = Coalesce(Subquery(pays.annotate(t=Sum("amount")).values("t"), output_field=MONEY), zero)
-    return (Sale.objects.select_related("warehouse")
+    return (Sale.objects
             .annotate(total=total, paid=paid)
             .annotate(remaining=ExpressionWrapper(F("total") - F("paid"), output_field=MONEY))
             .order_by("-sold_at", "-id"))
@@ -219,12 +230,11 @@ def period_numbers(start=None, end=None):
 
 # ---------- ثبت، ویرایش، تحویل، لغو ----------
 @transaction.atomic
-def create_sale(*, actor, lines_raw, warehouse_id, customer_name="", customer_phone="", notes="",
+def create_sale(*, actor, lines_raw, customer_name="", customer_phone="", notes="",
                 pay_amount_raw="", pay_method=""):
     """فقط سند می‌سازد؛ موجودی کم نمی‌شود. اگر pay_amount_raw داده شود یک پرداخت (امروز) هم ثبت می‌شود."""
     _require_sales(actor)
     lines = _clean_lines(lines_raw)
-    warehouse = _get_warehouse(warehouse_id)
     name, phone = clean_customer(customer_name, customer_phone)
     notes = _clean_notes(notes)
     total = sum((l["total"] for l in lines), ZERO)
@@ -238,7 +248,7 @@ def create_sale(*, actor, lines_raw, warehouse_id, customer_name="", customer_ph
     for attempt in range(5):
         try:
             with transaction.atomic():
-                sale = Sale.objects.create(number=_new_number(), warehouse=warehouse, sold_at=timezone.now(),
+                sale = Sale.objects.create(number=_new_number(), sold_at=timezone.now(),
                                            customer_name=name, customer_phone=phone, notes=notes,
                                            created_by=actor)
             break
@@ -246,7 +256,7 @@ def create_sale(*, actor, lines_raw, warehouse_id, customer_name="", customer_ph
             if attempt == 4:
                 raise
     _save_lines(sale, lines)
-    _log(sale, actor, f"ثبت شد: {len(lines)} قلم؛ بعد از تحویل از «{warehouse.name}» کم می‌شود", total)
+    _log(sale, actor, f"ثبت شد: {len(lines)} قلم؛ بعد از تحویل از انبارِ هر ردیف کم می‌شود", total)
     if paying:
         SalePayment.objects.create(sale=sale, method=method, amount=amount, paid_date=timezone.localdate(),
                                    created_by=actor)
@@ -255,8 +265,8 @@ def create_sale(*, actor, lines_raw, warehouse_id, customer_name="", customer_ph
 
 
 @transaction.atomic
-def update_sale(sale, *, actor, customer_name, customer_phone, notes, lines_raw=None, warehouse_id=None):
-    """قبل از تحویل همه‌چیز قابل ویرایش است. بعد از تحویل فقط مشتری و توضیح (lines_raw و warehouse_id باید None باشند).
+def update_sale(sale, *, actor, customer_name, customer_phone, notes, lines_raw=None):
+    """قبل از تحویل همه‌چیز قابل ویرایش است. بعد از تحویل فقط مشتری و توضیح.
     lines_raw=None یعنی اقلام را دست نزن."""
     _require_sales(actor)
     sale = _locked(sale)
@@ -264,24 +274,17 @@ def update_sale(sale, *, actor, customer_name, customer_phone, notes, lines_raw=
         raise ValueError("فروش لغوشده قابل ویرایش نیست.")
     name, phone = clean_customer(customer_name, customer_phone)
     notes = _clean_notes(notes)
-    wants_wh = warehouse_id not in (None, "")
     changes = []
     if sale.status == Sale.Status.DELIVERED:
-        if lines_raw is not None or wants_wh:
-            raise ValueError("بعد از تحویل فقط مشتری، توضیح و پرداخت‌ها قابل ویرایش است.")
-    else:
         if lines_raw is not None:
-            lines = _clean_lines(lines_raw)
-            if sum((l["total"] for l in lines), ZERO) < _sale_paid(sale):
-                raise ValueError("جمع فروش نمی‌تواند از مبلغ دریافتی کمتر شود.")
-            sale.lines.all().delete()
-            _save_lines(sale, lines)
-            changes.append("اقلام")
-        if wants_wh:
-            warehouse = _get_warehouse(warehouse_id)
-            if warehouse.pk != sale.warehouse_id:
-                sale.warehouse = warehouse
-                changes.append("انبار")
+            raise ValueError("بعد از تحویل فقط مشتری، توضیح و پرداخت‌ها قابل ویرایش است.")
+    elif lines_raw is not None:
+        lines = _clean_lines(lines_raw)
+        if sum((l["total"] for l in lines), ZERO) < _sale_paid(sale):
+            raise ValueError("جمع فروش نمی‌تواند از مبلغ دریافتی کمتر شود.")
+        sale.lines.all().delete()
+        _save_lines(sale, lines)
+        changes.append("اقلام و انبار ردیف‌ها")
     if (name, phone) != (sale.customer_name, sale.customer_phone):
         sale.customer_name, sale.customer_phone = name, phone
         changes.append("مشتری")
@@ -297,24 +300,26 @@ def update_sale(sale, *, actor, customer_name, customer_phone, notes, lines_raw=
 
 @transaction.atomic
 def deliver_sale(sale, *, actor):
-    """تحویل: اقلام به روش FIFO از انبارِ همین فروش کم می‌شوند. اگر موجودی یک قلم کم باشد هیچ‌چیز ثبت نمی‌شود."""
+    """تحویل: هر ردیف از انبارِ خودش به روش FIFO کم می‌شود. اگر موجودی یک ردیف کم باشد هیچ‌چیز ثبت نمی‌شود."""
     _require_sales(actor)
     sale = _locked(sale)
     if sale.status != Sale.Status.REGISTERED:
         raise ValueError("فقط فروش «ثبت‌شده» تحویل داده می‌شود.")
-    if sale.warehouse_id is None:
-        raise ValueError("برای این فروش انبار مشخص نشده؛ ابتدا ویرایش کنید.")
+    lines = list(sale.lines.select_related("item", "warehouse").order_by("pk"))
+    if any(l.warehouse_id is None for l in lines):
+        raise ValueError("برای بعضی ردیف‌ها انبار مشخص نشده؛ ابتدا ویرایش کنید.")
     who = sale.customer_name or sale.customer_phone or "بدون نام"
-    for line in sale.lines.select_related("item").order_by("pk"):
+    for line in lines:
         assert_stockable(line.item)
         used = consume_stock(item=line.item, qty=line.qty, user=actor, related_object=sale,
                              notes=f"فروش {sale.number} به {who}"[:255],
-                             movement_type=StockMovement.MovementType.SALE, warehouse=sale.warehouse)
+                             movement_type=StockMovement.MovementType.SALE, warehouse=line.warehouse)
         cost = sum((take * unit for _lot, take, unit in used), ZERO)
         SaleLine.objects.filter(pk=line.pk).update(cost_total=cost.quantize(Decimal("1")))
     sale.status, sale.delivered_at, sale.delivered_by = Sale.Status.DELIVERED, timezone.now(), actor
     sale.save(update_fields=["status", "delivered_at", "delivered_by", "updated_at"])
-    _log(sale, actor, f"تحویل شد؛ اقلام از «{sale.warehouse.name}» کم شد")
+    _log(sale, actor, "تحویل شد؛ اقلام از انبار هر ردیف کم شد (" +
+         "، ".join(sorted({l.warehouse.name for l in lines})) + ")")
     return sale
 
 
