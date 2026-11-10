@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}ویرایش محتوا: {{ obj.name }} | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0">
+            <h1 class="fb-page-title">ویرایش محتوای ویترین</h1>
+            <p class="fb-page-sub">{{ obj.name }} — {% if kind == 'service' %}خدمت؛ قیمت خدمت همیشه «توافقی» نشان داده می‌شود.{% else %}کالا؛ قیمت کالا خودکار از بهای خرید و قانون قیمت‌گذاری ساخته می‌شود و اینجا ثبت نمی‌شود.{% endif %}</p>
+        </div>
+        {% if detail_url %}<a href="{{ detail_url }}" class="btn btn-soft btn-sm">{% icon "eye" "w-4 h-4" %} صفحه‌ی مشتری</a>{% endif %}
+    </div>
+
+    <form method="post" action="{% url 'catalog:manage_save' kind obj.pk %}" data-fb-once class="fb-card fb-pad flex flex-col gap-4">
+        {% csrf_token %}
+        <label class="fb-choice justify-start self-start"><input type="checkbox" name="show_to_clients" class="sr-only" {% if obj.show_to_clients %}checked{% endif %}> نمایش به مشتریان</label>
+        <div class="fb-field">
+            <label class="fb-label" for="catalog-description">توضیح کامل (مارک‌داون)</label>
+            <textarea id="catalog-description" name="description" rows="14" maxlength="20000" dir="auto" class="textarea w-full leading-7">{{ obj.description }}</textarea>
+            <span class="fb-hint">عنوان با # ، پررنگ با **متن** ، کج با *متن* ، فهرست با - ، نقل‌قول با &gt; ، لینک با [متن](https://...) و تلفن با [تماس](tel:+985133873734). عکس و ویدیو را پایین بارگذاری کنید و با «درج در متن» بگذارید.</span>
+        </div>
+        <div role="alert" class="hidden alert alert-soft alert-info" data-draft-note>
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">متن ذخیره‌نشده‌ی قبلی بازیابی شد. برای ماندن «ذخیره» را بزنید.</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm self-start">ذخیره</button>
+    </form>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">عکس شاخص</h2>
+        <p class="fb-hint">در کارت‌ها و بالای صفحه دیده می‌شود. عکس خودکار بهینه می‌شود و یک نسخه‌ی کوچک هم از آن ساخته می‌شود.</p>
+        {% if obj.cover_thumb %}<img src="{{ obj.cover_thumb.url }}" alt="عکس شاخص" class="w-40 rounded-field bg-base-300">{% endif %}
+        <div class="flex flex-wrap items-center gap-2">
+            <input type="file" accept="image/*" class="file-input file-input-sm w-full sm:w-72" data-cover-input data-url="{{ cover_url }}" aria-label="انتخاب عکس شاخص">
+            {% if obj.cover %}<button type="button" class="btn btn-soft btn-error btn-sm" data-cover-remove data-url="{{ cover_url }}">حذف عکس شاخص</button>{% endif %}
+        </div>
+        <p class="fb-error hidden" data-cover-error></p>
+    </section>
+
+    <section id="media" class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">عکس و ویدیوها ({{ media|length|fa_digits }})</h2>
+        <p class="fb-hint">فایل را بارگذاری کنید، بعد «درج در متن» را بزنید تا در محل مکان‌نمای کادر متن بیاید. فایلی که در متن نیامده باشد، زیر متن به‌صورت گالری دیده می‌شود. حداکثر ۲۵ مگابایت برای هر فایل؛ ویدیو فقط MP4، WEBM یا MOV.</p>
+        {% for m in media %}
+        <div class="fb-inset flex items-center gap-3 flex-wrap">
+            {% if m.kind == 'image' %}
+            <img src="{{ m.file.url }}" alt="{{ m.original_name }}" loading="lazy" class="w-16 h-16 object-cover rounded-field bg-base-300">
+            {% else %}
+            <div class="w-16 h-16 flex items-center justify-center rounded-field bg-base-300 text-primary">{% icon "play" "w-5 h-5" %}</div>
+            {% endif %}
+            <div class="min-w-0 flex-1 flex flex-col gap-1">
+                <span class="text-xs break-all" dir="auto">{{ m.original_name }}</span>
+                <span class="fb-badge self-start {% if m.in_text %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{% if m.in_text %}در متن آمده{% else %}در گالری زیر متن{% endif %}</span>
+            </div>
+            <button type="button" class="btn btn-soft btn-sm" data-insert="![](media:{{ m.pk }})">درج در متن</button>
+            <button type="button" class="btn btn-soft btn-error btn-sm btn-square" data-media-delete data-url="{% url 'catalog:media_delete' m.pk %}" aria-label="حذف فایل">{% icon "trash-2" "w-4 h-4" %}</button>
+        </div>
+        {% empty %}
+        <p class="fb-hint">فایلی بارگذاری نشده است.</p>
+        {% endfor %}
+        {% include "utils/partials/file_dropzone.html" with mode="instant" url=upload_url anchor="media" %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/catalog_manage.js' %}"></script>
+{% endblock %}

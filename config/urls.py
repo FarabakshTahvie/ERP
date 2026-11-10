@@ -21,6 +21,7 @@ urlpatterns = [
     path('', include('notifications.urls', namespace='notifications')),
     path('', include('projects.urls', namespace='projects')),
     path('', include('finance.urls', namespace='finance')),
+    path('', include('catalog.urls', namespace='catalog')),
     re_path(r'^media/(?P<path>.+)$', protected_media, name='protected_media'),
     path('', home_view, name='home'),
 ]

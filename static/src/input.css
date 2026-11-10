@@ -19,6 +19,7 @@
 @source "../js/upload_progress.js";
 @source "../js/purchase_lines.js";
 @source "../js/proforma_page.js";
+@source "../js/catalog_manage.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
