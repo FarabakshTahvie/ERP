@@ -12,11 +12,11 @@ class ItemCategoryAdmin(JalaliAdminMixin, ModelAdmin):
 
 @admin.register(Item)
 class ItemAdmin(JalaliAdminMixin, ModelAdmin):
-    list_display = ('id', 'name', 'item_type', 'unit', 'category', 'moving_average_cost', 'current_stock', 'is_active')
-    list_filter = ('item_type', 'unit', 'category', 'is_active')
+    list_display = ('id', 'name', 'item_type', 'unit', 'category', 'moving_average_cost', 'current_stock', 'show_to_clients', 'is_active')
+    list_filter = ('item_type', 'unit', 'category', 'show_to_clients', 'is_active')
     search_fields = ('name',)
     readonly_fields = ('moving_average_cost',)
-    fields = ('name', 'item_type', 'category', 'unit', 'specs', 'reorder_point', 'responsible_user', 'moving_average_cost', 'is_active')
+    fields = ('name', 'item_type', 'category', 'unit', 'specs', 'reorder_point', 'responsible_user', 'show_to_clients', 'description', 'moving_average_cost', 'is_active')
 
 
 class ServiceBOMInline(JalaliAdminMixin, TabularInline):
@@ -27,10 +27,11 @@ class ServiceBOMInline(JalaliAdminMixin, TabularInline):
 
 @admin.register(Service)
 class ServiceAdmin(JalaliAdminMixin, ModelAdmin):
-    list_display = ('id', 'name', 'parent', 'unit', 'is_active')
-    list_filter = ('is_active',)
+    list_display = ('id', 'name', 'parent', 'unit', 'show_to_clients', 'is_active')
+    list_filter = ('is_active', 'show_to_clients')
     search_fields = ('name', 'code')
     inlines = [ServiceBOMInline]
+    exclude = ('cover', 'cover_thumb')
 
 
 @admin.register(MarginRule)

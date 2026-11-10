@@ -46,6 +46,7 @@ CAPABILITIES = {
     "invoice.cancel": _manager,
     "notifications.manage": _manager,
     "projects.restore": _manager,
+    "catalog.edit": _manager,   # محتوای ویترین (عکس، متن، ویدیو، نمایش به مشتریان)
     # --- مدیر یا حسابدار ---
     "suspended.view": _manager_or_accountant,
     "accounting.access": _manager_or_accountant,
