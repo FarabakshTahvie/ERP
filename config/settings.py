@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'people',
     'tasks',
     'messenger',
+    'locations',
 ]
 
 MIDDLEWARE = [

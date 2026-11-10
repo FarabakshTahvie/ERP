@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static custom_tags l10n %}
+{% block title %}موقعیت‌ها | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">موقعیت‌ها</h1>
+            <p class="fb-page-sub">نقطه‌های دلخواه (مثل انبار، دفتر یا محل قرار) را ثبت کنید و لینکش را برای هر کسی بفرستید. این‌ها از موقعیت پروژه‌ها جدا هستند.</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" data-location-add data-url="{% url 'locations:create' %}">{% icon "plus" "w-4 h-4" %} افزودن موقعیت</button>
+    </div>
+
+    {% for p in places %}
+    <article class="fb-card fb-pad flex flex-col gap-3">
+        <div class="flex gap-3 min-w-0">
+            {% if p.image %}<img src="{{ p.image.url }}" alt="{{ p.title }}" loading="lazy" class="w-24 h-24 shrink-0 object-cover rounded-field bg-base-300">{% endif %}
+            <div class="min-w-0 flex flex-col gap-1">
+                <h2 class="fb-section-title break-words">{{ p.title }}</h2>
+                {% if p.description %}<p class="text-xs fb-muted whitespace-pre-line break-words line-clamp-3">{{ p.description }}</p>{% endif %}
+                <span dir="ltr" class="text-xs fb-muted font-technical">{{ p.latitude|unlocalize }}, {{ p.longitude|unlocalize }}</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="btn btn-soft btn-sm" data-copy="{% map_url p.latitude p.longitude %}">{% icon "copy" "w-4 h-4" %} لینک نشان</button>
+            <button type="button" class="btn btn-soft btn-sm" data-copy="{{ p.public_url }}">{% icon "copy" "w-4 h-4" %} لینک عمومی</button>
+            <a href="{% url 'locations:public' token=p.token %}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">{% icon "eye" "w-4 h-4" %} صفحه‌ی عمومی</a>
+            <button type="button" class="btn btn-ghost btn-sm" data-location-edit
+                    data-url="{% url 'locations:update' p.pk %}" data-title="{{ p.title }}" data-description="{{ p.description }}"
+                    data-lat="{{ p.latitude|unlocalize }}" data-lng="{{ p.longitude|unlocalize }}"
+                    data-has-image="{% if p.image %}1{% else %}0{% endif %}">{% icon "pencil" "w-4 h-4" %} ویرایش</button>
+            <button type="button" class="btn btn-soft btn-error btn-sm" data-location-delete
+                    data-url="{% url 'locations:delete' p.pk %}" data-label="{{ p.title }}">{% icon "trash-2" "w-4 h-4" %} حذف</button>
+        </div>
+    </article>
+    {% empty %}
+    <div class="fb-card"><div class="fb-empty">هنوز موقعیتی ثبت نشده. با دکمه‌ی «افزودن موقعیت» شروع کنید.</div></div>
+    {% endfor %}
+</div>
+
+<dialog id="location-dialog" class="modal" data-map-key="{{ NESHAN_API_KEY }}">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-base mb-4" data-form-title>موقعیت جدید</h3>
+        <form data-location-form class="flex flex-col gap-4" novalidate>
+            <div class="fb-field">
+                <label class="fb-label" for="loc-title">عنوان</label>
+                <input type="text" id="loc-title" name="title" maxlength="120" autocomplete="off" class="input w-full">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="loc-description">توضیحات</label>
+                <textarea id="loc-description" name="description" rows="3" maxlength="2000" class="textarea w-full"></textarea>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="loc-image">تصویر (در صورت نیاز)</label>
+                <input type="file" id="loc-image" name="image" accept="image/jpeg,image/png,image/webp" class="file-input w-full">
+                <span class="fb-hint">JPG، PNG یا WEBP؛ خودکار کوچک می‌شود.</span>
+                <div class="hidden" data-remove-image-box>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" name="remove_image" value="1" class="checkbox checkbox-sm"> حذف تصویر فعلی
+                    </label>
+                </div>
+            </div>
+
+            <div class="fb-field">
+                <span class="fb-label">موقعیت</span>
+                {% if NESHAN_API_KEY %}
+                <div id="location-map" class="h-64 rounded-field overflow-hidden"></div>
+                {% else %}
+                <div role="alert" class="alert alert-soft alert-warning">
+                    {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+                    <span class="text-xs">کلید نقشه تنظیم نشده؛ از «موقعیت من» یا مختصات دستی استفاده کنید.</span>
+                </div>
+                {% endif %}
+                <span class="fb-hint">روی نقشه بزنید تا نقطه‌ی پیشنهادی بیاید. موقعیت ثبت‌شده فقط با «تایید این نقطه» عوض می‌شود.</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="btn btn-soft btn-sm" data-my-location>{% icon "map-pin" "w-4 h-4" %} موقعیت من</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div class="fb-field">
+                    <label class="fb-label" for="loc-manual-lat">عرض جغرافیایی</label>
+                    <input type="text" id="loc-manual-lat" data-decimal dir="ltr" inputmode="decimal" autocomplete="off" placeholder="36.297900" class="input input-sm w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="loc-manual-lng">طول جغرافیایی</label>
+                    <input type="text" id="loc-manual-lng" data-decimal dir="ltr" inputmode="decimal" autocomplete="off" placeholder="59.606200" class="input input-sm w-full font-technical">
+                </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm self-start" data-manual-apply>نمایش این مختصات روی نقشه</button>
+
+            <div class="hidden" data-candidate-box>
+                <div class="fb-inset flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-sm">نقطه‌ی پیشنهادی: <span dir="ltr" class="font-technical" data-candidate-text></span></span>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" data-candidate-confirm>تایید این نقطه</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-candidate-cancel>انصراف</button>
+                    </div>
+                </div>
+            </div>
+            <div class="fb-inset flex items-center justify-between gap-2 text-sm">
+                <span class="fb-muted">موقعیت ثبت‌شده</span>
+                <span dir="ltr" class="font-technical" data-confirmed-text>—</span>
+            </div>
+            <input type="hidden" name="latitude">
+            <input type="hidden" name="longitude">
+
+            <p class="fb-error hidden" data-form-error></p>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary flex-1" data-form-submit>ثبت</button>
+                <button type="button" class="btn btn-ghost flex-1" data-form-cancel>انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="location-delete-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">حذف موقعیت</h3>
+        <p class="text-sm">موقعیت «<span data-delete-label class="font-semibold"></span>» حذف شود؟ لینک عمومی‌اش هم از کار می‌افتد و برگشت ندارد.</p>
+        <p class="fb-error hidden mt-2" data-delete-error></p>
+        <div class="flex gap-2 pt-4">
+            <button type="button" class="btn btn-soft btn-error flex-1" data-delete-ok>حذف</button>
+            <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/saved_locations.js' %}"></script>
+{% endblock %}

@@ -62,6 +62,7 @@ CAPABILITIES = {
     "sales.create": _manager_or_accountant,   # ثبت، ویرایش، تحویل و لغو فروش کالا
     "bank_cards.manage": _manager_or_accountant,   # دیدن CVV2 و انقضا، افزودن، ویرایش و حذف کارت؛ خودِ صفحه برای هر کاربر واردشده باز است
     "tables.export": _manager_or_accountant,   # خروجی CSV از جدول‌ها (generic_table)
+    "locations.manage": _manager_or_accountant,   # موقعیت‌های ذخیره‌شده‌ی دلخواه و لینک عمومی‌شان
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
     "inventory.manage": lambda f: f.employee and bool(f.names & {SPECIALTY_WAREHOUSE, SPECIALTY_ACCOUNTANT}),
     # ثبت خرید: برخلاف inventory.manage مدیر هم می‌تواند. ویرایش کالا و تغییر موجودی همان inventory.manage است

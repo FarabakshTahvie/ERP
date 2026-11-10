@@ -20,6 +20,7 @@
 @source "../js/purchase_lines.js";
 @source "../js/proforma_page.js";
 @source "../js/catalog_manage.js";
+@source "../js/saved_locations.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
