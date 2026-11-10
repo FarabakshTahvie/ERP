@@ -1,0 +1,13 @@
+{% if cards %}
+<section class="flex flex-col gap-3">
+    <div class="flex items-center justify-between gap-2">
+        <h2 class="fb-section-title">{{ title }}</h2>
+        {% if all_url %}<a href="{{ all_url }}" class="btn btn-ghost btn-sm">مشاهده همه</a>{% endif %}
+    </div>
+    <div class="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2" role="list" aria-label="{{ title }}">
+        {% for c in cards %}
+        <div role="listitem" class="snap-start shrink-0 w-44 sm:w-52">{% include "catalog/partials/card.html" %}</div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

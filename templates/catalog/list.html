@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ title }} | فرابخش تهویه{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <h1 class="fb-page-title">{{ title }}</h1>
+            <p class="fb-page-sub">{{ sub }}</p>
+        </div>
+        <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-soft btn-sm">{% icon "phone" "w-4 h-4" %} تماس با دفتر</a>
+    </div>
+    <div id="catalog-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {% include "catalog/partials/grid_page.html" %}
+    </div>
+</div>
+{% endblock %}

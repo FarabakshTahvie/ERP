@@ -6,6 +6,7 @@ from django.views.decorators.http import require_POST
 
 from core.capabilities import cap_required
 from utils.markdown_lite import render_markdown
+from utils.navigation import with_next
 from . import media as catalog_media
 from .models import CatalogMedia
 
@@ -36,6 +37,7 @@ def manage(request, kind, obj_id):
         "kind": kind, "obj": obj, "media": media,
         "upload_url": reverse("catalog:media_upload", args=[kind, obj.pk]),
         "cover_url": reverse("catalog:manage_cover", args=[kind, obj.pk]),
+        "detail_url": with_next(request, reverse(f"catalog:{kind}_detail", args=[obj.pk])),
     })
 
 

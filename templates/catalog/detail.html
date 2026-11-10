@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}{{ obj.name }} | فرابخش تهویه{% endblock %}
+{% block content %}
+<div class="fb-page">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0">
+            <h1 class="fb-page-title">{{ obj.name }}</h1>
+            <div class="flex items-center gap-2 flex-wrap mt-2">
+                <span class="fb-badge fb-badge-neutral">{% if kind == 'service' %}خدمات{% else %}محصولات{% endif %}</span>
+                {% if kind == 'item' and obj.category %}<span class="fb-badge fb-badge-neutral">{{ obj.category.name }}</span>{% endif %}
+                {% if not obj.show_to_clients %}<span class="fb-badge fb-badge-warning">مخفی؛ فقط مدیر می‌بیند</span>{% endif %}
+            </div>
+        </div>
+        {% if can_edit %}<a href="{% nav_url 'catalog:manage' kind obj.pk %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش محتوا</a>{% endif %}
+    </div>
+
+    {% if obj.cover %}
+    <img src="{{ obj.cover.url }}" alt="{{ obj.name }}" class="w-full max-h-96 object-cover rounded-box bg-base-300">
+    {% endif %}
+
+    <section class="fb-card fb-pad flex items-center justify-between gap-3 flex-wrap">
+        <div>
+            <div class="fb-stat-label">{% if kind == 'service' %}قیمت خدمت{% else %}قیمت{% endif %}</div>
+            <div class="fb-stat-value">{% if content.price %}<span class="font-technical">{{ content.price }}</span> تومان{% if content.unit %} <span class="text-xs fb-muted">/ {{ content.unit }}</span>{% endif %}{% else %}{{ content.price_note }}{% endif %}</div>
+        </div>
+        <a href="tel:{{ CONTACT.office_phone.tel }}" class="btn btn-primary btn-sm">{% icon "phone" "w-4 h-4" %} تماس برای {% if kind == 'service' %}سفارش{% else %}خرید{% endif %}</a>
+    </section>
+    <p class="fb-hint">{% if kind == 'service' %}سفارش فقط تلفنی است.{% else %}خرید فقط تلفنی است.{% if content.price %} قیمت راهنماست و قیمت نهایی در پیش‌فاکتور اعلام می‌شود.{% endif %}{% endif %} دفتر: <span dir="ltr" class="font-technical">{{ CONTACT.office_phone.display|fa_digits }}</span> — ساعت کاری {{ CONTACT.hours|fa_digits }}</p>
+
+    {% if content.html %}
+    <section class="fb-card fb-pad text-sm">{{ content.html }}</section>
+    {% endif %}
+
+    {% if content.extra %}
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">تصاویر و ویدیوها</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for m in content.extra %}
+            {% if m.kind == 'video' %}
+            <video controls preload="metadata" playsinline src="{{ m.url }}" class="w-full rounded-field bg-black"></video>
+            {% else %}
+            <img src="{{ m.url }}" alt="{{ m.name }}" loading="lazy" class="w-full rounded-field bg-base-300">
+            {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if not content.html and not content.extra and not obj.cover %}
+    <p class="fb-hint">توضیحات تکمیلی به‌زودی اضافه می‌شود. برای اطلاعات بیشتر با دفتر تماس بگیرید.</p>
+    {% endif %}
+
+    {% include "catalog/partials/slider.html" with title=related_title cards=related %}
+</div>
+{% endblock %}

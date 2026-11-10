@@ -80,6 +80,10 @@ PAGE_PARENTS = {
     "messenger:tasks": ("messenger:inbox", [], {}),
     "messenger:task_detail": ("messenger:tasks", [], {}),
     "catalog:manage": ("home", [], {}),
+    "catalog:service_list": ("home", [], {}),
+    "catalog:item_list": ("home", [], {}),
+    "catalog:service_detail": ("catalog:service_list", [], {}),
+    "catalog:item_detail": ("catalog:item_list", [], {}),
 }
 
 # صفحه‌های چندورودی؛ لینک به آن‌ها باید ?next بگیرد.
@@ -91,6 +95,7 @@ MULTI_ENTRY = {
     "projects:proforma_editor",
     "finance:accounting_sale",
     "catalog:manage",
+    "catalog:service_detail", "catalog:item_detail",
 }
 
 # هر نام URL پروژه که نه صفحه است و نه ریشه (POST، JSON، جزء htmx، فایل، ریدایرکت)
@@ -137,6 +142,7 @@ NON_PAGE = {
     "messenger:api_upload",
     "messenger:tasks_done_table",
     "catalog:manage_save", "catalog:manage_cover", "catalog:media_upload", "catalog:media_delete",
+    "catalog:service_list_more", "catalog:item_list_more",
 }
 
 
