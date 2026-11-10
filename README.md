@@ -85,10 +85,11 @@ python manage.py seed_demo_data
 | `people` | افراد: کارکنان، مشتریان، پروفایل، ردپا |
 | `tasks` | وظایف: مدیر و حسابدار می‌سازند، تکنسین در «کارهای من» انجام می‌دهد |
 | `messenger` | پیام‌رسان کارکنان: گروه «فرابخش گروه» و چت خصوصی با مدیر/حسابدار؛ پوش با Celery |
+| `locations` | موقعیت‌های دلخواه مدیر و حسابدار با لینک نشان و صفحه‌ی عمومی (جدا از موقعیت پروژه‌ها) |
 
 ترتیب وابستگی اپ‌ها (برای جلوگیری از import چرخه‌ای):
 ```
-core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks → messenger
+core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks → messenger → locations
 ```
 
 ## نقش‌های کاربری

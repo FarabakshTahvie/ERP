@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}{{ place.title }} | فرابخش تهویه{% endblock %}
+{% block extra_head %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div class="flex items-center gap-2">
+        <img src="{% static 'icons/logo.svg' %}" alt="" class="w-9 h-9 object-contain bg-white rounded-field p-1 border border-base-300">
+        <span class="text-sm font-bold text-primary">فرابخش تهویه</span>
+    </div>
+    <section class="fb-card fb-pad flex flex-col gap-4">
+        <h1 class="fb-page-title break-words">{{ place.title }}</h1>
+        {% if image_url %}<img src="{{ image_url }}" alt="{{ place.title }}" class="w-full max-h-80 object-cover rounded-field bg-base-300">{% endif %}
+        {% if place.description %}<p class="text-sm whitespace-pre-line break-words leading-7">{{ place.description }}</p>{% endif %}
+        {% include "projects/partials/map_actions.html" with location=place %}
+    </section>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static_v 'js/route_link.js' %}"></script>{% endblock %}

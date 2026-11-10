@@ -18,6 +18,7 @@ EXPECTED = {
     "bank_cards.manage": MGR_ACC,
     "purchases.edit": MGR_ACC,
     "tables.export": MGR_ACC,
+    "locations.manage": MGR_ACC,
     "inventory.manage": {"warehouse", "accountant"},
     "purchases.create": MGR | {"warehouse", "accountant"},
     "items.create": MGR | {"warehouse", "accountant"},
