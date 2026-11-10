@@ -1,0 +1,8 @@
+{% for c in cards %}{% include "catalog/partials/card.html" %}{% empty %}{% if page == 1 %}
+<div class="col-span-full fb-card"><div class="fb-empty">موردی برای نمایش نیست.</div></div>
+{% endif %}{% endfor %}
+{% if more %}
+<div class="col-span-full flex justify-center py-4" hx-get="{{ more_url }}?page={{ next_page }}" hx-trigger="revealed, click" hx-swap="outerHTML">
+    <span class="btn btn-soft btn-sm">نمایش بیشتر</span>
+</div>
+{% endif %}

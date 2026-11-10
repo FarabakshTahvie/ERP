@@ -1,0 +1,19 @@
+{% load custom_tags %}
+<a href="{% nav_url c.route c.id %}" data-catalog-card class="fb-card flex flex-col overflow-hidden min-w-0 hover:bg-base-200/60">
+    <div class="aspect-4/3 w-full bg-base-300 flex items-center justify-center">
+        {% if c.thumb %}
+        <img src="{{ c.thumb }}" alt="{{ c.name }}" loading="lazy" class="w-full h-full object-cover">
+        {% elif c.kind == 'service' %}{% icon "wrench" "w-8 h-8 opacity-40" %}
+        {% else %}{% icon "package" "w-8 h-8 opacity-40" %}{% endif %}
+    </div>
+    <div class="p-3 flex flex-col gap-1 min-w-0">
+        <span class="text-sm font-semibold line-clamp-2">{{ c.name }}</span>
+        {% if c.category %}<span class="text-xs fb-muted truncate">{{ c.category }}</span>{% endif %}
+        {% if c.price %}
+        <span class="text-sm font-bold text-primary"><span class="font-technical">{{ c.price }}</span> تومان{% if c.unit %} <span class="text-xs fb-muted">/ {{ c.unit }}</span>{% endif %}</span>
+        {% else %}
+        <span class="text-xs fb-muted">{{ c.price_note }}</span>
+        {% endif %}
+        {% if c.hidden %}<span class="fb-badge fb-badge-warning self-start">مخفی</span>{% endif %}
+    </div>
+</a>
