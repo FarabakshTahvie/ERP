@@ -13,6 +13,7 @@ from projects.models import Project, ProjectStage
 from projects.services import stage_approval_action
 from finance.models import Invoice
 from finance.deadline import deadline_info
+from catalog import showcase
 from notifications.models import Notification
 
 
@@ -87,6 +88,8 @@ def home_view(request):
         'completed_projects_count': projects_qs.filter(status=Project.Status.COMPLETED).count(),
         'recent_notifications': Notification.objects.filter(user=user).order_by('-created_at')[:5],
         'party': party,
+        'showcase_services': showcase.slider("service", "pub"),
+        'showcase_items': showcase.slider("item", "pub"),
     }
     return render(request, "client_home.html", context)
 
