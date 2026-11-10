@@ -25,7 +25,6 @@ from .services import (
     user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
     create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items
 )
-from .sales import create_sale
 
 
 def _format_qty(value):
@@ -213,21 +212,11 @@ def purchase_file_upload(request, purchase_id):
     return JsonResponse({"ok": True, "id": f.id, "name": f.display_name})
 
 
-def _sale_form_state(post):
-    """مقدارهای قبلی بخش فروش، برای وقتی ثبت خطا داده و فرم دوباره نمایش داده می‌شود."""
-    if post is None:
-        return {"active": False, "lines": [], "name": "", "phone": "", "notes": ""}
-    return {"active": post.get("kind") == "sale", "lines": _parse_json_lines(post.get("lines_json")),
-            "name": post.get("customer_name", ""), "phone": post.get("customer_phone", ""),
-            "notes": post.get("notes", "")}
-
-
-def _movement_page(request, post=None):
+def _movement_page(request):
     from projects.models import Project
     return render(request, "inventory/stock_movement_new.html", {
         "items": _stock_queryset().exclude(item_type=Item.ItemType.MANUFACTURED),
         "projects": Project.objects.filter(status=Project.Status.IN_PROGRESS).order_by("name"),
-        "sale": _sale_form_state(post),
     })
 
 
@@ -237,17 +226,6 @@ def stock_movement_new(request):
     from projects.models import Project
     if request.method == "POST":
         kind = request.POST.get("kind")
-        if kind == "sale":
-            try:
-                create_sale(actor=request.user, lines_raw=_parse_json_lines(request.POST.get("lines_json")),
-                            customer_name=request.POST.get("customer_name", ""),
-                            customer_phone=request.POST.get("customer_phone", ""),
-                            notes=request.POST.get("notes", ""))
-            except ValueError as e:
-                messages.error(request, str(e))
-                return _movement_page(request, request.POST)
-            messages.success(request, "فروش ثبت شد و کالاها از موجودی کم شدند.")
-            return redirect("home")
         try:
             from .services import get_active_item
             item = get_active_item(request.POST.get("item_id"))

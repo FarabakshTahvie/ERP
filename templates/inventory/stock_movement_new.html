@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load static custom_tags %}
-{% block title %}ثبت مصرف، تعدیل یا فروش | فرابخش{% endblock %}
+{% load custom_tags %}
+{% block title %}ثبت مصرف یا تعدیل | فرابخش{% endblock %}
 {% block content %}
 <div class="fb-page fb-page--sm">
     <div>
-        <h1 class="fb-page-title">ثبت مصرف، تعدیل یا فروش</h1>
+        <h1 class="fb-page-title">ثبت مصرف یا تعدیل</h1>
         <p class="fb-page-sub">هر ثبت همان لحظه روی موجودی اثر می‌گذارد و پاک نمی‌شود؛ اشتباه را با تعدیل اصلاح کنید.</p>
     </div>
 
@@ -14,77 +14,47 @@
         <div class="fb-field">
             <span class="fb-label">نوع ثبت</span>
             <div class="flex flex-col gap-2">
-                <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" {% if not sale.active %}checked{% endif %}> مصرف واقعی (استفاده در کار)</label>
+                <label class="fb-choice justify-start"><input type="radio" name="kind" value="consume" class="sr-only" checked> مصرف واقعی (استفاده در کار)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_decrease" class="sr-only"> تعدیل کاهشی (کسری/ضایعات/اشتباه شمارش)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="adjust_increase" class="sr-only"> تعدیل افزایشی (کشف موجودی جا افتاده)</label>
                 <label class="fb-choice justify-start"><input type="radio" name="kind" value="opening" class="sr-only"> موجودی اولیه (کالایی که از قبل در انبار بوده؛ خرید حساب نمی‌شود)</label>
-                <label class="fb-choice justify-start"><input type="radio" name="kind" value="sale" class="sr-only" {% if sale.active %}checked{% endif %}> فروش به مشتری (بیرون از پروژه)</label>
-            </div>
-        </div>
-
-        <div id="single-fields" class="{% if sale.active %}hidden{% endif %}">
-            <div class="flex flex-col gap-4">
-                <div class="fb-field">
-                    <span class="fb-label">کالا</span>
-                    <div id="movement-item-picker"></div>
-                    <input type="hidden" name="item_id" id="movement-item">
-                    <span id="movement-item-error" class="fb-error hidden">یک کالا از فهرست انتخاب کنید.</span>
-                    <span id="current-stock-hint" class="fb-hint"></span>
-                </div>
-
-                <div class="fb-field hidden" id="project-field">
-                    <label class="fb-label" for="movement-project">پروژه مقصد مصرف</label>
-                    <select name="project_id" id="movement-project" class="select w-full">
-                        <option value="">-- انتخاب پروژه در حال اجرا --</option>
-                        <option value="company">مصرف داخلی شرکت (دفتر مرکزی)</option>
-                        {% for p in projects %}
-                        <option value="{{ p.id }}">{{ p.name }} (کد: {{ p.code }})</option>
-                        {% endfor %}
-                    </select>
-                    <span class="fb-hint">کالاهای مصرفی انبار باید به یک پروژه یا مصرف داخلی شرکت اختصاص یابند.</span>
-                </div>
-
-                <div class="fb-field">
-                    <label class="fb-label" for="movement-qty">مقدار</label>
-                    <input type="text" id="movement-qty" name="qty" dir="ltr" inputmode="decimal" autocomplete="off" data-decimal class="input w-full font-technical">
-                </div>
-
-                <div class="fb-field hidden" id="unit-cost-field">
-                    <label class="fb-label" for="movement-cost">بهای واحد (تومان)</label>
-                    <input type="text" id="movement-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" data-decimal class="input w-full font-technical">
-                    <span class="fb-hint" id="unit-cost-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
-                </div>
-            </div>
-        </div>
-
-        <div id="sale-box" class="{% if not sale.active %}hidden{% endif %}">
-            <div class="flex flex-col gap-4">
-                <div class="fb-field">
-                    <span class="fb-label">اقلام فروش</span>
-                    <div id="sale-lines" data-sprite="{% static 'icons/sprite.svg' %}"></div>
-                    <input type="hidden" id="sale-lines-json" data-name="lines_json">
-                </div>
-                <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
-                    <span>جمع فروش (تومان)</span>
-                    <span class="font-technical" id="sale-total">۰</span>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div class="fb-field">
-                        <label class="fb-label" for="sale-name">نام مشتری (در صورت نیاز)</label>
-                        <input type="text" id="sale-name" name="customer_name" value="{{ sale.name }}" maxlength="150" autocomplete="off" class="input w-full">
-                    </div>
-                    <div class="fb-field">
-                        <label class="fb-label" for="sale-phone">شماره‌ی مشتری (در صورت نیاز)</label>
-                        <input type="text" id="sale-phone" name="customer_phone" value="{{ sale.phone }}" data-digits maxlength="11" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
-                    </div>
-                </div>
-                <p class="fb-hint">اگر نام یا شماره بنویسید، خرید او در صفحه‌ی «فروش کالا»، تب «مشتریان» می‌آید.</p>
             </div>
         </div>
 
         <div class="fb-field">
-            <label class="fb-label" id="movement-notes-label" for="movement-notes">دلیل (اجباری)</label>
-            <textarea id="movement-notes" name="notes" required class="textarea w-full" rows="2" placeholder="مثلاً: مصرف در پروژه... یا: در انبارگردانی کسری پیدا شد">{{ sale.notes }}</textarea>
+            <span class="fb-label">کالا</span>
+            <div id="movement-item-picker"></div>
+            <input type="hidden" name="item_id" id="movement-item">
+            <span id="movement-item-error" class="fb-error hidden">یک کالا از فهرست انتخاب کنید.</span>
+            <span id="current-stock-hint" class="fb-hint"></span>
+        </div>
+
+        <div class="fb-field hidden" id="project-field">
+            <label class="fb-label" for="movement-project">پروژه مقصد مصرف</label>
+            <select name="project_id" id="movement-project" class="select w-full">
+                <option value="">-- انتخاب پروژه در حال اجرا --</option>
+                <option value="company">مصرف داخلی شرکت (دفتر مرکزی)</option>
+                {% for p in projects %}
+                <option value="{{ p.id }}">{{ p.name }} (کد: {{ p.code }})</option>
+                {% endfor %}
+            </select>
+            <span class="fb-hint">کالاهای مصرفی انبار باید به یک پروژه یا مصرف داخلی شرکت اختصاص یابند.</span>
+        </div>
+
+        <div class="fb-field">
+            <label class="fb-label" for="movement-qty">مقدار</label>
+            <input type="text" id="movement-qty" name="qty" required dir="ltr" inputmode="decimal" autocomplete="off" data-decimal class="input w-full font-technical">
+        </div>
+
+        <div class="fb-field hidden" id="unit-cost-field">
+            <label class="fb-label" for="movement-cost">بهای واحد (تومان)</label>
+            <input type="text" id="movement-cost" name="unit_cost" dir="ltr" inputmode="decimal" autocomplete="off" data-decimal class="input w-full font-technical">
+            <span class="fb-hint" id="unit-cost-hint">خالی بماند یعنی میانگین موزون فعلی کالا.</span>
+        </div>
+
+        <div class="fb-field">
+            <label class="fb-label" for="movement-notes">دلیل (اجباری)</label>
+            <textarea id="movement-notes" name="notes" required class="textarea w-full" rows="2" placeholder="مثلاً: مصرف در پروژه... یا: در انبارگردانی کسری پیدا شد"></textarea>
         </div>
 
         <button type="submit" id="movement-submit" class="btn btn-primary w-full">ثبت مصرف</button>
@@ -94,17 +64,13 @@
 <script id="stock-items-data" type="application/json">
     [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}", "stock": "{{ it.stock }}", "avg_cost": "{{ it.moving_average_cost }}", "unit": "{{ it.get_unit_display|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
 </script>
-{{ sale.lines|json_script:"sale-initial" }}
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static_v 'js/item_picker.js' %}"></script>
-<script src="{% static_v 'js/line_editor.js' %}"></script>
 <script>
 (function () {
     var data = JSON.parse(document.getElementById('stock-items-data').textContent);
-    var byId = {};
-    data.forEach(function (it) { byId[it.id] = it; });
     var current = null;
     function el(id) { return document.getElementById(id); }
     function kindNow() { return document.querySelector('input[name="kind"]:checked').value; }
@@ -121,17 +87,12 @@
     });
     el('movement-item-picker').appendChild(picker.el);
 
-    var SUBMIT_LABEL = { consume: 'ثبت مصرف', adjust_decrease: 'ثبت تعدیل', adjust_increase: 'ثبت تعدیل',
-                         opening: 'ثبت موجودی اولیه', sale: 'ثبت فروش' };
-    var NOTES_HINT = el('movement-notes').placeholder;
+    var SUBMIT_LABEL = { consume: 'ثبت مصرف', adjust_decrease: 'ثبت تعدیل', adjust_increase: 'ثبت تعدیل', opening: 'ثبت موجودی اولیه' };
 
     function syncKind() {
         var kind = kindNow();
-        var isSale = kind === 'sale', isConsume = kind === 'consume';
+        var isConsume = kind === 'consume';
         var needsCost = kind === 'adjust_increase' || kind === 'opening';
-        el('single-fields').classList.toggle('hidden', isSale);
-        el('sale-box').classList.toggle('hidden', !isSale);
-        el('movement-qty').required = !isSale;
         el('unit-cost-field').classList.toggle('hidden', !needsCost);
         el('movement-cost').required = kind === 'opening';
         el('unit-cost-hint').textContent = kind === 'opening'
@@ -139,36 +100,12 @@
         if (needsCost && current) el('movement-cost').placeholder = 'مثلاً ' + current.avg_cost;
         el('project-field').classList.toggle('hidden', !isConsume);
         el('movement-project').required = isConsume;
-        el('movement-notes').required = !isSale;
-        el('movement-notes-label').textContent = isSale ? 'توضیح (در صورت نیاز)' : 'دلیل (اجباری)';
-        el('movement-notes').placeholder = isSale ? 'مثلاً: فروش نقدی در دفتر' : NOTES_HINT;
         el('movement-submit').textContent = SUBMIT_LABEL[kind];
     }
     document.querySelectorAll('input[name="kind"]').forEach(function (r) { r.addEventListener('change', syncKind); });
 
-    var E = window.fbLineEditor, num = E.num, fmt = E.fmt;
-    var nf = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 4 });
-    E({
-        mount: el('sale-lines'), hidden: el('sale-lines-json'),
-        initial: JSON.parse(el('sale-initial').textContent || '[]'),
-        addLabel: 'افزودن کالا', emptyText: 'کالایی اضافه نشده.',
-        columns: [
-            { key: 'id', type: 'picker', label: 'کالا', items: data, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
-            { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
-            { key: 'unit_price', type: 'money', label: 'قیمت فروش یک واحد (تومان)', cls: 'w-44' },
-            { key: 'stock', type: 'readonly', label: 'موجودی', cls: 'w-24',
-              compute: function (d) { var it = byId[parseInt(d.id, 10)]; return it ? nf.format(parseFloat(it.stock)) : '—'; } }
-        ],
-        footer: function (d) { var t = num(d.qty) * num(d.unit_price); return t > 0 ? 'جمع این کالا: ' + fmt(t) + ' تومان' : ''; },
-        onChange: function (rows) {
-            var t = 0;
-            rows.forEach(function (r) { t += num(r.qty) * num(r.unit_price); });
-            el('sale-total').textContent = fmt(t);
-        }
-    });
-
     el('stock-movement-form').addEventListener('submit', function (e) {
-        if (kindNow() !== 'sale' && !el('movement-item').value) {
+        if (!el('movement-item').value) {
             e.preventDefault();
             el('movement-item-error').classList.remove('hidden');
             picker.focus();

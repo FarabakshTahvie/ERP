@@ -96,7 +96,7 @@ def receive_stock(*, item, warehouse, qty, unit_cost, received_at, purchase_line
 @transaction.atomic
 def consume_stock(*, item, qty, user=None, related_object=None, notes="",
                    movement_type=StockMovement.MovementType.OUT,
-                   direction=StockMovement.Direction.OUT, movement_date=None):
+                   direction=StockMovement.Direction.OUT, movement_date=None, warehouse=None):
     """
     مصرف به روش FIFO از قدیمی‌ترین لات. اگر موجودی کافی نبود، خطا می‌دهد.
     movement_type پیش‌فرض OUT (مصرف واقعی) است؛ برای تعدیل کاهشی دستی (W3)، ADJUST پاس داده می‌شود.
@@ -109,8 +109,10 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
     remaining = Decimal(qty)
     breakdown = []
 
-    lots = StockLot.objects.select_for_update().filter(item=item, qty_remaining__gt=0).order_by("received_at")
-    for lot in lots:
+    lots = StockLot.objects.select_for_update().filter(item=item, qty_remaining__gt=0)
+    if warehouse is not None:
+        lots = lots.filter(warehouse=warehouse)
+    for lot in lots.order_by("received_at"):
         if remaining <= 0:
             break
         take = min(lot.qty_remaining, remaining)
@@ -135,7 +137,8 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
         remaining -= take
 
     if remaining > 0:
-        raise ValueError(f"موجودی کالای «{item}» کافی نیست ({remaining} کسری).")
+        where = f" در «{warehouse.name}»" if warehouse is not None else ""
+        raise ValueError(f"موجودی کالای «{item}»{where} کافی نیست ({remaining} کسری).")
 
     _check_reorder_point(item, stock_before)
     return breakdown
@@ -198,6 +201,16 @@ def stock_map(item_ids):
     rows = (StockLot.objects.filter(item_id__in=list(item_ids)).order_by()
             .values("item_id").annotate(total=Sum("qty_remaining")))
     return {r["item_id"]: r["total"] or Decimal("0") for r in rows}
+
+
+def stock_by_warehouse(item_ids):
+    """{item_id: {warehouse_id: موجودی}} با یک کوئری؛ کالا یا انبارِ بدون موجودی نمی‌آید."""
+    out = {}
+    rows = (StockLot.objects.filter(item_id__in=list(item_ids), qty_remaining__gt=0).order_by()
+            .values("item_id", "warehouse_id").annotate(total=Sum("qty_remaining")))
+    for r in rows:
+        out.setdefault(r["item_id"], {})[r["warehouse_id"]] = r["total"]
+    return out
 
 
 @transaction.atomic

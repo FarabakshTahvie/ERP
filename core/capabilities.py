@@ -58,6 +58,7 @@ CAPABILITIES = {
     "invoice.adjust": _manager_or_accountant,
     "people.view": _manager_or_accountant,
     "tasks.manage": _manager_or_accountant,
+    "sales.create": _manager_or_accountant,   # ثبت، ویرایش، تحویل و لغو فروش کالا
     "bank_cards.manage": _manager_or_accountant,   # دیدن CVV2 و انقضا، افزودن، ویرایش و حذف کارت؛ خودِ صفحه برای هر کاربر واردشده باز است
     "tables.export": _manager_or_accountant,   # خروجی CSV از جدول‌ها (generic_table)
     # --- تکنسین با تخصص (مدیر عمداً نه؛ مدیر از ادمین استفاده می‌کند) ---
