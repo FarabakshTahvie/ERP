@@ -126,7 +126,7 @@ class StockMovement(TimeStampedModel):
 
 class Sale(TimeStampedModel):
     """فروش کالا بیرون از پروژه. «ثبت» فقط سند می‌سازد؛ موجودی با «تحویل» کم می‌شود (inventory/sales.py).
-    number و warehouse برای ردیف‌های قبل از این تغییر در مایگریشن پر شده‌اند؛ سرویس همیشه پرشان می‌کند."""
+    number برای ردیف‌های قبل از این تغییر در مایگریشن پر شده‌اند؛ سرویس همیشه پرشان می‌کند."""
 
     class Status(models.TextChoices):
         REGISTERED = "registered", "ثبت‌شده"
@@ -136,8 +136,6 @@ class Sale(TimeStampedModel):
     number = models.CharField(max_length=20, unique=True, null=True, blank=True, verbose_name="شماره فروش")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED,
                               db_index=True, verbose_name="وضعیت")
-    warehouse = models.ForeignKey(Warehouse, null=True, blank=True, on_delete=models.PROTECT,
-                                  related_name="sales", verbose_name="انبار")
     sold_at = models.DateTimeField(verbose_name="زمان فروش")
     customer_name = models.CharField(max_length=150, blank=True, verbose_name="نام مشتری")
     customer_phone = models.CharField(max_length=11, blank=True, db_index=True, verbose_name="شماره‌ی مشتری")
@@ -166,6 +164,8 @@ class SaleLine(models.Model):
     total = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="جمع ردیف (تومان)")
     cost_total = models.DecimalField(max_digits=18, decimal_places=0, default=0,
                                      verbose_name="بهای انبار همین قلم در لحظه‌ی تحویل (تومان)")
+    warehouse = models.ForeignKey(Warehouse, null=True, blank=True, on_delete=models.PROTECT,
+                                  related_name="sale_lines", verbose_name="کم‌شدن از انبار")
 
     class Meta:
         verbose_name = "قلم فروش"

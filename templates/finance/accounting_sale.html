@@ -32,12 +32,12 @@
     {% if sale.status == 'registered' %}
     <div role="alert" class="alert alert-soft alert-warning">
         {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
-        <span class="text-sm">اقلام هنوز از انبار کم نشده‌اند. بعد از «تحویل» از «{{ sale.warehouse.name }}» کم می‌شوند.</span>
+        <span class="text-sm">اقلام هنوز از انبار کم نشده‌اند. بعد از «تحویل» از انبارِ همان ردیف کم می‌شوند.{% if short_count %} <strong>موجودی {{ short_count|fa_digits }} ردیف از مقدار فروش کمتر است؛ انبار را عوض کنید (ویرایش) یا موجودی را کامل کنید، وگرنه تحویل انجام نمی‌شود.</strong>{% endif %}</span>
     </div>
     {% elif sale.status == 'delivered' %}
     <div role="alert" class="alert alert-soft alert-success">
         {% icon "check-circle" "w-4 h-4 shrink-0" %}
-        <span class="text-sm">تحویل شد و اقلام از «{{ sale.warehouse.name }}» کم شد. اقلام و انبار دیگر تغییر نمی‌کنند؛ مشتری، توضیح و پرداخت‌ها قابل ویرایش‌اند.</span>
+        <span class="text-sm">تحویل شد و اقلام از انبارِ هر ردیف کم شد. اقلام و انبارها دیگر تغییر نمی‌کنند؛ مشتری، توضیح و پرداخت‌ها قابل ویرایش‌اند.</span>
     </div>
     {% else %}
     <div role="alert" class="alert alert-soft alert-error">
@@ -57,7 +57,6 @@
         <div class="flex justify-between gap-2"><span class="fb-muted">مشتری</span>
             {% if sale.has_customer %}<a href="{% url 'finance:accounting_sale_customer' sale.id %}" class="link link-primary">{{ sale.customer_name|default:sale.customer_phone }}</a>{% else %}<span>—</span>{% endif %}</div>
         <div class="flex justify-between gap-2"><span class="fb-muted">شماره‌ی مشتری</span><span class="font-technical" dir="ltr">{{ sale.customer_phone|default:"—" }}</span></div>
-        <div class="flex justify-between gap-2"><span class="fb-muted">انبار</span><span>{{ sale.warehouse.name|default:"—" }}</span></div>
         {% if sale.notes %}<p class="fb-inset text-xs">{{ sale.notes }}</p>{% endif %}
     </section>
 
@@ -65,17 +64,19 @@
         <h2 class="fb-section-title">اقلام</h2>
         <div class="overflow-x-auto">
             <table class="table table-sm text-xs">
-                <thead><tr class="fb-muted"><th>ردیف</th><th>کالا</th><th>مقدار</th><th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
+                <thead><tr class="fb-muted"><th>ردیف</th><th>کالا</th><th>انبار</th><th>مقدار</th>{% if sale.status == 'registered' %}<th>موجودی انبار</th>{% endif %}<th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
                 <tbody>
                 {% for l in lines %}
                     <tr><td class="font-technical">{{ forloop.counter|fa_digits }}</td>
                         <td class="font-semibold">{{ l.item.name }}</td>
+                        <td>{{ l.warehouse.name|default:"—" }}</td>
                         <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
+                        {% if sale.status == 'registered' %}<td class="font-technical">{{ l.stock_now|floatformat:"-4"|fa_digits }}{% if l.short %} <span class="fb-badge fb-badge-warning">موجودی این انبار کم است</span>{% endif %}</td>{% endif %}
                         <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td>
                         <td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
                 {% endfor %}
                 </tbody>
-                <tfoot><tr class="font-bold"><td colspan="4">جمع کل</td><td class="font-technical">{{ sale.total|intcomma_fa }}</td></tr></tfoot>
+                <tfoot><tr class="font-bold"><td colspan="{% if sale.status == 'registered' %}6{% else %}5{% endif %}">جمع کل</td><td class="font-technical">{{ sale.total|intcomma_fa }}</td></tr></tfoot>
             </table>
         </div>
     </section>
@@ -143,7 +144,7 @@
 <dialog id="sale-deliver-dialog" class="modal">
     <div class="modal-box max-w-sm">
         <h3 class="font-bold text-base mb-2">تحویل فروش</h3>
-        <p class="text-sm">اقلام همین لحظه از «{{ sale.warehouse.name }}» کم می‌شوند و بعد از آن اقلام و انبار قابل تغییر نیست. ادامه می‌دهید؟</p>
+        <p class="text-sm">اقلام همین لحظه از انبارِ هر ردیف کم می‌شوند و بعد از آن اقلام و انبارها قابل تغییر نیست. ادامه می‌دهید؟</p>
         <form method="post" action="{% url 'finance:accounting_sale_deliver' sale.id %}" data-fb-once class="flex gap-2 pt-4">
             {% csrf_token %}
             <button type="submit" class="btn btn-primary flex-1">تحویل و کم‌کردن از انبار</button>

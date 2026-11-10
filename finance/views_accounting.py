@@ -290,6 +290,11 @@ def _sale_items_text(sale, limit=3):
     return "، ".join(parts) + (f" و {to_fa_digits(rest)} قلم دیگر" if rest > 0 else "")
 
 
+def _sale_warehouses_text(sale):
+    names = sorted({l.warehouse.name for l in sale.lines.all() if l.warehouse_id})
+    return "، ".join(names) or "—"
+
+
 SALE_EXPORT_EXTRA = [
     {"label": "اقلام", "value": lambda s: "؛ ".join(f"{l.item.name} × {l.qty.normalize():f}" for l in s.lines.all())},
     {"label": "تاریخ تحویل", "value": lambda s: s.delivered_at},
@@ -303,7 +308,7 @@ def _sales_ctx(request, *, qs=None, container_id="table-acc-sales", prefix="sl_"
     base = (base.select_related("created_by")
             .annotate(with_customer=Case(When(customer_name="", customer_phone="", then=Value(False)),
                                          default=Value(True), output_field=BooleanField()))
-            .prefetch_related("lines__item"))
+            .prefetch_related("lines__item", "lines__warehouse"))
 
     def row_builder(s):
         from utils.navigation import nav_reverse
@@ -312,7 +317,7 @@ def _sales_ctx(request, *, qs=None, container_id="table-acc-sales", prefix="sl_"
             {"type": "muted", "value": jalali_str(s.sold_at, fmt="%Y/%m/%d %H:%M")},
             {"type": "text", "value": s.customer_name or "—"},
             {"type": "muted", "value": to_fa_digits(s.customer_phone) or "—"},
-            {"type": "muted", "value": s.warehouse.name if s.warehouse_id else "—"},
+            {"type": "muted", "value": _sale_warehouses_text(s)},
             {"type": "text", "value": _sale_items_text(s)},
             {"type": "text", "value": _m(s.total)},
             {"type": "text", "value": _m(s.paid)},
@@ -330,9 +335,7 @@ def _sales_ctx(request, *, qs=None, container_id="table-acc-sales", prefix="sl_"
             {"label": "مشتری", "sort_field": "customer_name", "filter_key": "customer", "filter_type": "boolean",
              "filter_field": "with_customer", "true_label": "مشتری ثبت‌شده", "false_label": "بدون نام و شماره"},
             {"label": "شماره‌ی مشتری"},
-            {"label": "انبار", "sort_field": "warehouse__name", "filter_key": "wh", "filter_type": "select",
-             "filter_field": "warehouse_id",
-             "choices": list(Warehouse.objects.order_by("name").values_list("id", "name"))},
+            {"label": "انبار"},
             {"label": "اقلام"},
             {"label": "جمع (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
             {"label": "دریافتی (تومان)", "sort_field": "paid"},
