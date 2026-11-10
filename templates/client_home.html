@@ -148,5 +148,10 @@
             </div>
         </div>
     </div>
+
+    {% url 'catalog:service_list' as services_url %}
+    {% url 'catalog:item_list' as items_url %}
+    {% include "catalog/partials/slider.html" with title="خدمات ما" cards=showcase_services all_url=services_url %}
+    {% include "catalog/partials/slider.html" with title="محصولات ما" cards=showcase_items all_url=items_url %}
 </div>
 {% endblock %}
