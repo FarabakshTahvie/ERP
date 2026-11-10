@@ -62,6 +62,9 @@ PAGE_PARENTS = {
     "finance:accounting_supplier": ("finance:accounting_suppliers", [], {}),
     "finance:accounting_periods": ("finance:accounting_overview", [], {}),
     "finance:accounting_sales": ("finance:accounting_overview", [], {}),
+    "finance:accounting_sale_new": ("finance:accounting_sales", [], {}),
+    "finance:accounting_sale": ("finance:accounting_sales", [], {}),
+    "finance:accounting_sale_edit": ("finance:accounting_sale", ["sale_id"], {}),
     "finance:accounting_reports": ("finance:accounting_overview", [], {}),
     "finance:accounting_customers": ("finance:accounting_overview", [], {}),
     "finance:payments_review": ("home", [], {}),
@@ -84,6 +87,7 @@ MULTI_ENTRY = {
     "finance:portal_invoice_detail", "people:user_detail", "people:party_detail",
     "projects:final_review", "projects:portal_stage_approval", "notifications:broadcast_detail",
     "projects:proforma_editor",
+    "finance:accounting_sale",
 }
 
 # هر نام URL پروژه که نه صفحه است و نه ریشه (POST، JSON، جزء htmx، فایل، ریدایرکت)
@@ -102,6 +106,9 @@ NON_PAGE = {
     "finance:accounting_set_due", "finance:accounting_stock_table", "finance:accounting_suppliers_table",
     "finance:accounting_supplier_items_table",
     "finance:accounting_sales_table", "finance:accounting_leads_table",
+    "finance:accounting_sale_deliver", "finance:accounting_sale_cancel", "finance:accounting_sale_pdf",
+    "finance:accounting_sale_payment_add", "finance:accounting_sale_payment_edit",
+    "finance:accounting_sale_payment_delete",
     "finance:payment_decide", "finance:payment_cheque_status", "finance:payment_cheque_info",
     "finance:payments_table", "finance:portal_invoice_pdf",
     "inventory:bulk_template", "inventory:item_quick_create", "inventory:item_toggle_active",
