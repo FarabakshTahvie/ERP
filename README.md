@@ -134,7 +134,7 @@ core → accounts → catalog → inventory → projects → finance → notific
   celery -A config inspect ping
   journalctl -u farabakhsh-celery -n 50
   ```
-- **وابستگی:** اعلان‌های سیستمی به Celery وابسته نیستند؛ فقط ارسال پیام همگانی و کد ورود (OTP) از طریق Celery (با fallback به ارسال مستقیم) مدیریت می‌شوند.
+- **وابستگی:** اعلان‌های سیستمی به Celery وابسته نیستند؛ فقط ارسال پیام همگانی و کد ورود (OTP) از طریق Celery (با fallback به ارسال مستقیم) مدیریت می‌شوند. همچنین Celery beat روزانه ساعت ۹ صبح پیامک مهلت‌گذشته پیش‌فاکتورها را ارسال می‌کند.
 
 ## پیامک و پوش
 پیامک و پوش فعال است. سیاست هر نوع پیام با دستور `python manage.py setup_notification_policies` ساخته و از پنل مدیریت قابل تغییر است. وضعیت پیام‌ها در داشبورد مدیر ← اطلاع‌رسانی‌ها.

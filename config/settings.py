@@ -154,6 +154,7 @@ CELERY_TASK_PUBLISH_RETRY_POLICY = {"max_retries": 1, "interval_start": 0, "inte
 CELERY_BEAT_SCHEDULE = {
     "process-broadcasts": {"task": "notifications.process_broadcasts", "schedule": 60.0},   # شبکه‌ی ایمنی
     "messenger-cleanup": {"task": "messenger.cleanup_old", "schedule": crontab(hour=3, minute=30)},
+    "notify-expired-proformas": {"task": "finance.notify_expired_proformas", "schedule": crontab(hour=9, minute=0)},
 }
 
 if 'test' in sys.argv:

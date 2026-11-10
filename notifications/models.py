@@ -26,6 +26,7 @@ class NotificationType(models.TextChoices):
     SHIPMENT_SENT = "shipment_sent", "ارسال اقلام پروژه"
     INSTALL_DONE = "install_done", "نصب پروژه"
     INVOICE_FINALIZED = "invoice_finalized", "نهایی‌شدن فاکتور"
+    INVOICE_EXPIRED = "invoice_expired", "پایان مهلت پیش‌فاکتور"
 
 
 class ChannelPolicy(models.TextChoices):

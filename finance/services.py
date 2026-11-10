@@ -310,6 +310,25 @@ def notify_invoice_finalized(invoice):
     return True
 
 
+def notify_proforma_expired(invoice):
+    """پیامک «مهلت پیش‌فاکتور تمام شد»؛ برای هر آخرین روز (valid_until) فقط یک‌بار. خروجی: آیا صف شد؟"""
+    from notifications.models import Notification, NotificationType
+    from notifications.services import notify_users
+    user = _invoice_recipient(invoice)
+    if user is None or invoice.valid_until is None:
+        return False
+    url = f"/portal/invoices/{invoice.uuid}/"
+    day = invoice.valid_until.isoformat()
+    if Notification.objects.filter(notification_type=NotificationType.INVOICE_EXPIRED,
+                                   real_target_url=url, extra_data__valid_until=day).exists():
+        return False
+    notify_users([user], notification_type=NotificationType.INVOICE_EXPIRED,
+                 title="مهلت پیش‌فاکتور تمام شد",
+                 body=f"مهلت تایید پیش‌فاکتور {invoice.number} تمام شد؛ برای تایید با دفتر تماس بگیرید.",
+                 real_target_url=url, extra_data={"invoice_number": invoice.number, "valid_until": day})
+    return True
+
+
 @transaction.atomic
 def approve_payment(payment, approved_by, verified_amount=None, *, cheque_number=None, cheque_bank=None,
                     cheque_due_date=None):

@@ -114,3 +114,11 @@ def suspended_invoices_qs(today=None):
             .exclude(status=Invoice.Status.CANCELLED)
             .annotate(is_confirmed=confirmed, has_payment=has_payment)
             .filter(is_confirmed=False, has_payment=False))
+
+
+def notify_expired_proformas(today=None):
+    """به مشتریِ هر پیش‌فاکتور معلق پیامک مهلت می‌فرستد (یک‌بار برای هر آخرین روز). خروجی: تعداد صف‌شده."""
+    from .services import notify_proforma_expired
+    today = today or timezone.localdate()
+    invoices = list(suspended_invoices_qs(today).select_related("billed_party", "project"))
+    return sum(1 for inv in invoices if notify_proforma_expired(inv))
