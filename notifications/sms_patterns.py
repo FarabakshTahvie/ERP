@@ -1,6 +1,5 @@
 # قالب در انتظار ساخت در پنل sms.ir (پیشنهاد در docs/SMS_TEMPLATES.md):
 # visit_scheduled(name,date)
-# invoice_finalized(name,number,remaining,LINK)
 # invoice_updated(name,number,total,LINK)
 """
 رجیستری تمپلیت‌های تاییدشده در پنل sms.ir. هر تمپلیت جدید فقط یک ورودی
@@ -52,5 +51,11 @@ SMS_PATTERNS = {
         "pattern_code": "275534",
         "parameters": ["PROJECT", "LINK"],
         "reference_text": "نصب پروژه %PROJECT% انجام شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
+    },
+    "invoice_finalized": {
+        "pattern_code": "146785",
+        "parameters": ["PROJECT", "LINK"],
+        # reference_text را عیناً از پنل sms.ir کپی کن؛ فقط توضیح است و در ارسال اثری ندارد.
+        "reference_text": "فاکتور پروژه %PROJECT% نهایی شد.\nجزییات : farabakhshtahvieh.com/%LINK%",
     },
 }

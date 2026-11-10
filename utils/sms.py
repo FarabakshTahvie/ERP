@@ -106,3 +106,6 @@ class SMSService:
 
     def send_install_done(self, mobile, project, link):
         return self.send_pattern(mobile, "install_done", PROJECT=project, LINK=link)
+
+    def send_invoice_finalized(self, mobile, project, link):
+        return self.send_pattern(mobile, "invoice_finalized", PROJECT=project, LINK=link)

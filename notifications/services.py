@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 SMS_TEMPLATE_TYPES = {NotificationType.INVOICE_ISSUED, NotificationType.PAYMENT_CONFIRMED,
                       NotificationType.PAYMENT_REJECTED, NotificationType.SHIPMENT_SENT,
-                      NotificationType.INSTALL_DONE}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
+                      NotificationType.INSTALL_DONE, NotificationType.INVOICE_FINALIZED}   # فقط نوعی که قالب تاییدشده‌ی sms.ir دارد
 
 
 def create_notification(*, notification_type, user, title, body, real_target_url="",
@@ -84,6 +84,9 @@ def _call_sms_template(notification, phone):
     if notification.notification_type == NotificationType.INSTALL_DONE:
         return sms.send_install_done(mobile=phone, project=fit_param(data.get("project_name")),
                                      link=notification.short_path)
+    if notification.notification_type == NotificationType.INVOICE_FINALIZED:
+        return sms.send_invoice_finalized(mobile=phone, project=fit_param(data.get("project_name")),
+                                          link=notification.short_path)
     return sms.send_invoice_issued(
         mobile=phone, number=number, username=data.get("username", ""),
         password=data.get("password") or "رمز فعلی شما", link=notification.short_path)   # فقط مسیر، مثل s/abcde

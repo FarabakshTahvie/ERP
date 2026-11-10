@@ -289,6 +289,27 @@ def _notify_payment_decision(payment, *, confirmed):
                  extra_data={"invoice_number": number, "remaining": remaining})
 
 
+def _invoice_recipient(invoice):
+    """کاربر فعالِ طرف‌حساب فاکتور که موبایل دارد؛ نبودنش = پیامک نمی‌رود."""
+    return (invoice.billed_party.users.filter(is_active=True)
+            .exclude(phone_number__isnull=True).exclude(phone_number="").first())
+
+
+def notify_invoice_finalized(invoice):
+    """پیامک «فاکتور نهایی شد» (قالب PROJECT، LINK). فقط notify_users؛ بعد از commit. خروجی: آیا صف شد؟"""
+    from notifications.models import NotificationType
+    from notifications.services import notify_users
+    user = _invoice_recipient(invoice)
+    if user is None:
+        return False
+    name = invoice.project.name
+    notify_users([user], notification_type=NotificationType.INVOICE_FINALIZED, title="فاکتور شما نهایی شد",
+                 body=f"فاکتور {invoice.number} پروژه‌ی «{name}» نهایی شد.",
+                 real_target_url=f"/portal/invoices/{invoice.uuid}/",
+                 extra_data={"project_name": name, "invoice_number": invoice.number})
+    return True
+
+
 @transaction.atomic
 def approve_payment(payment, approved_by, verified_amount=None, *, cheque_number=None, cheque_bank=None,
                     cheque_due_date=None):
@@ -546,8 +567,7 @@ def finalize_invoice(*, invoice, actor):
     invoice.save(update_fields=["document_type", "updated_at"])
     log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=invoice.project, actor=actor,
               text=f"پیش‌فاکتور {invoice.number} با تایید بازبینی نهایی به فاکتور تبدیل شد")
-    # TODO(پیامک invoice_finalized): قالب sms.ir هنوز نیست. وقتی ساخته شد: به مشتری دارای حساب
-    # (invoice.billed_party.users) با notify_users و نوع تازه‌ی اعلان، مثل _notify_payment_decision؛ نه مستقیم.
+    notify_invoice_finalized(invoice)   # بعد از commit می‌رود؛ شکست پیامک تبدیل را برنمی‌گرداند
     return invoice
 
 
