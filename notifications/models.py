@@ -25,6 +25,7 @@ class NotificationType(models.TextChoices):
     PAYMENT_REJECTED = "payment_rejected", "رد پرداخت"
     SHIPMENT_SENT = "shipment_sent", "ارسال اقلام پروژه"
     INSTALL_DONE = "install_done", "نصب پروژه"
+    INVOICE_FINALIZED = "invoice_finalized", "نهایی‌شدن فاکتور"
 
 
 class ChannelPolicy(models.TextChoices):
