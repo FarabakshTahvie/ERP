@@ -46,6 +46,8 @@ def _allowed(user, rel):
     if head == "messenger":
         from messenger.services import can_view_media
         return can_view_media(user, rel)
+    if head == "catalog":      # عکس و ویدیوی ویترین؛ برای هر کاربر واردشده (نام فایل‌ها تصادفی است)
+        return True
     return False
 
 

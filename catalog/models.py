@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from core.models import TimeStampedModel
 
 
@@ -48,6 +49,10 @@ class Item(TimeStampedModel):
     responsible_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="responsible_items", verbose_name="مسئول هشدار موجودی")
     moving_average_cost = models.DecimalField(max_digits=18, decimal_places=2, default=0, verbose_name="میانگین موزون قیمت (خودکار)")
     is_active = models.BooleanField(default=True, verbose_name="فعال")
+    show_to_clients = models.BooleanField(default=False, verbose_name="نمایش به مشتریان")
+    description = models.TextField(blank=True, verbose_name="توضیح کامل (مارک‌داون)")
+    cover = models.ImageField(upload_to="catalog/covers/", null=True, blank=True, verbose_name="عکس شاخص")
+    cover_thumb = models.ImageField(upload_to="catalog/thumbs/", null=True, blank=True, verbose_name="عکس شاخص کوچک‌شده")
 
     class Meta:
         verbose_name = "کالا (متریال/قطعه)"
@@ -69,6 +74,10 @@ class Service(TimeStampedModel):
     code = models.CharField(max_length=30, blank=True, null=True, unique=True, verbose_name="کد خدمت")
     unit = models.CharField(max_length=20, choices=Item.Unit.choices, blank=True, verbose_name="واحد سنجش")
     is_active = models.BooleanField(default=True, verbose_name="فعال")
+    show_to_clients = models.BooleanField(default=True, verbose_name="نمایش به مشتریان")
+    description = models.TextField(blank=True, verbose_name="توضیح کامل (مارک‌داون)")
+    cover = models.ImageField(upload_to="catalog/covers/", null=True, blank=True, verbose_name="عکس شاخص")
+    cover_thumb = models.ImageField(upload_to="catalog/thumbs/", null=True, blank=True, verbose_name="عکس شاخص کوچک‌شده")
 
     class Meta:
         verbose_name = "خدمت"
@@ -118,3 +127,30 @@ class MarginRule(models.Model):
         verbose_name = "قانون سود"
         verbose_name_plural = "قوانین سود"
         ordering = ["-priority", "-valid_from"]
+
+
+class CatalogMedia(TimeStampedModel):
+    """عکس یا ویدیوی داخل متن توضیح یک خدمت یا کالا؛ دقیقاً یکی از service/item پر است."""
+
+    class Kind(models.TextChoices):
+        IMAGE = "image", "عکس"
+        VIDEO = "video", "ویدیو"
+
+    service = models.ForeignKey(Service, null=True, blank=True, on_delete=models.CASCADE,
+                                related_name="media", verbose_name="خدمت")
+    item = models.ForeignKey(Item, null=True, blank=True, on_delete=models.CASCADE,
+                             related_name="media", verbose_name="کالا")
+    kind = models.CharField(max_length=10, choices=Kind.choices, verbose_name="نوع")
+    file = models.FileField(upload_to="catalog/media/", verbose_name="فایل")
+    original_name = models.CharField(max_length=255, blank=True, verbose_name="نام اصلی فایل")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+", verbose_name="بارگذاری‌کننده")
+
+    class Meta:
+        verbose_name = "رسانه‌ی ویترین"
+        verbose_name_plural = "رسانه‌های ویترین"
+        ordering = ["pk"]
+        constraints = [models.CheckConstraint(
+            condition=(Q(service__isnull=False, item__isnull=True) | Q(service__isnull=True, item__isnull=False)),
+            name="catalog_media_exactly_one_owner")]
+
