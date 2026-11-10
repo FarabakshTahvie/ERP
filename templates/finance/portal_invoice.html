@@ -43,8 +43,11 @@
         </div>
         {% endif %}
         <div class="flex items-start justify-between gap-4 flex-wrap pb-5 border-b border-base-300">
-            <img src="{% static 'icons/logo-invoice.svg' %}" alt="فرابخش تهویه"
-                 class="h-12 bg-white rounded-field p-1.5 border border-base-300">
+            <div class="flex items-center gap-2">
+                <img src="{% static 'icons/logo-invoice.svg' %}" alt=""
+                     class="h-12 bg-white rounded-field p-1.5 border border-base-300">
+                <span class="text-base font-bold text-primary">فرابخش تهویه</span>
+            </div>
             <div class="text-xs flex flex-col gap-1">
                 <div><span class="fb-muted">تاریخ صدور:</span> <span class="font-technical">{{ invoice.issue_date|to_jalali|default:"-" }}</span></div>
                 <div><span class="fb-muted">پروژه:</span> <span class="font-semibold">{{ invoice.project.name }}</span></div>

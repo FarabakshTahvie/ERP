@@ -130,8 +130,9 @@
 </head>
 <body>
     <div class="header">
-        <div>
-            <img src="{% static 'icons/logo-invoice.svg' %}" alt="فرابخش تهویه" class="h-10">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="{% static 'icons/logo-invoice.svg' %}" alt="">
+            <span class="brand">فرابخش تهویه</span>
         </div>
         <div class="doc-title">
             {% if invoice.document_type == 'proforma' %}پیش‌فاکتور فروش{% else %}فاکتور رسمی فروش{% endif %}

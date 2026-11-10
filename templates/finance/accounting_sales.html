@@ -6,13 +6,21 @@
     <div class="flex items-start justify-between gap-3 flex-wrap">
         <div>
             <h1 class="fb-page-title">فروش کالا</h1>
-            <p class="fb-page-sub">فروش کالا بیرون از پروژه. در تب «مشتریان» هر مشتری یک‌بار می‌آید؛ برای دیدن خریدهایش روی او بزنید.</p>
+            <p class="fb-page-sub">فروش کالا بیرون از پروژه. برای دیدن جزئیات، تحویل و ثبت پرداخت روی هر فروش بزنید. در تب «مشتریان» برای اصلاح نام و شماره روی مشتری بزنید.</p>
         </div>
         {% if caps.sales_create %}
         <a href="{% url 'finance:accounting_sale_new' %}" class="btn btn-primary btn-sm">{% icon "plus" "w-4 h-4" %} ثبت فروش</a>
         {% endif %}
     </div>
     {% include "finance/partials/accounting_nav.html" %}
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {% include "finance/partials/stat_card.html" with label="فروش (تومان)" value=stats.total tone="" hint="همه‌ی زمان‌ها؛ فروش لغوشده نیست." %}
+        {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تومان)" value=stats.paid tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="مانده (تومان)" value=stats.remaining tone="text-warning" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="منتظر تحویل" value=stats.waiting tone="" hint="موجودی‌شان هنوز کم نشده." %}
+    </div>
+
     {% include "utils/partials/tab_panels.html" %}
 </div>
 {% endblock %}

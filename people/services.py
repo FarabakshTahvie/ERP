@@ -43,6 +43,8 @@ PAGE_LABELS = {
     "finance:accounting_purchase_edit": "ویرایش خرید",
     "finance:accounting_periods": "قفل ماه‌ها",
     "finance:accounting_sales": "فروش کالا",
+    "finance:accounting_sale": "جزئیات فروش",
+    "finance:accounting_sale_new": "ثبت فروش",
     "finance:accounting_customers": "مرکز مشتریان",
     "inventory:stock_movement_new": "ثبت مصرف یا تعدیل",
     "inventory:purchase_new": "ثبت خرید",

@@ -4,16 +4,20 @@ import json
 import weasyprint
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.capabilities import cap_required
 from inventory import sales as sales_svc
 from inventory.models import Sale, SalePayment, Warehouse
 from inventory.services import stock_by_warehouse, stockable_items
+from utils.generic_table import render_table
 from utils.jalali_forms import JalaliDateField
+
+from .views_accounting import _sales_ctx
 
 DETAIL = "finance:accounting_sale"
 FORM = "finance/accounting_sale_form.html"
@@ -213,3 +217,44 @@ def payment_delete(request, payment_id):
     else:
         messages.success(request, "پرداخت حذف شد.")
     return redirect(DETAIL, payment.sale_id)
+
+
+def _customer_base(sale_id):
+    base = get_object_or_404(Sale, pk=sale_id)
+    if not base.has_customer:
+        raise Http404
+    return base
+
+
+def _customer_ctx(request, base):
+    return _sales_ctx(request, qs=sales_svc.customer_sales_qs(base), container_id="table-acc-customer-sales",
+                      prefix="cs_", list_url=reverse("finance:accounting_sale_customer_table", args=[base.id]))
+
+
+@cap_required("accounting.access")
+def sale_customer(request, sale_id):
+    base = _customer_base(sale_id)
+    ctx = _customer_ctx(request, base)
+    ctx.update(nav_active="sales", base=base,
+               stats=sales_svc.sales_stats(sales_svc.customer_sales_qs(base)))
+    return render(request, "finance/accounting_sale_customer.html", ctx)
+
+
+@cap_required("accounting.access")
+def sale_customer_table(request, sale_id):
+    return render_table(request, _customer_ctx(request, _customer_base(sale_id)))
+
+
+@cap_required("sales.create")
+@require_POST
+def sale_customer_edit(request, sale_id):
+    _customer_base(sale_id)
+    try:
+        n = sales_svc.update_customer(actor=request.user, sale_id=sale_id,
+                                      name=request.POST.get("customer_name"),
+                                      phone=request.POST.get("customer_phone"))
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"مشتری در {n} فروش اصلاح شد.")
+    return redirect("finance:accounting_sale_customer", sale_id)

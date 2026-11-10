@@ -52,8 +52,11 @@
 
     <section class="fb-card fb-pad flex flex-col gap-5">
         <div class="flex items-start justify-between gap-4 flex-wrap pb-5 border-b border-base-300">
-            <img src="{% static 'icons/logo-invoice.svg' %}" alt="فرابخش تهویه"
-                 class="h-12 bg-white rounded-field p-1.5 border border-base-300">
+            <div class="flex items-center gap-2">
+                <img src="{% static 'icons/logo-invoice.svg' %}" alt=""
+                     class="h-12 bg-white rounded-field p-1.5 border border-base-300">
+                <span class="text-base font-bold text-primary">فرابخش تهویه</span>
+            </div>
             <div class="text-xs flex flex-col gap-1">
                 <div><span class="fb-muted">طرف‌حساب:</span> <span class="font-semibold">{{ billing_party.name }}</span></div>
                 <div><span class="fb-muted">پروژه:</span> <span class="font-semibold">{{ project.name }}</span></div>

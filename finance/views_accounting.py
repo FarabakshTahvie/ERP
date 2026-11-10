@@ -14,7 +14,8 @@ from core.models import Party
 from projects.services import project_prices_editable
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from inventory.models import Purchase, PurchaseLine, Sale, SaleLine, StockMovement
+from inventory import sales as sales_svc
+from inventory.models import Purchase, PurchaseLine, Sale, StockMovement, Warehouse
 from projects import ops
 from projects.usage import project_usage_by_stage
 from projects.models import Project, ProjectCost, StageKind
@@ -142,7 +143,8 @@ STOCK_EXPORT_EXTRA = [
 
 
 def _stock_ctx(request):
-    qs = StockMovement.objects.select_related("item", "created_by").prefetch_related("related_object").order_by("-created_at", "-id")
+    qs = (StockMovement.objects.select_related("item", "created_by", "lot__warehouse")
+          .prefetch_related("related_object").order_by("-created_at", "-id"))
 
     def row_builder(m):
         related = m.related_object
@@ -154,6 +156,7 @@ def _stock_ctx(request):
         return {"url": None, "cells": [
             {"type": "muted", "value": jalali_str(m.created_at, fmt="%Y/%m/%d %H:%M")},
             {"type": "text", "value": m.item.name},
+            {"type": "muted", "value": m.lot.warehouse.name},
             {"type": "badge", "value": m.get_movement_type_display(), "variant": "neutral"},
             {"type": "badge", "value": m.get_direction_display(),
              "variant": "success" if m.direction == StockMovement.Direction.IN else "warning"},
@@ -170,6 +173,9 @@ def _stock_ctx(request):
             {"label": "تاریخ", "sort_field": "created_at", "filter_key": "date", "filter_type": "date_range",
              "filter_field": "created_at"},
             {"label": "کالا", "sort_field": "item__name"},
+            {"label": "انبار", "sort_field": "lot__warehouse__name", "filter_key": "wh", "filter_type": "select",
+             "filter_field": "lot__warehouse_id",
+             "choices": list(Warehouse.objects.order_by("name").values_list("id", "name"))},
             {"label": "نوع", "sort_field": "movement_type", "filter_key": "type", "filter_type": "select",
              "filter_field": "movement_type", "choices": StockMovement.MovementType.choices},
             {"label": "اثر", "sort_field": "direction", "filter_key": "direction", "filter_type": "select",
@@ -277,21 +283,6 @@ def purchases_table(request):
 
 
 # ---------- فروش کالا و مشتریان فروش ----------
-LEAD_VALUE = ExpressionWrapper(F("lines__qty") * F("lines__unit_price"), output_field=accounting.MONEY)
-
-
-def _sales_base_qs():
-    per_sale = SaleLine.objects.filter(sale=OuterRef("pk")).order_by().values("sale")
-    return (Sale.objects
-            .annotate(
-                total=Coalesce(Subquery(per_sale.annotate(t=Sum(accounting.SALE_VALUE)).values("t"),
-                                        output_field=accounting.MONEY),
-                               Value(accounting.ZERO), output_field=accounting.MONEY),
-                with_customer=Case(When(customer_name="", customer_phone="", then=Value(False)),
-                                   default=Value(True), output_field=BooleanField()))
-            .prefetch_related("lines__item").order_by("-sold_at", "-id"))
-
-
 def _sale_items_text(sale, limit=3):
     lines = list(sale.lines.all())
     parts = [f"{l.item.name} ({_q(l.qty)} {l.item.get_unit_display()})" for l in lines[:limit]]
@@ -301,57 +292,80 @@ def _sale_items_text(sale, limit=3):
 
 SALE_EXPORT_EXTRA = [
     {"label": "اقلام", "value": lambda s: "؛ ".join(f"{l.item.name} × {l.qty.normalize():f}" for l in s.lines.all())},
+    {"label": "تاریخ تحویل", "value": lambda s: s.delivered_at},
     {"label": "بهای انبار (تومان)", "value": lambda s: sum((l.cost_total for l in s.lines.all()), accounting.ZERO)},
     {"label": "ثبت‌کننده", "value": lambda s: person_name(s.created_by)},
 ]
 
 
-def _sales_ctx(request):
+def _sales_ctx(request, *, qs=None, container_id="table-acc-sales", prefix="sl_", list_url=None):
+    base = sales_svc.sales_queryset() if qs is None else qs
+    base = (base.select_related("created_by")
+            .annotate(with_customer=Case(When(customer_name="", customer_phone="", then=Value(False)),
+                                         default=Value(True), output_field=BooleanField()))
+            .prefetch_related("lines__item"))
+
     def row_builder(s):
-        return {"url": None, "cells": [
+        from utils.navigation import nav_reverse
+        return {"url": nav_reverse(request, "finance:accounting_sale", args=[s.id]), "cells": [
+            {"type": "text", "value": to_fa_digits(s.number or "—")},
             {"type": "muted", "value": jalali_str(s.sold_at, fmt="%Y/%m/%d %H:%M")},
             {"type": "text", "value": s.customer_name or "—"},
             {"type": "muted", "value": to_fa_digits(s.customer_phone) or "—"},
+            {"type": "muted", "value": s.warehouse.name if s.warehouse_id else "—"},
             {"type": "text", "value": _sale_items_text(s)},
             {"type": "text", "value": _m(s.total)},
+            {"type": "text", "value": _m(s.paid)},
+            {"type": "text", "value": _m(s.remaining)},
+            {"type": "badge", "value": s.get_status_display(),
+             "variant": sales_svc.STATUS_VARIANT.get(s.status, "neutral")},
         ]}
 
     return build_table_context(
-        request, _sales_base_qs(),
+        request, base,
         columns=[
+            {"label": "شماره", "sort_field": "number"},
             {"label": "زمان", "sort_field": "sold_at", "filter_key": "date", "filter_type": "date_range",
              "filter_field": "sold_at"},
             {"label": "مشتری", "sort_field": "customer_name", "filter_key": "customer", "filter_type": "boolean",
              "filter_field": "with_customer", "true_label": "مشتری ثبت‌شده", "false_label": "بدون نام و شماره"},
-            {"label": "شماره"},
+            {"label": "شماره‌ی مشتری"},
+            {"label": "انبار", "sort_field": "warehouse__name", "filter_key": "wh", "filter_type": "select",
+             "filter_field": "warehouse_id",
+             "choices": list(Warehouse.objects.order_by("name").values_list("id", "name"))},
             {"label": "اقلام"},
-            {"label": "جمع فروش (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+            {"label": "جمع (تومان)", "sort_field": "total", "filter_key": "total", "filter_type": "number_range"},
+            {"label": "دریافتی (تومان)", "sort_field": "paid"},
+            {"label": "مانده (تومان)", "sort_field": "remaining", "filter_key": "remaining",
+             "filter_type": "number_range"},
+            {"label": "وضعیت", "sort_field": "status", "filter_key": "status", "filter_type": "select",
+             "choices": Sale.Status.choices},
         ],
-        row_builder=row_builder, container_id="table-acc-sales", param_prefix="sl_",
+        row_builder=row_builder, container_id=container_id, param_prefix=prefix,
         empty_icon="receipt", empty_text="هنوز فروشی ثبت نشده.",
-        list_url=reverse("finance:accounting_sales_table"),
-        search_fields=["customer_name", "customer_phone", "lines__item__name"],
-        search_placeholder="جستجو در نام مشتری، شماره یا نام کالا...",
+        list_url=list_url or reverse("finance:accounting_sales_table"),
+        search_fields=["number", "customer_name", "customer_phone", "lines__item__name"],
+        search_placeholder="جستجو در شماره، مشتری، شماره‌ی مشتری یا نام کالا...",
         export_extra=SALE_EXPORT_EXTRA,
     )
 
 
 def _leads_qs():
-    """یک سطر برای هر مشتری: با شماره یکی می‌شود؛ بدون شماره با نام."""
+    """یک سطر برای هر مشتری (با شماره یکی می‌شود؛ بدون شماره با نام). فروش لغوشده نمی‌آید.
+    rep_id شناسه‌ی آخرین فروش اوست و آدرس صفحه‌ی مشتری از همان ساخته می‌شود."""
     key = Case(When(~Q(customer_phone=""), then=F("customer_phone")), default=F("customer_name"),
                output_field=CharField())
-    return (Sale.objects.exclude(customer_name="", customer_phone="")
+    return (Sale.objects.exclude(status=Sale.Status.CANCELLED).exclude(customer_name="", customer_phone="")
             .annotate(lead_key=key).values("lead_key")
             .annotate(phone=Max("customer_phone"), name=Max("customer_name"),
-                      n=Count("id", distinct=True), last_at=Max("sold_at"),
-                      total=Coalesce(Sum(LEAD_VALUE), Value(accounting.ZERO), output_field=accounting.MONEY))
+                      n=Count("id", distinct=True), last_at=Max("sold_at"), rep_id=Max("id"),
+                      total=Coalesce(Sum("lines__total"), Value(accounting.ZERO), output_field=accounting.MONEY))
             .order_by("-last_at"))
 
 
 def _leads_ctx(request):
     def row_builder(r):
-        who = r["phone"] or r["name"]
-        return {"url": reverse("finance:accounting_sales") + f"?tab=sales&sl_q={quote(who)}", "cells": [
+        return {"url": reverse("finance:accounting_sale_customer", args=[r["rep_id"]]), "cells": [
             {"type": "text", "value": r["name"] or "—"},
             {"type": "muted", "value": to_fa_digits(r["phone"]) or "—"},
             {"type": "muted", "value": to_fa_digits(r["n"])},
@@ -388,7 +402,8 @@ def sales_page(request):
          "container_id": leads_ctx["container_id"], "count_builder": lambda: _leads_qs().count(),
          "eager_render": lambda: render_table(request, leads_ctx).content.decode("utf-8")},
     ])
-    return render(request, "finance/accounting_sales.html", {"nav_active": "sales", "tabs": tabs})
+    return render(request, "finance/accounting_sales.html", {
+        "nav_active": "sales", "tabs": tabs, "stats": sales_svc.sales_stats()})
 
 
 @login_required
