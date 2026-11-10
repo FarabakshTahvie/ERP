@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}فروش {{ sale.number|fa_digits }} | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+            <a href="{% url 'finance:accounting_sales' %}" class="link link-hover text-sm fb-muted">بازگشت به فروش کالا</a>
+            <div class="flex items-center gap-2 flex-wrap mt-2">
+                <h1 class="fb-page-title">فروش <span class="font-technical">{{ sale.number|fa_digits }}</span></h1>
+                <span class="fb-badge fb-badge-{{ status_variant }}">{{ sale.get_status_display }}</span>
+            </div>
+            <p class="fb-page-sub">ثبت: <span class="font-technical">{{ sale.sold_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% if sale.delivered_at %} — تحویل: <span class="font-technical">{{ sale.delivered_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>{% endif %}</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% if sale.status != 'cancelled' %}
+            <a href="{% url 'finance:accounting_sale_pdf' sale.id %}" class="btn btn-soft btn-sm">{% icon "download" "w-4 h-4" %} دانلود پیش‌فاکتور</a>
+            {% endif %}
+            {% if caps.sales_create and sale.status != 'cancelled' %}
+            <a href="{% url 'finance:accounting_sale_edit' sale.id %}" class="btn btn-soft btn-sm">{% icon "pencil" "w-4 h-4" %} ویرایش</a>
+            {% endif %}
+            {% if caps.sales_create and can_cancel %}
+            <button type="button" class="btn btn-soft btn-error btn-sm" onclick="document.getElementById('sale-cancel-dialog').showModal()">{% icon "x-circle" "w-4 h-4" %} لغو فروش</button>
+            {% endif %}
+            {% if caps.sales_create and sale.status == 'registered' %}
+            <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('sale-deliver-dialog').showModal()">{% icon "check-circle" "w-4 h-4" %} تحویل</button>
+            {% endif %}
+        </div>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    {% if sale.status == 'registered' %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">اقلام هنوز از انبار کم نشده‌اند. بعد از «تحویل» از «{{ sale.warehouse.name }}» کم می‌شوند.</span>
+    </div>
+    {% elif sale.status == 'delivered' %}
+    <div role="alert" class="alert alert-soft alert-success">
+        {% icon "check-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">تحویل شد و اقلام از «{{ sale.warehouse.name }}» کم شد. اقلام و انبار دیگر تغییر نمی‌کنند؛ مشتری، توضیح و پرداخت‌ها قابل ویرایش‌اند.</span>
+    </div>
+    {% else %}
+    <div role="alert" class="alert alert-soft alert-error">
+        {% icon "x-circle" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">این فروش لغو شده است.</span>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {% include "finance/partials/stat_card.html" with label="جمع فروش (تومان)" value=sale.total tone="" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="دریافت‌شده (تومان)" value=sale.paid tone="text-success" hint="" %}
+        {% include "finance/partials/stat_card.html" with label="مانده (تومان)" value=sale.remaining tone="text-warning" hint="" %}
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-sm">
+        <h2 class="fb-section-title">اطلاعات فروش</h2>
+        <div class="flex justify-between gap-2"><span class="fb-muted">مشتری</span><span>{{ sale.customer_name|default:"—" }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">شماره‌ی مشتری</span><span class="font-technical" dir="ltr">{{ sale.customer_phone|default:"—" }}</span></div>
+        <div class="flex justify-between gap-2"><span class="fb-muted">انبار</span><span>{{ sale.warehouse.name|default:"—" }}</span></div>
+        {% if sale.notes %}<p class="fb-inset text-xs">{{ sale.notes }}</p>{% endif %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">اقلام</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm text-xs">
+                <thead><tr class="fb-muted"><th>ردیف</th><th>کالا</th><th>مقدار</th><th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr><td class="font-technical">{{ forloop.counter|fa_digits }}</td>
+                        <td class="font-semibold">{{ l.item.name }}</td>
+                        <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
+                        <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td>
+                        <td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
+                {% endfor %}
+                </tbody>
+                <tfoot><tr class="font-bold"><td colspan="4">جمع کل</td><td class="font-technical">{{ sale.total|intcomma_fa }}</td></tr></tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">پرداخت‌ها</h2>
+        {% for p in payments %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap text-xs">
+            <span>{{ p.get_method_display }} — <span class="font-technical">{{ p.paid_date|to_jalali:"%Y/%m/%d" }}</span>{% if p.reference_number %} — <span class="font-technical" dir="ltr">{{ p.reference_number }}</span>{% endif %}{% if p.note %} — {{ p.note }}{% endif %}</span>
+            <span class="flex items-center gap-1">
+                <span class="font-technical font-bold">{{ p.amount|intcomma_fa }}</span>
+                {% if caps.accounting_access and sale.status != 'cancelled' %}
+                <button type="button" class="btn btn-ghost btn-xs btn-square" aria-label="ویرایش پرداخت" onclick="document.getElementById('pay-edit-{{ p.id }}').showModal()">{% icon "pencil" "w-4 h-4" %}</button>
+                <button type="button" class="btn btn-soft btn-error btn-xs btn-square" aria-label="حذف پرداخت" onclick="document.getElementById('pay-del-{{ p.id }}').showModal()">{% icon "trash-2" "w-4 h-4" %}</button>
+                {% endif %}
+            </span>
+        </div>
+        {% empty %}<p class="fb-hint">پرداختی ثبت نشده است.</p>{% endfor %}
+
+        {% if caps.accounting_access and sale.status != 'cancelled' and sale.remaining > 0 %}
+        <form method="post" action="{% url 'finance:accounting_sale_payment_add' sale.id %}" data-fb-once class="flex flex-col gap-3 pt-3 border-t border-base-300">
+            {% csrf_token %}
+            <span class="fb-label">ثبت پرداخت (مانده: <span class="font-technical">{{ sale.remaining|intcomma_fa }}</span> تومان)</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="pay-amount">مبلغ (تومان)</label>
+                    <input type="text" id="pay-amount" name="amount" required data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off" class="input input-sm w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="pay-method">روش</label>
+                    <select id="pay-method" name="method" class="select select-sm w-full">
+                        {% for value, label in methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="pay-date">تاریخ پرداخت</label>
+                    <input type="text" id="pay-date" name="paid_date" data-jalali-date data-clearable dir="ltr" inputmode="none" autocomplete="off" placeholder="خالی = امروز" class="input input-sm w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="pay-ref">شماره پیگیری (در صورت نیاز)</label>
+                    <input type="text" id="pay-ref" name="reference_number" maxlength="100" dir="ltr" autocomplete="off" class="input input-sm w-full font-technical">
+                </div>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="pay-note">توضیح (در صورت نیاز)</label>
+                <input type="text" id="pay-note" name="note" maxlength="255" class="input input-sm w-full">
+            </div>
+            <button type="submit" class="btn btn-soft btn-sm self-start">ثبت پرداخت</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-2 text-xs">
+        <h2 class="fb-section-title">سابقه</h2>
+        {% for e in events %}
+        <div class="fb-inset flex items-center justify-between gap-2 flex-wrap">
+            <span>{{ e.text }}</span>
+            <span class="fb-muted">{% if e.amount %}<span class="font-technical">{{ e.amount|intcomma_fa }}</span> · {% endif %}{{ e.actor|person_name:"سیستم" }} · <span class="font-technical">{{ e.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span></span>
+        </div>
+        {% endfor %}
+    </section>
+</div>
+
+{% if caps.sales_create and sale.status == 'registered' %}
+<dialog id="sale-deliver-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">تحویل فروش</h3>
+        <p class="text-sm">اقلام همین لحظه از «{{ sale.warehouse.name }}» کم می‌شوند و بعد از آن اقلام و انبار قابل تغییر نیست. ادامه می‌دهید؟</p>
+        <form method="post" action="{% url 'finance:accounting_sale_deliver' sale.id %}" data-fb-once class="flex gap-2 pt-4">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary flex-1">تحویل و کم‌کردن از انبار</button>
+            <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
+
+{% if caps.sales_create and can_cancel %}
+<dialog id="sale-cancel-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">لغو فروش</h3>
+        <p class="text-xs fb-muted mb-3">فقط فروش ثبت‌شده‌ی بدون پرداخت لغو می‌شود. برگشتی ندارد.</p>
+        <form method="post" action="{% url 'finance:accounting_sale_cancel' sale.id %}" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="sale-cancel-reason">دلیل (اجباری)</label>
+                <input type="text" id="sale-cancel-reason" name="reason" required maxlength="300" class="input w-full">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-soft btn-error flex-1">لغو فروش</button>
+                <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
+
+{% if caps.accounting_access and sale.status != 'cancelled' %}
+{% for p in payments %}
+<dialog id="pay-edit-{{ p.id }}" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-3">ویرایش پرداخت</h3>
+        <form method="post" action="{% url 'finance:accounting_sale_payment_edit' p.id %}" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="pe-amount-{{ p.id }}">مبلغ (تومان)</label>
+                <input type="text" id="pe-amount-{{ p.id }}" name="amount" required value="{{ p.amount|stringformat:'d' }}" data-money maxlength="12" dir="ltr" inputmode="numeric" class="input input-sm w-full font-technical">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="pe-method-{{ p.id }}">روش</label>
+                <select id="pe-method-{{ p.id }}" name="method" class="select select-sm w-full">
+                    {% for value, label in methods %}<option value="{{ value }}" {% if p.method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="pe-date-{{ p.id }}">تاریخ پرداخت</label>
+                <input type="text" id="pe-date-{{ p.id }}" name="paid_date" value="{{ p.paid_date|to_jalali:'%Y/%m/%d' }}" data-jalali-date dir="ltr" inputmode="none" autocomplete="off" class="input input-sm w-full font-technical">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="pe-ref-{{ p.id }}">شماره پیگیری</label>
+                <input type="text" id="pe-ref-{{ p.id }}" name="reference_number" value="{{ p.reference_number }}" maxlength="100" dir="ltr" class="input input-sm w-full font-technical">
+            </div>
+            <div class="fb-field">
+                <label class="fb-label" for="pe-note-{{ p.id }}">توضیح</label>
+                <input type="text" id="pe-note-{{ p.id }}" name="note" value="{{ p.note }}" maxlength="255" class="input input-sm w-full">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary flex-1">ذخیره</button>
+                <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+<dialog id="pay-del-{{ p.id }}" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">حذف پرداخت</h3>
+        <p class="text-sm mb-3">پرداخت <span class="font-technical">{{ p.amount|intcomma_fa }}</span> تومان حذف می‌شود و در سابقه می‌ماند.</p>
+        <form method="post" action="{% url 'finance:accounting_sale_payment_delete' p.id %}" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <div class="fb-field">
+                <label class="fb-label" for="pd-reason-{{ p.id }}">دلیل (اجباری)</label>
+                <input type="text" id="pd-reason-{{ p.id }}" name="reason" required maxlength="300" class="input w-full">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-soft btn-error flex-1">حذف</button>
+                <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endfor %}
+{% endif %}
+{% endblock %}

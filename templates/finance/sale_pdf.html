@@ -1,0 +1,92 @@
+{% load static custom_tags %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ sale.number|fa_digits }} - پیش‌فاکتور فروش</title>
+    <style>
+        @font-face { font-family: 'Vazirmatn'; src: url("{% static 'fonts/Vazirmatn[wght].woff2' %}") format('woff2'); font-weight: 100 900; font-style: normal; }
+        @page { size: A4; margin: 15mm; }
+        body { font-family: 'Vazirmatn', sans-serif; direction: rtl; color: #1f2937; font-size: 11pt; line-height: 1.5; margin: 0; }
+        .header { border-bottom: 2px solid #0d9488; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header img { height: 42px; width: auto; display: block; }
+        .brand { font-size: 20pt; font-weight: 900; color: #0d9488; }
+        .doc-title { font-size: 16pt; font-weight: 800; text-align: left; color: #111827; }
+        .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .meta-table td { padding: 6px 8px; font-size: 10pt; vertical-align: top; }
+        .meta-label { font-weight: bold; color: #4b5563; width: 15%; }
+        .meta-val { color: #111827; width: 35%; }
+        .lines-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .lines-table th, .lines-table td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 10pt; text-align: center; }
+        .lines-table th { background-color: #f3f4f6; font-weight: bold; color: #374151; }
+        .lines-table td.title-col { text-align: right; font-weight: bold; }
+        .lines-table td.num-col { text-align: left; direction: ltr; }
+        .summary-box { width: 40%; margin-right: auto; border-collapse: collapse; margin-top: 10px; }
+        .summary-box td { padding: 6px 10px; font-size: 10pt; }
+        .summary-box td.label { text-align: right; font-weight: bold; color: #4b5563; }
+        .summary-box td.val { text-align: left; font-weight: bold; direction: ltr; }
+        .summary-box tr.total-row td { border-top: 2px solid #0d9488; font-size: 11pt; color: #0d9488; }
+        .footer-note { margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 12px; font-size: 8.5pt; color: #6b7280; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="{% static 'icons/logo-invoice.svg' %}" alt="">
+            <span class="brand">فرابخش تهویه</span>
+        </div>
+        <div class="doc-title">
+            پیش‌فاکتور فروش
+            <div style="font-size: 10pt; font-weight: normal; color: #6b7280; margin-top: 4px;">شماره: <span dir="ltr">{{ sale.number|fa_digits }}</span></div>
+        </div>
+    </div>
+
+    <table class="meta-table">
+        <tr>
+            <td class="meta-label">مشتری:</td>
+            <td class="meta-val">{{ sale.customer_name|default:"—" }}</td>
+            <td class="meta-label">تاریخ:</td>
+            <td class="meta-val">{{ sale.sold_at|to_jalali:"%Y/%m/%d" }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">شماره تماس:</td>
+            <td class="meta-val"><span dir="ltr">{{ sale.customer_phone|fa_digits|default:"—" }}</span></td>
+            <td class="meta-label">توضیح:</td>
+            <td class="meta-val">{{ sale.notes|default:"—" }}</td>
+        </tr>
+    </table>
+
+    <table class="lines-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">ردیف</th>
+                <th style="width: 42%;">شرح کالا</th>
+                <th style="width: 16%;">مقدار</th>
+                <th style="width: 17%;">قیمت واحد (تومان)</th>
+                <th style="width: 17%;">جمع (تومان)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lines %}
+            <tr>
+                <td>{{ forloop.counter|fa_digits }}</td>
+                <td class="title-col">{{ l.item.name }}</td>
+                <td class="num-col">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
+                <td class="num-col">{{ l.unit_price|intcomma_fa }}</td>
+                <td class="num-col">{{ l.total|intcomma_fa }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="summary-box">
+        <tr><td class="label">جمع کل:</td><td class="val">{{ sale.total|intcomma_fa }} تومان</td></tr>
+        <tr><td class="label">دریافت‌شده:</td><td class="val" style="color: #059669;">{{ sale.paid|intcomma_fa }} تومان</td></tr>
+        <tr class="total-row"><td class="label">مانده قابل پرداخت:</td><td class="val">{{ sale.remaining|intcomma_fa }} تومان</td></tr>
+    </table>
+
+    <div class="footer-note">
+        این سند به‌صورت الکترونیکی صادر شده و نیاز به مهر یا امضای فیزیکی ندارد • تلفن دفتر: <span dir="ltr">{{ CONTACT.office_phone.display|fa_digits }}</span> | موبایل: <span dir="ltr">{{ CONTACT.mobile.display|fa_digits }}</span> | ساعت کاری: {{ CONTACT.hours|fa_digits }}
+    </div>
+</body>
+</html>

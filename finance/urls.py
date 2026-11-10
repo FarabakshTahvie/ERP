@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_accounting
+from . import views, views_accounting, views_sales
 
 app_name = "finance"
 
@@ -34,6 +34,15 @@ urlpatterns = [
     path("accounting/sales/", views_accounting.sales_page, name="accounting_sales"),
     path("accounting/sales/table/", views_accounting.sales_table, name="accounting_sales_table"),
     path("accounting/sales/leads/table/", views_accounting.leads_table, name="accounting_leads_table"),
+    path("accounting/sales/new/", views_sales.sale_new, name="accounting_sale_new"),
+    path("accounting/sales/<int:sale_id>/", views_sales.sale_detail, name="accounting_sale"),
+    path("accounting/sales/<int:sale_id>/edit/", views_sales.sale_edit, name="accounting_sale_edit"),
+    path("accounting/sales/<int:sale_id>/deliver/", views_sales.sale_deliver, name="accounting_sale_deliver"),
+    path("accounting/sales/<int:sale_id>/cancel/", views_sales.sale_cancel, name="accounting_sale_cancel"),
+    path("accounting/sales/<int:sale_id>/pdf/", views_sales.sale_pdf, name="accounting_sale_pdf"),
+    path("accounting/sales/<int:sale_id>/payments/add/", views_sales.payment_add, name="accounting_sale_payment_add"),
+    path("accounting/sales/payments/<int:payment_id>/edit/", views_sales.payment_edit, name="accounting_sale_payment_edit"),
+    path("accounting/sales/payments/<int:payment_id>/delete/", views_sales.payment_delete, name="accounting_sale_payment_delete"),
     path("portal/invoices/<uuid:invoice_uuid>/", views.invoice_detail, name="portal_invoice_detail"),
     path("portal/invoices/<uuid:invoice_uuid>/pdf/", views.invoice_pdf, name="portal_invoice_pdf"),
     path("portal/invoices/<uuid:invoice_uuid>/add-payment/", views.add_payment, name="portal_add_payment"),

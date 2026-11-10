@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}{% if sale %}ویرایش فروش {{ sale.number|fa_digits }}{% else %}ثبت فروش{% endif %} | حسابداری{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <a href="{% if sale %}{% url 'finance:accounting_sale' sale.id %}{% else %}{% url 'finance:accounting_sales' %}{% endif %}" class="link link-hover text-sm fb-muted">بازگشت</a>
+        <h1 class="fb-page-title mt-2">{% if sale %}ویرایش فروش <span class="font-technical">{{ sale.number|fa_digits }}</span>{% else %}ثبت فروش{% endif %}</h1>
+        <p class="fb-page-sub">{% if sale and not lines_editable %}فروش تحویل شده؛ فقط مشتری و توضیح قابل ویرایش است. پرداخت‌ها را در صفحه‌ی جزئیات ثبت کنید.{% else %}ثبت فروش موجودی را کم نمی‌کند. بعد از ثبت، در صفحه‌ی جزئیات پیش‌فاکتور را دانلود و فروش را «تحویل» می‌کنید.{% endif %}</p>
+    </div>
+    {% include "finance/partials/accounting_nav.html" %}
+
+    <form method="post" id="sale-form" data-fb-once class="flex flex-col gap-5">
+        {% csrf_token %}
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">اقلام</h2>
+            {% if lines_editable %}
+            <div class="fb-field">
+                <label class="fb-label" for="sale-warehouse">کم‌شدن از انبار</label>
+                <select id="sale-warehouse" name="warehouse_id" required class="select w-full sm:w-72">
+                    {% for w in warehouses %}<option value="{{ w.id }}" {% if values.warehouse|stringformat:"s" == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+                </select>
+                <span class="fb-hint">موجودی همین لحظه کم نمی‌شود؛ بعد از دکمه‌ی «تحویل» از همین انبار کم می‌شود.</span>
+            </div>
+            <div id="sale-lines" data-sprite="{% static 'icons/sprite.svg' %}"></div>
+            <input type="hidden" id="sale-lines-json" data-name="lines_json">
+            <div class="fb-inset flex items-center justify-between gap-2 text-sm font-bold">
+                <span>جمع فروش (تومان)</span>
+                <span class="font-technical" id="sale-total">۰</span>
+            </div>
+            {% else %}
+            <p class="text-sm"><span class="fb-muted">انبار:</span> {{ sale.warehouse.name }}</p>
+            <div class="overflow-x-auto">
+                <table class="table table-sm text-xs">
+                    <thead><tr class="fb-muted"><th>کالا</th><th>مقدار</th><th>قیمت یک واحد (تومان)</th><th>جمع (تومان)</th></tr></thead>
+                    <tbody>
+                    {% for l in lines %}
+                        <tr><td class="font-semibold">{{ l.item.name }}</td>
+                            <td class="font-technical">{{ l.qty|floatformat:"-4"|fa_digits }} {{ l.item.get_unit_display }}</td>
+                            <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td>
+                            <td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">مشتری</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="sale-name">نام مشتری</label>
+                    <input type="text" id="sale-name" name="customer_name" value="{{ values.name }}" maxlength="150" autocomplete="off" class="input w-full">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="sale-phone">شماره‌ی مشتری</label>
+                    <input type="text" id="sale-phone" name="customer_phone" value="{{ values.phone }}" data-digits maxlength="11" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                </div>
+            </div>
+            <p class="fb-hint">اگر نام یا شماره بنویسید، فروش در تب «مشتریان» می‌آید.</p>
+            <div class="fb-field">
+                <label class="fb-label" for="sale-notes">توضیح (در صورت نیاز)</label>
+                <input type="text" id="sale-notes" name="notes" value="{{ values.notes }}" maxlength="255" class="input w-full">
+            </div>
+        </section>
+
+        {% if not sale %}
+        <section class="fb-card fb-pad flex flex-col gap-3">
+            <h2 class="fb-section-title">دریافتی (در صورت نیاز)</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="fb-field">
+                    <label class="fb-label" for="sale-pay-amount">مبلغ دریافتی (تومان)</label>
+                    <input type="text" id="sale-pay-amount" name="pay_amount" value="{{ values.pay_amount }}" data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
+                </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="sale-pay-method">روش پرداخت</label>
+                    <select id="sale-pay-method" name="pay_method" class="select w-full">
+                        {% for value, label in methods %}<option value="{{ value }}" {% if values.pay_method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <p class="fb-hint">خالی بماند یعنی هنوز پولی نیامده. پرداخت‌های بعدی را در صفحه‌ی جزئیات ثبت کنید.</p>
+        </section>
+        {% endif %}
+
+        <div class="fb-sticky-bar">
+            <a href="{% if sale %}{% url 'finance:accounting_sale' sale.id %}{% else %}{% url 'finance:accounting_sales' %}{% endif %}" class="btn btn-ghost">انصراف</a>
+            <button type="submit" class="btn btn-primary">{% if sale %}ذخیره{% else %}ثبت فروش{% endif %}</button>
+        </div>
+    </form>
+</div>
+{% if lines_editable %}
+{{ items_data|json_script:"sale-items-data" }}
+{{ initial_lines|json_script:"sale-initial" }}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if lines_editable %}
+<script src="{% static_v 'js/item_picker.js' %}"></script>
+<script src="{% static_v 'js/line_editor.js' %}"></script>
+<script>
+(function () {
+    var data = JSON.parse(document.getElementById('sale-items-data').textContent || '[]');
+    var byId = {};
+    data.forEach(function (it) { byId[it.id] = it; });
+    function el(id) { return document.getElementById(id); }
+    var E = window.fbLineEditor, num = E.num, fmt = E.fmt;
+    var nf = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 4 });
+    var editor = E({
+        mount: el('sale-lines'), hidden: el('sale-lines-json'),
+        initial: JSON.parse(el('sale-initial').textContent || '[]'),
+        addLabel: 'افزودن کالا', emptyText: 'کالایی اضافه نشده.',
+        columns: [
+            { key: 'id', type: 'picker', label: 'کالا', items: data, placeholder: 'جستجوی کالا...', cls: 'flex-1 min-w-48' },
+            { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+            { key: 'unit_price', type: 'money', label: 'قیمت فروش یک واحد (تومان)', cls: 'w-44' },
+            { key: 'stock', type: 'readonly', label: 'موجودی انبار', cls: 'w-28',
+              compute: function (d) {
+                  var it = byId[parseInt(d.id, 10)], w = el('sale-warehouse');
+                  if (!it || !w) return '—';
+                  return nf.format(parseFloat((it.stock || {})[w.value] || 0));
+              } }
+        ],
+        footer: function (d) { var t = num(d.qty) * num(d.unit_price); return t > 0 ? 'جمع این کالا: ' + fmt(t) + ' تومان' : ''; },
+        onChange: function (rows) {
+            var t = 0;
+            rows.forEach(function (r) { t += Math.round(num(r.qty) * num(r.unit_price)); });
+            el('sale-total').textContent = fmt(t);
+        }
+    });
+    el('sale-warehouse').addEventListener('change', function () { editor.notify(); });
+})();
+</script>
+{% endif %}
+{% endblock %}
