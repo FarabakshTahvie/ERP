@@ -27,6 +27,12 @@ class NotificationType(models.TextChoices):
     INSTALL_DONE = "install_done", "نصب پروژه"
     INVOICE_FINALIZED = "invoice_finalized", "نهایی‌شدن فاکتور"
     INVOICE_EXPIRED = "invoice_expired", "پایان مهلت پیش‌فاکتور"
+    PAYMENT_SUBMITTED = "payment_submitted", "پرداخت جدید مشتری"
+    APPROVAL_REJECTED = "approval_rejected", "رد مرحله توسط مشتری"
+    PROFORMA_SUSPENDED = "proforma_suspended", "تعلیق پیش‌فاکتور (پایان مهلت)"
+    STAGE_UNASSIGNED = "stage_unassigned", "مرحله‌ی بدون مسئول"
+    SHIPMENT_NOT_RECEIVED = "shipment_not_received", "اقلام دریافت نشد"
+    CHEQUE_DUE = "cheque_due", "سررسید چک"
 
 
 class ChannelPolicy(models.TextChoices):

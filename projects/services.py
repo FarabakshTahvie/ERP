@@ -402,6 +402,16 @@ def notify_stage_responsible(stage, *, reason=""):
         users, pool = [stage.assigned_to], False
     else:
         users, pool = list(stage.candidate_users.all()), True
+    users = [u for u in users if u.is_active]
+    if not users:   # کسی نیست که خبردار شود؛ مدیر باید ارجاع بدهد
+        from django.urls import reverse
+        from notifications.services import notify_staff
+        notify_staff("stages.assign", notification_type=NotificationType.STAGE_UNASSIGNED,
+                     title="مرحله بدون مسئول",
+                     body=(f"مرحله «{stage.title}» از پروژه «{stage.project.name}» فعال شد ولی مسئول یا "
+                           "کاندیدایی ندارد؛ ارجاعش دهید."),
+                     real_target_url=reverse("dashboard:assign_stage", args=[stage.pk]))
+        return
     body = f"مرحله «{stage.title}» از پروژه «{stage.project.name}»"
     if reason:
         body += f" — {reason}"
@@ -728,6 +738,24 @@ def send_stage_for_approval(stage, party=None, sent_by=None):
     return approval
 
 
+def _notify_approval_rejected(stage, approval, comment):
+    """رد مشتری به مدیر و حسابدار خبر می‌دهد (بعد از commit). اگر مرحله معلق شد، همین را می‌گوید."""
+    from django.urls import reverse
+    from notifications.models import NotificationType
+    from notifications.services import notify_staff
+    project = stage.project
+    suspended = stage.status == ProjectStage.Status.SUSPENDED
+    url = (reverse("projects:proforma_editor", args=[project.pk]) if stage.step_template.requires_payment_selection
+           else reverse("projects:staff_project_overview", args=[project.pk]))
+    reason = " ".join((comment or "").split())[:150]
+    body = f"{approval.sent_to_party.name} مرحله «{stage.client_label or stage.title}» پروژه «{project.name}» را رد کرد"
+    body += "؛ مرحله معلق شد" if suspended else ""
+    body += f": {reason}" if reason else "."
+    notify_staff("accounting.access", notification_type=NotificationType.APPROVAL_REJECTED,
+                 title="مشتری مرحله را رد کرد", body=body, real_target_url=url,
+                 extra_data={"project_id": project.pk})
+
+
 @transaction.atomic
 def decide_stage_approval(approval, actor, decision, comment=""):
     from .models import StageApproval
@@ -744,6 +772,7 @@ def decide_stage_approval(approval, actor, decision, comment=""):
         advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=comment or "تایید شد توسط کارفرما/شریک")
     elif decision == StageApproval.Decision.REJECTED:
         advance_stage(stage, actor=actor, new_status=ProjectStage.Status.REJECTED, comment=comment)
+        _notify_approval_rejected(stage, approval, comment)
 
     return approval
 

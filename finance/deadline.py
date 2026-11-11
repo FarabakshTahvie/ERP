@@ -117,8 +117,12 @@ def suspended_invoices_qs(today=None):
 
 
 def notify_expired_proformas(today=None):
-    """به مشتریِ هر پیش‌فاکتور معلق پیامک مهلت می‌فرستد (یک‌بار برای هر آخرین روز). خروجی: تعداد صف‌شده."""
-    from .services import notify_proforma_expired
+    """به مشتریِ هر پیش‌فاکتور معلق پیامک مهلت می‌فرستد (یک‌بار برای هر آخرین روز). به مدیر و حسابدار هم پوش می‌رود. خروجی: تعداد صف‌شده."""
+    from .services import notify_proforma_expired, notify_staff_proforma_expired
     today = today or timezone.localdate()
     invoices = list(suspended_invoices_qs(today).select_related("billed_party", "project"))
-    return sum(1 for inv in invoices if notify_proforma_expired(inv))
+    queued = 0
+    for inv in invoices:
+        queued += 1 if notify_proforma_expired(inv) else 0
+        notify_staff_proforma_expired(inv)   # حتی اگر مشتری حساب ورود ندارد، حسابدار باید بداند
+    return queued

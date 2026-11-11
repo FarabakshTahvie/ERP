@@ -92,6 +92,20 @@ def capabilities_for(user):
     return {name: bool(rule(facts)) for name, rule in CAPABILITIES.items()}
 
 
+def users_with(capability):
+    """کاربران فعالِ دارای این قابلیت، به ترتیب شناسه؛ برای اعلان به نقش‌ها (مدیر، حسابدار).
+    کارکنان کم‌اند و هر کاربر یک‌بار ارزیابی می‌شود. قابلیت ناشناخته KeyError می‌دهد."""
+    try:
+        rule = CAPABILITIES[capability]
+    except KeyError:
+        raise KeyError(f"قابلیت ناشناخته: {capability}")
+    from django.contrib.auth import get_user_model
+    from django.db.models import Q
+    users = (get_user_model().objects.filter(is_active=True)
+             .filter(Q(is_superuser=True) | Q(role__in=("manager", "employee"))).order_by("pk"))
+    return [u for u in users if rule(_Facts(u))]
+
+
 def is_manager(user):
     return _Facts(user).manager
 

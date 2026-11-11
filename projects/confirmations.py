@@ -52,6 +52,17 @@ def record_view(conf):
     rows.update(view_count=F("view_count") + 1, last_viewed_at=now)
 
 
+def _notify_not_received(project, stage):
+    """مشتری «دریافت نشد» زد؛ مدیر باید پیگیری کند (بعد از commit؛ تکرار همان پاسخ دوباره خبر نمی‌دهد)."""
+    from django.urls import reverse
+    from notifications.models import NotificationType
+    from notifications.services import notify_staff
+    notify_staff("dashboard.manager", notification_type=NotificationType.SHIPMENT_NOT_RECEIVED,
+                 title="مشتری اقلام را دریافت نکرد",
+                 body=f"مشتریِ پروژه «{project.name}» برای مرحله «{stage.title}» «دریافت نشد» را زد؛ با او تماس بگیرید.",
+                 real_target_url=reverse("projects:staff_project_overview", args=[project.pk]))
+
+
 @transaction.atomic
 def set_decision(*, stage_id, decision, actor):
     """صریح و idempotent. تکرار همان پاسخ زمان پاسخ را عوض نمی‌کند."""
@@ -72,6 +83,8 @@ def set_decision(*, stage_id, decision, actor):
         return conf
     conf.decision, conf.decided_at, conf.decided_by = decision, timezone.now(), actor
     conf.save(update_fields=["decision", "decided_at", "decided_by"])
+    if decision == D.NOT_RECEIVED:
+        _notify_not_received(project, stage)
     return conf
 
 
