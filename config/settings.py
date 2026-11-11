@@ -156,6 +156,7 @@ CELERY_BEAT_SCHEDULE = {
     "process-broadcasts": {"task": "notifications.process_broadcasts", "schedule": 60.0},   # شبکه‌ی ایمنی
     "messenger-cleanup": {"task": "messenger.cleanup_old", "schedule": crontab(hour=3, minute=30)},
     "notify-expired-proformas": {"task": "finance.notify_expired_proformas", "schedule": crontab(hour=9, minute=0)},
+    "notify-cheques-due": {"task": "finance.notify_cheques_due", "schedule": crontab(hour=9, minute=5)},
 }
 
 if 'test' in sys.argv:

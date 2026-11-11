@@ -158,7 +158,9 @@ def create_customer_payment(*, invoice, method, amount_raw="", reference_number=
     if method == Payment.Method.CHEQUE:
         kwargs["cheque_number"] = (cheque_number or "").strip()
         kwargs["cheque_bank"] = (cheque_bank or "").strip()
-    return Payment.objects.create(**kwargs)
+    payment = Payment.objects.create(**kwargs)
+    _notify_payment_submitted(payment)
+    return payment
 
 
 
@@ -327,6 +329,65 @@ def notify_proforma_expired(invoice):
                  body=f"مهلت تایید پیش‌فاکتور {invoice.number} تمام شد؛ برای تایید با دفتر تماس بگیرید.",
                  real_target_url=url, extra_data={"invoice_number": invoice.number, "valid_until": day})
     return True
+
+
+def _notify_payment_submitted(payment):
+    """به مدیر و حسابدار خبر می‌دهد پرداخت مشتری منتظر بررسی است؛ بعد از commit می‌رود (با برگشت تراکنش نمی‌رود)."""
+    from django.urls import reverse
+    from notifications.models import NotificationType
+    from notifications.services import notify_staff
+    invoice = payment.invoice
+    amount = separate_digits(payment.claimed_amount if payment.claimed_amount is not None else payment.amount)
+    notify_staff("payments.review", notification_type=NotificationType.PAYMENT_SUBMITTED,
+                 title="پرداخت جدید منتظر بررسی",
+                 body=(f"{invoice.billed_party.name} برای پروژه «{invoice.project.name}» پرداخت "
+                       f"{payment.get_method_display()} به مبلغ {amount} تومان ثبت کرد؛ منتظر بررسی شماست."),
+                 real_target_url=reverse("finance:payment_detail", args=[payment.pk]),
+                 extra_data={"invoice_number": invoice.number, "payment_id": payment.pk})
+
+
+def notify_staff_proforma_expired(invoice):
+    """به مدیر و حسابدار می‌گوید این پیش‌فاکتور معلق شده؛ برای هر آخرین روز (valid_until) فقط یک‌بار.
+    مستقل از وجود حساب ورود برای مشتری. خروجی: آیا صف شد؟"""
+    from django.urls import reverse
+    from notifications.models import Notification, NotificationType
+    from notifications.services import notify_staff
+    if invoice.valid_until is None:
+        return False
+    url = reverse("projects:proforma_editor", args=[invoice.project_id])
+    day = invoice.valid_until.isoformat()
+    if Notification.objects.filter(notification_type=NotificationType.PROFORMA_SUSPENDED,
+                                   real_target_url=url, extra_data__valid_until=day).exists():
+        return False
+    notify_staff("accounting.access", notification_type=NotificationType.PROFORMA_SUSPENDED,
+                 title="پیش‌فاکتور معلق شد",
+                 body=(f"مهلت تایید پیش‌فاکتور {invoice.number} پروژه «{invoice.project.name}» تمام شد. "
+                       "قیمت‌ها را اصلاح و مهلت را تمدید کنید."),
+                 real_target_url=url, extra_data={"invoice_number": invoice.number, "valid_until": day})
+    return True
+
+
+def notify_cheques_due(today=None):
+    """برای هر چکِ تازه‌واردشده به بازه‌ی «تا ۷ روز به سررسید یا گذشته» (cheque_soon_q) یک‌بار به مدیر و حسابدار
+    پوش می‌دهد. خروجی: تعداد اعلان صف‌شده."""
+    from django.urls import reverse
+    from notifications.models import Notification, NotificationType
+    from notifications.services import notify_staff
+    from utils.jalali import jalali_str
+    today = today or timezone.localdate()
+    queued = 0
+    for p in Payment.objects.filter(cheque_soon_q(today)).select_related("invoice__project"):
+        url = reverse("finance:payment_detail", args=[p.pk])
+        if Notification.objects.filter(notification_type=NotificationType.CHEQUE_DUE, real_target_url=url).exists():
+            continue
+        late = p.cheque_due_date < today
+        notify_staff("payments.review", notification_type=NotificationType.CHEQUE_DUE,
+                     title="سررسید چک گذشته است" if late else "سررسید چک نزدیک است",
+                     body=(f"چک پروژه «{p.invoice.project.name}» (فاکتور {p.invoice.number}) به مبلغ "
+                           f"{separate_digits(p.amount)} تومان؛ سررسید {jalali_str(p.cheque_due_date, fmt='%Y/%m/%d')}."),
+                     real_target_url=url, extra_data={"payment_id": p.pk})
+        queued += 1
+    return queued
 
 
 @transaction.atomic

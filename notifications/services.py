@@ -145,6 +145,15 @@ def notify_users(users, *, notification_type, title, body, real_target_url="", e
     transaction.on_commit(send)
 
 
+def notify_staff(capability, *, notification_type, title, body, real_target_url="", extra_data=None, exclude=()):
+    """اعلان برای همه‌ی کاربران فعالِ دارای یک قابلیت (مثلاً «accounting.access» = مدیر و حسابدار).
+    مثل notify_users بعد از commit می‌رود. exclude: شناسه‌ی کسانی که نباید بگیرند (مثل خودِ عامل)."""
+    from core.capabilities import users_with
+    skip = set(exclude)
+    notify_users([u for u in users_with(capability) if u.pk not in skip], notification_type=notification_type,
+                 title=title, body=body, real_target_url=real_target_url, extra_data=extra_data)
+
+
 def resend_notification(notification, *, actor):
     """ارسال دوباره‌ی اعلان ناموفق (فقط مدیر). پیامک پیش‌فاکتور مجاز نیست: رمزش بعد از ارسال پاک شده."""
     from core.capabilities import can
