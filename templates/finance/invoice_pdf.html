@@ -38,9 +38,20 @@
             display: block;
         }
         .brand {
-            font-size: 20pt;
-            font-weight: 900;
+            font-size: 14pt;
+            font-weight: 800;
             color: #0d9488;
+            white-space: nowrap;
+        }
+        .expired-box {
+            border: 1.5px solid #b91c1c;
+            background: #fef2f2;
+            color: #b91c1c;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            font-size: 10pt;
+            font-weight: bold;
         }
         .doc-title {
             font-size: 16pt;
@@ -130,7 +141,7 @@
 </head>
 <body>
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap;">
             <img src="{% static 'icons/logo-invoice.svg' %}" alt="">
             <span class="brand">فرابخش تهویه</span>
         </div>
@@ -139,6 +150,12 @@
             <div style="font-size: 10pt; font-weight: normal; color: #6b7280; margin-top: 4px;">شماره: <span dir="ltr">{{ invoice.number|fa_digits }}</span></div>
         </div>
     </div>
+
+    {% if deadline.state == 'expired' %}
+    <div class="expired-box">
+        این پیش‌فاکتور منقضی شده است؛ مهلت تایید آن تا {{ deadline.last_day|to_jalali:"%Y/%m/%d" }} بود. قیمت‌ها ممکن است تغییر کرده باشد. برای تایید با دفتر تماس بگیرید: <span dir="ltr">{{ deadline.phone }}</span>
+    </div>
+    {% endif %}
 
     <table class="meta-table">
         <tr>

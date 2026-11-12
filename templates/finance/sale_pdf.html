@@ -10,7 +10,7 @@
         body { font-family: 'Vazirmatn', sans-serif; direction: rtl; color: #1f2937; font-size: 11pt; line-height: 1.5; margin: 0; }
         .header { border-bottom: 2px solid #0d9488; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
         .header img { height: 42px; width: auto; display: block; }
-        .brand { font-size: 20pt; font-weight: 900; color: #0d9488; }
+        .brand { font-size: 14pt; font-weight: 800; color: #0d9488; white-space: nowrap; }
         .doc-title { font-size: 16pt; font-weight: 800; text-align: left; color: #111827; }
         .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         .meta-table td { padding: 6px 8px; font-size: 10pt; vertical-align: top; }
@@ -31,7 +31,7 @@
 </head>
 <body>
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0; white-space: nowrap;">
             <img src="{% static 'icons/logo-invoice.svg' %}" alt="">
             <span class="brand">فرابخش تهویه</span>
         </div>
