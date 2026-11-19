@@ -85,7 +85,16 @@
         err.classList.add('hidden');
         btn.disabled = true;
         window.fbSend(url, new FormData(form), window.FB_CSRF).then(function (res) {
-          if (res.ok) { window.location.reload(); return; }
+          if (res.ok) {
+            if (res.category) {
+              var nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('tab', res.category);
+              window.location.assign(nextUrl.toString());
+            } else {
+              window.location.reload();
+            }
+            return;
+          }
           btn.disabled = false;
           err.textContent = res.error || 'ثبت نشد.';
           err.classList.remove('hidden');
@@ -126,6 +135,19 @@
   document.addEventListener('click', function (e) {
     if (!window.fbSend || !e.target.closest) return;
 
+    var add = e.target.closest('[data-bankcard-add]');
+    if (add) {
+      var addDialog = document.getElementById('bankcard-dialog');
+      var addForm = addDialog && addDialog.querySelector('[data-bankcard-form]');
+      if (!addDialog || !addForm) return;
+      addForm.reset();
+      addForm._syncOther();
+      addForm.querySelector('[data-bankcard-error]').classList.add('hidden');
+      addForm.querySelector('button[type="submit"]').disabled = false;
+      addDialog.showModal();
+      return;
+    }
+
     var edit = e.target.closest('[data-bankcard-edit]');
     if (edit) {
       var editDialog = document.getElementById('bankcard-edit-dialog');
@@ -133,6 +155,8 @@
       if (!editForm) return;
       var d = edit.dataset;
       editForm.setAttribute('action', d.url);
+      var catField = editForm.querySelector('[name="category"]');
+      if (catField) catField.value = d.category || 'farabakhsh';
       editForm.querySelector('[name="bank"]').value = d.bank;
       editForm.querySelector('[name="other_bank_name"]').value = d.other;
       editForm.querySelector('[name="holder_name"]').value = d.holder;

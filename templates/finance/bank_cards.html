@@ -9,13 +9,21 @@
             {% if not can_manage %}<p class="fb-page-sub">برای کارت به کارت، شماره را کپی کنید و رسید را در پرتال ثبت کنید.</p>{% endif %}
         </div>
         {% if can_manage %}
-        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bankcard-dialog').showModal()">
+        <button type="button" class="btn btn-primary btn-sm" data-bankcard-add>
             {% icon "plus" "w-4 h-4" %} افزودن کارت
         </button>
         {% endif %}
     </div>
 
-    {% bank_cards_slider %}
+    {% if can_manage %}
+    <div role="tablist" class="tabs tabs-border">
+        {% for value, label in category_choices %}
+        <a href="?tab={{ value }}" role="tab" class="tab {% if active_tab == value %}tab-active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% bank_cards_slider active_tab %}
 
     {% if can_manage and all_cards %}
     <section class="fb-card fb-pad flex flex-col gap-2">
@@ -30,7 +38,7 @@
             <div class="flex items-center gap-1 flex-wrap">
                 <span class="fb-badge {% if c.is_active %}fb-badge-success{% else %}fb-badge-neutral{% endif %}">{% if c.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
                 <button type="button" class="btn btn-ghost btn-xs" data-bankcard-edit
-                        data-url="{% url 'finance:bank_card_update' c.id %}" data-bank="{{ c.bank }}" data-other="{{ c.other_bank_name }}"
+                        data-url="{% url 'finance:bank_card_update' c.id %}" data-category="{{ c.category }}" data-bank="{{ c.bank }}" data-other="{{ c.other_bank_name }}"
                         data-holder="{{ c.holder_name }}" data-number="{{ c.card_number }}" data-sheba="{{ c.sheba }}"
                         data-cvv2="{{ c.cvv2 }}" data-expiry="{{ c.expiry }}">ویرایش</button>
                 <button type="button" class="btn btn-ghost btn-xs" data-bankcard-active

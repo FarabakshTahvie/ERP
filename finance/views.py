@@ -345,11 +345,16 @@ def statement(request):
 
 @login_required
 def bank_cards_page(request):
-    """هر کاربر واردشده شماره و شبا را می‌بیند. CVV2، انقضا و مدیریت کارت‌ها فقط با bank_cards.manage."""
+    """هر کاربر واردشده کارت‌های «فرابخش» را می‌بیند. تب «نیروها»، CVV2، انقضا و مدیریت فقط با bank_cards.manage."""
     manage = can(request.user, "bank_cards.manage")
+    requested = (request.GET.get("tab") or "").strip()
+    active_tab = requested if (manage and requested in BankCard.Category.values) else BankCard.Category.FARABAKHSH
     return render(request, "finance/bank_cards.html", {
-        "bank_choices": BANK_CHOICES, "can_manage": manage,
-        "all_cards": list(BankCard.objects.all()) if manage else [],
+        "bank_choices": BANK_CHOICES,
+        "category_choices": BankCard.Category.choices,
+        "can_manage": manage,
+        "active_tab": active_tab,
+        "all_cards": list(BankCard.objects.filter(category=active_tab)) if manage else [],
     })
 
 
@@ -357,30 +362,33 @@ def bank_cards_page(request):
 @require_POST
 def bank_card_create(request):
     try:
-        create_bank_card(
-            actor=request.user, bank=request.POST.get("bank", ""),
+        card = create_bank_card(
+            actor=request.user,
+            category=request.POST.get("category", BankCard.Category.FARABAKHSH),
+            bank=request.POST.get("bank", ""),
             other_bank_name=request.POST.get("other_bank_name", ""),
             holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
             sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
             expiry=request.POST.get("expiry", ""))
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "category": card.category})
 
 
 @cap_required("bank_cards.manage")
 @require_POST
 def bank_card_update(request, card_id):
     try:
-        update_bank_card(
+        kw = {"category": request.POST.get("category")} if "category" in request.POST else {}
+        card = update_bank_card(
             actor=request.user, card_id=card_id, bank=request.POST.get("bank", ""),
             other_bank_name=request.POST.get("other_bank_name", ""),
             holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
             sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
-            expiry=request.POST.get("expiry", ""))
+            expiry=request.POST.get("expiry", ""), **kw)
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "category": card.category})
 
 
 @cap_required("bank_cards.manage")

@@ -235,7 +235,16 @@ class ChequeEvent(models.Model):
 
 
 class BankCard(TimeStampedModel):
-    """کارت بانکی خودِ شرکت؛ برای نمایش به مشتری در پرداخت کارت به کارت و صفحهی عمومی."""
+    """کارت بانکی (فرابخش برای دریافت از مشتری، و نیروها برای پرداخت به همکاران؛ تب نیروها فقط با bank_cards.manage)."""
+
+    class Category(models.TextChoices):
+        FARABAKHSH = "farabakhsh", "فرابخش"
+        STAFF = "staff", "نیروها"
+
+    category = models.CharField(
+        max_length=20, choices=Category.choices, default=Category.FARABAKHSH,
+        db_index=True, verbose_name="بخش",
+    )
     bank = models.CharField(max_length=20, choices=BANK_CHOICES, default="other", verbose_name="بانک")
     other_bank_name = models.CharField(max_length=60, blank=True, verbose_name="نام بانک (وقتی «سایر» است)")
     holder_name = models.CharField(max_length=120, verbose_name="نام صاحب کارت")
