@@ -15,4 +15,7 @@ urlpatterns = [
     path("inventory/bulk-opening/", views_bulk.bulk_opening_page, name="bulk_opening"),
     path("inventory/bulk-reconciliation/", views_bulk.bulk_reconciliation_page, name="bulk_reconciliation"),
     path("inventory/bulk-template/<str:mode>/", views_bulk.bulk_template, name="bulk_template"),
+    path("inventory/warehouses/", views.warehouse_list, name="warehouse_list"),
+    path("inventory/stock-transfer/", views.stock_transfer_new, name="stock_transfer_new"),
+    path("inventory/items/<int:item_id>/delete/", views.item_delete, name="item_delete"),
 ]

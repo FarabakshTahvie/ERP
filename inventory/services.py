@@ -144,6 +144,32 @@ def consume_stock(*, item, qty, user=None, related_object=None, notes="",
     return breakdown
 
 
+@transaction.atomic
+def transfer_stock(*, item, qty_raw, from_warehouse, to_warehouse, user, notes):
+    """خروج FIFO از انبار مبدا و ورود به انبار مقصد با همان بهای میانگین موزون همان خروج."""
+    notes = (notes or "").strip()
+    if not notes:
+        raise ValueError("دلیل انتقال را بنویسید.")
+    if from_warehouse.pk == to_warehouse.pk:
+        raise ValueError("انبار مبدا و مقصد نباید یکی باشند.")
+    assert_stockable(item)
+    qty = parse_decimal_input(qty_raw, label="مقدار")
+    breakdown = consume_stock(
+        item=item, qty=qty, user=user, warehouse=from_warehouse,
+        movement_type=StockMovement.MovementType.TRANSFER,
+        notes=f"انتقال به «{to_warehouse.name}» — {notes}"[:255],
+    )
+    moved_qty = sum((take for _lot, take, _cost in breakdown), Decimal("0"))
+    moved_value = sum((take * cost for _lot, take, cost in breakdown), Decimal("0"))
+    avg_cost = (moved_value / moved_qty) if moved_qty else Decimal("0")
+    receive_stock(
+        item=item, warehouse=to_warehouse, qty=moved_qty, unit_cost=avg_cost, received_at=timezone.now(),
+        movement_type=StockMovement.MovementType.TRANSFER, direction=StockMovement.Direction.IN,
+        notes=f"انتقال از «{from_warehouse.name}» — {notes}"[:255], created_by=user,
+    )
+    return moved_qty
+
+
 def warehouse_keepers():
     from accounts.models import User
     return User.objects.filter(role=User.Role.EMPLOYEE, is_active=True,
@@ -170,6 +196,50 @@ from core.capabilities import can
 
 def user_can_manage_inventory(user):
     return can(user, "inventory.manage")
+
+
+def user_can_manage_warehouses(user):
+    """برخلاف user_can_manage_inventory، مدیر را هم شامل می‌شود؛ چون مدیریت انبارها کار ساختاری است."""
+    from core.capabilities import is_manager
+    return user_can_manage_inventory(user) or is_manager(user)
+
+
+WAREHOUSE_NAME_MAX = 100
+
+
+@transaction.atomic
+def create_warehouse(*, name, is_default=False):
+    name = " ".join((name or "").split())
+    if not name:
+        raise ValueError("نام انبار را بنویسید.")
+    if len(name) > WAREHOUSE_NAME_MAX:
+        raise ValueError(f"نام انبار نباید بیش از {WAREHOUSE_NAME_MAX} نویسه باشد.")
+    if Warehouse.objects.filter(name__iexact=name).exists():
+        raise ValueError("انباری با همین نام از قبل وجود دارد.")
+    warehouse = Warehouse.objects.create(name=name, is_default=False)
+    if is_default or not Warehouse.objects.exclude(pk=warehouse.pk).filter(is_default=True).exists():
+        set_default_warehouse(warehouse)
+    return warehouse
+
+
+@transaction.atomic
+def update_warehouse(*, warehouse, name):
+    name = " ".join((name or "").split())
+    if not name:
+        raise ValueError("نام انبار را بنویسید.")
+    if len(name) > WAREHOUSE_NAME_MAX:
+        raise ValueError(f"نام انبار نباید بیش از {WAREHOUSE_NAME_MAX} نویسه باشد.")
+    if Warehouse.objects.exclude(pk=warehouse.pk).filter(name__iexact=name).exists():
+        raise ValueError("انباری با همین نام از قبل وجود دارد.")
+    warehouse.name = name
+    warehouse.save(update_fields=["name"])
+    return warehouse
+
+
+@transaction.atomic
+def set_default_warehouse(warehouse):
+    Warehouse.objects.exclude(pk=warehouse.pk).update(is_default=False)
+    Warehouse.objects.filter(pk=warehouse.pk).update(is_default=True)
 
 
 def user_can_create_purchases(user):
@@ -222,20 +292,16 @@ def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=Non
     if not lines:
         raise ValueError("حداقل یک ردیف کالا باید وارد شود.")
 
-    warehouse = Warehouse.objects.filter(is_default=True).first()
-    if not warehouse:
-        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
-
     supplier = _resolve_supplier_party(party_id=supplier_party_id, party_data=supplier_party_data)
     purchase = Purchase.objects.create(
-        supplier=supplier,
-        invoice_number=(invoice_number or "").strip(),
-        notes=(notes or "").strip(),
-        purchased_at=purchased_at,
+        supplier=supplier, invoice_number=(invoice_number or "").strip(),
+        notes=(notes or "").strip(), purchased_at=purchased_at,
     )
     items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
+    warehouses_by_id = {w.pk: w for w in Warehouse.objects.filter(pk__in=[l["warehouse_id"] for l in lines])}
     for line in lines:
         item = items_by_id[line["item_id"]]
+        warehouse = warehouses_by_id[line["warehouse_id"]]
         purchase_line = PurchaseLine.objects.create(
             purchase=purchase, item=item, warehouse=warehouse,
             qty=line["qty"], unit_cost=line["unit_cost"],
@@ -252,13 +318,14 @@ def _clean_purchase_lines(raw_lines):
     for raw in (raw_lines or []):
         try:
             item_id = int(raw["id"])
+            warehouse_id = int(raw["warehouse_id"])
             qty = Decimal(str(raw["qty"]))
             unit_cost = Decimal(str(raw["unit_cost"]))
         except (KeyError, TypeError, ValueError, InvalidOperation):
-            raise ValueError("اطلاعات ردیف‌های خرید نامعتبر است.")
+            raise ValueError("اطلاعات ردیف‌های خرید نامعتبر است؛ انبار هر ردیف را هم انتخاب کن.")
         if not qty.is_finite() or not unit_cost.is_finite() or qty <= 0 or unit_cost <= 0:
             raise ValueError("در ردیف‌های خرید، مقدار و بهای واحد باید بزرگ‌تر از صفر باشند.")
-        cleaned.append({"item_id": item_id, "qty": qty, "unit_cost": unit_cost})
+        cleaned.append({"item_id": item_id, "warehouse_id": warehouse_id, "qty": qty, "unit_cost": unit_cost})
     ids = {c["item_id"] for c in cleaned}
     if ids and Item.objects.filter(pk__in=ids, is_active=True).count() != len(ids):
         raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد یا غیرفعال است.")
@@ -266,6 +333,9 @@ def _clean_purchase_lines(raw_lines):
                    .values_list("name", flat=True))
     if blocked:
         raise ValueError("این کالاها ساختنی‌اند و خرید نمی‌شوند: " + "، ".join(blocked))
+    wh_ids = {c["warehouse_id"] for c in cleaned}
+    if wh_ids and Warehouse.objects.filter(pk__in=wh_ids).count() != len(wh_ids):
+        raise ValueError("انبار یکی از ردیف‌ها معتبر نیست.")
     return cleaned
 
 
@@ -349,7 +419,7 @@ def project_unit_cost(item, project):
 
 @transaction.atomic
 def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None,
-                               movement_date=None, internal=False):
+                               movement_date=None, internal=False, warehouse=None):
     """
     تنها مسیر ثبت مصرف/تعدیل/موجودی اولیه‌ی دستی.
     - consume: مصرف واقعی (OUT).
@@ -375,16 +445,16 @@ def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_ra
         if related_object is None and not internal:
             raise ValueError("برای مصرف، پروژه یا «مصرف داخلی شرکت» را مشخص کنید.")
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
-                      related_object=related_object, movement_date=target_date)
+                      related_object=related_object, movement_date=target_date, warehouse=warehouse)
         return
     if kind == CHANGE_KIND_ADJUST_DECREASE:
         consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
-                      related_object=related_object, movement_date=target_date)
+                      related_object=related_object, movement_date=target_date, warehouse=warehouse)
         return
 
-    warehouse = Warehouse.objects.filter(is_default=True).first()
+    warehouse = warehouse or Warehouse.objects.filter(is_default=True).first()
     if not warehouse:
-        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
+        raise ValueError("هیچ انباری تعریف نشده؛ ابتدا از «انبارها» یک انبار بساز.")
     has_cost = bool(str(unit_cost_raw or "").strip())
     if kind == CHANGE_KIND_RETURN:
         if related_object is None:
@@ -515,6 +585,22 @@ def item_structure_locked(item):
         or item.project_usages.exists() or item.used_in_services.exists()
         or item.service_line_usages.exists() or item.stage_usages.exists()
     )
+
+
+def item_truly_unused(item):
+    """کامل‌تر از item_structure_locked: فروش و حرکت انبار را هم می‌بیند. فقط برای حذف واقعی استفاده شود."""
+    return not (item_structure_locked(item) or item.sale_lines.exists() or item.movements.exists())
+
+
+@transaction.atomic
+def delete_unused_item(*, item, actor):
+    if not user_can_manage_inventory(actor):
+        raise ValueError("شما اجازه‌ی حذف کالا را ندارید.")
+    if not item_truly_unused(item):
+        raise ValueError("این کالا قبلاً در خرید، انبار، پروژه یا فروش استفاده شده؛ حذف نمی‌شود. به‌جایش غیرفعالش کن.")
+    name = item.name
+    item.delete()
+    return name
 
 
 @transaction.atomic

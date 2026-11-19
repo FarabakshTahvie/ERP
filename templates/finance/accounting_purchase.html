@@ -52,6 +52,12 @@
                     <div data-line-picker></div>
                     <input type="hidden" name="item_id">
                 </div>
+                <div class="fb-field">
+                    <label class="fb-label" for="line-warehouse">انبار</label>
+                    <select id="line-warehouse" name="warehouse_id" required class="select select-sm w-full">
+                        {% for w in warehouses %}<option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+                    </select>
+                </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div class="fb-field">
                         <label class="fb-label" for="line-qty">مقدار</label>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load custom_tags %}
+{% block title %}انبارها | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--sm">
+    <div>
+        <a href="{% url 'home' %}?tab=stock" class="link link-hover text-sm fb-muted">بازگشت به موجودی انبار</a>
+        <h1 class="fb-page-title mt-2">انبارها</h1>
+        <p class="fb-page-sub">انبار پیش‌فرض همان‌جایی است که اگر هنگام ثبت مصرف/تعدیل انباری انتخاب نشود، استفاده می‌شود.</p>
+    </div>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">انبار جدید</h2>
+        <form method="post" data-fb-once class="flex flex-col gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="fb-field">
+                <label class="fb-label" for="wh-new-name">نام انبار</label>
+                <input type="text" id="wh-new-name" name="name" required maxlength="100" class="input w-full">
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" name="is_default" class="checkbox checkbox-sm"> انبار پیش‌فرض باشد
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm self-start">ثبت انبار</button>
+        </form>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">انبارهای موجود</h2>
+        {% for w in warehouses %}
+        <div class="fb-inset flex items-center justify-between gap-3 flex-wrap">
+            <form method="post" data-fb-once class="flex items-center gap-2 flex-1 min-w-48">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="warehouse_id" value="{{ w.id }}">
+                <input type="text" name="name" value="{{ w.name }}" required maxlength="100" class="input input-sm flex-1 min-w-0">
+                <button type="submit" class="btn btn-soft btn-sm">ذخیره</button>
+            </form>
+            {% if w.is_default %}
+            <span class="fb-badge fb-badge-success">پیش‌فرض</span>
+            {% else %}
+            <form method="post" data-fb-once>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="set_default">
+                <input type="hidden" name="warehouse_id" value="{{ w.id }}">
+                <button type="submit" class="btn btn-ghost btn-sm">پیش‌فرض کن</button>
+            </form>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="fb-hint">هنوز انباری ثبت نشده.</p>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}

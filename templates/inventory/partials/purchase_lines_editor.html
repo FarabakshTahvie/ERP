@@ -22,6 +22,9 @@
 <template id="purchase-row-template">
     <div class="fb-inset flex flex-col gap-2" data-row>
         <div data-picker></div>
+        <select data-warehouse aria-label="انبار" class="select select-sm w-32">
+            {% for w in warehouses %}<option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+        </select>
         <div class="flex items-center gap-2">
             <input type="text" data-qty data-decimal inputmode="decimal" autocomplete="off" placeholder="مقدار" aria-label="مقدار" dir="ltr"
                    class="input input-sm w-24 font-technical">
@@ -32,7 +35,7 @@
             </button>
         </div>
         <div class="text-xs fb-muted">جمع ردیف: <span class="font-technical" data-line-total>۰</span> تومان</div>
-        <div class="fb-error hidden" data-row-warn>کالا، مقدار و بهای واحد را وارد کنید؛ ردیف ناقص ثبت نمی‌شود.</div>
+        <div class="fb-error hidden" data-row-warn>کالا، انبار، مقدار و بهای واحد را وارد کنید؛ ردیف ناقص ثبت نمی‌شود.</div>
     </div>
 </template>
 
@@ -60,15 +63,16 @@
             var out = [], grand = 0;
             Array.prototype.forEach.call(box.children, function (row) {
                 var id = row._picker ? row._picker.getId() : null;
+                var warehouseId = row.querySelector('[data-warehouse]').value;
                 var qty = row.querySelector('[data-qty]').value.trim();
                 var cost = digits(row.querySelector('[data-cost]').value);
                 var qtyNum = parseFloat(qty) || 0;
                 var costNum = parseFloat(cost) || 0;
                 var line = qtyNum * costNum;
                 row.querySelector('[data-line-total]').textContent = fmt(line);
-                row.querySelector('[data-row-warn]').classList.toggle('hidden', !!id && qtyNum > 0 && costNum > 0);
-                if (id && qtyNum > 0 && costNum > 0) {
-                    out.push({ id: id, qty: qty, unit_cost: cost });
+                row.querySelector('[data-row-warn]').classList.toggle('hidden', !!id && !!warehouseId && qtyNum > 0 && costNum > 0);
+                if (id && warehouseId && qtyNum > 0 && costNum > 0) {
+                    out.push({ id: id, warehouse_id: warehouseId, qty: qty, unit_cost: cost });
                     grand += line;
                 }
             });

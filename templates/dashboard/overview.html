@@ -14,6 +14,8 @@
             {% endif %}
             {% if caps.purchases_create %}
             <a href="{% nav_url 'inventory:purchase_new' %}" class="btn btn-soft btn-sm">{% icon "receipt" "w-4 h-4" %} ثبت خرید</a>
+            <a href="{% url 'inventory:warehouse_list' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} انبارها</a>
+            <a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-soft btn-sm">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
             {% endif %}
             {% if caps.items_create %}
             <a href="{% url 'inventory:item_new' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} کالای جدید</a>

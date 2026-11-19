@@ -34,6 +34,8 @@
             <a href="{% url 'inventory:item_new' %}" class="btn btn-soft btn-sm">
                 {% icon "package" "w-4 h-4" %} کالای جدید
             </a>
+            <a href="{% url 'inventory:warehouse_list' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} انبارها</a>
+            <a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-soft btn-sm">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
             {% endif %}
             {% if can_create_projects %}
             <a href="{% url 'projects:new_project_form' %}" class="btn btn-primary btn-sm">

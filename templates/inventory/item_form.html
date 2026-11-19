@@ -99,6 +99,15 @@
         <button type="submit" class="btn btn-soft btn-sm {% if item.is_active %}btn-soft btn-error{% endif %}">{% if item.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
     </form>
     {% endif %}
+    {% if item and can_delete %}
+    <form method="post" action="{% url 'inventory:item_delete' item.id %}" data-fb-once
+          onsubmit="return confirm('این کالا برای همیشه حذف شود؟ برگشت ندارد.');"
+          class="fb-card fb-pad flex items-center justify-between gap-3">
+        {% csrf_token %}
+        <span class="text-xs fb-muted">این کالا هیچ‌جا (خرید، انبار، پروژه، فروش) استفاده نشده؛ برخلاف غیرفعال‌کردن، این دکمه کامل پاکش می‌کند.</span>
+        <button type="submit" class="btn btn-soft btn-error btn-sm">حذف همیشگی</button>
+    </form>
+    {% endif %}
 </div>
 
 <template id="spec-row-template">

@@ -5,6 +5,7 @@
   var tbody = document.querySelector('[data-purchase-lines]');
   var err = form.querySelector('[data-line-error]'), okMsg = form.querySelector('[data-line-ok]');
   var hidden = form.querySelector('input[name=item_id]');
+  var warehouseSelect = form.querySelector('select[name=warehouse_id]');
   var qty = form.querySelector('input[name=qty]'), cost = form.querySelector('input[name=unit_cost]');
   var btn = form.querySelector('button[type=submit]');
   var items = JSON.parse((document.getElementById('purchase-line-items') || {}).textContent || '[]');
@@ -56,12 +57,14 @@
     e.preventDefault();
     var q = qty.value.trim(), c = digits(cost.value);
     if (!hidden.value) { say(err, 'کالا را از فهرست انتخاب کنید.'); return; }
+    if (!warehouseSelect.value) { say(err, 'انبار را انتخاب کنید.'); return; }
     if (!q) { say(err, 'مقدار را بنویسید.'); return; }
     if (!c) { say(err, 'بهای واحد را بنویسید.'); return; }
     say(null, '');
     btn.disabled = true;
     var fd = new FormData();
     fd.append('item_id', hidden.value);
+    fd.append('warehouse_id', warehouseSelect.value);
     fd.append('qty', q);
     fd.append('unit_cost', c);
     window.fbSend(form.dataset.url, fd, window.FB_CSRF).then(function (res) {

@@ -42,6 +42,14 @@
         </div>
 
         <div class="fb-field">
+            <label class="fb-label" for="movement-warehouse">انبار</label>
+            <select id="movement-warehouse" name="warehouse_id" class="select w-full">
+                <option value="">پیش‌فرض (برای افزایش) / همه‌ی انبارها (برای مصرف و کسری)</option>
+                {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+            </select>
+        </div>
+
+        <div class="fb-field">
             <label class="fb-label" for="movement-qty">مقدار</label>
             <input type="text" id="movement-qty" name="qty" required dir="ltr" inputmode="decimal" autocomplete="off" data-decimal class="input w-full font-technical">
         </div>
@@ -93,6 +101,7 @@
         var kind = kindNow();
         var isConsume = kind === 'consume';
         var needsCost = kind === 'adjust_increase' || kind === 'opening';
+        el('movement-warehouse').required = needsCost;
         el('unit-cost-field').classList.toggle('hidden', !needsCost);
         el('movement-cost').required = kind === 'opening';
         el('unit-cost-hint').textContent = kind === 'opening'
