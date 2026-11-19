@@ -720,16 +720,25 @@ def update_cheque_info(*, payment, number, bank, due_date, actor):
     return payment
 
 
+def _clean_card_category(raw):
+    value = (raw or "").strip()
+    if value not in BankCard.Category.values:
+        raise ValueError("تب انتخاب‌شده معتبر نیست.")
+    return value
+
+
 @transaction.atomic
-def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="", sheba="", cvv2="", expiry=""):
-    """ثبت کارت بانکی شرکت (فقط مدیر یا حسابدار). هر ایرادی ValueError فارسی؛ کارت همان لحظه فعال و آخر فهرست می‌نشیند."""
+def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="", sheba="", cvv2="", expiry="",
+                     category=BankCard.Category.FARABAKHSH):
+    """ثبت کارت بانکی (فقط مدیر یا حسابدار). هر ایرادی ValueError فارسی؛ کارت همان لحظه فعال و آخر فهرست می‌نشیند."""
     from django.core.exceptions import ValidationError
     from core.capabilities import can
     if not can(actor, "bank_cards.manage"):
         raise ValueError("فقط مدیر یا حسابدار می‌تواند کارت بانکی ثبت کند.")
+    cat = _clean_card_category(category)
     last = BankCard.objects.aggregate(m=models.Max("order"))["m"]
     card = BankCard(
-        bank=(bank or "").strip(), other_bank_name=(other_bank_name or "").strip(),
+        category=cat, bank=(bank or "").strip(), other_bank_name=(other_bank_name or "").strip(),
         holder_name=holder_name or "", card_number=card_number or "", sheba=sheba or "",
         cvv2=cvv2 or "", expiry=expiry or "", is_active=True,
         order=0 if last is None else last + 1,
@@ -758,11 +767,13 @@ def _locked_bank_card(card_id):
 
 @transaction.atomic
 def update_bank_card(*, actor, card_id, bank, holder_name, card_number, other_bank_name="",
-                     sheba="", cvv2="", expiry=""):
-    """ویرایش کارت. فیلد خالی یعنی پاک‌شدن (فرم همیشه همه‌ی فیلدها را می‌فرستد). ترتیب و وضعیت فعال دست نمی‌خورد."""
+                     sheba="", cvv2="", expiry="", category=None):
+    """ویرایش کارت. فیلد خالی یعنی پاک‌شدن (فرم همیشه همه‌ی فیلدها را می‌فرستد). category=None یعنی تغییر نکند."""
     from django.core.exceptions import ValidationError
     _require_bank_card_manager(actor)
     card = _locked_bank_card(card_id)
+    if category is not None:
+        card.category = _clean_card_category(category)
     card.bank = (bank or "").strip()
     card.other_bank_name = (other_bank_name or "").strip()
     card.holder_name = holder_name or ""

@@ -161,12 +161,12 @@ class PaymentAdmin(JalaliAdminMixin, ModelAdmin):
 
 @admin.register(BankCard)
 class BankCardAdmin(ModelAdmin):
-    list_display = ("bank_display", "holder_name", "card_number", "is_active", "order")
+    list_display = ("bank_display", "category", "holder_name", "card_number", "is_active", "order")
     list_editable = ("is_active", "order")
-    list_filter = ("is_active", "bank")
+    list_filter = ("category", "is_active", "bank")
     search_fields = ("holder_name", "card_number", "other_bank_name")
     ordering = ("order", "id")
-    fields = ("bank", "other_bank_name", "holder_name", "card_number", "sheba", "cvv2", "expiry", "is_active", "order")
+    fields = ("category", "bank", "other_bank_name", "holder_name", "card_number", "sheba", "cvv2", "expiry", "is_active", "order")
 
     def has_module_permission(self, request):
         return can(request.user, "admin.panel")

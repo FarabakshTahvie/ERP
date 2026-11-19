@@ -1,768 +1,717 @@
-## بریف: مدیریت انبارها + انتخاب انبار + انتقال + حذف امن کالا
+## قواعد ثابت:
+- شاخه: (هر بریف شاخه‌ی خودش؛ مثلاً feat/<نام>، از main تازه). push و merge به main ممنوع.
+- git stash و git reset --hard ممنوع.
+- پایتون ۳.۱۲ (لوکال، سرور و CI)؛ سینتکس مخصوص ۳.۱۳ به بعد ممنوع.
+- هیچ رمز یا کلیدی در فایل، لاگ یا گزارش ننویس.
+- تعداد کل تست‌ها کم نشود (مگر حذف/بازنویسی که خود بریف می‌گوید؛ آن را در گزارش با نام بیاور). نام کلاس یا متد تست تکراری ممنوع.
+- فقط کار همین گام. کد بریف را عیناً بگذار، «بهتر» نکن. هر جا کد واقعی با بریف نخواند، توقف و گزارش.
+- فقط فایل‌هایی که بریف نام برده دست بخورد.
+- تصمیم دسترسی فقط با core/capabilities.py. select_for_update همراه select_related فقط با of=("self",).
+- در متن UI این کلمه‌ها ممنوع: «اختیاری»، «فعلاً»، «FIFO»، «اسنپ‌شات»، «اتمیک».
+- گزارش: تعداد تست قبل و بعد، نام تست‌های جدید/حذف/بازنویسی‌شده، خروجی makemigrations --check --dry-run، نتیجه‌ی هر mutation با نام تست شکست‌خورده (و برگرداندنش)، فهرست فایل‌ها، انحراف‌ها، git log و git branch -a. گزارش جایگزین تست دستی نیست.
+- هیچ متنِ آمده از سرور/کاربر با innerHTML، outerHTML، insertAdjacentHTML، document.write یا eval وارد صفحه نشود؛ حتی در کامنت این کلمه‌ها را ننویس. فقط createElement و textContent.
+- در تمپلیت فقط کلاس‌های Tailwind v4 و daisyUI v5. کلاس ممنوع: *-bordered، form-control، label-text، rounded-btn، shadow-sm، badge خالی، btn-warning. بج فقط fb-badge. btn-error فقط با btn-soft.
+- در تمپلیت `{{ a.b|default:a.c }}` وقتی a ممکن است None باشد ممنوع (آرگومان فیلتر خطا می‌دهد)؛ از {% if a %}...{% else %}—{% endif %} یا فیلتر |person_name استفاده کن.
+- کادر عددی تازه: data-money (مبلغ) یا data-decimal (مقدار اعشاری) یا data-digits (کد رقمی)؛ type="number" ممنوع.
+- روی عنصری که با JS مخفی/ظاهر می‌شود، کلاس‌های display مثل flex/grid ننویس (فقط hidden)؛ داخلش یک div با flex بگذار.
+- فایل JS تازه باید در static/src/input.css با @source ثبت شود و pnpm run build بدون خطا اجرا شود.
+- آیکون فقط از sprite.svg؛ آیکون ناموجود را از خودت نساز.
+- ممنوع: ساختن کاربر، تکنسین یا هر رکوردی در دیتابیس واقعی (لوکال یا سرور) برای آزمایش. بررسی خودکار فقط با تست‌های Django.
+- seed_test_team فقط اگر کاربر صریحاً خواست. هیچ کاربری پاک نشود.
+- تست موجود را فقط با «بازنویسی» اصلاح کن، نه حذفِ بی‌دلیل. هر جا بریف sed یا حذف فایل می‌گوید، بعدش grep بزن و خروجی را در گزارش بیاور.
+- اگر یک تست قدیمی به‌خاطر همین بریف شکست و در بریف نامش نیامده، تصمیم نگیر: نامش و علت را گزارش کن و فقط اگر علت مستقیم همین تغییر بود با بازنویسی درستش کن.
 
-**قواعد ثابت پروژه را رعایت کن** (آیکون فقط از sprite.svg، `data-money`/`data-decimal` به‌جای `type="number"`، کلاس‌های Tailwind v4/daisyUI v5 موجود، شاخه‌ی تازه از main، بدون merge بدون اجازه). هیچ تستی ننویس. هیچ مایگریشنی لازم نیست (مدل‌ها دست نمی‌خورند).
+### بریف: افزودن تب «نیروها» به کارت‌های بانکی (`feat/bank-cards-tabs`)
 
-### گام ۱ — `inventory/services.py`
+#### توضیح ساده
+در صفحه‌ی کارت‌های بانکی دو تب **«فرابخش»** و **«نیروها»** داریم. همه‌ی کارت‌های ثبت‌شده‌ی قبلی خودکار در تب «فرابخش» می‌مانند. مدیر و حسابدار هنگام ثبت یا ویرایش کارت انتخاب می‌کنند کارت مال کدام تب باشد و با زدن دکمه‌ی «افزودن کارت» در هر تب، همان تب به‌صورت پیش‌فرض انتخاب شده است. در فرم پرداخت مشتری فقط کارت‌های «فرابخش» می‌آیند و تب «نیروها» فقط برای مدیر و حسابدار باز است.
 
-به بالای فایل چیزی اضافه نمی‌خواهد (`Warehouse`, `Purchase`, `PurchaseLine` از قبل ایمپورت‌اند).
+#### فایل‌هایی که دست می‌خورند
+- `finance/models.py` (+ مایگریشن تازه در `finance/migrations/`)
+- `finance/admin.py`
+- `finance/services.py`
+- `finance/templatetags/finance_tags.py`
+- `finance/views.py`
+- `templates/finance/partials/bank_card_fields.html`
+- `templates/finance/bank_cards.html`
+- `static/js/bank_cards.js`
+- `finance/tests_bank_cards.py`
 
-**۱.۱) تابع تشخیص دسترسی به مدیریت انبار** (بعد از `user_can_manage_inventory`):
+> قواعد ثابت نشست اول کار رعایت شوند: شاخه‌ی تازه `feat/bank-cards-tabs` از `main` تازه، بدون `push`/`merge` به `main`، بدون `git stash`/`reset --hard`، پایتون ۳٫۱۲ (`.venv`)، هر جا کد واقعی با بریف نخواند توقف و گزارش.
+
+---
+
+#### گام ۰ — فقط‌خواندنی (بررسی وضعیت و آماده‌سازی شاخه)
+۱. وضعیت گیت و آخرین کامیت‌ها را بررسی کن:
+   - `git status --short`
+   - `git log --oneline -5`
+   - اگر شاخه‌ی کاری تمیز و روی `main` تازه است، شاخه‌ی `feat/bank-cards-tabs` را بساز.
+۲. همه‌ی جاهایی که `BankCard` یا `bank_cards_slider` یا `bank_card` استفاده شده با `grep` بسنج و مطمئن شو فقط فایل‌های فهرست بالا هستند.
+۳. آخرین مایگریشن پوشه‌ی `finance/migrations/` را ببین و کل تست‌های فعلی پروژه را با پایتونِ `.venv` اجرا کن تا عدد قبل از تغییر مشخص شود.
+
+---
+
+#### گام ۱ — مدل `BankCard`، مایگریشن و پنل ادمین
+
+**۱. در `finance/models.py`:**
+
+قدیم:
 ```python
-def user_can_manage_warehouses(user):
-    """برخلاف user_can_manage_inventory، مدیر را هم شامل می‌شود؛ چون مدیریت انبارها کار ساختاری است."""
-    from core.capabilities import is_manager
-    return user_can_manage_inventory(user) or is_manager(user)
+class BankCard(TimeStampedModel):
+    """کارت بانکی خودِ شرکت؛ برای نمایش به مشتری در پرداخت کارت به کارت و صفحهی عمومی."""
+    bank = models.CharField(max_length=20, choices=BANK_CHOICES, default="other", verbose_name="بانک")
+    other_bank_name = models.CharField(max_length=60, blank=True, verbose_name="نام بانک (وقتی «سایر» است)")
 ```
 
-**۱.۲) CRUD انبار** (همان‌جا کنار تابع بالا):
+جدید:
 ```python
-WAREHOUSE_NAME_MAX = 100
+class BankCard(TimeStampedModel):
+    """کارت بانکی (فرابخش برای دریافت از مشتری، و نیروها برای پرداخت به همکاران؛ تب نیروها فقط با bank_cards.manage)."""
 
+    class Category(models.TextChoices):
+        FARABAKHSH = "farabakhsh", "فرابخش"
+        STAFF = "staff", "نیروها"
 
-@transaction.atomic
-def create_warehouse(*, name, is_default=False):
-    name = " ".join((name or "").split())
-    if not name:
-        raise ValueError("نام انبار را بنویسید.")
-    if len(name) > WAREHOUSE_NAME_MAX:
-        raise ValueError(f"نام انبار نباید بیش از {WAREHOUSE_NAME_MAX} نویسه باشد.")
-    if Warehouse.objects.filter(name__iexact=name).exists():
-        raise ValueError("انباری با همین نام از قبل وجود دارد.")
-    warehouse = Warehouse.objects.create(name=name, is_default=False)
-    if is_default or not Warehouse.objects.exclude(pk=warehouse.pk).filter(is_default=True).exists():
-        set_default_warehouse(warehouse)
-    return warehouse
-
-
-@transaction.atomic
-def update_warehouse(*, warehouse, name):
-    name = " ".join((name or "").split())
-    if not name:
-        raise ValueError("نام انبار را بنویسید.")
-    if len(name) > WAREHOUSE_NAME_MAX:
-        raise ValueError(f"نام انبار نباید بیش از {WAREHOUSE_NAME_MAX} نویسه باشد.")
-    if Warehouse.objects.exclude(pk=warehouse.pk).filter(name__iexact=name).exists():
-        raise ValueError("انباری با همین نام از قبل وجود دارد.")
-    warehouse.name = name
-    warehouse.save(update_fields=["name"])
-    return warehouse
-
-
-@transaction.atomic
-def set_default_warehouse(warehouse):
-    Warehouse.objects.exclude(pk=warehouse.pk).update(is_default=False)
-    Warehouse.objects.filter(pk=warehouse.pk).update(is_default=True)
-```
-(عمداً تابع حذف انبار نساختیم؛ چون `Warehouse` فیلد فعال/غیرفعال ندارد و حذفش با PROTECT در StockLot/PurchaseLine/SaleLine همیشه خطا می‌دهد. فقط ثبت، ویرایش، پیش‌فرض‌کردن.)
-
-**۱.۳) انتقال بین انبارها** (بعد از تابع `consume_stock`):
-```python
-@transaction.atomic
-def transfer_stock(*, item, qty_raw, from_warehouse, to_warehouse, user, notes):
-    """خروج FIFO از انبار مبدا و ورود به انبار مقصد با همان بهای میانگین موزون همان خروج."""
-    notes = (notes or "").strip()
-    if not notes:
-        raise ValueError("دلیل انتقال را بنویسید.")
-    if from_warehouse.pk == to_warehouse.pk:
-        raise ValueError("انبار مبدا و مقصد نباید یکی باشند.")
-    assert_stockable(item)
-    qty = parse_decimal_input(qty_raw, label="مقدار")
-    breakdown = consume_stock(
-        item=item, qty=qty, user=user, warehouse=from_warehouse,
-        movement_type=StockMovement.MovementType.TRANSFER,
-        notes=f"انتقال به «{to_warehouse.name}» — {notes}"[:255],
+    category = models.CharField(
+        max_length=20, choices=Category.choices, default=Category.FARABAKHSH,
+        db_index=True, verbose_name="بخش",
     )
-    moved_qty = sum((take for _lot, take, _cost in breakdown), Decimal("0"))
-    moved_value = sum((take * cost for _lot, take, cost in breakdown), Decimal("0"))
-    avg_cost = (moved_value / moved_qty) if moved_qty else Decimal("0")
-    receive_stock(
-        item=item, warehouse=to_warehouse, qty=moved_qty, unit_cost=avg_cost, received_at=timezone.now(),
-        movement_type=StockMovement.MovementType.TRANSFER, direction=StockMovement.Direction.IN,
-        notes=f"انتقال از «{from_warehouse.name}» — {notes}"[:255], created_by=user,
-    )
-    return moved_qty
+    bank = models.CharField(max_length=20, choices=BANK_CHOICES, default="other", verbose_name="بانک")
+    other_bank_name = models.CharField(max_length=60, blank=True, verbose_name="نام بانک (وقتی «سایر» است)")
 ```
 
-**۱.۴) `record_manual_stock_change` را طوری عوض کن که انبار بگیرد.**
-پیدا کن:
+**۲. مایگریشن بساز و اعمال کن:**
+- دستور `makemigrations finance` را با پایتون `.venv` اجرا کن (به‌خاطر `default=Category.FARABAKHSH` همه‌ی کارت‌های موجود خودکار در `farabakhsh` قرار می‌گیرند).
+- سپس `migrate` و `makemigrations --check --dry-run` را اجرا کن.
+
+**۳. در `finance/admin.py`:**
+
+قدیم:
 ```python
-def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None,
-                               movement_date=None, internal=False):
-```
-جایگزین کن با:
-```python
-def record_manual_stock_change(*, item, kind, qty_raw, notes, user, unit_cost_raw=None, related_object=None,
-                               movement_date=None, internal=False, warehouse=None):
-```
-داخل همان تابع، این دو خط:
-```python
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
-                      related_object=related_object, movement_date=target_date)
-        return
-    if kind == CHANGE_KIND_ADJUST_DECREASE:
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
-                      related_object=related_object, movement_date=target_date)
-```
-را به
-```python
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.OUT,
-                      related_object=related_object, movement_date=target_date, warehouse=warehouse)
-        return
-    if kind == CHANGE_KIND_ADJUST_DECREASE:
-        consume_stock(item=item, qty=qty, user=user, notes=notes, movement_type=StockMovement.MovementType.ADJUST,
-                      related_object=related_object, movement_date=target_date, warehouse=warehouse)
-```
-و این خط:
-```python
-    warehouse = Warehouse.objects.filter(is_default=True).first()
-    if not warehouse:
-        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
-```
-را (همان بخش بعد از شاخه‌ی consume/adjust_decrease) به:
-```python
-    warehouse = warehouse or Warehouse.objects.filter(is_default=True).first()
-    if not warehouse:
-        raise ValueError("هیچ انباری تعریف نشده؛ ابتدا از «انبارها» یک انبار بساز.")
+@admin.register(BankCard)
+class BankCardAdmin(ModelAdmin):
+    list_display = ("bank_display", "holder_name", "card_number", "is_active", "order")
+    list_editable = ("is_active", "order")
+    list_filter = ("is_active", "bank")
+    search_fields = ("holder_name", "card_number", "other_bank_name")
+    ordering = ("order", "id")
+    fields = ("bank", "other_bank_name", "holder_name", "card_number", "sheba", "cvv2", "expiry", "is_active", "order")
 ```
 
-**۱.۵) خرید: هر ردیف انبار خودش را داشته باشد.**
-`_clean_purchase_lines` را جایگزین کن:
+جدید:
 ```python
-def _clean_purchase_lines(raw_lines):
-    cleaned = []
-    for raw in (raw_lines or []):
-        try:
-            item_id = int(raw["id"])
-            warehouse_id = int(raw["warehouse_id"])
-            qty = Decimal(str(raw["qty"]))
-            unit_cost = Decimal(str(raw["unit_cost"]))
-        except (KeyError, TypeError, ValueError, InvalidOperation):
-            raise ValueError("اطلاعات ردیف‌های خرید نامعتبر است؛ انبار هر ردیف را هم انتخاب کن.")
-        if not qty.is_finite() or not unit_cost.is_finite() or qty <= 0 or unit_cost <= 0:
-            raise ValueError("در ردیف‌های خرید، مقدار و بهای واحد باید بزرگ‌تر از صفر باشند.")
-        cleaned.append({"item_id": item_id, "warehouse_id": warehouse_id, "qty": qty, "unit_cost": unit_cost})
-    ids = {c["item_id"] for c in cleaned}
-    if ids and Item.objects.filter(pk__in=ids, is_active=True).count() != len(ids):
-        raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد یا غیرفعال است.")
-    blocked = list(Item.objects.filter(pk__in=ids, item_type=Item.ItemType.MANUFACTURED)
-                   .values_list("name", flat=True))
-    if blocked:
-        raise ValueError("این کالاها ساختنی‌اند و خرید نمی‌شوند: " + "، ".join(blocked))
-    wh_ids = {c["warehouse_id"] for c in cleaned}
-    if wh_ids and Warehouse.objects.filter(pk__in=wh_ids).count() != len(wh_ids):
-        raise ValueError("انبار یکی از ردیف‌ها معتبر نیست.")
-    return cleaned
-```
-و `create_purchase_from_form` را جایگزین کن:
-```python
-@transaction.atomic
-def create_purchase_from_form(*, supplier_party_id=None, supplier_party_data=None,
-                              purchased_at, invoice_number="", notes="", lines_raw):
-    from core.periods import assert_open
-    assert_open(purchased_at, "خرید")
-    lines = _clean_purchase_lines(lines_raw)
-    if not lines:
-        raise ValueError("حداقل یک ردیف کالا باید وارد شود.")
-
-    supplier = _resolve_supplier_party(party_id=supplier_party_id, party_data=supplier_party_data)
-    purchase = Purchase.objects.create(
-        supplier=supplier, invoice_number=(invoice_number or "").strip(),
-        notes=(notes or "").strip(), purchased_at=purchased_at,
-    )
-    items_by_id = {i.pk: i for i in Item.objects.filter(pk__in=[l["item_id"] for l in lines])}
-    warehouses_by_id = {w.pk: w for w in Warehouse.objects.filter(pk__in=[l["warehouse_id"] for l in lines])}
-    for line in lines:
-        item = items_by_id[line["item_id"]]
-        warehouse = warehouses_by_id[line["warehouse_id"]]
-        purchase_line = PurchaseLine.objects.create(
-            purchase=purchase, item=item, warehouse=warehouse,
-            qty=line["qty"], unit_cost=line["unit_cost"],
-        )
-        receive_stock(
-            item=item, warehouse=warehouse, qty=line["qty"], unit_cost=line["unit_cost"],
-            received_at=purchased_at, purchase_line=purchase_line,
-        )
-    return purchase
-```
-
-**۱.۶) حذف واقعی کالای بی‌مصرف** (بعد از `item_structure_locked`):
-```python
-def item_truly_unused(item):
-    """کامل‌تر از item_structure_locked: فروش و حرکت انبار را هم می‌بیند. فقط برای حذف واقعی استفاده شود."""
-    return not (item_structure_locked(item) or item.sale_lines.exists() or item.movements.exists())
-
-
-@transaction.atomic
-def delete_unused_item(*, item, actor):
-    if not user_can_manage_inventory(actor):
-        raise ValueError("شما اجازه‌ی حذف کالا را ندارید.")
-    if not item_truly_unused(item):
-        raise ValueError("این کالا قبلاً در خرید، انبار، پروژه یا فروش استفاده شده؛ حذف نمی‌شود. به‌جایش غیرفعالش کن.")
-    name = item.name
-    item.delete()
-    return name
+@admin.register(BankCard)
+class BankCardAdmin(ModelAdmin):
+    list_display = ("bank_display", "category", "holder_name", "card_number", "is_active", "order")
+    list_editable = ("is_active", "order")
+    list_filter = ("category", "is_active", "bank")
+    search_fields = ("holder_name", "card_number", "other_bank_name")
+    ordering = ("order", "id")
+    fields = ("category", "bank", "other_bank_name", "holder_name", "card_number", "sheba", "cvv2", "expiry", "is_active", "order")
 ```
 
 ---
 
-### گام ۲ — `finance/accounting.py`
+#### گام ۲ — سرویس، تگ تمپلیت و ویو
 
-`add_purchase_line` را جایگزین کن (یک پارامتر `warehouse_id` اضافه شد):
+**۱. در `finance/services.py`:**
+
+قدیم:
 ```python
 @transaction.atomic
-def add_purchase_line(*, purchase, actor, item_id, warehouse_id, qty_raw, unit_cost_raw):
+def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="", sheba="", cvv2="", expiry=""):
+    """ثبت کارت بانکی شرکت (فقط مدیر یا حسابدار). هر ایرادی ValueError فارسی؛ کارت همان لحظه فعال و آخر فهرست می‌نشیند."""
+    from django.core.exceptions import ValidationError
     from core.capabilities import can
-    from core.periods import assert_open
-    from inventory.models import Purchase, PurchaseLine, Warehouse
-    from inventory.services import get_active_item, parse_decimal_input, receive_stock
-    if not can(actor, "purchases.edit"):
-        raise ValueError("فقط حسابدار یا مدیر می‌تواند ردیف خرید اضافه کند.")
-    purchase = Purchase.objects.select_for_update(of=("self",)).select_related("supplier").get(pk=purchase.pk)
-    assert_open(purchase.purchased_at, "اصلاح خرید")
-    item = get_active_item(item_id)
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار می‌تواند کارت بانکی ثبت کند.")
+    last = BankCard.objects.aggregate(m=models.Max("order"))["m"]
+    card = BankCard(
+        bank=(bank or "").strip(), other_bank_name=(other_bank_name or "").strip(),
+        holder_name=holder_name or "", card_number=card_number or "", sheba=sheba or "",
+        cvv2=cvv2 or "", expiry=expiry or "", is_active=True,
+        order=0 if last is None else last + 1,
+    )
     try:
-        warehouse = Warehouse.objects.get(pk=int(warehouse_id))
-    except (TypeError, ValueError, Warehouse.DoesNotExist):
-        raise ValueError("انبار را از فهرست انتخاب کن.")
-    qty = parse_decimal_input(qty_raw, label="مقدار")
-    cost = parse_decimal_input(unit_cost_raw, label="بهای واحد")
-    if qty > Decimal("9999999") or cost > Decimal("1000000000000"):
-        raise ValueError("مقدار یا بهای واحد بیش از حد بزرگ است.")
-    qty, cost = qty.quantize(QTY_Q), cost.quantize(Decimal("0.01"))
-    if qty <= 0 or cost <= 0:
-        raise ValueError("مقدار و بهای واحد باید بزرگ‌تر از صفر باشند.")
-    line = PurchaseLine.objects.create(purchase=purchase, item=item, warehouse=warehouse, qty=qty, unit_cost=cost)
-    receive_stock(item=item, warehouse=warehouse, qty=qty, unit_cost=cost,
-                  received_at=purchase.purchased_at, purchase_line=line)
-    log_event(kind=AccountingEvent.Kind.PURCHASE, purchase=purchase, actor=actor,
-              amount=(qty * cost).quantize(Decimal("1")),
-              text=f"افزودن ردیف به خرید از «{purchase.supplier.name}»: {item.name} (انبار {warehouse.name})")
-    return line
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
+
+
+def _require_bank_card_manager(actor):
+    from core.capabilities import can
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار به کارت‌های بانکی دسترسی دارد.")
+
+
+def _locked_bank_card(card_id):
+    try:
+        return BankCard.objects.select_for_update(of=("self",)).get(pk=int(card_id))
+    except (TypeError, ValueError, BankCard.DoesNotExist):
+        raise ValueError("کارت پیدا نشد.")
+
+
+@transaction.atomic
+def update_bank_card(*, actor, card_id, bank, holder_name, card_number, other_bank_name="",
+                     sheba="", cvv2="", expiry=""):
+    """ویرایش کارت. فیلد خالی یعنی پاک‌شدن (فرم همیشه همه‌ی فیلدها را می‌فرستد). ترتیب و وضعیت فعال دست نمی‌خورد."""
+    from django.core.exceptions import ValidationError
+    _require_bank_card_manager(actor)
+    card = _locked_bank_card(card_id)
+    card.bank = (bank or "").strip()
+    card.other_bank_name = (other_bank_name or "").strip()
+    card.holder_name = holder_name or ""
+    card.card_number = card_number or ""
+    card.sheba = sheba or ""
+    card.cvv2 = cvv2 or ""
+    card.expiry = expiry or ""
+    try:
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
 ```
 
-### گام ۳ — `finance/views_accounting.py`
+جدید:
+```python
+def _clean_card_category(raw):
+    value = (raw or "").strip()
+    if value not in BankCard.Category.values:
+        raise ValueError("تب انتخاب‌شده معتبر نیست.")
+    return value
 
-در `purchase_line_add` پیدا کن:
-```python
-        line = accounting.add_purchase_line(
-            purchase=purchase, actor=request.user, item_id=request.POST.get("item_id"),
-            qty_raw=request.POST.get("qty"), unit_cost_raw=request.POST.get("unit_cost"))
-```
-جایگزین کن:
-```python
-        line = accounting.add_purchase_line(
-            purchase=purchase, actor=request.user, item_id=request.POST.get("item_id"),
-            warehouse_id=request.POST.get("warehouse_id"),
-            qty_raw=request.POST.get("qty"), unit_cost_raw=request.POST.get("unit_cost"))
-```
-در `purchase_detail` پیدا کن:
-```python
-    if can(request.user, "purchases.edit"):
-        from inventory.services import stockable_items
-        from inventory.views import item_form_choices
-        ctx["line_items"] = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()}
-                             for i in stockable_items().order_by("name")]
-        ctx.update(item_form_choices())
-```
-جایگزین کن:
-```python
-    if can(request.user, "purchases.edit"):
-        from inventory.services import stockable_items
-        from inventory.views import item_form_choices
-        ctx["line_items"] = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()}
-                             for i in stockable_items().order_by("name")]
-        ctx["warehouses"] = Warehouse.objects.order_by("-is_default", "name")
-        ctx.update(item_form_choices())
-```
 
-### گام ۴ — `inventory/views.py`
+@transaction.atomic
+def create_bank_card(*, actor, bank, holder_name, card_number, other_bank_name="", sheba="", cvv2="", expiry="",
+                     category=BankCard.Category.FARABAKHSH):
+    """ثبت کارت بانکی (فقط مدیر یا حسابدار). هر ایرادی ValueError فارسی؛ کارت همان لحظه فعال و آخر فهرست می‌نشیند."""
+    from django.core.exceptions import ValidationError
+    from core.capabilities import can
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار می‌تواند کارت بانکی ثبت کند.")
+    cat = _clean_card_category(category)
+    last = BankCard.objects.aggregate(m=models.Max("order"))["m"]
+    card = BankCard(
+        category=cat, bank=(bank or "").strip(), other_bank_name=(other_bank_name or "").strip(),
+        holder_name=holder_name or "", card_number=card_number or "", sheba=sheba or "",
+        cvv2=cvv2 or "", expiry=expiry or "", is_active=True,
+        order=0 if last is None else last + 1,
+    )
+    try:
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
 
-بالای فایل، پیدا کن:
-```python
-from .models import StockLot
-```
-جایگزین کن:
-```python
-from .models import StockLot, Warehouse
-```
-پیدا کن:
-```python
-from .services import (
-    user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
-    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items
-)
-```
-جایگزین کن:
-```python
-from .services import (
-    user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
-    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items,
-    user_can_manage_warehouses, create_warehouse, update_warehouse, set_default_warehouse, transfer_stock,
-    delete_unused_item, item_truly_unused, get_active_item,
-)
-```
 
-`purchase_new` ویو: پیدا کن
-```python
-    return render(request, "inventory/purchase_new.html", {
-        "items": stockable_items().order_by("name"),
-        "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
-        **item_form_choices(),
-    })
-```
-جایگزین کن:
-```python
-    return render(request, "inventory/purchase_new.html", {
-        "items": stockable_items().order_by("name"),
-        "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
-        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
-        **item_form_choices(),
-    })
+def _require_bank_card_manager(actor):
+    from core.capabilities import can
+    if not can(actor, "bank_cards.manage"):
+        raise ValueError("فقط مدیر یا حسابدار به کارت‌های بانکی دسترسی دارد.")
+
+
+def _locked_bank_card(card_id):
+    try:
+        return BankCard.objects.select_for_update(of=("self",)).get(pk=int(card_id))
+    except (TypeError, ValueError, BankCard.DoesNotExist):
+        raise ValueError("کارت پیدا نشد.")
+
+
+@transaction.atomic
+def update_bank_card(*, actor, card_id, bank, holder_name, card_number, other_bank_name="",
+                     sheba="", cvv2="", expiry="", category=None):
+    """ویرایش کارت. فیلد خالی یعنی پاک‌شدن (فرم همیشه همه‌ی فیلدها را می‌فرستد). category=None یعنی تغییر نکند."""
+    from django.core.exceptions import ValidationError
+    _require_bank_card_manager(actor)
+    card = _locked_bank_card(card_id)
+    if category is not None:
+        card.category = _clean_card_category(category)
+    card.bank = (bank or "").strip()
+    card.other_bank_name = (other_bank_name or "").strip()
+    card.holder_name = holder_name or ""
+    card.card_number = card_number or ""
+    card.sheba = sheba or ""
+    card.cvv2 = cvv2 or ""
+    card.expiry = expiry or ""
+    try:
+        card.full_clean()
+    except ValidationError as e:
+        parts = [m for msgs in e.message_dict.values() for m in msgs]
+        raise ValueError(" ".join(parts) or "کارت معتبر نیست.")
+    card.save()
+    return card
 ```
 
-`_movement_page` را جایگزین کن:
+**۲. در `finance/templatetags/finance_tags.py`:**
+
+قدیم:
 ```python
-def _movement_page(request):
-    from projects.models import Project
-    return render(request, "inventory/stock_movement_new.html", {
-        "items": _stock_queryset().exclude(item_type=Item.ItemType.MANUFACTURED),
-        "projects": Project.objects.filter(status=Project.Status.IN_PROGRESS).order_by("name"),
-        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
-    })
+@register.inclusion_tag("finance/partials/bank_cards_slider.html", takes_context=True)
+def bank_cards_slider(context):
+    """CVV2 و تاریخ انقضا فقط برای دارندگان bank_cards.manage؛ مشتری فقط شماره و شبا را می‌بیند."""
+    user = getattr(context.get("request"), "user", None)
+    show_secrets = bool(user is not None and user.is_authenticated and can(user, "bank_cards.manage"))
+    cards = list(BankCard.objects.filter(is_active=True))
+    for c in cards:
+        c.logo = logo_url(c.bank)
+    return {"cards": cards, "show_secrets": show_secrets}
 ```
 
-`stock_movement_new` ویو: پیدا کن
+جدید:
 ```python
-            record_manual_stock_change(
-                item=item, kind=kind, qty_raw=request.POST.get("qty"),
-                notes=request.POST.get("notes", ""), user=request.user,
-                unit_cost_raw=request.POST.get("unit_cost"),
-                related_object=related_object, internal=internal,
-            )
-```
-جایگزین کن:
-```python
-            warehouse = None
-            raw_wh = request.POST.get("warehouse_id")
-            if raw_wh:
-                warehouse = get_object_or_404(Warehouse, pk=raw_wh)
-            record_manual_stock_change(
-                item=item, kind=kind, qty_raw=request.POST.get("qty"),
-                notes=request.POST.get("notes", ""), user=request.user,
-                unit_cost_raw=request.POST.get("unit_cost"),
-                related_object=related_object, internal=internal, warehouse=warehouse,
-            )
+@register.inclusion_tag("finance/partials/bank_cards_slider.html", takes_context=True)
+def bank_cards_slider(context, category=BankCard.Category.FARABAKHSH):
+    """CVV2 و تاریخ انقضا فقط برای دارندگان bank_cards.manage؛ مشتری فقط شماره و شبا را می‌بیند.
+    بدون دسترسی bank_cards.manage همیشه فقط کارت‌های «فرابخش» برمی‌گردد."""
+    user = getattr(context.get("request"), "user", None)
+    manage = bool(user is not None and user.is_authenticated and can(user, "bank_cards.manage"))
+    target = category if (manage and category in BankCard.Category.values) else BankCard.Category.FARABAKHSH
+    cards = list(BankCard.objects.filter(is_active=True, category=target))
+    for c in cards:
+        c.logo = logo_url(c.bank)
+    return {"cards": cards, "show_secrets": manage}
 ```
 
-در انتهای فایل (بعد از `item_quick_create`) این‌ها را اضافه کن:
+**۳. در `finance/views.py`:**
+
+قدیم:
 ```python
 @login_required
-@user_passes_test(user_can_manage_warehouses)
-def warehouse_list(request):
-    if request.method == "POST":
-        action = request.POST.get("action")
-        try:
-            if action == "create":
-                create_warehouse(name=request.POST.get("name", ""), is_default=request.POST.get("is_default") == "on")
-            elif action == "edit":
-                wh = get_object_or_404(Warehouse, pk=request.POST.get("warehouse_id"))
-                update_warehouse(warehouse=wh, name=request.POST.get("name", ""))
-            elif action == "set_default":
-                wh = get_object_or_404(Warehouse, pk=request.POST.get("warehouse_id"))
-                set_default_warehouse(wh)
-            else:
-                raise ValueError("عملیات نامعتبر است.")
-        except ValueError as e:
-            messages.error(request, str(e))
-        else:
-            messages.success(request, "ذخیره شد.")
-        return redirect("inventory:warehouse_list")
-    return render(request, "inventory/warehouse_list.html", {
-        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
+def bank_cards_page(request):
+    """هر کاربر واردشده شماره و شبا را می‌بیند. CVV2، انقضا و مدیریت کارت‌ها فقط با bank_cards.manage."""
+    manage = can(request.user, "bank_cards.manage")
+    return render(request, "finance/bank_cards.html", {
+        "bank_choices": BANK_CHOICES, "can_manage": manage,
+        "all_cards": list(BankCard.objects.all()) if manage else [],
     })
 
 
-@login_required
-@user_passes_test(user_can_manage_inventory)
-def stock_transfer_new(request):
-    if request.method == "POST":
-        try:
-            from_wh = get_object_or_404(Warehouse, pk=request.POST.get("from_warehouse_id"))
-            to_wh = get_object_or_404(Warehouse, pk=request.POST.get("to_warehouse_id"))
-            item = get_active_item(request.POST.get("item_id"))
-            transfer_stock(item=item, qty_raw=request.POST.get("qty"), from_warehouse=from_wh, to_warehouse=to_wh,
-                           user=request.user, notes=request.POST.get("notes", ""))
-        except ValueError as e:
-            messages.error(request, str(e))
-            return redirect("inventory:stock_transfer_new")
-        messages.success(request, "انتقال بین انبارها ثبت شد.")
-        return redirect("home")
-    return render(request, "inventory/stock_transfer_new.html", {
-        "items": _stock_queryset().exclude(item_type=Item.ItemType.MANUFACTURED),
-        "warehouses": Warehouse.objects.order_by("name"),
-    })
-
-
-@login_required
-@user_passes_test(user_can_manage_inventory)
+@cap_required("bank_cards.manage")
 @require_POST
-def item_delete(request, item_id):
-    item = get_object_or_404(Item, pk=item_id)
+def bank_card_create(request):
     try:
-        name = delete_unused_item(item=item, actor=request.user)
+        create_bank_card(
+            actor=request.user, bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""))
     except ValueError as e:
-        messages.error(request, str(e))
-        return redirect("inventory:item_edit", item.id)
-    messages.success(request, f"کالای «{name}» برای همیشه حذف شد.")
-    return redirect(_stock_tab_url())
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_update(request, card_id):
+    try:
+        update_bank_card(
+            actor=request.user, card_id=card_id, bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True})
 ```
 
-تابع `item_edit` را پیدا کن و خط `locked = item_structure_locked(item)` را همین‌جوری نگه دار، فقط زیرش اضافه کن `can_delete = item_truly_unused(item)` و در هر دو فراخوانی `_render_item_form` داخل همین تابع، آرگومان `can_delete=can_delete` را اضافه کن. تابع `_render_item_form` را هم عوض کن:
+جدید:
 ```python
-def _render_item_form(request, *, item, values, specs, locked, duplicate_warning, can_delete=False):
-    return render(request, "inventory/item_form.html", {
-        **item_form_choices(),
-        "item": item, "values": values, "specs": specs, "locked": locked,
-        "duplicate_warning": duplicate_warning, "can_delete": can_delete,
-        "current_stock_display": to_fa_digits(_format_qty(item.current_stock)) if item else "",
+@login_required
+def bank_cards_page(request):
+    """هر کاربر واردشده کارت‌های «فرابخش» را می‌بیند. تب «نیروها»، CVV2، انقضا و مدیریت فقط با bank_cards.manage."""
+    manage = can(request.user, "bank_cards.manage")
+    requested = (request.GET.get("tab") or "").strip()
+    active_tab = requested if (manage and requested in BankCard.Category.values) else BankCard.Category.FARABAKHSH
+    return render(request, "finance/bank_cards.html", {
+        "bank_choices": BANK_CHOICES,
+        "category_choices": BankCard.Category.choices,
+        "can_manage": manage,
+        "active_tab": active_tab,
+        "all_cards": list(BankCard.objects.filter(category=active_tab)) if manage else [],
     })
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_create(request):
+    try:
+        card = create_bank_card(
+            actor=request.user,
+            category=request.POST.get("category", BankCard.Category.FARABAKHSH),
+            bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "category": card.category})
+
+
+@cap_required("bank_cards.manage")
+@require_POST
+def bank_card_update(request, card_id):
+    try:
+        kw = {"category": request.POST.get("category")} if "category" in request.POST else {}
+        card = update_bank_card(
+            actor=request.user, card_id=card_id, bank=request.POST.get("bank", ""),
+            other_bank_name=request.POST.get("other_bank_name", ""),
+            holder_name=request.POST.get("holder_name", ""), card_number=request.POST.get("card_number", ""),
+            sheba=request.POST.get("sheba", ""), cvv2=request.POST.get("cvv2", ""),
+            expiry=request.POST.get("expiry", ""), **kw)
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "category": card.category})
 ```
 
-### گام ۵ — `inventory/urls.py`
+---
 
-اضافه کن:
-```python
-    path("inventory/warehouses/", views.warehouse_list, name="warehouse_list"),
-    path("inventory/stock-transfer/", views.stock_transfer_new, name="stock_transfer_new"),
-    path("inventory/items/<int:item_id>/delete/", views.item_delete, name="item_delete"),
-```
+#### گام ۳ — تمپلیت‌ها و جاوااسکریپت (+ بیلد CSS)
 
-### گام ۶ — `utils/navigation.py` (اجباری — وگرنه نگهبان مسیرها می‌شکند)
+**۱. در `templates/finance/partials/bank_card_fields.html`:**
 
-به `PAGE_PARENTS` اضافه کن:
-```python
-    "inventory:warehouse_list": ("home", [], {"tab": "stock"}),
-    "inventory:stock_transfer_new": ("home", [], {}),
-```
-به مجموعه‌ی `NON_PAGE` اضافه کن:
-```python
-    "inventory:item_delete",
-```
-
-### گام ۷ — قالب‌های تازه
-
-**`templates/inventory/warehouse_list.html`** (تازه):
+قدیم:
 ```html
-{% extends "base.html" %}
-{% load custom_tags %}
-{% block title %}انبارها | فرابخش{% endblock %}
-{% block content %}
-<div class="fb-page fb-page--sm">
-    <div>
-        <a href="{% url 'home' %}?tab=stock" class="link link-hover text-sm fb-muted">بازگشت به موجودی انبار</a>
-        <h1 class="fb-page-title mt-2">انبارها</h1>
-        <p class="fb-page-sub">انبار پیش‌فرض همان‌جایی است که اگر هنگام ثبت مصرف/تعدیل انباری انتخاب نشود، استفاده می‌شود.</p>
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-bank">بانک</label>
+```
+
+جدید:
+```html
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-category">تب</label>
+    <select id="{{ prefix }}-category" name="category" required class="select w-full">
+        {% for value, label in category_choices %}<option value="{{ value }}" {% if active_tab == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+</div>
+<div class="fb-field">
+    <label class="fb-label" for="{{ prefix }}-bank">بانک</label>
+```
+
+**۲. در `templates/finance/bank_cards.html`:**
+
+قدیم:
+```html
+        {% if can_manage %}
+        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bankcard-dialog').showModal()">
+            {% icon "plus" "w-4 h-4" %} افزودن کارت
+        </button>
+        {% endif %}
     </div>
 
-    <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">انبار جدید</h2>
-        <form method="post" data-fb-once class="flex flex-col gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-            <div class="fb-field">
-                <label class="fb-label" for="wh-new-name">نام انبار</label>
-                <input type="text" id="wh-new-name" name="name" required maxlength="100" class="input w-full">
-            </div>
-            <label class="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="checkbox" name="is_default" class="checkbox checkbox-sm"> انبار پیش‌فرض باشد
-            </label>
-            <button type="submit" class="btn btn-primary btn-sm self-start">ثبت انبار</button>
-        </form>
-    </section>
+    {% bank_cards_slider %}
+```
 
-    <section class="fb-card fb-pad flex flex-col gap-3">
-        <h2 class="fb-section-title">انبارهای موجود</h2>
-        {% for w in warehouses %}
-        <div class="fb-inset flex items-center justify-between gap-3 flex-wrap">
-            <form method="post" data-fb-once class="flex items-center gap-2 flex-1 min-w-48">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="warehouse_id" value="{{ w.id }}">
-                <input type="text" name="name" value="{{ w.name }}" required maxlength="100" class="input input-sm flex-1 min-w-0">
-                <button type="submit" class="btn btn-soft btn-sm">ذخیره</button>
-            </form>
-            {% if w.is_default %}
-            <span class="fb-badge fb-badge-success">پیش‌فرض</span>
-            {% else %}
-            <form method="post" data-fb-once>
-                {% csrf_token %}
-                <input type="hidden" name="action" value="set_default">
-                <input type="hidden" name="warehouse_id" value="{{ w.id }}">
-                <button type="submit" class="btn btn-ghost btn-sm">پیش‌فرض کن</button>
-            </form>
-            {% endif %}
-        </div>
-        {% empty %}
-        <p class="fb-hint">هنوز انباری ثبت نشده.</p>
+جدید:
+```html
+        {% if can_manage %}
+        <button type="button" class="btn btn-primary btn-sm" data-bankcard-add>
+            {% icon "plus" "w-4 h-4" %} افزودن کارت
+        </button>
+        {% endif %}
+    </div>
+
+    {% if can_manage %}
+    <div role="tablist" class="tabs tabs-border">
+        {% for value, label in category_choices %}
+        <a href="?tab={{ value }}" role="tab" class="tab {% if active_tab == value %}tab-active{% endif %}">{{ label }}</a>
         {% endfor %}
-    </section>
-</div>
-{% endblock %}
-```
-
-**`templates/inventory/stock_transfer_new.html`** (تازه):
-```html
-{% extends "base.html" %}
-{% load static custom_tags %}
-{% block title %}انتقال بین انبارها | فرابخش{% endblock %}
-{% block content %}
-<div class="fb-page fb-page--sm">
-    <div>
-        <h1 class="fb-page-title">انتقال موجودی بین انبارها</h1>
-        <p class="fb-page-sub">مقدار از انبار مبدا کم و به انبار مقصد با همان بهای میانگین اضافه می‌شود.</p>
     </div>
+    {% endif %}
 
-    <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-4" id="transfer-form">
-        {% csrf_token %}
-        <div class="grid grid-cols-2 gap-3">
-            <div class="fb-field">
-                <label class="fb-label" for="from-wh">از انبار</label>
-                <select id="from-wh" name="from_warehouse_id" required class="select w-full">
-                    <option value="">انتخاب کن...</option>
-                    {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="fb-field">
-                <label class="fb-label" for="to-wh">به انبار</label>
-                <select id="to-wh" name="to_warehouse_id" required class="select w-full">
-                    <option value="">انتخاب کن...</option>
-                    {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
-                </select>
-            </div>
-        </div>
+    {% bank_cards_slider active_tab %}
+```
 
-        <div class="fb-field">
-            <span class="fb-label">کالا</span>
-            <div id="transfer-item-picker"></div>
-            <input type="hidden" name="item_id" id="transfer-item-id">
-            <span id="transfer-item-error" class="fb-error hidden">یک کالا از فهرست انتخاب کن.</span>
-        </div>
+و در همین فایل `templates/finance/bank_cards.html` روی دکمه‌ی ویرایش:
 
-        <div class="fb-field">
-            <label class="fb-label" for="transfer-qty">مقدار</label>
-            <input type="text" id="transfer-qty" name="qty" required data-decimal dir="ltr" inputmode="decimal" autocomplete="off" class="input w-full font-technical">
-        </div>
+قدیم:
+```html
+                <button type="button" class="btn btn-ghost btn-xs" data-bankcard-edit
+                        data-url="{% url 'finance:bank_card_update' c.id %}" data-bank="{{ c.bank }}" data-other="{{ c.other_bank_name }}"
+```
 
-        <div class="fb-field">
-            <label class="fb-label" for="transfer-notes">دلیل (اجباری)</label>
-            <textarea id="transfer-notes" name="notes" required rows="2" class="textarea w-full"></textarea>
-        </div>
+جدید:
+```html
+                <button type="button" class="btn btn-ghost btn-xs" data-bankcard-edit
+                        data-url="{% url 'finance:bank_card_update' c.id %}" data-category="{{ c.category }}" data-bank="{{ c.bank }}" data-other="{{ c.other_bank_name }}"
+```
 
-        <button type="submit" class="btn btn-primary w-full">ثبت انتقال</button>
-    </form>
-</div>
+**۳. در `static/js/bank_cards.js`:**
 
-<script id="transfer-items-data" type="application/json">
-    [{% for it in items %}{"id": {{ it.id }}, "name": "{{ it.name|escapejs }}", "unit": "{{ it.get_unit_display|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]
-</script>
-{% endblock %}
+(الف) در `initCardForms`:
 
-{% block extra_js %}
-<script src="{% static_v 'js/item_picker.js' %}"></script>
-<script>
-(function () {
-    var data = JSON.parse(document.getElementById('transfer-items-data').textContent);
-    var picker = fbItemPicker({ items: data, ariaLabel: 'جستجوی کالا', onSelect: function (it) {
-        document.getElementById('transfer-item-id').value = it ? it.id : '';
-        if (it) document.getElementById('transfer-item-error').classList.add('hidden');
-    }});
-    document.getElementById('transfer-item-picker').appendChild(picker.el);
+قدیم:
+```javascript
+        window.fbSend(url, new FormData(form), window.FB_CSRF).then(function (res) {
+          if (res.ok) { window.location.reload(); return; }
+          btn.disabled = false;
+          err.textContent = res.error || 'ثبت نشد.';
+          err.classList.remove('hidden');
+        });
+```
 
-    document.getElementById('transfer-form').addEventListener('submit', function (e) {
-        var from = document.getElementById('from-wh').value, to = document.getElementById('to-wh').value;
-        if (from && to && from === to) {
-            e.preventDefault();
-            window.alert('انبار مبدا و مقصد نباید یکی باشند.');
+جدید:
+```javascript
+        window.fbSend(url, new FormData(form), window.FB_CSRF).then(function (res) {
+          if (res.ok) {
+            if (res.category) {
+              var nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('tab', res.category);
+              window.location.assign(nextUrl.toString());
+            } else {
+              window.location.reload();
+            }
             return;
-        }
-        if (!document.getElementById('transfer-item-id').value) {
-            e.preventDefault();
-            document.getElementById('transfer-item-error').classList.remove('hidden');
-            picker.focus();
-        }
-    });
-})();
-</script>
-{% endblock %}
+          }
+          btn.disabled = false;
+          err.textContent = res.error || 'ثبت نشد.';
+          err.classList.remove('hidden');
+        });
 ```
 
-### گام ۸ — افزودن انتخاب انبار به قالب‌های موجود
+(ب) در شنونده‌ی کلیک دکمه‌های مدیریت:
 
-**`templates/inventory/partials/purchase_lines_editor.html`**: داخل `<template id="purchase-row-template">`، درست بعد از `<div data-picker></div>` و قبل از کادر مقدار، این را اضافه کن:
-```html
-<select data-warehouse aria-label="انبار" class="select select-sm w-32">
-    {% for w in warehouses %}<option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
-</select>
-```
-و پیام هشدار ردیف را به `کالا، انبار، مقدار و بهای واحد را وارد کنید...` به‌روز کن.
-
-در `<script>` همان فایل، داخل تابع `sync()`، پیدا کن:
-```js
-            var id = row._picker ? row._picker.getId() : null;
-            var qty = row.querySelector('[data-qty]').value.trim();
-            var cost = digits(row.querySelector('[data-cost]').value);
-            var qtyNum = parseFloat(qty) || 0;
-            var costNum = parseFloat(cost) || 0;
-            var line = qtyNum * costNum;
-            row.querySelector('[data-line-total]').textContent = fmt(line);
-            row.querySelector('[data-row-warn]').classList.toggle('hidden', !!id && qtyNum > 0 && costNum > 0);
-            if (id && qtyNum > 0 && costNum > 0) {
-                out.push({ id: id, qty: qty, unit_cost: cost });
-                grand += line;
-            }
-```
-جایگزین کن:
-```js
-            var id = row._picker ? row._picker.getId() : null;
-            var warehouseId = row.querySelector('[data-warehouse]').value;
-            var qty = row.querySelector('[data-qty]').value.trim();
-            var cost = digits(row.querySelector('[data-cost]').value);
-            var qtyNum = parseFloat(qty) || 0;
-            var costNum = parseFloat(cost) || 0;
-            var line = qtyNum * costNum;
-            row.querySelector('[data-line-total]').textContent = fmt(line);
-            row.querySelector('[data-row-warn]').classList.toggle('hidden', !!id && !!warehouseId && qtyNum > 0 && costNum > 0);
-            if (id && warehouseId && qtyNum > 0 && costNum > 0) {
-                out.push({ id: id, warehouse_id: warehouseId, qty: qty, unit_cost: cost });
-                grand += line;
-            }
+قدیم:
+```javascript
+    var edit = e.target.closest('[data-bankcard-edit]');
+    if (edit) {
+      var editDialog = document.getElementById('bankcard-edit-dialog');
+      var editForm = editDialog && editDialog.querySelector('[data-bankcard-form]');
+      if (!editForm) return;
+      var d = edit.dataset;
+      editForm.setAttribute('action', d.url);
+      editForm.querySelector('[name="bank"]').value = d.bank;
 ```
 
-**`templates/inventory/stock_movement_new.html`**: بعد از کادر انتخاب کالا (بخش `<div class="fb-field" id="project-field">`)، یک فیلد اضافه کن:
-```html
-<div class="fb-field">
-    <label class="fb-label" for="movement-warehouse">انبار</label>
-    <select id="movement-warehouse" name="warehouse_id" class="select w-full">
-        <option value="">پیش‌فرض (برای افزایش) / همه‌ی انبارها (برای مصرف و کسری)</option>
-        {% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
-    </select>
-</div>
-```
-در `<script>` همان فایل، داخل `syncKind()`، همان‌جایی که `needsCost` ساخته می‌شود این خط را اضافه کن:
-```js
-el('movement-warehouse').required = needsCost;
+جدید:
+```javascript
+    var add = e.target.closest('[data-bankcard-add]');
+    if (add) {
+      var addDialog = document.getElementById('bankcard-dialog');
+      var addForm = addDialog && addDialog.querySelector('[data-bankcard-form]');
+      if (!addDialog || !addForm) return;
+      addForm.reset();
+      addForm._syncOther();
+      addForm.querySelector('[data-bankcard-error]').classList.add('hidden');
+      addForm.querySelector('button[type="submit"]').disabled = false;
+      addDialog.showModal();
+      return;
+    }
+
+    var edit = e.target.closest('[data-bankcard-edit]');
+    if (edit) {
+      var editDialog = document.getElementById('bankcard-edit-dialog');
+      var editForm = editDialog && editDialog.querySelector('[data-bankcard-form]');
+      if (!editForm) return;
+      var d = edit.dataset;
+      editForm.setAttribute('action', d.url);
+      var catField = editForm.querySelector('[name="category"]');
+      if (catField) catField.value = d.category || 'farabakhsh';
+      editForm.querySelector('[name="bank"]').value = d.bank;
 ```
 
-**`templates/finance/accounting_purchase.html`**: داخل `#purchase-line-panel`، درست بعد از بلوک `<div data-line-picker></div><input type="hidden" name="item_id"></div>` و قبل از `<div class="grid grid-cols-2 gap-2">` این را اضافه کن:
-```html
-<div class="fb-field">
-    <label class="fb-label" for="line-warehouse">انبار</label>
-    <select id="line-warehouse" name="warehouse_id" required class="select select-sm w-full">
-        {% for w in warehouses %}<option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
-    </select>
-</div>
-```
-
-**`static/js/purchase_lines.js`**: پیدا کن
-```js
-  var hidden = form.querySelector('input[name=item_id]');
-  var qty = form.querySelector('input[name=qty]'), cost = form.querySelector('input[name=unit_cost]');
-```
-جایگزین کن:
-```js
-  var hidden = form.querySelector('input[name=item_id]');
-  var warehouseSelect = form.querySelector('select[name=warehouse_id]');
-  var qty = form.querySelector('input[name=qty]'), cost = form.querySelector('input[name=unit_cost]');
-```
-و در شنونده‌ی submit پیدا کن:
-```js
-    if (!hidden.value) { say(err, 'کالا را از فهرست انتخاب کنید.'); return; }
-    if (!q) { say(err, 'مقدار را بنویسید.'); return; }
-    if (!c) { say(err, 'بهای واحد را بنویسید.'); return; }
-    say(null, '');
-    btn.disabled = true;
-    var fd = new FormData();
-    fd.append('item_id', hidden.value);
-    fd.append('qty', q);
-    fd.append('unit_cost', c);
-```
-جایگزین کن:
-```js
-    if (!hidden.value) { say(err, 'کالا را از فهرست انتخاب کنید.'); return; }
-    if (!warehouseSelect.value) { say(err, 'انبار را انتخاب کنید.'); return; }
-    if (!q) { say(err, 'مقدار را بنویسید.'); return; }
-    if (!c) { say(err, 'بهای واحد را بنویسید.'); return; }
-    say(null, '');
-    btn.disabled = true;
-    var fd = new FormData();
-    fd.append('item_id', hidden.value);
-    fd.append('warehouse_id', warehouseSelect.value);
-    fd.append('qty', q);
-    fd.append('unit_cost', c);
-```
-
-**`templates/inventory/item_form.html`**: بعد از بلوک فرم toggle-active موجود (`{% if item %}...{% endif %}` انتهای فایل)، این را اضافه کن:
-```html
-{% if item and can_delete %}
-<form method="post" action="{% url 'inventory:item_delete' item.id %}" data-fb-once
-      onsubmit="return confirm('این کالا برای همیشه حذف شود؟ برگشت ندارد.');"
-      class="fb-card fb-pad flex items-center justify-between gap-3">
-    {% csrf_token %}
-    <span class="text-xs fb-muted">این کالا هیچ‌جا (خرید، انبار، پروژه، فروش) استفاده نشده؛ برخلاف غیرفعال‌کردن، این دکمه کامل پاکش می‌کند.</span>
-    <button type="submit" class="btn btn-soft btn-error btn-sm">حذف همیشگی</button>
-</form>
-{% endif %}
-```
-
-### گام ۹ — لینک‌های دسترسی
-
-**`templates/finance/partials/accounting_nav.html`**: بعد از لینک «حرکات انبار» اضافه کن:
-```html
-<a href="{% url 'inventory:warehouse_list' %}" class="btn btn-sm btn-soft">{% icon "package" "w-4 h-4" %} انبارها</a>
-<a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-sm btn-soft">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
-```
-
-**`templates/projects/technician_home.html`**: داخل بلوک `{% if can_manage_inventory %}` بعد از لینک «کالای جدید» اضافه کن:
-```html
-<a href="{% url 'inventory:warehouse_list' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} انبارها</a>
-<a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-soft btn-sm">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
-```
-
-**`templates/dashboard/overview.html`**: در ردیف دکمه‌های بالای صفحه (کنار «ثبت خرید») اضافه کن:
-```html
-<a href="{% url 'inventory:warehouse_list' %}" class="btn btn-soft btn-sm">{% icon "package" "w-4 h-4" %} انبارها</a>
-<a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-soft btn-sm">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
-```
+**۴. بیلد CSS:**
+- `pnpm run build` را اجرا کن تا خروجی Tailwind/daisyUI به‌روز باشد.
 
 ---
 
-### گام ۱۰ (اختیاری ولی ارزانه) — نمایش جدول‌های فروش در ادمین
+#### گام ۴ — تست‌ها
 
-در `inventory/admin.py` اضافه کن:
+در انتهای `finance/tests_bank_cards.py` این کدها را اضافه کن:
+
+قدیم (خط آخر `finance/tests_bank_cards.py`):
 ```python
-from .models import Sale, SaleLine, SalePayment
+    def test_bank_cards_js_is_registered_for_tailwind(self):
+        css = (self.BASE / "static" / "src" / "input.css").read_text(encoding="utf-8")
+        self.assertIn('@source "../js/bank_cards.js";', css)
+```
+
+جدید:
+```python
+    def test_bank_cards_js_is_registered_for_tailwind(self):
+        css = (self.BASE / "static" / "src" / "input.css").read_text(encoding="utf-8")
+        self.assertIn('@source "../js/bank_cards.js";', css)
 
 
-class SaleLineInline(JalaliAdminMixin, TabularInline):
-    model = SaleLine
-    extra = 0
+class BankCardCategoryTests(TestCase):
+    def setUp(self):
+        self.accountant = make_accountant("bcc_acc")
+        self.tech = User.objects.create_user(username="bcc_tech", password="pw", role=User.Role.EMPLOYEE)
+
+    def test_default_category_is_farabakhsh_and_invalid_rejected(self):
+        c1 = make_card()
+        self.assertEqual(c1.category, BankCard.Category.FARABAKHSH)
+
+        from finance.services import create_bank_card, update_bank_card
+        c2 = create_bank_card(actor=self.accountant, bank="mellat", holder_name="کارت نیرو",
+                              card_number=CARD2, category=BankCard.Category.STAFF)
+        self.assertEqual(c2.category, BankCard.Category.STAFF)
+
+        for bad in ("", "unknown", "other"):
+            with self.assertRaises(ValueError):
+                create_bank_card(actor=self.accountant, bank="saman", holder_name="نامعتبر",
+                                 card_number=CARD3, category=bad)
+        self.assertFalse(BankCard.objects.filter(card_number=CARD3).exists())
+
+        with self.assertRaises(ValueError):
+            update_bank_card(actor=self.accountant, card_id=c2.id, bank="mellat",
+                             holder_name="کارت نیرو", card_number=CARD2, category="bad")
+        c2.refresh_from_db()
+        self.assertEqual(c2.category, BankCard.Category.STAFF)
+
+        update_bank_card(actor=self.accountant, card_id=c2.id, bank="mellat",
+                         holder_name="کارت نیرو ویرایش", card_number=CARD2)
+        c2.refresh_from_db()
+        self.assertEqual(c2.category, BankCard.Category.STAFF)
+
+        update_bank_card(actor=self.accountant, card_id=c2.id, bank="mellat",
+                         holder_name="کارت نیرو ویرایش", card_number=CARD2,
+                         category=BankCard.Category.FARABAKHSH)
+        c2.refresh_from_db()
+        self.assertEqual(c2.category, BankCard.Category.FARABAKHSH)
 
 
-class SalePaymentInline(JalaliAdminMixin, TabularInline):
-    model = SalePayment
-    extra = 0
+class BankCardViewCategoryTests(TestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(username="bcv_mgr", password="pw", role=User.Role.ADMIN)
+        self.accountant = make_accountant("bcv_acc")
+        self.tech = User.objects.create_user(username="bcv_tech", password="pw", role=User.Role.EMPLOYEE)
+        self.party = Party.objects.create(name="مشتری کارت", is_client=True, phone_number="09128889900")
+        self.customer = User.objects.create_user(username="bcv_cli", password="pw", role=User.Role.CLIENT, party=self.party)
+        self.company_card = make_card(holder_name="کارت شرکت فرابخش", card_number=CARD1,
+                                      cvv2="123", expiry="06/05", category=BankCard.Category.FARABAKHSH)
+        self.staff_card = make_card(bank="mellat", holder_name="کارت نیروی فنی", card_number=CARD2,
+                                    sheba="", cvv2="999", expiry="07/08", category=BankCard.Category.STAFF)
 
+    def login(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
 
-@admin.register(Sale)
-class SaleAdmin(JalaliAdminMixin, ModelAdmin):
-    list_display = ('id', 'number', 'status', 'customer_name', 'customer_phone', 'jalali_sold_at')
-    list_filter = ('status',)
-    search_fields = ('number', 'customer_name', 'customer_phone')
-    inlines = [SaleLineInline, SalePaymentInline]
+    def test_staff_cards_never_appear_in_customer_payment_forms(self):
+        from projects.models import ProjectStage, StageApproval, WorkflowStepTemplate, WorkflowTemplate
+        tpl = WorkflowTemplate.objects.create(name="قالب کارت پرداخت")
+        step = WorkflowStepTemplate.objects.create(template=tpl, order=1, title="تایید پیش‌فاکتور",
+                                                 requires_payment_selection=True)
+        project = Project.objects.create(name="پروژه کارت", partner=self.party, owner=self.party,
+                                         workflow_template=tpl, status=Project.Status.IN_PROGRESS)
+        invoice = Invoice.objects.create(project=project, number="INV-BC-1", billed_party=self.party,
+                                         total_amount=Decimal("500000"), issue_date=timezone.localdate(),
+                                         status=Invoice.Status.SENT)
+        stage = ProjectStage.objects.create(project=project, step_template=step, order=1,
+                                            title="تایید پیش‌فاکتور", status=ProjectStage.Status.WAITING_APPROVAL)
+        approval = StageApproval.objects.create(stage=stage, sent_to_party=self.party)
 
-    jalali_sold_at = jalali_column('sold_at', 'تاریخ فروش')
+        c = self.login(self.customer)
+        for url in (reverse("finance:portal_add_payment", args=[invoice.uuid]),
+                    reverse("projects:portal_stage_approval", args=[approval.id])):
+            resp = c.get(url)
+            self.assertEqual(resp.status_code, 200, url)
+            self.assertContains(resp, "کارت شرکت فرابخش")
+            self.assertNotContains(resp, "کارت نیروی فنی")
+            self.assertNotContains(resp, CARD2)
+
+    def test_tabs_isolation_and_permissions_on_bank_cards_page(self):
+        url = reverse("finance:bank_cards")
+        for user in (self.manager, self.accountant):
+            c = self.login(user)
+            r_company = c.get(url)
+            self.assertEqual(r_company.status_code, 200)
+            self.assertContains(r_company, "کارت شرکت فرابخش")
+            self.assertNotContains(r_company, "کارت نیروی فنی")
+            self.assertContains(r_company, "?tab=staff")
+
+            r_staff = c.get(url + "?tab=staff")
+            self.assertEqual(r_staff.status_code, 200)
+            self.assertContains(r_staff, "کارت نیروی فنی")
+            self.assertContains(r_staff, "999")
+            self.assertNotContains(r_staff, "کارت شرکت فرابخش")
+
+        for user in (self.tech, self.customer):
+            c = self.login(user)
+            r = c.get(url + "?tab=staff")
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "کارت شرکت فرابخش")
+            self.assertNotContains(r, "کارت نیروی فنی")
+            self.assertNotContains(r, "?tab=staff")
+            self.assertNotContains(r, "123")
+
+    def test_create_and_move_category_via_views(self):
+        c = self.login(self.accountant)
+        r_bad = c.post(reverse("finance:bank_card_create"), {
+            "category": "wrong", "bank": "saman", "holder_name": "تست", "card_number": CARD3,
+        })
+        self.assertEqual(r_bad.status_code, 400)
+
+        r_ok = c.post(reverse("finance:bank_card_create"), {
+            "category": "staff", "bank": "saman", "holder_name": "نیروی جدید", "card_number": CARD3,
+        })
+        self.assertEqual(r_ok.status_code, 200)
+        self.assertEqual(r_ok.json(), {"ok": True, "category": "staff"})
+        created = BankCard.objects.get(card_number=CARD3)
+        self.assertEqual(created.category, BankCard.Category.STAFF)
+
+        r_move = c.post(reverse("finance:bank_card_update", args=[created.id]), {
+            "category": "farabakhsh", "bank": "saman", "holder_name": "نیروی جدید", "card_number": CARD3,
+        })
+        self.assertEqual(r_move.status_code, 200)
+        self.assertEqual(r_move.json(), {"ok": True, "category": "farabakhsh"})
+        created.refresh_from_db()
+        self.assertEqual(created.category, BankCard.Category.FARABAKHSH)
+
+        for outsider in (self.tech, self.customer):
+            oc = self.login(outsider)
+            self.assertEqual(oc.post(reverse("finance:bank_card_create"), {
+                "category": "staff", "bank": "saman", "holder_name": "x", "card_number": "6037991234567885",
+            }).status_code, 404)
+
+    def test_admin_includes_category(self):
+        from finance.admin import BankCardAdmin
+        self.assertIn("category", BankCardAdmin.list_display)
+        self.assertIn("category", BankCardAdmin.list_filter)
+        self.assertIn("category", BankCardAdmin.fields)
 ```
 
 ---
 
-**گزارش بخواه:** فهرست فایل‌های تغییرکرده، `git diff --stat`، و تایید اینکه `pnpm run build` بدون خطا اجرا شده (چون JS تغییر کرده). بعد از merge یادت باشه که این بریف تست خودکار ندارد — دستی یک خرید دو‌ردیفی با دو انبار متفاوت، یک تعدیل با انبار مشخص، و یک انتقال بین دو انبار را امتحان کن.
+#### گام ۵ — اجرای کامل تست‌ها و بررسی mutationها
+
+۱. اجرای کل تست‌ها روی sqlite و سپس با `TEST_ON_POSTGRES=True`:
+   - بررسی کن که همه‌ی تست‌های محافظ (از جمله `test_bank_cards_js_has_no_unsafe_html_sinks`، `test_no_duplicate_test_class_or_method_names`، `test_removed_css_classes_in_templates`، `test_forbidden_ui_words_in_templates`) سبز شوند.
+۲. **سه mutation را یکی‌یکی امتحان کن، بعد از هر کدام بلافاصله برگردان، و نتیجه‌ی هر کدام را جدا گزارش کن:**
+   - **M1 (نمایش در فرم پرداخت مشتری):** در `finance/templatetags/finance_tags.py` فیلتر `category=target` را از `BankCard.objects.filter(is_active=True, category=target)` بردار ← باید `test_staff_cards_never_appear_in_customer_payment_forms` (و `test_tabs_isolation_and_permissions_on_bank_cards_page`) شکست بخورد.
+   - **M2 (دسترسی تب نیروها):** در `finance/views.py` شرط `manage` را از `active_tab` بردار و در `finance_tags.py` خط `target = category` بدون چک `manage` بگذار ← باید `test_tabs_isolation_and_permissions_on_bank_cards_page` شکست بخورد.
+   - **M3 (اعتبارسنجی `category` در سرویس):** در `finance/services.py` در `create_bank_card` مقدار `category` نامعتبر را بدون خطا بپذیر ← باید `test_default_category_is_farabakhsh_and_invalid_rejected` و `test_create_and_move_category_via_views` شکست بخورند.
+۳. کامیت روی شاخه‌ی `feat/bank-cards-tabs` (بدون `push` و بدون `merge` به `main`).
+
+---
+
+#### گزارش خواسته‌شده از دستیار
+- تعداد تست قبل و بعد + نام تست‌های جدید/تغییریافته
+- خروجی `makemigrations --check --dry-run`
+- نتیجه‌ی هر ۳ mutation به‌صورت جداگانه با نام تست شکست‌خورده (و تایید برگرداندنشان)
+- فهرست فایل‌های تغییریافته (همراه با نام فایل مایگریشن جدید)
+- انحراف‌ها (اگر هست)
+- خروجی `git status --short`، `git log --oneline -5` و `git branch -a`
+- گواهی اجرای موفق `pnpm run build`
+- یادآوری: «گزارش جایگزین تست دستی نیست»
+
+---
+
+#### تست دستی کاربر (بعد از تایید و دیپلوی)
+- روی **حالت روشن/تاریک** و **موبایل** صفحه‌ی کارت‌های بانکی را باز کن:
+  1. با حساب مدیر/حسابدار وارد «کارت‌های بانکی» شو: همه‌ی کارت‌های قبلی باید در تب **«فرابخش»** باشند.
+  2. به تب **«نیروها»** برو و «افزودن کارت» را بزن: تب باید خودکار روی «نیروها» باشد؛ یک کارت ثبت کن و مطمئن شو بعد از ثبت، روی تب «نیروها» می‌ماند و کارت دیده می‌شود.
+  3. یک کارت را ویرایش کن و تبش را از «نیروها» به «فرابخش» (و برعکس) جابه‌جا کن و ببین به تب مقصد می‌رود.
+  4. روی ردیف کارت‌ها بزن، دکمه‌ی کپی شماره کارت/شبا، فعال/غیرفعال و حذف را امتحان کن.
+  5. با حساب **مشتری** (در یک پروژه‌ی منتظر تایید یا پرداخت) گزینه‌ی «کارت به کارت» را انتخاب کن: مطمئن شو فقط کارت‌های «فرابخش» نمایش داده می‌شوند و کارت‌های «نیروها» نیستند.
+  6. بعد از هر ثبت یا تغییر، تم و منوی هدر را تست کن تا مشکلی نباشد.
