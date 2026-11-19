@@ -5,6 +5,8 @@
     <a href="{% url 'finance:payments_review' %}" class="btn btn-sm btn-soft">{% icon "credit-card" "w-4 h-4" %} پرداخت‌ها</a>
     <a href="{% url 'finance:accounting_inventory' %}" class="btn btn-sm {% if nav_active == 'inventory' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "package" "w-4 h-4" %} موجودی انبار</a>
     <a href="{% url 'finance:accounting_stock' %}" class="btn btn-sm {% if nav_active == 'stock' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "arrow-left-right" "w-4 h-4" %} حرکات انبار</a>
+    <a href="{% url 'inventory:warehouse_list' %}" class="btn btn-sm btn-soft">{% icon "package" "w-4 h-4" %} انبارها</a>
+    <a href="{% url 'inventory:stock_transfer_new' %}" class="btn btn-sm btn-soft">{% icon "arrow-left-right" "w-4 h-4" %} انتقال بین انبارها</a>
     <a href="{% url 'finance:accounting_purchases' %}" class="btn btn-sm {% if nav_active == 'purchases' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "receipt" "w-4 h-4" %} خریدها</a>
     <a href="{% url 'finance:accounting_suppliers' %}" class="btn btn-sm {% if nav_active == 'suppliers' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "users" "w-4 h-4" %} تأمین‌کننده‌ها</a>
     <a href="{% url 'finance:accounting_sales' %}" class="btn btn-sm {% if nav_active == 'sales' %}btn-primary{% else %}btn-soft{% endif %}">{% icon "tag" "w-4 h-4" %} فروش کالا</a>

@@ -2,7 +2,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
 from catalog.models import Item
-from .models import Warehouse, Purchase, PurchaseLine, StockLot, StockMovement
+from .models import Warehouse, Purchase, PurchaseLine, StockLot, StockMovement, Sale, SaleLine, SalePayment
 
 
 @admin.register(Warehouse)
@@ -66,3 +66,23 @@ class StockMovementAdmin(JalaliAdminMixin, ModelAdmin):
 
     jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
     jalali_updated_at = jalali_column('updated_at', 'تاریخ ویرایش')
+
+
+class SaleLineInline(JalaliAdminMixin, TabularInline):
+    model = SaleLine
+    extra = 0
+
+
+class SalePaymentInline(JalaliAdminMixin, TabularInline):
+    model = SalePayment
+    extra = 0
+
+
+@admin.register(Sale)
+class SaleAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'number', 'status', 'customer_name', 'customer_phone', 'jalali_sold_at')
+    list_filter = ('status',)
+    search_fields = ('number', 'customer_name', 'customer_phone')
+    inlines = [SaleLineInline, SalePaymentInline]
+
+    jalali_sold_at = jalali_column('sold_at', 'تاریخ فروش')

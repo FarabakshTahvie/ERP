@@ -437,6 +437,7 @@ def purchase_detail(request, purchase_id):
         from inventory.views import item_form_choices
         ctx["line_items"] = [{"id": i.id, "name": i.name, "unit": i.get_unit_display()}
                              for i in stockable_items().order_by("name")]
+        ctx["warehouses"] = Warehouse.objects.order_by("-is_default", "name")
         ctx.update(item_form_choices())
     return render(request, "finance/accounting_purchase.html", ctx)
 
@@ -448,6 +449,7 @@ def purchase_line_add(request, purchase_id):
     try:
         line = accounting.add_purchase_line(
             purchase=purchase, actor=request.user, item_id=request.POST.get("item_id"),
+            warehouse_id=request.POST.get("warehouse_id"),
             qty_raw=request.POST.get("qty"), unit_cost_raw=request.POST.get("unit_cost"))
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)

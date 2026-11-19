@@ -559,11 +559,7 @@ def update_purchase(*, purchase, actor, supplier_party_id=None, supplier_party_d
 
 
 @transaction.atomic
-def add_purchase_line(*, purchase, actor, item_id, qty_raw, unit_cost_raw):
-    """
-    یک ردیف تازه به سند خرید (فقط حسابدار یا مدیر). ردیف با تاریخ همان سند وارد انبار می‌شود؛ ماه بسته مانع است.
-    ردیف ثبت‌شده هرگز ویرایش یا حذف نمی‌شود (حرکت انبار تغییرناپذیر است). خروجی: ردیف ساخته‌شده.
-    """
+def add_purchase_line(*, purchase, actor, item_id, warehouse_id, qty_raw, unit_cost_raw):
     from core.capabilities import can
     from core.periods import assert_open
     from inventory.models import Purchase, PurchaseLine, Warehouse
@@ -573,6 +569,10 @@ def add_purchase_line(*, purchase, actor, item_id, qty_raw, unit_cost_raw):
     purchase = Purchase.objects.select_for_update(of=("self",)).select_related("supplier").get(pk=purchase.pk)
     assert_open(purchase.purchased_at, "اصلاح خرید")
     item = get_active_item(item_id)
+    try:
+        warehouse = Warehouse.objects.get(pk=int(warehouse_id))
+    except (TypeError, ValueError, Warehouse.DoesNotExist):
+        raise ValueError("انبار را از فهرست انتخاب کن.")
     qty = parse_decimal_input(qty_raw, label="مقدار")
     cost = parse_decimal_input(unit_cost_raw, label="بهای واحد")
     if qty > Decimal("9999999") or cost > Decimal("1000000000000"):
@@ -580,13 +580,10 @@ def add_purchase_line(*, purchase, actor, item_id, qty_raw, unit_cost_raw):
     qty, cost = qty.quantize(QTY_Q), cost.quantize(Decimal("0.01"))
     if qty <= 0 or cost <= 0:
         raise ValueError("مقدار و بهای واحد باید بزرگ‌تر از صفر باشند.")
-    warehouse = Warehouse.objects.filter(is_default=True).first()
-    if not warehouse:
-        raise ValueError("هیچ انبار پیش‌فرضی تعریف نشده است؛ ابتدا از پنل ادمین یک انبار با «انبار پیش‌فرض» فعال بسازید.")
     line = PurchaseLine.objects.create(purchase=purchase, item=item, warehouse=warehouse, qty=qty, unit_cost=cost)
     receive_stock(item=item, warehouse=warehouse, qty=qty, unit_cost=cost,
                   received_at=purchase.purchased_at, purchase_line=line)
     log_event(kind=AccountingEvent.Kind.PURCHASE, purchase=purchase, actor=actor,
               amount=(qty * cost).quantize(Decimal("1")),
-              text=f"افزودن ردیف به خرید از «{purchase.supplier.name}»: {item.name}")
+              text=f"افزودن ردیف به خرید از «{purchase.supplier.name}»: {item.name} (انبار {warehouse.name})")
     return line

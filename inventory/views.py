@@ -17,13 +17,15 @@ from utils.jalali import to_fa_digits, jalali_str
 from utils.jalali_forms import JalaliDateField
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from .models import StockLot
+from .models import StockLot, Warehouse
 from core.capabilities import can, cap_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from .services import (
     user_can_manage_inventory, user_can_create_purchases, user_can_create_items, create_purchase_from_form, record_manual_stock_change,
-    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items
+    create_item, update_item, set_item_active, item_structure_locked, DuplicateItemNameError, add_purchase_file, stockable_items,
+    user_can_manage_warehouses, create_warehouse, update_warehouse, set_default_warehouse, transfer_stock,
+    delete_unused_item, item_truly_unused, get_active_item,
 )
 
 
@@ -197,6 +199,7 @@ def purchase_new(request):
     return render(request, "inventory/purchase_new.html", {
         "items": stockable_items().order_by("name"),
         "today_jalali": jalali_str(timezone.localdate(), fmt="%Y/%m/%d"),
+        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
         **item_form_choices(),
     })
 
@@ -217,6 +220,7 @@ def _movement_page(request):
     return render(request, "inventory/stock_movement_new.html", {
         "items": _stock_queryset().exclude(item_type=Item.ItemType.MANUFACTURED),
         "projects": Project.objects.filter(status=Project.Status.IN_PROGRESS).order_by("name"),
+        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
     })
 
 
@@ -239,11 +243,15 @@ def stock_movement_new(request):
             elif project_id.isdigit():
                 related_object = get_object_or_404(Project, id=int(project_id))
 
+            warehouse = None
+            raw_wh = request.POST.get("warehouse_id")
+            if raw_wh:
+                warehouse = get_object_or_404(Warehouse, pk=raw_wh)
             record_manual_stock_change(
                 item=item, kind=kind, qty_raw=request.POST.get("qty"),
                 notes=request.POST.get("notes", ""), user=request.user,
                 unit_cost_raw=request.POST.get("unit_cost"),
-                related_object=related_object, internal=internal,
+                related_object=related_object, internal=internal, warehouse=warehouse,
             )
         except ValueError as e:
             messages.error(request, str(e))
@@ -299,11 +307,11 @@ def _item_values_from_item(item):
     }
 
 
-def _render_item_form(request, *, item, values, specs, locked, duplicate_warning):
+def _render_item_form(request, *, item, values, specs, locked, duplicate_warning, can_delete=False):
     return render(request, "inventory/item_form.html", {
         **item_form_choices(),
         "item": item, "values": values, "specs": specs, "locked": locked,
-        "duplicate_warning": duplicate_warning,
+        "duplicate_warning": duplicate_warning, "can_delete": can_delete,
         "current_stock_display": to_fa_digits(_format_qty(item.current_stock)) if item else "",
     })
 
@@ -339,6 +347,7 @@ def item_new(request):
 def item_edit(request, item_id):
     item = get_object_or_404(Item, pk=item_id)
     locked = item_structure_locked(item)
+    can_delete = item_truly_unused(item)
     duplicate_warning = None
     if request.method == "POST":
         values = _item_values_from_post(request.POST)
@@ -364,7 +373,7 @@ def item_edit(request, item_id):
     else:
         values, specs = _item_values_from_item(item), _item_specs_list(item)
     return _render_item_form(request, item=item, values=values, specs=specs, locked=locked,
-                             duplicate_warning=duplicate_warning)
+                             duplicate_warning=duplicate_warning, can_delete=can_delete)
 
 
 @login_required
@@ -398,4 +407,65 @@ def item_quick_create(request):
     except ValueError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     return JsonResponse({"ok": True, "item": {"id": item.id, "name": item.name, "unit": item.get_unit_display()}})
+
+
+@login_required
+@user_passes_test(user_can_manage_warehouses)
+def warehouse_list(request):
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "create":
+                create_warehouse(name=request.POST.get("name", ""), is_default=request.POST.get("is_default") == "on")
+            elif action == "edit":
+                wh = get_object_or_404(Warehouse, pk=request.POST.get("warehouse_id"))
+                update_warehouse(warehouse=wh, name=request.POST.get("name", ""))
+            elif action == "set_default":
+                wh = get_object_or_404(Warehouse, pk=request.POST.get("warehouse_id"))
+                set_default_warehouse(wh)
+            else:
+                raise ValueError("عملیات نامعتبر است.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        else:
+            messages.success(request, "ذخیره شد.")
+        return redirect("inventory:warehouse_list")
+    return render(request, "inventory/warehouse_list.html", {
+        "warehouses": Warehouse.objects.order_by("-is_default", "name"),
+    })
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+def stock_transfer_new(request):
+    if request.method == "POST":
+        try:
+            from_wh = get_object_or_404(Warehouse, pk=request.POST.get("from_warehouse_id"))
+            to_wh = get_object_or_404(Warehouse, pk=request.POST.get("to_warehouse_id"))
+            item = get_active_item(request.POST.get("item_id"))
+            transfer_stock(item=item, qty_raw=request.POST.get("qty"), from_warehouse=from_wh, to_warehouse=to_wh,
+                           user=request.user, notes=request.POST.get("notes", ""))
+        except ValueError as e:
+            messages.error(request, str(e))
+            return redirect("inventory:stock_transfer_new")
+        messages.success(request, "انتقال بین انبارها ثبت شد.")
+        return redirect("home")
+    return render(request, "inventory/stock_transfer_new.html", {
+        "items": _stock_queryset().exclude(item_type=Item.ItemType.MANUFACTURED),
+        "warehouses": Warehouse.objects.order_by("name"),
+    })
+
+
+@login_required
+@user_passes_test(user_can_manage_inventory)
+@require_POST
+def item_delete(request, item_id):
+    item = get_object_or_404(Item, pk=item_id)
+    try:
+        name = delete_unused_item(item=item, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect("inventory:item_edit", item.id)
+    messages.success(request, f"کالای «{name}» برای همیشه حذف شد.")
+    return redirect(_stock_tab_url())
 
