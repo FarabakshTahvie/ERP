@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static custom_tags %}
+{% block title %}فایل منیجر | فرابخش{% endblock %}
+{% block content %}
+<div class="fb-page fb-page--lg">
+    <div>
+        <h1 class="fb-page-title">فایل منیجر</h1>
+        <p class="fb-page-sub">فایل‌های مشترک مدیر و حسابدار. هر فایل لینک کوتاه دارد؛ فایل خصوصی فقط با ورود مدیر یا حسابدار باز می‌شود و فایل عمومی را هر کسی که لینک را دارد، بدون ورود، می‌بیند.</p>
+    </div>
+
+    {% if not storage_ready %}
+    <div role="alert" class="alert alert-soft alert-warning">
+        {% icon "alert-triangle" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">اتصال به فضای ابری تنظیم نشده است؛ تا آن موقع آپلود و باز کردن فایل‌ها کار نمی‌کند.</span>
+    </div>
+    {% endif %}
+
+    <section class="fb-card fb-pad flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2 text-sm">
+            <span class="fb-muted">فضای مصرفی</span>
+            <span dir="auto">{{ used_text }} از {{ limit_text }}</span>
+        </div>
+        <progress class="progress progress-primary w-full" value="{{ percent }}" max="100" aria-label="فضای مصرفی"></progress>
+    </section>
+
+    <section class="fb-card fb-pad flex flex-col gap-3">
+        <h2 class="fb-section-title">ارسال فایل</h2>
+        <p class="fb-hint">هر نوع فایل (عکس، صوت، سند و ...) تا {{ max_text }}. فایل تازه همیشه خصوصی ثبت می‌شود.</p>
+        {% include "utils/partials/file_dropzone.html" with mode="instant" url=upload_url %}
+    </section>
+
+    <section class="flex flex-col gap-3">
+        <h2 class="fb-section-title">فایل‌ها ({{ total_count|fa_digits }})</h2>
+        {% if total_count > list_limit %}<p class="fb-hint">{{ list_limit|fa_digits }} فایل آخر نشان داده می‌شود.</p>{% endif %}
+        <p class="fb-error hidden" data-file-error></p>
+
+        {% for f in files %}
+        <article class="fb-card fb-pad flex flex-col gap-3">
+            <div class="flex items-start gap-3 min-w-0">
+                <div class="w-10 h-10 shrink-0 flex items-center justify-center rounded-field bg-base-200 text-primary">{% icon f.icon "w-5 h-5" %}</div>
+                <div class="min-w-0 flex flex-col gap-1">
+                    <span class="text-sm font-semibold break-all" dir="auto">{{ f.name }}</span>
+                    <div class="flex flex-wrap items-center gap-2 text-xs fb-muted">
+                        <span class="fb-badge {% if f.is_public %}fb-badge-info{% else %}fb-badge-neutral{% endif %}">{% if f.is_public %}عمومی{% else %}خصوصی{% endif %}</span>
+                        <span dir="auto">{{ f.size_text }}</span>
+                        <span>{{ f.uploaded_by|person_name:"—" }}</span>
+                        <span class="font-technical">{{ f.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</span>
+                    </div>
+                    <span dir="ltr" class="text-xs fb-muted font-technical break-all">{{ f.short_url }}</span>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="btn btn-soft btn-sm" data-copy="{{ f.short_url }}">{% icon "copy" "w-4 h-4" %} کپی لینک</button>
+                <a href="{% url 'filemanager:open' f.code %}" target="_blank" rel="noopener" class="btn btn-soft btn-sm">{% icon "eye" "w-4 h-4" %} باز کردن</a>
+                <a href="{% url 'filemanager:open' f.code %}?dl=1" class="btn btn-ghost btn-sm">{% icon "download" "w-4 h-4" %} دانلود</a>
+                {% if f.is_public %}
+                <button type="button" class="btn btn-ghost btn-sm" data-file-visibility data-next="0" data-url="{% url 'filemanager:visibility' f.pk %}">{% icon "lock" "w-4 h-4" %} خصوصی کن</button>
+                {% else %}
+                <button type="button" class="btn btn-ghost btn-sm" data-file-visibility data-next="1" data-url="{% url 'filemanager:visibility' f.pk %}">{% icon "eye" "w-4 h-4" %} عمومی کن</button>
+                {% endif %}
+                <button type="button" class="btn btn-soft btn-error btn-sm" data-file-delete data-url="{% url 'filemanager:delete' f.pk %}" data-label="{{ f.name }}">{% icon "trash-2" "w-4 h-4" %} حذف</button>
+            </div>
+        </article>
+        {% empty %}
+        <div class="fb-card"><div class="fb-empty">هنوز فایلی ارسال نشده است.</div></div>
+        {% endfor %}
+    </section>
+</div>
+
+<dialog id="file-delete-dialog" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-base mb-2">حذف فایل</h3>
+        <p class="text-sm">فایل «<span data-file-delete-label class="font-semibold break-all" dir="auto"></span>» از فضای ابری هم پاک می‌شود، لینکش از کار می‌افتد و برگشت ندارد.</p>
+        <p class="fb-error hidden mt-2" data-file-delete-error></p>
+        <div class="flex gap-2 pt-4">
+            <button type="button" class="btn btn-soft btn-error flex-1" data-file-delete-ok>حذف</button>
+            <button type="button" class="btn btn-ghost flex-1" onclick="this.closest('dialog').close()">انصراف</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static_v 'js/uploader.js' %}"></script>
+<script src="{% static_v 'js/file_manager.js' %}"></script>
+{% endblock %}

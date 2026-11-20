@@ -77,6 +77,7 @@ PAGE_PARENTS = {
     "finance:portal_statement": ("home", [], {}),
     "finance:bank_cards": ("home", [], {}),
     "locations:list": ("home", [], {}),
+    "filemanager:list": ("home", [], {}),
     "messenger:inbox": ("home", [], {}),
     "messenger:chat": ("messenger:inbox", [], {}),
     "messenger:profile": ("messenger:inbox", [], {}),
@@ -148,6 +149,7 @@ NON_PAGE = {
     "catalog:manage_save", "catalog:manage_cover", "catalog:media_upload", "catalog:media_delete",
     "catalog:service_list_more", "catalog:item_list_more",
     "locations:create", "locations:update", "locations:delete", "locations:public", "locations:public_image",
+    "filemanager:upload", "filemanager:visibility", "filemanager:delete", "filemanager:open",
 }
 
 

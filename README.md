@@ -86,11 +86,16 @@ python manage.py seed_demo_data
 | `tasks` | وظایف: مدیر و حسابدار می‌سازند، تکنسین در «کارهای من» انجام می‌دهد |
 | `messenger` | پیام‌رسان کارکنان: گروه «فرابخش گروه» و چت خصوصی با مدیر/حسابدار؛ پوش با Celery |
 | `locations` | موقعیت‌های دلخواه مدیر و حسابدار با لینک نشان و صفحه‌ی عمومی (جدا از موقعیت پروژه‌ها) |
+| `filemanager` | فایل‌منیجر مدیر و حسابدار: آپلود تا ۲۴ مگابایت روی ابر آروان، لینک کوتاه عمومی یا خصوصی |
 
 ترتیب وابستگی اپ‌ها (برای جلوگیری از import چرخه‌ای):
 ```
-core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks → messenger → locations
+core → accounts → catalog → inventory → projects → finance → notifications → utils → dashboard → people → tasks → messenger → locations → filemanager
 ```
+
+### فایل‌منیجر
+
+فایل‌های مشترک مدیر و حسابدار در فضای ابری آروان‌کلود (S3 سازگار) نگه‌داری می‌شوند و از سرور ما فقط عبور می‌کنند. کلیدهای `ARVANCLOUD_ACCESS_KEY_ID`، `ARVANCLOUD_SECRET_ACCESS_KEY`، `ARVANCLOUD_STORAGE_BUCKET_NAME` و `ARVANCLOUD_S3_ENDPOINT_URL` را در `.env` بگذار (گزینه‌ی `USE_ARVANCLOUD_MEDIA` مربوط به رسانه‌ی کل سایت است و برای این اپ لازم نیست). تست اتصال: `python manage.py arvan_check`.
 
 ## نقش‌های کاربری
 - `manager` (مدیر) — دسترسی کامل مدیریتی، می‌تواند هر مرحله را به هرکس ارجاع دهد یا خودش دستی انجام دهد

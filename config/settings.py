@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'tasks',
     'messenger',
     'locations',
+    'filemanager',
 ]
 
 MIDDLEWARE = [
@@ -369,6 +370,17 @@ OTP_EXPIRY_MINUTES = env.int('OTP_EXPIRY_MINUTES', default=2)
 
 
 NESHAN_API_KEY=env('NESHAN_API_KEY', default='')
+
+# فایل‌منیجر: فضای ابری آروان. جدا از USE_ARVANCLOUD_MEDIA (آن گزینه رسانه‌ی کل سایت را جابه‌جا می‌کند).
+ARVAN_FILES_ACCESS_KEY = env('ARVANCLOUD_ACCESS_KEY_ID', default='').strip()
+ARVAN_FILES_SECRET_KEY = env('ARVANCLOUD_SECRET_ACCESS_KEY', default='').strip()
+ARVAN_FILES_BUCKET = env('ARVANCLOUD_STORAGE_BUCKET_NAME', default='').strip()
+ARVAN_FILES_ENDPOINT = env('ARVANCLOUD_S3_ENDPOINT_URL', default='https://s3.ir-thr-at1.arvanstorage.ir').strip().rstrip('/')
+ARVAN_FILES_ADDRESSING_STYLE = env('ARVAN_FILES_ADDRESSING_STYLE', default='path')   # path | virtual
+ARVAN_FILES_SIGNATURE = env('ARVAN_FILES_SIGNATURE', default='s3v4')                # s3v4 | s3
+ARVAN_FILES_REGION = env('ARVAN_FILES_REGION', default='').strip()
+if 'test' in sys.argv:   # تست‌ها هرگز به ابر واقعی وصل نشوند
+    ARVAN_FILES_ACCESS_KEY = ARVAN_FILES_SECRET_KEY = ARVAN_FILES_BUCKET = ''
 
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'
