@@ -9,7 +9,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 EXEMPT_PREFIXES = ("/s/", "/manifest.json", "/najva-messaging-sw.js", "/utils/api/", "/static/", "/media/")
-PRESENCE_SKIP_PREFIXES = ("/static/", "/media/", "/utils/", "/s/", "/manifest.json",
+PRESENCE_SKIP_PREFIXES = ("/static/", "/media/", "/utils/", "/s/", "/f/", "/manifest.json",
                           "/najva-messaging-sw.js", "/admin/jsi18n/")
 PRESENCE_THROTTLE_SECONDS = 60
 

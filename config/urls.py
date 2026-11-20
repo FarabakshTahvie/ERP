@@ -23,6 +23,7 @@ urlpatterns = [
     path('', include('finance.urls', namespace='finance')),
     path('', include('catalog.urls', namespace='catalog')),
     path('', include('locations.urls', namespace='locations')),
+    path('', include('filemanager.urls', namespace='filemanager')),
     re_path(r'^media/(?P<path>.+)$', protected_media, name='protected_media'),
     path('', home_view, name='home'),
 ]

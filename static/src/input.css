@@ -21,6 +21,7 @@
 @source "../js/proforma_page.js";
 @source "../js/catalog_manage.js";
 @source "../js/saved_locations.js";
+@source "../js/file_manager.js";
 @plugin "daisyui" {
   themes: farabakhsh --default, farabakhsh-dark --prefersdark;
 }
