@@ -14,6 +14,7 @@ from finance.models import GatewayTransaction, Invoice, Payment
 from projects.models import (
     Project, ProjectStage, StageApproval, WorkflowStepTemplate, WorkflowTemplate,
 )
+from notifications.models import Notification, NotificationType
 from utils.test_helpers import make_accountant
 
 AUTHORITY = "A0000000000000000000000000000wwOGYpd"
@@ -227,5 +228,52 @@ class GatewayApprovalTests(GatewayBase):
         with mock.patch(POST, return_value=reply(VERIFY_OK)), \
                 mock.patch("projects.services.decide_stage_approval", side_effect=RuntimeError("boom")):
             self.callback()
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertEqual(GatewayTransaction.objects.get().status, "paid")
+
+
+class GatewayStaffNotifyTests(GatewayBase):
+    def setUp(self):
+        super().setUp()
+        self.manager = User.objects.create_user(username="gwn_mgr", password="pw", role=User.Role.ADMIN)
+        self.accountant = make_accountant("gwn_acc")
+        self.plain_tech = User.objects.create_user(username="gwn_tech", password="pw", role=User.Role.EMPLOYEE)
+
+    def run_callback(self, verify, **kw):
+        with mock.patch(POST, return_value=reply(verify)), self.captureOnCommitCallbacks(execute=True):
+            return self.callback(**kw)
+
+    def notes(self):
+        return Notification.objects.filter(notification_type=NotificationType.GATEWAY_PAYMENT)
+
+    def test_verified_payment_notifies_manager_and_accountant_only(self):
+        self.pending_tx("2000000")
+        self.run_callback(VERIFY_OK)
+        payment = Payment.objects.get()
+        self.assertEqual(set(self.notes().values_list("user_id", flat=True)), {self.manager.pk, self.accountant.pk})
+        note = self.notes().get(user=self.manager)
+        self.assertEqual(note.real_target_url, reverse("finance:payment_detail", args=[payment.pk]))
+        self.assertIn("مشتری درگاه", note.body)
+        self.assertIn("201", note.body)
+        self.assertFalse(Notification.objects.filter(user__in=[self.user, self.plain_tech]).exists())
+
+    def test_repeated_callback_notifies_only_once(self):
+        self.pending_tx()
+        self.run_callback(VERIFY_OK)
+        self.run_callback(VERIFY_OK)
+        self.assertEqual(self.notes().count(), 2)   # یک اعلان برای هر گیرنده
+
+    def test_no_notification_when_nothing_was_recorded(self):
+        for authority, status, verify in (("A1nok", "NOK", None), ("A2refused", "OK", REFUSED)):
+            GatewayTransaction.objects.create(invoice=self.invoice, user=self.user, amount=Decimal("1000000"),
+                                              authority=authority)
+            self.run_callback(verify, status=status, authority=authority)
+        self.assertFalse(self.notes().exists())
+        self.assertFalse(Payment.objects.exists())
+
+    def test_notification_failure_never_loses_the_verified_payment(self):
+        self.pending_tx()
+        with mock.patch("notifications.services.notify_staff", side_effect=RuntimeError("boom")):
+            self.run_callback(VERIFY_OK)
         self.assertEqual(Payment.objects.count(), 1)
         self.assertEqual(GatewayTransaction.objects.get().status, "paid")

@@ -33,6 +33,7 @@ class NotificationType(models.TextChoices):
     STAGE_UNASSIGNED = "stage_unassigned", "مرحله‌ی بدون مسئول"
     SHIPMENT_NOT_RECEIVED = "shipment_not_received", "اقلام دریافت نشد"
     CHEQUE_DUE = "cheque_due", "سررسید چک"
+    GATEWAY_PAYMENT = "gateway_payment", "پرداخت آنلاین مشتری"
 
 
 class ChannelPolicy(models.TextChoices):

@@ -127,6 +127,25 @@ def _approve_waiting_stage(invoice, user):
         logger.exception("gateway: stage approval failed for invoice %s", invoice.pk)
 
 
+def _notify_staff_paid(invoice, payment, ref):
+    """به مدیر و حسابدار خبر می‌دهد پولی از درگاه آمده. شکست اعلان نباید پرداخت تاییدشده را برگرداند."""
+    from notifications.models import NotificationType
+    from notifications.services import notify_staff
+    try:
+        with transaction.atomic():   # savepoint؛ خطای اعلان تراکنش اصلی را نمی‌شکند
+            notify_staff(
+                "payments.review", notification_type=NotificationType.GATEWAY_PAYMENT,
+                title="پرداخت آنلاین دریافت شد",
+                body=(f"{invoice.billed_party.name} برای پروژه «{invoice.project.name}» مبلغ "
+                      f"{separate_digits(payment.amount)} تومان از درگاه پرداخت کرد "
+                      f"(فاکتور {invoice.number}، پیگیری {ref or '—'}). "
+                      f"مانده‌ی فاکتور: {separate_digits(invoice.remaining_amount)} تومان."),
+                real_target_url=reverse("finance:payment_detail", args=[payment.pk]),
+                extra_data={"invoice_number": invoice.number, "payment_id": payment.pk})
+    except Exception:
+        logger.exception("gateway: staff notification failed for payment %s", payment.pk)
+
+
 def finish_payment(*, authority, status):
     """برگشت از درگاه. خروجی: (تراکنش یا None، متن پیام، سطح پیام). تکرار امن (idempotent) است."""
     from .accounting import log_event
@@ -174,4 +193,5 @@ def finish_payment(*, authority, status):
         log_event(kind=AccountingEvent.Kind.PAYMENT, project=invoice.project, actor=None, amount=tx.amount,
                   text=f"پرداخت آنلاین زرین‌پال ثبت شد (پیگیری {ref or '—'})")
         _approve_waiting_stage(invoice, tx.user)
+        _notify_staff_paid(invoice, payment, ref)
         return tx, f"پرداخت با موفقیت انجام شد. شماره‌ی پیگیری: {ref}" if ref else "پرداخت با موفقیت انجام شد.", "success"
