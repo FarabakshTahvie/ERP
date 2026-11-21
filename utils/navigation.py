@@ -123,6 +123,7 @@ NON_PAGE = {
     "finance:accounting_sale_payment_add", "finance:accounting_sale_payment_edit",
     "finance:accounting_sale_payment_delete",
     "finance:payment_decide", "finance:payment_cheque_status", "finance:payment_cheque_info",
+    "finance:gateway_start", "finance:gateway_callback",
     "finance:payments_table", "finance:portal_invoice_pdf",
     "inventory:bulk_template", "inventory:item_quick_create", "inventory:item_toggle_active",
     "inventory:item_delete",

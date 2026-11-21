@@ -1,0 +1,19 @@
+{% load static custom_tags %}
+<form method="post" action="{% url 'finance:gateway_start' invoice.uuid %}" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
+    {% csrf_token %}
+    <div class="flex items-center gap-3">
+        <img src="{% static 'icons/zarinpal.jpg' %}" alt="زرین‌پال" class="w-10 h-10 object-contain bg-white rounded-field p-1 border border-base-300">
+        <div class="min-w-0">
+            <h2 class="fb-section-title">پرداخت آنلاین</h2>
+            <p class="fb-hint">با کارت بانکی از طریق درگاه زرین‌پال؛ پرداخت همان لحظه در فاکتور ثبت می‌شود.</p>
+        </div>
+    </div>
+    {% if approves %}<p class="fb-hint">با پرداخت آنلاین، تایید این مرحله هم ثبت می‌شود.</p>{% endif %}
+    <div class="fb-field">
+        <label class="fb-label" for="gateway-amount">مبلغ (تومان)</label>
+        <input type="text" id="gateway-amount" name="amount" data-money maxlength="12" dir="ltr" inputmode="numeric" autocomplete="off"
+               placeholder="خالی بماند یعنی کل مانده" class="input w-full font-technical">
+        <span class="fb-hint">مانده‌ی فاکتور: <span class="font-technical">{{ invoice.remaining_amount|intcomma_fa }}</span> تومان</span>
+    </div>
+    <button type="submit" class="btn btn-primary w-full">{% icon "credit-card" "w-4 h-4" %} پرداخت آنلاین</button>
+</form>

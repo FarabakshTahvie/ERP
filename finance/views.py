@@ -1,18 +1,20 @@
 from datetime import timedelta
 import io
+import re
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import BooleanField, Case, DateTimeField, F, IntegerField, Sum, Value, When
-from django.http import Http404, FileResponse, JsonResponse
+from django.http import Http404, FileResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 import weasyprint
 
 from core.capabilities import can, cap_required
+from . import gateway
 from .bank_cards import BANK_CHOICES
 from .deadline import deadline_info, expired_message
 from utils.generic_table import build_table_context, render_table
@@ -101,6 +103,34 @@ def add_payment(request, invoice_uuid):
         return redirect("finance:portal_invoice_detail", invoice.uuid)
 
     return render(request, "finance/portal_add_payment.html", {"invoice": invoice})
+
+
+@login_required
+@require_POST
+def gateway_start(request, invoice_uuid):
+    invoice = get_object_or_404(Invoice, uuid=invoice_uuid)
+    _allowed, is_owner = _invoice_access(request.user, invoice)
+    if not is_owner:   # مدیر و حسابدار فقط می‌بینند؛ پرداخت آنلاین فقط برای خود طرف‌حساب
+        raise Http404
+    try:
+        url = gateway.start_payment(invoice=invoice, user=request.user, amount_raw=request.POST.get("amount"))
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect("finance:portal_invoice_detail", invoice.uuid)
+    return HttpResponseRedirect(url)
+
+
+@require_GET
+def gateway_callback(request):
+    """ورود لازم نیست: پول از حساب کسر شده و باید ثبت شود حتی اگر نشست مشتری پریده باشد. ثبت idempotent است."""
+    authority = (request.GET.get("Authority") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9]{1,64}", authority):
+        raise Http404
+    tx, text, level = gateway.finish_payment(authority=authority, status=request.GET.get("Status", ""))
+    if tx is None:
+        raise Http404
+    getattr(messages, level)(request, text)
+    return redirect("finance:portal_invoice_detail", tx.invoice.uuid)
 
 
 CHEQUE_VARIANT = {"received": "info", "deposited": "info", "collected": "success",

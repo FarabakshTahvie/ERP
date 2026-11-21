@@ -73,6 +73,9 @@
             <button type="submit" name="action" value="reject" formnovalidate class="btn btn-soft btn-error flex-1">رد</button>
         </div>
     </form>
+    {% if GATEWAY_ENABLED and needs_payment and invoice and invoice.status != 'cancelled' and invoice.remaining_amount > 0 and deadline.state != 'expired' %}
+    {% include "finance/partials/gateway_pay.html" with approves=True %}
+    {% endif %}
     {% endif %}
 </div>
 <script>

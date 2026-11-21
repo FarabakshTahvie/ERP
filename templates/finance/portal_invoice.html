@@ -159,5 +159,9 @@
             {% endif %}
         {% endif %}
     </div>
+
+    {% if GATEWAY_ENABLED and is_owner and invoice.status != 'cancelled' and invoice.remaining_amount > 0 and deadline.state != 'expired' %}
+    {% include "finance/partials/gateway_pay.html" with approves=pending_approval %}
+    {% endif %}
 </div>
 {% endblock %}
