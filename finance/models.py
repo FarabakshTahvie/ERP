@@ -189,6 +189,35 @@ class Payment(TimeStampedModel):
         recalculate_invoice_paid_amount(self.invoice)
 
 
+class GatewayTransaction(TimeStampedModel):
+    """یک تلاش پرداخت آنلاین. پرداخت واقعی (Payment) فقط بعد از تایید نهایی (verify) زرین‌پال ساخته می‌شود."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار پرداخت"
+        PAID = "paid", "پرداخت‌شده"
+        FAILED = "failed", "ناموفق"
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="gateway_transactions", verbose_name="فاکتور")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name="+", verbose_name="پرداخت‌کننده")
+    amount = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ (تومان)")
+    authority = models.CharField(max_length=64, unique=True, verbose_name="شناسه مرجع (Authority)")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, verbose_name="وضعیت")
+    ref_id = models.CharField(max_length=40, blank=True, verbose_name="شماره تراکنش (ref_id)")
+    card_pan = models.CharField(max_length=30, blank=True, verbose_name="کارت پرداخت‌کننده")
+    result_code = models.IntegerField(null=True, blank=True, verbose_name="کد نتیجه‌ی درگاه")
+    payment = models.OneToOneField(Payment, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="gateway_transaction", verbose_name="پرداخت ثبت‌شده")
+    verified_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تایید نهایی")
+
+    class Meta:
+        verbose_name = "تراکنش درگاه"
+        verbose_name_plural = "تراکنش‌های درگاه"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.authority} — {self.get_status_display()}"
+
 
 class AccountingEvent(models.Model):
     """سابقه‌ی اقدام‌های حسابدار (append-only)."""

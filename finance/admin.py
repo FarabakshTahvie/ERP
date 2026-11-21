@@ -8,7 +8,7 @@ from unfold.decorators import display, action
 from simple_history.admin import SimpleHistoryAdmin
 from core.capabilities import can
 from utils.admin_helpers import jalali_column, JalaliAdminMixin
-from .models import Invoice, InvoiceLine, Payment, BankCard
+from .models import Invoice, InvoiceLine, Payment, BankCard, GatewayTransaction
 from .services import refresh_invoice_lines, approve_payment, add_manual_invoice_line, PROOF_METHODS
 from .forms import AddInvoiceLineForm, PaymentInlineForm
 
@@ -184,3 +184,25 @@ class BankCardAdmin(ModelAdmin):
         return self.has_module_permission(request)
 
 
+@admin.register(GatewayTransaction)
+class GatewayTransactionAdmin(JalaliAdminMixin, ModelAdmin):
+    list_display = ('id', 'invoice', 'amount', 'status', 'ref_id', 'authority', 'jalali_created_at')
+    list_filter = ('status',)
+    search_fields = ('authority', 'ref_id', 'invoice__number')
+
+    jalali_created_at = jalali_column('created_at', 'تاریخ ثبت')
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser or getattr(request.user, "role", None) == "manager"
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

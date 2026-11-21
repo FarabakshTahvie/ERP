@@ -22,6 +22,11 @@ def _messenger_unread(user):
     return unread_total(user)
 
 
+def _gateway_enabled():
+    from finance.gateway import gateway_enabled
+    return gateway_enabled()
+
+
 def site_info(request):
     ctx = {
         "CONTACT": settings.COMPANY_CONTACT,
@@ -39,6 +44,7 @@ def site_info(request):
         if caps["accounting_access"]:
             ctx["pending_payments_nav_count"] = SimpleLazyObject(_pending_payments_count)
         ctx["unread_notifications_count"] = SimpleLazyObject(lambda: _unread_notifications_count(user))
+        ctx["GATEWAY_ENABLED"] = SimpleLazyObject(_gateway_enabled)
         if caps.get("messenger_use"):
             ctx["messenger_unread_count"] = SimpleLazyObject(lambda: _messenger_unread(user))
     return ctx

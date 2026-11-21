@@ -349,6 +349,11 @@ NAJVA_API_KEY = env('NAJVA_API_KEY', default='')
 NAJVA_WEBSITE_ID = env('NAJVA_WEBSITE_ID', default='')
 NAJVA_SEND_URL = env('NAJVA_SEND_URL', default='https://push.najva.com/v1/send/token/')
 
+# درگاه پرداخت زرین‌پال
+ZARINPAL_ENABLED = env.bool('ZARINPAL_ENABLED', default=False)
+ZARINPAL_MERCHANT_ID = env('ZARINPAL_MERCHANT_ID', default='').strip()
+ZARINPAL_SANDBOX = env.bool('ZARINPAL_SANDBOX', default=False)   # فقط با DEBUG کار می‌کند (finance/gateway.py)
+
 # Site URL for tracking links
 SITE_BASE_URL = env('SITE_BASE_URL', default='https://farabakhshtahvieh.com')
 SMS_IR_SANDBOX_API_KEY = env('SMS_IR_SANDBOX_API_KEY', default='')  # فقط برای تست‌ها
@@ -363,6 +368,8 @@ if 'test' in sys.argv:
     NAJVA_ENABLED = False
     SMS_FREE_TEXT_ENABLED = False
     BROADCAST_DRY_RUN = False
+    ZARINPAL_ENABLED = False
+    ZARINPAL_MERCHANT_ID = ''
 
 # OTP Configuration
 OTP_LENGTH = env.int('OTP_LENGTH', default=5)
