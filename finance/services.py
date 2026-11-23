@@ -168,12 +168,13 @@ def _generate_invoice_number():
     return next_monthly_code(Invoice.objects.all(), "number", monthly_prefix("INV"))
 
 
-def _make_line(invoice, line_type, title, qty, unit_price, cost_snapshot=None):
+def _make_line(invoice, line_type, title, qty, unit_price, cost_snapshot=None, unit=""):
     return InvoiceLine(
         invoice=invoice,
         line_type=line_type,
         title=title,
         qty=qty,
+        unit=unit,
         unit_price=unit_price,
         cost_snapshot=cost_snapshot,
         total=qty * unit_price,
@@ -184,18 +185,22 @@ def build_invoice_lines(project, invoice=None):
     """ردیف‌های فاکتور از روی پروژه، ذخیره‌نشده. invoice=None یعنی فقط پیش‌نمایش."""
     lines = []
     for ps in project.services.select_related("service").order_by("pk"):   # کالاهای زیر خدمت قیمت ندارند و در فاکتور نیستند
-        line = _make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price)
+        line = _make_line(invoice, InvoiceLine.LineType.SERVICE, ps.service.name, ps.qty, ps.unit_price,
+                          unit=ps.unit_code)
         line.total = (ps.qty * ps.unit_price).quantize(Decimal(1), rounding=ROUND_HALF_UP)   # bulk_create متد save را صدا نمی‌زند
         lines.append(line)
     lines += [
-        _make_line(invoice, InvoiceLine.LineType.MATERIAL, pm.item.name, pm.qty, pm.unit_price, pm.item.moving_average_cost)
+        _make_line(invoice, InvoiceLine.LineType.MATERIAL, pm.item.name, pm.qty, pm.unit_price,
+                   pm.item.moving_average_cost, unit=pm.item.unit)
         for pm in project.extra_materials.all()   # مسیر قدیمی (پروژه‌های پیش از نسخه‌ی ۲)
     ]
     for xl in project.extra_lines.all():
         if xl.kind == "discount":
-            lines.append(_make_line(invoice, InvoiceLine.LineType.DISCOUNT, xl.title, xl.qty, -xl.unit_price))
+            lines.append(_make_line(invoice, InvoiceLine.LineType.DISCOUNT, xl.title, xl.qty, -xl.unit_price,
+                                    unit=xl.unit))
         else:
-            lines.append(_make_line(invoice, InvoiceLine.LineType.EXTRA, xl.title, xl.qty, xl.unit_price))
+            lines.append(_make_line(invoice, InvoiceLine.LineType.EXTRA, xl.title, xl.qty, xl.unit_price,
+                                    unit=xl.unit))
     if project.installation_fee:
         lines.append(_make_line(invoice, InvoiceLine.LineType.INSTALLATION, "هزینه نصب", 1, project.installation_fee))
     if project.shipping_fee:

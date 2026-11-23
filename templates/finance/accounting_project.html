@@ -84,7 +84,7 @@
                 <tbody>
                     {% for l in invoice.lines.all %}
                     <tr><td>{{ l.title }}{% if l.is_manual %} <span class="fb-badge fb-badge-info">دستی</span>{% endif %}</td>
-                        <td class="font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td><span class="font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</span>{% if l.unit %} {{ l.get_unit_display }}{% endif %}</td>
                         <td class="font-technical">{{ l.unit_price|intcomma_fa }}</td>
                         <td class="font-technical font-semibold">{{ l.total|intcomma_fa }}</td></tr>
                     {% endfor %}

@@ -22,7 +22,9 @@
             <thead>
                 <tr class="text-xs fb-muted">
                     <th class="w-12 text-center font-medium">ردیف</th><th class="font-medium">شرح</th>
-                    <th class="text-center font-medium">مقدار</th><th class="text-center font-medium">مبلغ واحد (تومان)</th>
+                    <th class="text-center font-medium">مقدار</th>
+                    <th class="text-center font-medium">واحد</th>
+                    <th class="text-center font-medium">مبلغ واحد (تومان)</th>
                     <th class="text-center font-medium">جمع کل (تومان)</th>
                 </tr>
             </thead>
@@ -32,6 +34,7 @@
                     <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
                     <td class="font-medium">{{ l.title }}</td>
                     <td class="text-center font-technical">{{ l.qty|floatformat:"-2"|fa_digits }}</td>
+                    <td class="text-center">{{ l.get_unit_display|default:"—" }}</td>
                     <td class="text-center font-technical">{{ l.unit_price|intcomma_fa }}</td>
                     <td class="text-center font-technical font-semibold">{{ l.total|intcomma_fa }}</td>
                 </tr>

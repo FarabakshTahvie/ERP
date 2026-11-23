@@ -43,7 +43,7 @@ class DefaultItemsBase(TestCase):
         self.flange = mk("فلنج تست پیش‌فرض", Item.ItemType.PART, Item.Unit.PIECE)
         self.channel = mk("کانال تست پیش‌فرض", Item.ItemType.MANUFACTURED, Item.Unit.METER)
         self.dead = mk("کالای غیرفعال پیش‌فرض", Item.ItemType.PART, Item.Unit.PIECE, is_active=False)
-        self.service = Service.objects.create(name="خدمت تست پیش‌فرض")
+        self.service = Service.objects.create(name="خدمت تست پیش‌فرض", unit=Item.Unit.METER)
         for it in (self.sheet, self.channel, self.dead):
             ServiceBOM.objects.create(service=self.service, item=it)
 

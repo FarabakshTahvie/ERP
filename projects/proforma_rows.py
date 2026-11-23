@@ -10,7 +10,7 @@ from utils.jalali import jalali_str, to_fa_digits
 from utils.jalali_forms import JalaliDateField
 from utils.line_editor import parse_rows
 from utils.utils import separate_digits
-from .models import Project, ProjectExtraLine, ProjectService
+from .models import Project, ProjectExtraLine, ProjectService, UNIT_LABELS
 from .proforma import (
     EXTRA_COLS, MATERIAL_COLS, SERVICE_COLS, _round0, _sync_materials, check_material_items, service_line_total,
 )
@@ -39,6 +39,14 @@ def _int(raw):
         return int(raw)
     except (TypeError, ValueError):
         return None
+
+
+def _resolve_unit(raw, service):
+    """واحد ردیف خدمت: انتخاب کاربر، وگرنه واحد پیش‌فرض خدمت؛ هیچ‌کدام نبود خطا."""
+    code = raw or service.unit or ""
+    if not code:
+        raise ValueError(f"واحد «{service.name}» را انتخاب کنید.")
+    return code
 
 
 # ---------- ورودی ----------
@@ -72,13 +80,13 @@ def service_row_initial(line):
     mats = [{"pk": m.pk, "item_id": m.item_id, "on": True} for m in saved]
     mats += [{"item_id": b.item_id, "on": False} for b in line.service.bom_lines.all()
              if b.item_id not in have and b.item.is_active]
-    return {"pk": line.pk, "service_id": line.service_id, "qty": q(line.qty),
+    return {"pk": line.pk, "service_id": line.service_id, "qty": q(line.qty), "unit": line.unit_code,
             "unit_price": str(int(line.unit_price)), "materials": mats}
 
 
 def extra_row_initial(x):
     return {"pk": x.pk, "title": x.title, "kind": x.kind, "qty": format(Decimal(x.qty).normalize(), "f"),
-            "unit_price": str(int(x.unit_price))}
+            "unit": x.unit, "unit_price": str(int(x.unit_price))}
 
 
 def _signed(x):
@@ -162,14 +170,16 @@ def _line_or_none(qs, pk, required=False):
 def save_service_line(*, project, actor, row):
     project = _locked(project)
     _guard(project, actor)
-    if not Service.objects.filter(pk=row["service_id"]).exists():
+    service = Service.objects.filter(pk=row["service_id"]).first()
+    if service is None:
         raise ValueError("خدمت انتخاب‌شده در سیستم پیدا نشد.")
+    unit = _resolve_unit(row.get("unit"), service)
     qty = row["qty"].quantize(Decimal("0.01"))
     if qty <= 0:
         raise ValueError("مقدار خدمت خیلی کوچک است.")
     line = _line_or_none(project.services.all(), row["pk"]) or ProjectService(project=project)
     check_material_items(project, row["materials"])
-    line.service_id, line.qty, line.unit_price = row["service_id"], qty, row["unit_price"]
+    line.service_id, line.qty, line.unit, line.unit_price = row["service_id"], qty, unit, row["unit_price"]
     line.save()
     _sync_materials(line, row["materials"])   # فقط همین ردیف
     _refresh_invoice(project)
@@ -185,6 +195,7 @@ def save_extra_line(*, project, actor, row):
         raise ValueError("مقدار ردیف خیلی کوچک است.")
     line = _line_or_none(project.extra_lines.all(), row["pk"]) or ProjectExtraLine(project=project, created_by=actor)
     line.kind, line.title, line.qty, line.unit_price = row["kind"], row["title"], qty, row["unit_price"]
+    line.unit = row.get("unit") or ""
     line.save()
     _refresh_invoice(project)
     return line
@@ -229,7 +240,7 @@ def set_project_field(*, project, actor, field, raw):
 
 # ---------- پیش‌نمایش «چه به چه» (چیزی ذخیره نمی‌شود) ----------
 def _old_view(line):
-    return {"name": line.service.name, "qty": line.qty, "unit_price": line.unit_price,
+    return {"name": line.service.name, "unit": line.unit_label, "qty": line.qty, "unit_price": line.unit_price,
             "items": {m.item_id: m.item.name for m in sorted(line.materials.all(), key=lambda m: m.pk)},
             "total": service_line_total(line)}
 
@@ -238,12 +249,13 @@ def _new_view(row):
     service = Service.objects.filter(pk=row["service_id"]).first()
     if service is None:
         raise ValueError("خدمت انتخاب‌شده در سیستم پیدا نشد.")
+    unit = _resolve_unit(row.get("unit"), service)
     ids = {m["item_id"] for m in row["materials"]}
     names = {i.pk: i.name for i in Item.objects.filter(pk__in=ids)}
     if len(names) != len(ids):
         raise ValueError("یکی از کالاهای انتخاب‌شده در سیستم پیدا نشد.")
     qty = row["qty"].quantize(Decimal("0.01"))
-    return {"name": service.name, "qty": qty, "unit_price": row["unit_price"],
+    return {"name": service.name, "qty": qty, "unit": UNIT_LABELS.get(unit, ""), "unit_price": row["unit_price"],
             "items": {m["item_id"]: names[m["item_id"]] for m in row["materials"] if m.get("on")},
             "total": _round0(qty * row["unit_price"])}
 
@@ -254,6 +266,8 @@ def _diff_service(old, new):
         out.append(_change("خدمت", old["name"], new["name"]))
     if old["qty"] != new["qty"]:
         out.append(_change("مقدار خدمت", _q(old["qty"]), _q(new["qty"])))
+    if old["unit"] != new["unit"]:
+        out.append(_change("واحد", old["unit"] or "—", new["unit"] or "—"))
     if old["unit_price"] != new["unit_price"]:
         out.append(_change("قیمت خود خدمت (تومان)", money_text(old["unit_price"]), money_text(new["unit_price"])))
     for iid, name in new["items"].items():
@@ -267,9 +281,10 @@ def _diff_service(old, new):
     return out
 
 
-def _extra_view(kind, title, qty, unit_price):
+def _extra_view(kind, title, qty, unit_price, unit=""):
     t = _round0(Decimal(qty) * Decimal(unit_price))
-    return {"kind": kind, "title": title, "qty": Decimal(qty), "unit_price": Decimal(unit_price),
+    return {"kind": kind, "title": title, "qty": Decimal(qty), "unit": UNIT_LABELS.get(unit or "", ""),
+            "unit_price": Decimal(unit_price),
             "total": -t if kind == ProjectExtraLine.Kind.DISCOUNT else t}
 
 
@@ -281,6 +296,8 @@ def _diff_extra(old, new):
         out.append(_change("نوع", KIND_LABELS[old["kind"]], KIND_LABELS[new["kind"]]))
     if old["qty"] != new["qty"]:
         out.append(_change("مقدار", _q(old["qty"]), _q(new["qty"])))
+    if old["unit"] != new["unit"]:
+        out.append(_change("واحد", old["unit"] or "—", new["unit"] or "—"))
     if old["unit_price"] != new["unit_price"]:
         out.append(_change("مبلغ واحد (تومان)", money_text(old["unit_price"]), money_text(new["unit_price"])))
     if old["total"] != new["total"]:
@@ -321,11 +338,11 @@ def preview_change(*, project, actor, kind, row=None, field=None, raw=None):
     if kind == "extra":
         line = _line_or_none(project.extra_lines.all(), row["pk"])
         qty = row["qty"].quantize(Decimal("0.01"))
-        new = _extra_view(row["kind"], row["title"], qty, row["unit_price"])
+        new = _extra_view(row["kind"], row["title"], qty, row["unit_price"], row.get("unit") or "")
         if line is None:
             return _result(before, new["total"], [_change(f"ردیف تازه: {new['title']}", "—",
                                                           f"{money_text(new['total'])} تومان")], is_new=True)
-        old = _extra_view(line.kind, line.title, line.qty, line.unit_price)
+        old = _extra_view(line.kind, line.title, line.qty, line.unit_price, line.unit)
         return _result(before, new["total"] - old["total"], _diff_extra(old, new))
     if kind == "fee":
         changes, delta = _fee_change(project, field, raw)

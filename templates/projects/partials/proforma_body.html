@@ -101,7 +101,7 @@
                             <div class="font-medium">{{ s.line.service.name }}</div>
                             {% if s.materials %}<div class="text-xs fb-muted">کالاهای فرم مصرف: {% for m in s.materials %}{{ m.item.name }}{% if not forloop.last %}، {% endif %}{% endfor %}</div>{% endif %}
                         </td>
-                        <td class="text-center font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center"><span class="font-technical">{{ s.line.qty|floatformat:"-2"|fa_digits }}</span>{% if s.line.unit_label %} {{ s.line.unit_label }}{% endif %}</td>
                         <td class="text-center font-technical">{{ s.line.unit_price|intcomma_fa }}</td>
                         <td class="text-center font-technical font-semibold">{{ s.total|intcomma_fa }}</td>
                         {% if editable %}
@@ -124,7 +124,7 @@
                             <span class="font-medium">{{ x.line.title }}</span>
                             <span class="fb-badge {% if x.line.kind == 'discount' %}fb-badge-success{% else %}fb-badge-warning{% endif %}">{{ x.line.get_kind_display }}</span>
                         </td>
-                        <td class="text-center font-technical">{{ x.line.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center"><span class="font-technical">{{ x.line.qty|floatformat:"-2"|fa_digits }}</span>{% if x.line.unit_label %} {{ x.line.unit_label }}{% endif %}</td>
                         <td class="text-center font-technical">{{ x.line.unit_price|intcomma_fa }}</td>
                         <td class="text-center font-technical font-semibold">{{ x.total|intcomma_fa }}</td>
                         {% if editable %}
@@ -259,5 +259,6 @@
     {% if editable %}
     {{ services_data|json_script:"services-data" }}
     {{ items_data|json_script:"items-data" }}
+    {{ units_data|json_script:"units-data" }}
     {% endif %}
 </div>

@@ -81,6 +81,7 @@
                         <th class="w-12 text-center font-medium">ردیف</th>
                         <th class="font-medium">شرح</th>
                         <th class="text-center font-medium">مقدار</th>
+                        <th class="text-center font-medium">واحد</th>
                         <th class="text-center font-medium">مبلغ واحد (تومان)</th>
                         <th class="text-center font-medium">جمع کل (تومان)</th>
                     </tr>
@@ -91,11 +92,12 @@
                         <td class="text-center font-technical">{{ forloop.counter|fa_digits }}</td>
                         <td class="font-medium">{{ line.title }}</td>
                         <td class="text-center font-technical">{{ line.qty|floatformat:"-2"|fa_digits }}</td>
+                        <td class="text-center">{{ line.get_unit_display|default:"—" }}</td>
                         <td class="text-center font-technical">{{ line.unit_price|intcomma_fa }}</td>
                         <td class="text-center font-technical font-semibold">{{ line.total|intcomma_fa }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="fb-empty">ردیفی برای این فاکتور ثبت نشده است.</td></tr>
+                    <tr><td colspan="6" class="fb-empty">ردیفی برای این فاکتور ثبت نشده است.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
