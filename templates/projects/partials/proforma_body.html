@@ -50,6 +50,13 @@
     </div>
     {% endif %}
 
+    {% if issued_early %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-xs">این پیش‌فاکتور قبل از مرحله‌ی صدور صادر شده است. مشتری همین حالا می‌تواند تایید و پرداخت کند. وقتی کار به مرحله‌ی صدور پیش‌فاکتور برسد این مرحله خودکار تمام می‌شود و اگر مشتری تایید و پرداخت کرده باشد مرحله‌ی تایید هم تمام‌شده حساب می‌شود.</span>
+    </div>
+    {% endif %}
+
     <section class="fb-card fb-pad flex flex-col gap-5">
         <div class="flex items-start justify-between gap-4 flex-wrap pb-5 border-b border-base-300">
             <div class="flex items-center gap-2">
@@ -225,18 +232,24 @@
     </form>
     {% endif %}
 
-    {% if can_issue %}
+    {% if can_issue or can_issue_early %}
     <form method="post" data-fb-once class="fb-card fb-pad flex flex-col gap-3">
         {% csrf_token %}
         <input type="hidden" name="action" value="preview">
-        <h2 class="fb-section-title">صدور پیش‌فاکتور</h2>
+        <h2 class="fb-section-title">{% if can_issue_early %}صدور زودهنگام پیش‌فاکتور{% else %}صدور پیش‌فاکتور{% endif %}</h2>
+        {% if can_issue_early %}
+        <div role="alert" class="alert alert-soft alert-info">
+            {% icon "info" "w-4 h-4 shrink-0" %}
+            <span class="text-xs">مرحله‌ی بازدید هنوز تمام نشده. با صدور، مشتری همین حالا پیش‌فاکتور را در پرتال می‌بیند و می‌تواند تایید و پرداخت کند. مرحله‌ی صدور پیش‌فاکتور وقتی نوبتش برسد خودکار تمام می‌شود.</span>
+        </div>
+        {% endif %}
         <div class="fb-field max-w-xs">
             <label class="fb-label" for="pf-deadline">مهلت تایید مشتری (روز)</label>
             <input type="text" id="pf-deadline" name="deadline_days" value="1" data-digits maxlength="2" dir="ltr" inputmode="numeric" autocomplete="off" class="input w-full font-technical">
             <span class="fb-hint">مشتری تا ساعت ۲۴ روز آخر مهلت دارد؛ مثلاً امروز با مهلت ۱ روز یعنی تا ساعت ۲۴ فردا.</span>
         </div>
         <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" checked>
+            <input type="checkbox" name="send_sms" class="checkbox checkbox-sm" {% if can_issue %}checked{% endif %}>
             <span class="text-sm">پیامک پیش‌فاکتور همراه با نام کاربری و رمز عبور برای طرف‌حساب ارسال شود</span>
         </label>
         <button type="submit" class="btn btn-primary btn-sm self-start">پیش‌نمایش پیش‌فاکتور مشتری</button>

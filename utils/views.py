@@ -73,6 +73,9 @@ def home_view(request):
         # اقدام معطل تایید مشتری (بنر بالای صفحه)
         p.action_url = p.action_label = p.action_stage_title = p.deadline = None
         waiting = next((s for s in c_stages if s.status == ProjectStage.Status.WAITING_APPROVAL), None)
+        if waiting is None:   # تایید زودهنگام: پیش‌فاکتور صادر شده ولی کار هنوز به مرحله‌ی تایید نرسیده
+            waiting = next((s for s in c_stages if s.status == ProjectStage.Status.PENDING
+                            and s.step_template.requires_payment_selection), None)
         if waiting:
             p.action_url, p.action_label = stage_approval_action(waiting, invoices_map.get(p.id))
             if p.action_url:

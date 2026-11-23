@@ -434,6 +434,9 @@ def _resume_parked(stage):
     ProjectStage.objects.filter(pk=stage.pk).update(return_to=None)
     if parked.status != ProjectStage.Status.PENDING:
         return
+    if parked.kind == StageKind.PROFORMA and _project_has_invoice(parked.project):
+        _skip_issued_proforma(parked)
+        return
     StageEvent.objects.create(stage=parked, actor=None, from_status=parked.status,
                               to_status=ProjectStage.Status.IN_PROGRESS,
                               comment=f"بعد از تکمیل «{stage.title}» به این مرحله برگشت.")
@@ -463,8 +466,10 @@ def _activate_next_stage(stage):
         return
 
     template = next_stage.step_template
+    if next_stage.kind == StageKind.PROFORMA and _project_has_invoice(stage.project):
+        _skip_issued_proforma(next_stage)
+        return
     if template.approval_by in EXTERNAL_APPROVAL_TYPES:
-        next_stage.save()
         send_stage_for_approval(next_stage)
         return
 
@@ -515,7 +520,10 @@ def stage_approval_action(stage, invoice=None):
     """
     from django.urls import reverse
     from .models import StageApproval
-    if stage.status != ProjectStage.Status.WAITING_APPROVAL:
+    if stage.status == ProjectStage.Status.PENDING:
+        if not stage.step_template.requires_payment_selection:   # فقط مرحله‌ی تایید پرداخت می‌تواند زودهنگام باز باشد
+            return None, None
+    elif stage.status != ProjectStage.Status.WAITING_APPROVAL:
         return None, None
     approval = stage.approvals.filter(decision=StageApproval.Decision.PENDING).first()
     if not approval:
@@ -527,6 +535,68 @@ def stage_approval_action(stage, invoice=None):
 
 def default_approval_party(project):
     return resolve_billing_party(project)
+
+
+def early_approval_stage(project):
+    """مرحله‌ی «تایید پیش‌فاکتور و پرداخت» (همان که requires_payment_selection دارد)؛ نبودنش = None."""
+    return project.stages.filter(step_template__requires_payment_selection=True).order_by("order").first()
+
+
+def _project_has_invoice(project):
+    from finance.models import Invoice
+    return Invoice.objects.filter(project=project).exists()
+
+
+@transaction.atomic
+def open_early_approval(project, sent_by=None):
+    """بعد از صدور زودهنگام پیش‌فاکتور: درخواست تایید برای مشتری باز می‌شود ولی خودِ مرحله شروع نمی‌شود.
+    اگر درخواست بازی هست همان برمی‌گردد."""
+    from .models import StageApproval
+    stage = early_approval_stage(project)
+    if stage is None or stage.status != ProjectStage.Status.PENDING:
+        return None
+    existing = stage.approvals.filter(decision=StageApproval.Decision.PENDING).first()
+    if existing is not None:
+        return existing
+    return StageApproval.objects.create(stage=stage, sent_to_party=default_approval_party(project), sent_by=sent_by)
+
+
+def reopen_early_approval(project, sent_by=None):
+    """بعد از برگشت پروژه از لغو: اگر هنوز همان وضعیت زودهنگام برقرار است درخواست تایید دوباره باز می‌شود."""
+    from finance.models import Invoice
+    proforma = project.stages.filter(kind=StageKind.PROFORMA).first()
+    invoice = Invoice.objects.filter(project=project).first()
+    if (proforma is None or proforma.status != ProjectStage.Status.PENDING
+            or invoice is None or invoice.status == Invoice.Status.CANCELLED):
+        return None
+    return open_early_approval(project, sent_by=sent_by)
+
+
+def _skip_issued_proforma(stage):
+    """مرحله‌ی صدور پیش‌فاکتور وقتی فاکتور از قبل هست خودکار تمام می‌شود و کار ادامه می‌یابد."""
+    now = timezone.now()
+    old = stage.status
+    stage.status = ProjectStage.Status.DONE
+    stage.started_at = stage.started_at or now
+    stage.completed_at = now
+    stage.completed_by = None
+    stage.save()
+    StageEvent.objects.create(
+        stage=stage, actor=None, from_status=old, to_status=stage.status,
+        comment="پیش‌فاکتور از قبل صادر شده بود؛ این مرحله خودکار تمام شد.")
+    _activate_next_stage(stage)
+
+
+def _approve_ahead_of_turn(stage, actor, comment):
+    """تایید مشتری قبل از رسیدن کار به این مرحله: مرحله تمام می‌شود ولی مرحله‌ی بعد فعال نمی‌شود."""
+    stage.status = ProjectStage.Status.DONE
+    stage.completed_at = timezone.now()
+    stage.completed_by = actor
+    stage.save(update_fields=["status", "completed_at", "completed_by", "updated_at"])
+    text = (comment or "").strip() or "تایید شد توسط طرف‌حساب"
+    StageEvent.objects.create(
+        stage=stage, actor=actor, from_status=ProjectStage.Status.PENDING, to_status=stage.status,
+        comment=f"{text}\n[پیش از رسیدن کار به این مرحله تایید شد]")
 
 
 @transaction.atomic
@@ -637,6 +707,7 @@ def restore_cancelled_project(project, actor, comment, *, restore_invoice=False)
     for st in ProjectStage.objects.filter(project=project, status=ProjectStage.Status.WAITING_APPROVAL):
         if not st.approvals.filter(decision=StageApproval.Decision.PENDING).exists():
             send_stage_for_approval(st, sent_by=actor)      # درخواست قبلی با لغو، لغو شده بود
+    reopen_early_approval(project, sent_by=actor)
     current = _current_stage(project)
     if current:
         StageEvent.objects.create(stage=current, actor=actor, from_status=current.status, to_status=current.status,
@@ -718,14 +789,18 @@ def cancel_project_from_stage(stage, actor, comment, *, cancel_invoice=False):
 
 @transaction.atomic
 def send_stage_for_approval(stage, party=None, sent_by=None):
-    if not party:
-        party = default_approval_party(stage.project)
     from .models import StageApproval
-    approval = StageApproval.objects.create(stage=stage, sent_to_party=party, sent_by=sent_by)
+    stage = ProjectStage.objects.select_for_update(of=("self",)).select_related("project").get(pk=stage.pk)
+    if stage.status == ProjectStage.Status.DONE:   # مشتری پیش‌تر (زودهنگام) تایید کرده است
+        return None
+    approval = stage.approvals.filter(decision=StageApproval.Decision.PENDING).first()
+    if approval is None:   # درخواست بازِ زودهنگام همان را ادامه می‌دهد؛ درخواست تکراری ساخته نمی‌شود
+        approval = StageApproval.objects.create(
+            stage=stage, sent_to_party=party or default_approval_party(stage.project), sent_by=sent_by)
     stage.status = ProjectStage.Status.WAITING_APPROVAL
     stage.save(update_fields=["status"])
 
-    user = party.users.first()
+    user = approval.sent_to_party.users.first()
     if user:
         from notifications.services import create_notification
         from notifications.models import NotificationType
@@ -759,6 +834,13 @@ def _notify_approval_rejected(stage, approval, comment):
 @transaction.atomic
 def decide_stage_approval(approval, actor, decision, comment=""):
     from .models import StageApproval
+    stage = (ProjectStage.objects.select_for_update(of=("self",)).select_related("project")
+             .get(pk=approval.stage_id))
+    early = stage.status == ProjectStage.Status.PENDING   # تایید زودهنگام: کار هنوز به این مرحله نرسیده
+    if early and decision == StageApproval.Decision.REJECTED:
+        raise ValueError("این پیش‌فاکتور قبل از رسیدن کار به مرحله‌ی تایید رد نمی‌شود؛ برای تغییر با دفتر تماس بگیرید.")
+    if early and stage.project.status != Project.Status.IN_PROGRESS:
+        raise ValueError("این پروژه در حال اجرا نیست.")
     if decision == StageApproval.Decision.REJECTED and (not comment or not comment.strip()):
         raise ValueError("برای رد یک مرحله، ذکر دلیل اجباری است.")
 
@@ -767,9 +849,12 @@ def decide_stage_approval(approval, actor, decision, comment=""):
     approval.comment = comment
     approval.save()
 
-    stage = approval.stage
     if decision == StageApproval.Decision.APPROVED:
-        advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment=comment or "تایید شد توسط کارفرما/شریک")
+        if early:
+            _approve_ahead_of_turn(stage, actor, comment)
+        else:
+            advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE,
+                          comment=comment or "تایید شد توسط کارفرما/شریک")
     elif decision == StageApproval.Decision.REJECTED:
         advance_stage(stage, actor=actor, new_status=ProjectStage.Status.REJECTED, comment=comment)
         _notify_approval_rejected(stage, approval, comment)

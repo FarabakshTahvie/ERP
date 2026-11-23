@@ -44,7 +44,7 @@ from .services import (
     client_preview_files, resolve_billing_party,
 )
 from .proforma import (
-    issue_proforma, proforma_stage, can_issue_proforma
+    issue_proforma, proforma_stage, can_issue_proforma, issue_mode, issue_proforma_early,
 )
 from .proforma_rows import proforma_summary
 from finance.deadline import deadline_info, deadline_open, extend_deadline, last_day_for, parse_deadline_days
@@ -385,7 +385,16 @@ def _render_staff_project_view(request, project, highlight_stage_id=None):
     from . import ops, shipping_slip, usage
     my_stage_ids = set()
     can_claim_any = can(user, "stages.assign")
+    invoice_exists = getattr(project, "invoice", None) is not None
+    early_waiting = set(StageApproval.objects.filter(
+        stage__project=project, stage__status=ProjectStage.Status.PENDING,
+        decision=StageApproval.Decision.PENDING).values_list("stage_id", flat=True))
     for s in stages:
+        s.early_note = ""
+        if s.kind == StageKind.PROFORMA and s.status == ProjectStage.Status.PENDING and invoice_exists:
+            s.early_note = "پیش‌فاکتور زودتر صادر شده؛ وقتی نوبت این مرحله برسد خودکار تمام می‌شود."
+        elif s.id in early_waiting:
+            s.early_note = "پیش‌فاکتور برای مشتری باز است و منتظر تایید و پرداخت اوست."
         s.install = usage.install_context(user, s)
         s.usage = usage.usage_context(user, s)
         s.slip = shipping_slip.stage_context(user, s)
@@ -469,10 +478,11 @@ def portal_stage_approval(request, approval_id):
     stage = approval.stage
     invoice = getattr(stage.project, "invoice", None)
     needs_payment = stage.step_template.requires_payment_selection
+    early = stage.status == ProjectStage.Status.PENDING and approval.decision == StageApproval.Decision.PENDING
 
     def render_page(**extra):
         ctx = {"approval": approval, "stage": stage, "invoice": invoice,
-               "needs_payment": needs_payment, "readonly": not is_owner,
+               "needs_payment": needs_payment, "readonly": not is_owner, "early": early,
                "deadline": deadline_info(invoice) if invoice else None}
         ctx.update(extra)
         return render(request, "projects/portal_stage_approval.html", ctx)
@@ -486,6 +496,9 @@ def portal_stage_approval(request, approval_id):
     if request.method == "POST":
         if not is_owner:
             raise Http404
+        if early and request.POST.get("action") == "reject":
+            messages.error(request, "این پیش‌فاکتور فقط تایید می‌شود؛ اگر با آن موافق نیستید با دفتر تماس بگیرید.")
+            return render_page()
         action = request.POST.get("action")
         comment = request.POST.get("comment", "").strip()
 
@@ -895,9 +908,9 @@ def _proforma_context(request, project):
     prices_open = project_prices_editable(project)
     editable = prices_open and project.status in EDITABLE_PROJECT_STATUSES and not cancelled
     stage = proforma_stage(project)
-    can_issue = bool(editable and invoice is None and stage
-                     and stage.status == ProjectStage.Status.IN_PROGRESS
-                     and can_issue_proforma(request.user, stage))
+    mode = issue_mode(project, request.user)
+    can_issue = mode == "normal"
+    can_issue_early = mode == "early"
     services, items = _line_choices(project)
     stock = stock_map(i.pk for i in items)
     defaults = {}
@@ -908,6 +921,8 @@ def _proforma_context(request, project):
         "project": project, "invoice": invoice, "stage": stage,
         "billing_party": resolve_billing_party(project),
         "editable": editable, "prices_open": prices_open, "can_issue": can_issue,
+        "can_issue_early": can_issue_early,
+        "issued_early": bool(invoice and stage and stage.status == ProjectStage.Status.PENDING),
         "summary": proforma_summary(project),
         "services_data": [{"id": s.id, "name": s.name, "unit": s.get_unit_display() if s.unit else "",
                            "items": defaults.get(s.id, [])} for s in services],
@@ -936,8 +951,9 @@ def proforma_editor(request, project_id):
         action = request.POST.get("action")
         try:
             if action == "preview":
-                if not _proforma_context(request, project)["can_issue"]:
-                    raise ValueError("الان نمی‌شود پیش‌فاکتور صادر کرد؛ مرحله‌ی صدور فعال نیست یا قبلاً صادر شده.")
+                mode = issue_mode(project, request.user)
+                if mode is None:
+                    raise ValueError("الان نمی‌شود پیش‌فاکتور صادر کرد؛ قبلاً صادر شده، یا مرحله‌ی صدور و قیمت‌ها در وضعیت مناسب نیستند.")
                 if not project.services.exists():
                     raise ValueError("حداقل یک خدمت باید ثبت شود.")
                 days = parse_deadline_days(request.POST.get("deadline_days"))
@@ -945,15 +961,21 @@ def proforma_editor(request, project_id):
                 preview = {"lines": lines, "total": sum((l.total for l in lines), Decimal("0")),
                            "days": days, "last_day": last_day_for(days),
                            "send_sms": request.POST.get("send_sms") == "on",
-                           "seen_total": _lines_total(project)}
+                           "seen_total": _lines_total(project), "early": mode == "early"}
             elif action == "issue":
                 if request.POST.get("seen_total") != str(_lines_total(project)):
                     messages.warning(request, "مبلغ پیش‌فاکتور بعد از پیش‌نمایش تغییر کرده یا پیش‌نمایش دیده نشده است. پیش‌نمایش را دوباره بگیرید.")
                     return redirect("projects:proforma_editor", project.id)
-                invoice, conflict = issue_proforma(
-                    project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
-                    deadline_days=request.POST.get("deadline_days"))
-                messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
+                if issue_mode(project, request.user) == "early":
+                    invoice, conflict = issue_proforma_early(
+                        project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
+                        deadline_days=request.POST.get("deadline_days"))
+                    messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد؛ مشتری همین حالا می‌تواند آن را ببیند و تایید و پرداخت کند.")
+                else:
+                    invoice, conflict = issue_proforma(
+                        project=project, actor=request.user, send_sms=request.POST.get("send_sms") == "on",
+                        deadline_days=request.POST.get("deadline_days"))
+                    messages.success(request, f"پیش‌فاکتور {invoice.number} صادر شد.")
                 if conflict:
                     messages.warning(request, "این شماره موبایل قبلاً برای یک حساب دیگر (مثلاً پرسنل) ثبت شده؛ حساب ورود خودکار ساخته نشد. از پنل ادمین دستی حساب بسازید.")
                 return redirect("projects:proforma_editor", project.id)
@@ -1012,3 +1034,35 @@ def proforma_body(request, project_id):
     if not can_edit_pricing(request.user, project):
         raise Http404
     return render(request, "projects/partials/proforma_body.html", _proforma_context(request, project))
+
+
+@login_required
+def proforma_preview_pdf(request, project_id):
+    """PDF پیش‌نمایش آنچه مشتری می‌بیند، قبل از صدور. چیزی ساخته یا ذخیره نمی‌شود."""
+    import io
+    from types import SimpleNamespace
+    import weasyprint
+    from django.utils import timezone
+    project = get_object_or_404(Project.objects.select_related("location", "partner", "owner"), pk=project_id)
+    if not can_edit_pricing(request.user, project):
+        raise Http404
+    invoice = getattr(project, "invoice", None)
+    if invoice is not None:
+        return redirect("finance:portal_invoice_pdf", invoice.uuid)
+    if not project.services.exists():
+        messages.error(request, "حداقل یک خدمت باید ثبت شود.")
+        return redirect("projects:proforma_editor", project.id)
+    lines = build_invoice_lines(project)
+    total = sum((l.total for l in lines), Decimal("0"))
+    draft = SimpleNamespace(   # عمداً Invoice(project=...) نه؛ آن کش رابطه‌ی project.invoice را آلوده می‌کند
+        number="پیش‌نمایش", document_type="proforma", project=project,
+        billed_party=resolve_billing_party(project), issue_date=timezone.localdate(),
+        address_snapshot=project.location.address_text if project.location else "",
+        total_amount=total, paid_amount=Decimal("0"), remaining_amount=total)
+    html = render_to_string("finance/invoice_pdf.html", {
+        "invoice": draft, "lines": lines, "deadline": {"state": "none"}, "is_preview": True}, request=request)
+    pdf = weasyprint.HTML(string=html, base_url=request.build_absolute_uri("/")).write_pdf()
+    response = FileResponse(io.BytesIO(pdf), as_attachment=True, content_type="application/pdf",
+                            filename=f"proforma-preview-{project.code}.pdf")
+    response["Cache-Control"] = "private, no-store"
+    return response
