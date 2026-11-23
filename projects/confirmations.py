@@ -91,7 +91,7 @@ def set_decision(*, stage_id, decision, actor):
 def shipped_services(project):
     """فقط نام و مقدار خدمات پیش‌فاکتور؛ نه کالا، نه قیمت."""
     return [{"name": ps.service.name, "qty": ps.qty,
-             "unit": ps.service.get_unit_display() if ps.service.unit else ""}
+             "unit": ps.unit_label}
             for ps in project.services.select_related("service").order_by("pk")]
 
 

@@ -69,6 +69,7 @@
       sel.addEventListener('change', notify);
       wrap.appendChild(sel);
       cell.get = function () { return sel.value; };
+      cell.set = function (v) { sel.value = v; };
     } else {
       var input = el('input', 'input input-sm w-full' + (col.type === 'text' ? '' : ' font-technical') + (col.center ? ' text-center' : ''));
       input.type = 'text';

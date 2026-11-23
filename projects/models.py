@@ -5,6 +5,9 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from core.models import TimeStampedModel
+from catalog.models import Item
+
+UNIT_LABELS = dict(Item.Unit.choices)
 
 
 class StageKind(models.TextChoices):
@@ -82,6 +85,7 @@ class ProjectService(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="services", verbose_name="پروژه")
     service = models.ForeignKey('catalog.Service', on_delete=models.PROTECT, related_name="project_lines", verbose_name="خدمت")
     qty = models.DecimalField(max_digits=12, decimal_places=2, default=1, verbose_name="مقدار")
+    unit = models.CharField(max_length=20, choices=Item.Unit.choices, blank=True, verbose_name="واحد")
     unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="قیمت واحد (تومان) - مخصوص همین پروژه")
     description = models.TextField(blank=True, verbose_name="توضیحات")
 
@@ -92,6 +96,15 @@ class ProjectService(models.Model):
     @property
     def total(self):
         return self.qty * self.unit_price
+
+    @property
+    def unit_code(self):
+        """واحد این ردیف؛ اگر ثبت نشده باشد واحد پیش‌فرض خدمت."""
+        return self.unit or self.service.unit
+
+    @property
+    def unit_label(self):
+        return UNIT_LABELS.get(self.unit_code, "")
 
     def __str__(self):
         return f"{self.service.name} × {self.qty}"
@@ -119,6 +132,7 @@ class ProjectExtraLine(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.EXTRA, verbose_name="نوع")
     title = models.CharField(max_length=200, verbose_name="شرح (روی پیش‌فاکتور)")
     qty = models.DecimalField(max_digits=12, decimal_places=2, default=1, verbose_name="مقدار")
+    unit = models.CharField(max_length=20, choices=Item.Unit.choices, blank=True, verbose_name="واحد")
     unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="مبلغ واحد (تومان)")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
 
@@ -126,6 +140,10 @@ class ProjectExtraLine(models.Model):
         verbose_name = "ردیف دستی پیش‌فاکتور"
         verbose_name_plural = "ردیف‌های دستی پیش‌فاکتور"
         ordering = ["pk"]
+
+    @property
+    def unit_label(self):
+        return UNIT_LABELS.get(self.unit, "")
 
 
 

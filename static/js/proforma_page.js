@@ -13,6 +13,7 @@
     var n = document.getElementById(id);
     try { return JSON.parse((n && n.textContent) || '[]'); } catch (e) { return []; }
   }
+  function unitOptions(emptyLabel) { return [['', emptyLabel]].concat(data('units-data')); }
   function root() { return document.getElementById('pf-body'); }
   function form(obj) {
     var fd = new FormData();
@@ -37,6 +38,7 @@
     function svcTotal(d) { return Math.round(num(d.qty) * num(d.unit_price)); }
     // با انتخاب خدمت، کالاهای پیش‌فرضش با تیک می‌آیند؛ پیش‌فرض‌های دست‌نخورده‌ی خدمت قبلی برداشته می‌شوند
     function fillDefaults(svc, row) {
+      if (svc.unit_value && row.cells.unit && row.cells.unit.set) row.cells.unit.set(svc.unit_value);
       var kids = row.children, have = {};
       kids.rows.filter(function (r) { return r.auto; }).forEach(function (r) { kids.remove(r); });
       kids.rows.forEach(function (r) { have[r.cells.item_id.get()] = true; });
@@ -50,6 +52,7 @@
         { key: 'service_id', type: 'picker', label: 'خدمت', items: data('services-data'), placeholder: 'جستجوی خدمت...',
           cls: 'flex-1 min-w-48', onSelect: fillDefaults },
         { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+        { key: 'unit', type: 'select', label: 'واحد', cls: 'w-36', options: unitOptions('انتخاب واحد') },
         { key: 'unit_price', type: 'money', label: 'قیمت واحد (تومان)', cls: 'w-44' }
       ],
       children: {
@@ -77,6 +80,7 @@
         { key: 'title', type: 'text', label: 'شرح', cls: 'flex-1 min-w-48' },
         { key: 'kind', type: 'select', label: 'نوع', cls: 'w-36', options: [['extra', 'هزینه‌ی اضافه'], ['discount', 'تخفیف']] },
         { key: 'qty', type: 'number', label: 'مقدار', cls: 'w-24' },
+        { key: 'unit', type: 'select', label: 'واحد', cls: 'w-32', options: unitOptions('بدون واحد') },
         { key: 'unit_price', type: 'money', label: 'مبلغ واحد (تومان)', cls: 'w-40' }
       ]
     };

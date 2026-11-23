@@ -8,6 +8,7 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from core.models import TimeStampedModel
+from catalog.models import Item
 from django.core.exceptions import ValidationError
 from .bank_cards import (
     BANKS, BANK_CHOICES, is_valid_card, is_valid_cvv2, is_valid_expiry, is_valid_sheba,
@@ -75,6 +76,7 @@ class InvoiceLine(models.Model):
     line_type = models.CharField(max_length=20, choices=LineType.choices, verbose_name="نوع ردیف")
     title = models.CharField(max_length=255, verbose_name="عنوان (اسنپ‌شات)")
     qty = models.DecimalField(max_digits=12, decimal_places=2, default=1, verbose_name="مقدار")
+    unit = models.CharField(max_length=20, choices=Item.Unit.choices, blank=True, verbose_name="واحد (کپی در لحظه‌ی صدور)")
     unit_price = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="قیمت واحد (تومان، برای تخفیف منفی وارد شود)")
     cost_snapshot = models.DecimalField(max_digits=18, decimal_places=0, null=True, blank=True, verbose_name="بهای تمام‌شده (اسنپ‌شات برای گزارش سود)")
     total = models.DecimalField(max_digits=18, decimal_places=0, verbose_name="جمع ردیف (تومان)")

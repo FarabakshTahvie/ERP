@@ -13,15 +13,19 @@ MATERIAL_COLS = (
     Col("item_id", "کالا", "picker"),
     Col("on", "در این پروژه", "checkbox"),   # بی‌تیک = در این پروژه نیست و ذخیره نمی‌شود
 )
+UNIT_CHOICES = tuple(Item.Unit.values)
+
 SERVICE_COLS = (
     Col("service_id", "خدمت", "picker"),
     Col("qty", "مقدار خدمت", "number", positive=True),
+    Col("unit", "واحد", "select", required=False, choices=UNIT_CHOICES),
     Col("unit_price", "قیمت خود خدمت (تومان)", "money"),
 )
 EXTRA_COLS = (
     Col("title", "شرح", "text", max_len=200),
     Col("kind", "نوع", "select", choices=("extra", "discount")),
     Col("qty", "مقدار", "number", positive=True),
+    Col("unit", "واحد", "select", required=False, choices=UNIT_CHOICES),
     Col("unit_price", "مبلغ واحد (تومان)", "money", positive=True),
 )
 
@@ -119,6 +123,7 @@ def _sync_extra_rows(project, rows, actor):
         if qty <= 0:
             raise ValueError("مقدار ردیف اضافه خیلی کوچک است.")
         line.kind, line.title, line.qty, line.unit_price = row["kind"], row["title"], qty, row["unit_price"]
+        line.unit = row.get("unit") or ""
         line.save()
         keep.add(line.pk)
     project.extra_lines.exclude(pk__in=keep).delete()
@@ -139,6 +144,7 @@ def _sync_service_rows(project, rows):
         if qty <= 0:
             raise ValueError("مقدار خدمت خیلی کوچک است.")
         line.service_id, line.qty, line.unit_price = row["service_id"], qty, row["unit_price"]
+        line.unit = row.get("unit") or ""
         line.save()
         keep.add(line.pk)
         _sync_materials(line, row["materials"])
