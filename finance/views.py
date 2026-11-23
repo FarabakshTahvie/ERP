@@ -63,7 +63,8 @@ def invoice_pdf(request, invoice_uuid):
     if not allowed:
         raise Http404
 
-    html = render_to_string("finance/invoice_pdf.html", {"invoice": invoice, "deadline": deadline_info(invoice)}, request=request)
+    html = render_to_string("finance/invoice_pdf.html", {
+        "invoice": invoice, "lines": list(invoice.lines.all()), "deadline": deadline_info(invoice)}, request=request)
     pdf_bytes = weasyprint.HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf()
     return FileResponse(io.BytesIO(pdf_bytes), as_attachment=False,
                         filename=f"{invoice.number}.pdf", content_type="application/pdf")

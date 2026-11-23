@@ -3,10 +3,10 @@ from django.db import transaction
 from accounts.models import User
 from catalog.models import Service, Item
 from utils.line_editor import Col, parse_rows
-from .models import ProjectService, ProjectServiceMaterial, ProjectExtraLine, ProjectStage, StageKind
+from .models import Project, ProjectService, ProjectServiceMaterial, ProjectExtraLine, ProjectStage, StageKind
 from .services import (
     can_edit_project, can_edit_pricing, project_prices_editable, parse_fee, advance_stage,
-    NOT_SENT, EDITABLE_PROJECT_STATUSES,
+    NOT_SENT, EDITABLE_PROJECT_STATUSES, open_early_approval, early_approval_stage,
 )
 
 MATERIAL_COLS = (
@@ -53,6 +53,33 @@ def can_issue_proforma(user, stage):
     from .services import can_edit_pricing
     return can_edit_pricing(user, stage.project) and (
         user.is_superuser or user.role == User.Role.ADMIN or stage.assigned_to_id in (None, user.id))
+
+
+def issue_mode(project, user):
+    """None | "normal" | "early". تنها جای تصمیم‌گیری برای صدور:
+    normal = مرحله‌ی صدور در حال انجام است؛ early = هنوز نرسیده (در انتظار) و مرحله‌ی تایید هم در انتظار است."""
+    if getattr(project, "invoice", None) is not None:
+        return None
+    stage = proforma_stage(project)
+    if stage is None or project.status not in EDITABLE_PROJECT_STATUSES or not project_prices_editable(project):
+        return None
+    if stage.status == ProjectStage.Status.IN_PROGRESS:
+        return "normal" if can_issue_proforma(user, stage) else None
+    if stage.status == ProjectStage.Status.PENDING and project.status == Project.Status.IN_PROGRESS \
+            and can_edit_pricing(user, project):
+        approval_stage = early_approval_stage(project)
+        if approval_stage is not None and approval_stage.status == ProjectStage.Status.PENDING:
+            return "early"
+    return None
+
+
+def _assert_lines_ready(project):
+    lines = list(project.services.select_related("service").prefetch_related("materials"))
+    if not lines:
+        raise ValueError("حداقل یک خدمت باید ثبت شود.")
+    zero = [l.service.name for l in lines if service_line_total(l) <= 0]
+    if zero:
+        raise ValueError("جمع قیمت این خدمت‌ها صفر است: " + "، ".join(zero))
 
 
 def check_material_items(project, rows):
@@ -178,12 +205,7 @@ def issue_proforma(*, project, actor, send_sms=False, deadline_days=None):
         raise ValueError("مرحله‌ی صدور پیش‌فاکتور فعال نیست.")
     if not can_issue_proforma(actor, stage):
         raise ValueError("فقط مسئول این مرحله می‌تواند پیش‌فاکتور صادر کند.")
-    lines = list(project.services.select_related("service").prefetch_related("materials"))
-    if not lines:
-        raise ValueError("حداقل یک خدمت باید ثبت شود.")
-    zero = [l.service.name for l in lines if service_line_total(l) <= 0]
-    if zero:
-        raise ValueError("جمع قیمت این خدمت‌ها صفر است: " + "، ".join(zero))
+    _assert_lines_ready(project)
 
     invoice = generate_invoice_for_project(project)
     if invoice.total_amount <= 0:
@@ -194,6 +216,36 @@ def issue_proforma(*, project, actor, send_sms=False, deadline_days=None):
     invoice.save(update_fields=["status", "valid_until"])
     user, raw_password = ensure_billed_party_account(invoice)   # قبل از پیشروی؛ مرحله‌ی بعد به این حساب اطلاع می‌دهد
     advance_stage(stage, actor=actor, new_status=ProjectStage.Status.DONE, comment="پیش‌فاکتور صادر شد.")
+    if send_sms and user:
+        notify_invoice_issued(invoice, user, raw_password)
+    return invoice, user is None
+
+
+@transaction.atomic
+def issue_proforma_early(*, project, actor, send_sms=False, deadline_days=None):
+    """صدور پیش‌فاکتور قبل از رسیدن کار به مرحله‌ی صدور. مرحله‌ی صدور را تمام نمی‌کند؛ درخواست تایید برای مشتری باز می‌شود.
+    خروجی: (invoice, account_conflict)"""
+    from finance.accounting import log_event
+    from finance.deadline import last_day_for, parse_deadline_days
+    from finance.models import AccountingEvent, Invoice
+    from finance.services import ensure_billed_party_account, generate_invoice_for_project, notify_invoice_issued
+    from utils.jalali import jalali_str
+    days = parse_deadline_days(deadline_days)   # اول از همه؛ مهلت نامعتبر هیچ‌چیز نمی‌سازد
+    project = Project.objects.select_for_update(of=("self",)).get(pk=project.pk)
+    if issue_mode(project, actor) != "early":
+        raise ValueError("الان نمی‌شود پیش‌فاکتور را زودتر صادر کرد؛ قبلاً صادر شده، مرحله‌ی صدور شروع شده، یا قیمت‌ها قفل‌اند.")
+    _assert_lines_ready(project)
+    invoice = generate_invoice_for_project(project)
+    if invoice.total_amount <= 0:
+        raise ValueError("جمع پیش‌فاکتور باید بیشتر از صفر باشد.")
+    invoice.status = Invoice.Status.SENT
+    invoice.valid_until = last_day_for(days)
+    invoice.save(update_fields=["status", "valid_until"])
+    user, raw_password = ensure_billed_party_account(invoice)
+    open_early_approval(project, sent_by=actor)
+    log_event(kind=AccountingEvent.Kind.INVOICE_LINE, project=project, actor=actor, amount=invoice.total_amount,
+              text=(f"پیش‌فاکتور {invoice.number} زودتر از مرحله‌ی صدور صادر شد؛ "
+                    f"مهلت تایید تا {jalali_str(invoice.valid_until, fmt='%Y/%m/%d')}"))
     if send_sms and user:
         notify_invoice_issued(invoice, user, raw_password)
     return invoice, user is None

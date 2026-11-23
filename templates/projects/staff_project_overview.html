@@ -106,6 +106,7 @@
                     </div>
                     {% if s.return_title %}<div class="text-xs text-info mt-0.5">بعد از تکمیل به «{{ s.return_title }}» برمی‌گردد.</div>{% endif %}
                     {% if s.parked %}<div class="text-xs fb-muted mt-0.5">متوقف تا برگشت</div>{% endif %}
+                    {% if s.early_note %}<div class="text-xs text-info mt-0.5">{{ s.early_note }}</div>{% endif %}
                     <div class="text-xs fb-muted mt-0.5">
                         {% if s.assigned_to %}
                             مسئول: {{ s.assigned_to|person_name:"—" }}

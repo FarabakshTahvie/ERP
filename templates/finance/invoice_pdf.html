@@ -137,6 +137,8 @@
             color: #6b7280;
             text-align: center;
         }
+        .preview-box { border: 1.5px solid #0d9488; background: #f0fdfa; color: #0f766e; border-radius: 6px;
+            padding: 8px 12px; margin-bottom: 16px; font-size: 10pt; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -155,6 +157,10 @@
     <div class="expired-box">
         این پیش‌فاکتور منقضی شده است؛ مهلت تایید آن تا {{ deadline.last_day|to_jalali:"%Y/%m/%d" }} بود. قیمت‌ها ممکن است تغییر کرده باشد. برای تایید با دفتر تماس بگیرید: <span dir="ltr">{{ deadline.phone }}</span>
     </div>
+    {% endif %}
+
+    {% if is_preview %}
+    <div class="preview-box">این فایل فقط پیش‌نمایش است و هنوز پیش‌فاکتور رسمی صادر نشده؛ شماره و مهلت تایید هنگام صدور ثبت می‌شود.</div>
     {% endif %}
 
     <table class="meta-table">
@@ -187,7 +193,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for line in invoice.lines.all %}
+            {% for line in lines %}
                 <tr>
                     <td>{{ forloop.counter|fa_digits }}</td>
                     <td class="title-col">{{ line.title }}</td>

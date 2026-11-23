@@ -9,6 +9,13 @@
         <p class="fb-page-sub">{{ stage.project.name }}</p>
     </div>
 
+    {% if early and not already_decided and not readonly %}
+    <div role="alert" class="alert alert-soft alert-info">
+        {% icon "info" "w-4 h-4 shrink-0" %}
+        <span class="text-sm">همین حالا می‌توانید پیش‌فاکتور را تایید و پرداخت کنید تا کار پروژه بدون معطلی جلو برود. اگر با پیش‌فاکتور موافق نیستید با دفتر تماس بگیرید: <a href="tel:{{ CONTACT.office_phone.tel }}" dir="ltr" class="font-technical link link-primary">{{ CONTACT.office_phone.display|fa_digits }}</a></span>
+    </div>
+    {% endif %}
+
     {% if already_decided %}
     {% if approval.decision == 'cancelled' %}
     <div role="alert" class="alert alert-soft alert-neutral">
@@ -44,7 +51,7 @@
         <div role="alert" class="alert alert-soft alert-error">
             {% icon "alert-circle" "w-4 h-4 shrink-0" %}
             <div class="text-sm flex flex-col gap-2">
-                <span>مهلت تایید تمام شده است؛ فقط می‌توانید پاسخ را رد کنید یا با دفتر تماس بگیرید.</span>
+                <span>{% if early %}مهلت تایید تمام شده است؛ برای ادامه با دفتر تماس بگیرید.{% else %}مهلت تایید تمام شده است؛ فقط می‌توانید پاسخ را رد کنید یا با دفتر تماس بگیرید.{% endif %}</span>
                 <a href="tel:{{ deadline.phone_tel }}" class="btn btn-soft btn-sm self-start">{% icon "phone" "w-4 h-4" %} تماس با دفتر: <span dir="ltr" class="font-technical">{{ deadline.phone }}</span></a>
             </div>
         </div>
@@ -63,14 +70,16 @@
             {% include "finance/partials/payment_fields.html" with hide_note_field=True %}
         {% endif %}
 
+        {% if not early or deadline.state != 'expired' %}
         <div class="fb-field">
-            <label id="approval-comment-label" class="fb-label" for="approval-comment-input">توضیح (برای رد اجباری است)</label>
+            <label id="approval-comment-label" class="fb-label" for="approval-comment-input">{% if early %}توضیح (در صورت نیاز){% else %}توضیح (برای رد اجباری است){% endif %}</label>
             <textarea name="comment" id="approval-comment-input" class="textarea w-full" rows="2"></textarea>
         </div>
+        {% endif %}
 
         <div class="flex gap-2">
             {% if deadline.state != 'expired' %}<button type="submit" name="action" value="approve" class="btn btn-primary flex-1">تایید</button>{% endif %}
-            <button type="submit" name="action" value="reject" formnovalidate class="btn btn-soft btn-error flex-1">رد</button>
+            {% if not early %}<button type="submit" name="action" value="reject" formnovalidate class="btn btn-soft btn-error flex-1">رد</button>{% endif %}
         </div>
     </form>
     {% if GATEWAY_ENABLED and needs_payment and invoice and invoice.status != 'cancelled' and invoice.remaining_amount > 0 and deadline.state != 'expired' %}
@@ -79,6 +88,7 @@
     {% endif %}
 </div>
 <script>
+window.FB_APPROVAL_EARLY = {% if early %}true{% else %}false{% endif %};
 function fbSyncApprovalCommentRequirement(method) {
     var input = document.getElementById('approval-comment-input');
     var label = document.getElementById('approval-comment-label');
@@ -88,7 +98,7 @@ function fbSyncApprovalCommentRequirement(method) {
         if (label) label.textContent = 'شرایط تسویه‌ی اعتباری (اجباری) — مثلاً چه زمانی تسویه می‌شود';
     } else {
         input.required = false;
-        if (label) label.textContent = 'توضیح (برای رد اجباری است)';
+        if (label) label.textContent = window.FB_APPROVAL_EARLY ? 'توضیح (در صورت نیاز)' : 'توضیح (برای رد اجباری است)';
     }
 }
 </script>
