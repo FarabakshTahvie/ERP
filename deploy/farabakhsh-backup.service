@@ -1,0 +1,16 @@
+[Unit]
+Description=Farabakhsh database backup (server 14 days + Arvan cloud 2 days)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/farabakhsh/app
+ExecStartPre=+/usr/bin/install -d -o www-data -g www-data -m 700 /var/backups/farabakhsh
+ExecStart=/var/www/farabakhsh/venv/bin/python manage.py db_backup
+Nice=10
+TimeoutStartSec=6h
+StandardOutput=journal
+StandardError=journal

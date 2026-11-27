@@ -52,6 +52,8 @@ systemctl restart farabakhsh
 echo "=== Installing and restarting Celery services ==="
 install -m 644 "$APP_DIR/deploy/farabakhsh-celery.service" /etc/systemd/system/farabakhsh-celery.service
 install -m 644 "$APP_DIR/deploy/farabakhsh-celerybeat.service" /etc/systemd/system/farabakhsh-celerybeat.service
+install -m 644 "$APP_DIR/deploy/farabakhsh-backup.service" /etc/systemd/system/farabakhsh-backup.service
+install -m 644 "$APP_DIR/deploy/farabakhsh-backup.timer" /etc/systemd/system/farabakhsh-backup.timer
 systemctl daemon-reload
 systemctl enable farabakhsh-celery farabakhsh-celerybeat >/dev/null 2>&1
 systemctl restart farabakhsh-celery farabakhsh-celerybeat

@@ -153,6 +153,26 @@ core → accounts → catalog → inventory → projects → finance → notific
   ```
 - **وابستگی:** اعلان‌های سیستمی به Celery وابسته نیستند؛ فقط ارسال پیام همگانی و کد ورود (OTP) از طریق Celery (با fallback به ارسال مستقیم) مدیریت می‌شوند. همچنین Celery beat روزانه ساعت ۹ صبح پیامک مهلت‌گذشته پیش‌فاکتورها را به مشتری و پوش «پیش‌فاکتور معلق شد» را به مدیر و حسابدار می‌فرستد؛ ساعت ۹:۰۵ هم برای چک‌های نزدیک به سررسید پوش می‌رود (یک‌بار برای هر چک).
 
+## بکاپ دیتابیس
+- **زمان‌بندی:** هر شب ساعت ۰۲:۳۰ (به ساعت سرور) توسط `farabakhsh-backup.timer` اجرا می‌شود؛ فقط دیتابیس را بکاپ می‌گیرد (پوشه‌ی `media` و `.env` شامل نمی‌شوند).
+- **نگه‌داری:** فایل‌های فشرده روی سرور در `/var/backups/farabakhsh/db-YYYYMMDD-HHMM.dump` برای ۱۴ روز و روی باکت جدای آروان برای ۲ روز آخر نگه‌داری می‌شوند.
+- **دستورهای مدیریتی:**
+  ```bash
+  python manage.py db_backup                                  # بکاپ کامل (سرور + ابر)
+  python manage.py db_backup --local-only                     # فقط روی سرور
+  python manage.py db_backup --check                          # تست اتصال به باکت بکاپ
+  python manage.py db_backup --list                           # فهرست بکاپ‌های سرور و ابر
+  python manage.py db_backup --download latest --to /مسیر/فایل.dump
+  ```
+- **بازیابی:**
+  ```bash
+  pg_restore --no-owner --no-privileges -d <دیتابیس> <فایل>
+  ```
+- **فعال‌سازی روی سرور:** بعد از اولین deploy و تست دستی، timer با دستور زیر روشن می‌شود:
+  ```bash
+  systemctl enable --now farabakhsh-backup.timer
+  ```
+
 ## پیامک و پوش
 پیامک و پوش فعال است. سیاست هر نوع پیام با دستور `python manage.py setup_notification_policies` ساخته و از پنل مدیریت قابل تغییر است. وضعیت پیام‌ها در داشبورد مدیر ← اطلاع‌رسانی‌ها.
 

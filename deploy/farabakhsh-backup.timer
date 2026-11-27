@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Farabakhsh database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+Unit=farabakhsh-backup.service
+
+[Install]
+WantedBy=timers.target

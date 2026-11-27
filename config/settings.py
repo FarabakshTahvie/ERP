@@ -389,6 +389,19 @@ ARVAN_FILES_REGION = env('ARVAN_FILES_REGION', default='').strip()
 if 'test' in sys.argv:   # تست‌ها هرگز به ابر واقعی وصل نشوند
     ARVAN_FILES_ACCESS_KEY = ARVAN_FILES_SECRET_KEY = ARVAN_FILES_BUCKET = ''
 
+# بکاپ دیتابیس: dump فشرده روی سرور + نسخه‌ی ابری روی باکت جدای آروان (فقط utils/db_backup.py می‌خواند).
+# تنظیم آدرس‌دهی و امضا همان ARVAN_FILES_* است (همان سرویس آروان).
+BACKUP_DIR = Path(env('BACKUP_DIR', default='/var/backups/farabakhsh'))
+BACKUP_LOCAL_KEEP_DAYS = env.int('BACKUP_LOCAL_KEEP_DAYS', default=14)
+BACKUP_CLOUD_KEEP_DAYS = env.int('BACKUP_CLOUD_KEEP_DAYS', default=2)
+BACKUP_CLOUD_ACCESS_KEY = env('BACKUP_CLOUD_ACCESS_KEY_ID', default='').strip()
+BACKUP_CLOUD_SECRET_KEY = env('BACKUP_CLOUD_SECRET_ACCESS_KEY', default='').strip()
+BACKUP_CLOUD_BUCKET = env('BACKUP_CLOUD_BUCKET_NAME', default='').strip()
+BACKUP_CLOUD_ENDPOINT = env('BACKUP_CLOUD_ENDPOINT_URL',
+                            default='https://s3.ir-thr-at1.arvanstorage.ir').strip().rstrip('/')
+if 'test' in sys.argv:   # تست‌ها هرگز به ابر واقعی وصل نشوند
+    BACKUP_CLOUD_ACCESS_KEY = BACKUP_CLOUD_SECRET_KEY = BACKUP_CLOUD_BUCKET = ''
+
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'
 
